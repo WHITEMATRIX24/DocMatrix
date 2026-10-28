@@ -45,7 +45,10 @@ export default function Login({ onLoginSuccess }) {
       if (document.hidden || reducedMotion.matches) {
         video.pause()
       } else {
-        video.play().catch(() => {})
+        const playPromise = video.play()
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.catch(() => {})
+        }
       }
     }
 
