@@ -236,6 +236,7 @@ export default function StaffPortal({
   const groupedAreas = useMemo(() => {
     const map = {}
     ALL_LAUNCH_FEATURES.forEach((f) => {
+      if (f.id === 'appt.detail') return
       if (!map[f.area]) map[f.area] = []
       map[f.area].push(f)
     })
@@ -821,7 +822,7 @@ export default function StaffPortal({
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         {visibleFeatures.map((feat) => {
-                          const isCurrent = activeFeature?.id === feat.id
+                          const isCurrent = activeFeature?.id === feat.id || (activeFeature?.id === 'appt.detail' && feat.id === 'appt.details-list')
                           return (
                             <button
                               key={feat.id}
