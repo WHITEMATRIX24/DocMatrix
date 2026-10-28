@@ -131,7 +131,7 @@ export function AreaPage({ areaKey }) {
               padding: '6px 13px',
               borderRadius: '999px',
               border: '1px solid var(--line, #e9e9e5)',
-              background: '#ffffff',
+              background: 'var(--surface)',
               fontSize: '12px',
               fontWeight: '700',
               color: 'var(--charcoal-dark, #111a1a)',
@@ -179,7 +179,7 @@ export function AreaPage({ areaKey }) {
       <main style={{ flex: 1, padding: '32px clamp(16px, 4vw, 40px)', maxWidth: '1120px', margin: '0 auto', width: '100%' }}>
         {/* Area Header Card */}
         <div style={{
-          background: 'linear-gradient(135deg, rgba(0, 136, 145, 0.08) 0%, rgba(221, 244, 239, 0.45) 55%, #ffffff 100%)',
+          background: 'linear-gradient(135deg, var(--teal-tint-strong, rgba(0, 136, 145, 0.08)) 0%, var(--teal-tint) 55%, var(--surface) 100%)',
           borderRadius: '20px',
           border: '1px solid rgba(0, 136, 145, 0.22)',
           padding: '28px clamp(20px, 3vw, 36px)',
@@ -206,7 +206,7 @@ export function AreaPage({ areaKey }) {
                   <span style={{ fontSize: '10.5px', fontWeight: '800', color: 'var(--teal-primary, #008891)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                     CLINICAL PRACTICE MODULE
                   </span>
-                  <span style={{ fontSize: '10px', fontWeight: '800', background: '#ecfdf5', color: '#047857', padding: '1px 6px', borderRadius: '4px' }}>
+                  <span style={{ fontSize: '10px', fontWeight: '800', background: 'var(--success-tint)', color: '#047857', padding: '1px 6px', borderRadius: '4px' }}>
                     ABDM M1
                   </span>
                 </div>
@@ -221,7 +221,7 @@ export function AreaPage({ areaKey }) {
                 fontSize: '12px',
                 fontWeight: '750',
                 color: 'var(--charcoal-dark, #111a1a)',
-                background: '#ffffff',
+                background: 'var(--surface)',
                 border: '1px solid var(--line, #e9e9e5)',
                 padding: '5px 12px',
                 borderRadius: '999px'
@@ -253,7 +253,7 @@ export function AreaPage({ areaKey }) {
                     fontWeight: '700',
                     padding: '4px 11px',
                     borderRadius: '999px',
-                    background: '#ffffff',
+                    background: 'var(--surface)',
                     color: 'var(--charcoal-dark, #111a1a)',
                     border: '1px solid var(--line, #e9e9e5)',
                     textDecoration: 'none',
@@ -302,7 +302,7 @@ export function AreaPage({ areaKey }) {
                 borderRadius: '999px',
                 border: '1px solid var(--line, #e9e9e5)',
                 fontSize: '12px',
-                background: '#ffffff',
+                background: 'var(--surface)',
                 outline: 'none'
               }}
             />
@@ -384,7 +384,7 @@ export function AreaPage({ areaKey }) {
         {accountsFeatures.length > 0 && (
           <div style={{ marginTop: '40px' }}>
             <div style={{
-              background: 'linear-gradient(135deg, rgba(0, 136, 145, 0.06) 0%, #ffffff 100%)',
+              background: 'linear-gradient(135deg, rgba(0, 136, 145, 0.06) 0%, var(--surface) 100%)',
               border: '1px solid rgba(0, 136, 145, 0.2)',
               borderRadius: '16px',
               padding: '18px 22px',

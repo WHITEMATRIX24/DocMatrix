@@ -18,7 +18,7 @@ export const StatCard: React.FC<StatCardProps> = ({
   return (
     <div
       style={{
-        background: '#ffffff',
+        background: 'var(--surface)',
         border: '1px solid var(--line, #e9e9e5)',
         borderRadius: '14px',
         padding: '16px 20px',

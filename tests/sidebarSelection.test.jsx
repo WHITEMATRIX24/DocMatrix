@@ -119,11 +119,8 @@ describe('Global Sidebar Selection & Navigation Engine', () => {
         </MemoryRouter>
       )
 
-      // Find all sidebar buttons that have active background styling
-      const activeButtons = screen.getAllByRole('button').filter((btn) => {
-        const bg = btn.style.background || ''
-        return bg.includes('rgba(0, 136, 145, 0.1)')
-      })
+      // Find all sidebar submodule buttons marked as the current page
+      const activeButtons = screen.getAllByRole('button').filter((btn) => btn.dataset.testid?.startsWith('sidebar-link-') && btn.getAttribute('aria-current') === 'page')
 
       // Exactly ONE button must be active
       expect(activeButtons.length, `Expected exactly 1 active button for route ${testCase.url}`).toBe(1)
@@ -144,30 +141,30 @@ describe('Global Sidebar Selection & Navigation Engine', () => {
 
     // 1. Dashboard: no submodule button active
     const apptBtn = screen.getByTestId('sidebar-link-appt.new')
-    expect(apptBtn.style.background).not.toContain('rgba(0, 136, 145, 0.1)')
+    expect(apptBtn).not.toHaveAttribute('aria-current', 'page')
 
     // 2. Click Appointments -> Book appointment
     fireEvent.click(apptBtn)
     await waitFor(() => {
-      expect(apptBtn.style.background).toContain('rgba(0, 136, 145, 0.1)')
+      expect(apptBtn).toHaveAttribute('aria-current', 'page')
     })
 
     // 3. Click Patients -> Patients list
     const patListBtn = screen.getByTestId('sidebar-link-pat.list')
     fireEvent.click(patListBtn)
     await waitFor(() => {
-      expect(patListBtn.style.background).toContain('rgba(0, 136, 145, 0.1)')
+      expect(patListBtn).toHaveAttribute('aria-current', 'page')
       // Previous button must immediately lose active state
-      expect(apptBtn.style.background).not.toContain('rgba(0, 136, 145, 0.1)')
+      expect(apptBtn).not.toHaveAttribute('aria-current', 'page')
     })
 
     // 4. Click Billing -> Invoices
     const billingBtn = screen.getByTestId('sidebar-link-bill.invoices')
     fireEvent.click(billingBtn)
     await waitFor(() => {
-      expect(billingBtn.style.background).toContain('rgba(0, 136, 145, 0.1)')
-      expect(patListBtn.style.background).not.toContain('rgba(0, 136, 145, 0.1)')
-      expect(apptBtn.style.background).not.toContain('rgba(0, 136, 145, 0.1)')
+      expect(billingBtn).toHaveAttribute('aria-current', 'page')
+      expect(patListBtn).not.toHaveAttribute('aria-current', 'page')
+      expect(apptBtn).not.toHaveAttribute('aria-current', 'page')
     })
   })
 })
