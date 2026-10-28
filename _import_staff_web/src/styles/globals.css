@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Minimal Clinical Design Tokens from DocMatrix Website */
+    --ink: #0b0b0b;
+    --paper: #fbfbf9;
+    --white: #ffffff;
+    --surface-alt: #f4f6f5;
+    --surface-soft: #edf4f2;
+    --line: #e9e9e5;
+
+    --teal-primary: #008891;
+    --teal-glow: #00c9d8;
+    --teal-hover: #00757d;
+    --teal-active: #005f66;
+    --teal-subtle: rgba(0, 136, 145, 0.08);
+    --teal-border: rgba(0, 136, 145, 0.2);
+
+    --mint-accent: #ddf4ef;
+    --mint-soft: #eef9f6;
+
+    --charcoal-dark: #111a1a;
+    --charcoal-title: #1a2626;
+    --charcoal-body: #475554;
+    --charcoal-muted: #6e7e7d;
+
+    /* Tailwind HSL Tokens Mapped to Brand Palette */
+    --background: 60 14% 98%; /* #fbfbf9 --paper */
+    --foreground: 0 0% 4%; /* #0b0b0b --ink */
+
+    --card: 0 0% 100%;
+    --card-foreground: 180 19% 13%; /* #1a2626 --charcoal-title */
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 180 19% 13%;
+
+    --primary: 184.6 100% 28.4%; /* #008891 --teal-primary */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 166 48% 91%; /* #ddf4ef --mint-accent */
+    --secondary-foreground: 184.6 100% 24.5%; /* #00757d --teal-hover */
+
+    --muted: 150 7% 96%; /* #f4f6f5 --surface-alt */
+    --muted-foreground: 176 7% 46%; /* #6e7e7d --charcoal-muted */
+
+    --accent: 163 17% 94%; /* #edf4f2 --surface-soft */
+    --accent-foreground: 184.6 100% 28.4%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 60 6% 90.6%; /* #e9e9e5 --line */
+    --input: 60 6% 90.6%; /* #e9e9e5 --line */
+    --ring: 184.6 100% 28.4%;
+
+    --radius: 0.625rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Instrument Sans", "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: #fbfbf9;
+  }
+}
+
+/* Authentic DocMatrix Medical Cross Mark */
+.medical-cross-mark {
+  position: relative;
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+}
+
+.medical-cross-mark i {
+  position: absolute;
+  top: 10px;
+  left: 1px;
+  width: 20px;
+  height: 2.2px;
+  border-radius: 3px;
+  background: var(--teal-primary, #008891);
+  transform-origin: 50% 50%;
+}
+
+.medical-cross-mark i:nth-child(2) { transform: rotate(45deg); }
+.medical-cross-mark i:nth-child(3) { transform: rotate(90deg); }
+.medical-cross-mark i:nth-child(4) { transform: rotate(135deg); }
+
+.medical-cross-mark.mark-light i {
+  background: var(--teal-glow, #00c9d8);
+}
