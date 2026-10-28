@@ -10,6 +10,7 @@ type AppointmentTab = {
 }
 
 const tabs: AppointmentTab[] = [
+  { id: 'appt.calendar', label: 'Calendar', path: '/appointments/calendar', icon: CalendarDays },
   { id: 'appt.new', label: 'Book appointment', path: '/appointments/new', icon: Plus },
   { id: 'appt.details-list', label: 'Appointment details', path: '/appointments/details', icon: CalendarDays },
   { id: 'appt.enquiries', label: 'Missed enquiries', path: '/appointments/missed-enquiries', icon: Inbox },

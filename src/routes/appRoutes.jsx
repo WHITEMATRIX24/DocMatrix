@@ -4,6 +4,7 @@ import { FEATURE_REGISTRY } from '@/features/registry'
 import { LAUNCH_PAGE_MAP } from '@/features/pageMap'
 import AreaPage from '@/pages/areas/AreaPage'
 import AppointmentsWorkspace from '@/pages/appointments/AppointmentsWorkspace'
+import CalendarPage from '@/pages/appointments/CalendarPage'
 import NotBuiltYetPage from '@/pages/common/NotBuiltYetPage'
 import NotFoundPage from '@/pages/error/NotFoundPage'
 import ForbiddenPage from '@/pages/error/ForbiddenPage'
@@ -86,10 +87,10 @@ export function AppRoutes({
         {/* 5. Protected Area Hub Pages (Decision D4: Accounts and Settings role-limited) */}
         <Route
           path="/appointments"
-          element={<Navigate to="/appointments/new" replace />}
+          element={<CalendarPage />}
         />
-        <Route path="/appointments/queue" element={<Navigate to="/appointments/new" replace />} />
-        <Route path="/appointments/calendar" element={<Navigate to="/appointments/new" replace />} />
+        <Route path="/appointments/queue" element={<CalendarPage />} />
+        <Route path="/appointments/calendar" element={<CalendarPage />} />
         <Route
           path="/patients"
           element={<AreaPage areaKey="patients" />}

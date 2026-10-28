@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { FEATURE_REGISTRY } from '@/features/registry'
 import { getActiveFeatureForPath, resolveFeatureRoute } from '@/features/navigationMatcher'
 import {
+  Building2,
   Calendar, Users, Stethoscope, Receipt, BookOpen, Package, MessageSquare, Globe,
   BarChart3, Settings, LayoutDashboard, LogOut, User, Menu, X, ChevronRight, ChevronDown,
   Sparkles, CheckCircle2, ArrowRight, ArrowLeft, Clock,
@@ -240,11 +241,51 @@ export default function StaffPortal({
       if (!map[f.area]) map[f.area] = []
       map[f.area].push(f)
     })
+
+    if (map['Appointments']) {
+      const existing = map['Appointments']
+      const hasCalendar = existing.some((f) => f.id === 'appt.calendar')
+      if (!hasCalendar) {
+        map['Appointments'] = [
+          {
+            id: 'appt.calendar',
+            name: 'Calendar',
+            description: 'Interactive doctor & chair schedule grid',
+            area: 'Appointments',
+            route: '/appointments/calendar'
+          },
+          {
+            id: 'appt.queue',
+            name: 'Live queue',
+            description: 'Live patient queue for active sessions',
+            area: 'Appointments',
+            route: '/appointments/queue'
+          },
+          ...existing
+        ]
+      }
+    }
     return map
   }, [])
 
   // Check role permission for active feature (Single Source of Truth)
   const activeFeature = useMemo(() => {
+    if (location.pathname === '/appointments/calendar' || location.pathname === '/appointments' || activeRoute === '/appointments/calendar' || activeRoute === '/appointments') {
+      return {
+        id: 'appt.calendar',
+        name: 'Calendar',
+        area: 'Appointments',
+        route: '/appointments/calendar'
+      }
+    }
+    if (location.pathname === '/appointments/queue' || activeRoute === '/appointments/queue') {
+      return {
+        id: 'appt.queue',
+        name: 'Live queue',
+        area: 'Appointments',
+        route: '/appointments/queue'
+      }
+    }
     return getActiveFeatureForPath(location.pathname || activeRoute, ALL_LAUNCH_FEATURES)
   }, [activeRoute, location.pathname])
 
@@ -379,7 +420,7 @@ export default function StaffPortal({
             <Search size={14} style={{ position: 'absolute', left: '10px', top: '9px', color: 'var(--charcoal-muted, #6e7e7d)' }} />
             <input
               type="text"
-              placeholder="Quick search patients, MRN..."
+              placeholder="Search patients, appointments..."
               value={headerSearch}
               onChange={(e) => setHeaderSearch(e.target.value)}
               onKeyDown={(e) => {
@@ -425,6 +466,13 @@ export default function StaffPortal({
             <span className="pulse-indicator-emerald" />
             <span>{currentTime}</span>
             <span style={{ fontSize: '10px', color: 'var(--charcoal-muted, #6e7e7d)' }}>• Kerala IST</span>
+          </div>
+
+          {/* Branch Selector Pill */}
+          <div style={{ display: 'none', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', border: '1px solid var(--line, #e9e9e5)', background: '#ffffff', fontSize: '12.5px', fontWeight: '600', color: '#1e293b', cursor: 'pointer' }} className="desktop-branch-pill">
+            <Building2 size={14} style={{ color: '#64748b' }} />
+            <span>Main Branch</span>
+            <ChevronDown size={13} style={{ color: '#94a3b8' }} />
           </div>
 
           {/* Clinical Notifications Bell */}
@@ -916,6 +964,9 @@ export default function StaffPortal({
           }
           .desktop-search-container {
             display: block !important;
+          }
+          .desktop-branch-pill {
+            display: flex !important;
           }
           .desktop-clock-pill {
             display: flex !important;
