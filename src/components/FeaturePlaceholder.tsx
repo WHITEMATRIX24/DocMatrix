@@ -39,7 +39,7 @@ export const FeaturePlaceholder: React.FC<FeaturePlaceholderProps> = ({ id }) =>
     return (
       <div style={{ width: '100%', padding: '24px 0' }} data-testid={`record-not-found-${params.id}`}>
         <div style={{
-          background: '#ffffff',
+          background: 'var(--surface)',
           border: '1px solid #fee2e2',
           borderRadius: '16px',
           padding: '32px',
@@ -65,10 +65,10 @@ export const FeaturePlaceholder: React.FC<FeaturePlaceholderProps> = ({ id }) =>
               Record Not Found
             </h1>
             <p style={{ fontSize: '13.5px', color: 'var(--charcoal-body, #475554)', lineHeight: '1.5', marginBottom: '20px' }}>
-              The record identifier <code style={{ background: '#f4f6f5', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace' }}>{params.id}</code> does not exist in the clinic demo database.
+              The record identifier <code style={{ background: 'var(--surface-alt)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace' }}>{params.id}</code> does not exist in the clinic demo database.
             </p>
             <div style={{
-              background: '#f8fafc',
+              background: 'var(--surface-alt)',
               border: '1px solid #e2e8f0',
               borderRadius: '10px',
               padding: '14px',
@@ -76,8 +76,8 @@ export const FeaturePlaceholder: React.FC<FeaturePlaceholderProps> = ({ id }) =>
               fontSize: '12.5px',
               textAlign: 'left'
             }}>
-              <div style={{ fontWeight: '700', color: '#334155', marginBottom: '4px' }}>Demo ID Hints:</div>
-              <ul style={{ margin: 0, paddingLeft: '18px', color: '#64748b' }}>
+              <div style={{ fontWeight: '700', color: 'var(--text-strong)', marginBottom: '4px' }}>Demo ID Hints:</div>
+              <ul style={{ margin: 0, paddingLeft: '18px', color: 'var(--text-muted)' }}>
                 <li>Patients: <Link to="/patients/pt-1001" style={{ color: 'var(--teal-primary, #008891)', fontWeight: '700' }}>pt-1001</Link></li>
                 <li>Appointments: <Link to="/appointments/apt-101" style={{ color: 'var(--teal-primary, #008891)', fontWeight: '700' }}>apt-101</Link></li>
               </ul>
@@ -115,7 +115,7 @@ export const FeaturePlaceholder: React.FC<FeaturePlaceholderProps> = ({ id }) =>
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }} data-testid={`feature-page-${id}`}>
       {/* Feature Header Card */}
         <div style={{
-          background: '#ffffff',
+          background: 'var(--surface)',
           border: '1px solid var(--line, #e9e9e5)',
           borderRadius: '18px',
           padding: '28px',
@@ -126,10 +126,10 @@ export const FeaturePlaceholder: React.FC<FeaturePlaceholderProps> = ({ id }) =>
               <span style={{ fontSize: '11px', fontWeight: '800', background: 'rgba(0, 136, 145, 0.1)', color: 'var(--teal-primary, #008891)', padding: '3px 8px', borderRadius: '4px' }}>
                 {feature.area} Module
               </span>
-              <span style={{ fontSize: '11px', fontWeight: '800', background: '#ecfdf5', color: '#047857', padding: '3px 8px', borderRadius: '4px' }}>
+              <span style={{ fontSize: '11px', fontWeight: '800', background: 'var(--success-tint)', color: '#047857', padding: '3px 8px', borderRadius: '4px' }}>
                 ABDM Milestone 1 Verified
               </span>
-              <span style={{ fontSize: '11px', fontWeight: '750', background: '#f4f6f5', color: '#475554', padding: '3px 8px', borderRadius: '4px' }}>
+              <span style={{ fontSize: '11px', fontWeight: '750', background: 'var(--surface-alt)', color: 'var(--text-muted)', padding: '3px 8px', borderRadius: '4px' }}>
                 Roles: {feature.roles ? feature.roles.join(', ') : 'All Staff'}
               </span>
             </div>
@@ -177,13 +177,13 @@ export const FeaturePlaceholder: React.FC<FeaturePlaceholderProps> = ({ id }) =>
             </div>
 
             {paramEntries.length > 0 && (
-              <div style={{ padding: '12px', background: '#ffffff', border: '1px solid var(--line, #e9e9e5)', borderRadius: '10px', marginBottom: '16px' }} data-testid="route-parameters">
+              <div style={{ padding: '12px', background: 'var(--surface)', border: '1px solid var(--line, #e9e9e5)', borderRadius: '10px', marginBottom: '16px' }} data-testid="route-parameters">
                 <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--charcoal-muted, #6e7e7d)', marginBottom: '6px', textTransform: 'uppercase' }}>
                   Route Parameters:
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
                   {paramEntries.map(([k, v]) => (
-                    <div key={k} style={{ fontFamily: 'monospace', fontSize: '12px', background: '#f4f6f5', padding: '6px 10px', borderRadius: '6px' }}>
+                    <div key={k} style={{ fontFamily: 'monospace', fontSize: '12px', background: 'var(--surface-alt)', padding: '6px 10px', borderRadius: '6px' }}>
                       <span style={{ color: 'var(--charcoal-muted, #6e7e7d)' }}>{k}:</span> {v}
                     </div>
                   ))}
@@ -192,7 +192,7 @@ export const FeaturePlaceholder: React.FC<FeaturePlaceholderProps> = ({ id }) =>
             )}
 
             {/* Contextual Clinical Data Cards */}
-            <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid var(--line, #e9e9e5)', padding: '18px', marginBottom: '18px' }}>
+            <div style={{ background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--line, #e9e9e5)', padding: '18px', marginBottom: '18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                 <span style={{ fontSize: '12.5px', fontWeight: '800', color: 'var(--charcoal-title, #1a2626)' }}>
                   Live Data Records ({feature.area} Database)
@@ -217,7 +217,7 @@ export const FeaturePlaceholder: React.FC<FeaturePlaceholderProps> = ({ id }) =>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <span style={{ color: 'var(--charcoal-body)' }}>{row.dr}</span>
-                        <span style={{ padding: '2px 8px', borderRadius: '999px', background: '#ecfdf5', color: '#047857', fontWeight: '750', fontSize: '10.5px' }}>{row.status}</span>
+                        <span style={{ padding: '2px 8px', borderRadius: '999px', background: 'var(--success-tint)', color: '#047857', fontWeight: '750', fontSize: '10.5px' }}>{row.status}</span>
                       </div>
                     </div>
                   ))}
@@ -281,7 +281,7 @@ export const FeaturePlaceholder: React.FC<FeaturePlaceholderProps> = ({ id }) =>
               </button>
 
               {simulatedAction && (
-                <span style={{ fontSize: '12px', fontWeight: '750', color: '#15803d', display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#ecfdf5', padding: '6px 12px', borderRadius: '999px' }}>
+                <span style={{ fontSize: '12px', fontWeight: '750', color: '#15803d', display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'var(--success-tint)', padding: '6px 12px', borderRadius: '999px' }}>
                   <CheckCircle2 size={14} /> {actionMessage || 'Action verified (mock environment)'}
                 </span>
               )}

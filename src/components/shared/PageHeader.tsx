@@ -31,7 +31,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   return (
     <header
       style={{
-        background: '#ffffff',
+        background: 'var(--surface)',
         borderBottom: '1px solid var(--line, #e9e9e5)',
         padding: '16px clamp(16px, 3vw, 32px)',
         position: 'sticky',
@@ -61,7 +61,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
                 padding: '6px 12px',
                 borderRadius: '999px',
                 border: '1px solid var(--line, #e9e9e5)',
-                background: '#ffffff',
+                background: 'var(--surface)',
                 color: 'var(--charcoal-dark, #111a1a)',
                 fontWeight: '700',
                 minHeight: '36px'

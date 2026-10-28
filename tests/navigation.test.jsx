@@ -448,7 +448,7 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
     )
 
     const patListBtn = screen.getByTestId('sidebar-link-pat.list')
-    expect(patListBtn.style.background).toContain('rgba(0, 136, 145, 0.1)')
+    expect(patListBtn).toHaveAttribute('aria-current', 'page')
   })
 
   // 19. DIRECT DEEP LINKING TO SUB-PAGES
