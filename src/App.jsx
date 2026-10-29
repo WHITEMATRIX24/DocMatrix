@@ -12,6 +12,7 @@ import StaffPortal from './StaffPortal'
 import AppRoutes from './routes/appRoutes'
 import DemoBanner from './components/DemoBanner'
 import WhatsAppShortcut from './components/WhatsAppShortcut'
+import AIAgentShortcut from './components/AIAgentShortcut'
 import { findDemoUserById, DEMO_USERS } from './mocks/auth'
 import { getCurrentUser, logout as authLogout } from './services/authService'
 
@@ -1538,6 +1539,7 @@ export default function App() {
           )
         }}
       />
+      <AIAgentShortcut />
       <WhatsAppShortcut />
     </div>
   )
