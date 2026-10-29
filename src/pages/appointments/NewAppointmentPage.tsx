@@ -12,7 +12,8 @@ import {
   ChevronLeft,
   ChevronRight,
   UserRound,
-  Check
+  Check,
+  UserPlus
 } from 'lucide-react'
 import {
   useClinicData,
@@ -207,9 +208,19 @@ export const NewAppointmentPage: React.FC = () => {
           <h2>Book Dental Appointment</h2>
           <p>Schedule a confirmed visit with doctor availability check and conflict prevention.</p>
         </div>
-        <Link to="/appointments/calendar" className="btn-back-calendar">
-          View Calendar
-        </Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Link
+            to="/patients/new"
+            className="patient-intake-primary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', padding: '6px 14px', fontSize: '13px' }}
+          >
+            <UserPlus size={15} />
+            <span>+ Register Patient</span>
+          </Link>
+          <Link to="/appointments/calendar" className="btn-back-calendar">
+            View Calendar
+          </Link>
+        </div>
       </div>
 
       {bookingSuccess ? (
@@ -236,10 +247,30 @@ export const NewAppointmentPage: React.FC = () => {
         <form onSubmit={handleSubmit} className="booking-form-card">
           {/* Section 1: Patient Selection with Live Search (Name or Patient ID ONLY) */}
           <div className="form-section">
-            <label className="booking-section-title">
-              <UserRound size={16} />
-              <span>1. Select Patient *</span>
-            </label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <label className="booking-section-title" style={{ margin: 0 }}>
+                <UserRound size={16} />
+                <span>1. Select Patient *</span>
+              </label>
+              <Link
+                to="/patients/new"
+                className="patient-intake-secondary"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 10px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  borderRadius: '6px',
+                  textDecoration: 'none'
+                }}
+                title="Register a new patient"
+              >
+                <UserPlus size={14} />
+                <span>+ Register Patient</span>
+              </Link>
+            </div>
 
             {selectedPatient ? (
               <div className="selected-patient-pill">
@@ -373,17 +404,7 @@ export const NewAppointmentPage: React.FC = () => {
               )}
             </div>
 
-            {selectedDentist && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', color: 'var(--text-muted, #64748b)', marginTop: '4px' }}>
-                <span>Doctor: <strong style={{ color: 'var(--text-strong, #0f172a)' }}>{selectedDentist.name}</strong></span>
-                &bull;
-                <span>Specialty: <strong>{selectedDentist.specialization}</strong></span>
-                &bull;
-                <span>Chair: <strong style={{ color: 'var(--teal-primary, #0b8185)' }}>{selectedDentist.chair}</strong></span>
-                &bull;
-                <span>Shift: <strong>{selectedDentist.shiftStart} - {selectedDentist.shiftEnd}</strong></span>
-              </div>
-            )}
+
           </div>
 
           {/* Section 3: Treatment Selection (Duration automatically set) */}

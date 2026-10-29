@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarDays, Search, UserRound, Plus, Stethoscope } from 'lucide-react'
-import { useClinicData, type AppointmentStatus } from '@/services/clinicStore'
+import { CalendarDays, Search, UserRound, Plus, Stethoscope, RotateCcw, X, Clock, AlertTriangle, Check } from 'lucide-react'
+import { useClinicData, rescheduleAppointment, type AppointmentStatus, type AppointmentRecord } from '@/services/clinicStore'
+import './calendar.css'
 
 export const AppointmentDetailsPage: React.FC = () => {
   const { patients, appointments } = useClinicData()
@@ -9,6 +10,46 @@ export const AppointmentDetailsPage: React.FC = () => {
   const [date, setDate] = useState('')
   const [doctor, setDoctor] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+
+  const [rescheduleAppt, setRescheduleAppt] = useState<AppointmentRecord | null>(null)
+  const [rescheduleDate, setRescheduleDate] = useState('')
+  const [rescheduleTime, setRescheduleTime] = useState('11:00')
+  const [rescheduleReason, setRescheduleReason] = useState('')
+  const [rescheduleError, setRescheduleError] = useState('')
+  const [rescheduleSuccess, setRescheduleSuccess] = useState('')
+
+  const handleOpenReschedule = (appt: AppointmentRecord) => {
+    setRescheduleAppt(appt)
+    setRescheduleDate(appt.date)
+    setRescheduleTime(appt.time)
+    setRescheduleReason('')
+    setRescheduleError('')
+    setRescheduleSuccess('')
+  }
+
+  const handleConfirmReschedule = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!rescheduleAppt) return
+    setRescheduleError('')
+
+    const result = rescheduleAppointment(
+      rescheduleAppt.id,
+      rescheduleDate,
+      rescheduleTime,
+      rescheduleReason || 'Patient requested new time slot.'
+    )
+
+    if (!result.success) {
+      setRescheduleError(result.error || 'Conflict detected. Please choose another time slot.')
+      return
+    }
+
+    setRescheduleSuccess(`Appointment ${rescheduleAppt.id} successfully rescheduled!`)
+    setTimeout(() => {
+      setRescheduleAppt(null)
+      setRescheduleSuccess('')
+    }, 1200)
+  }
 
   const doctors = Array.from(new Set(appointments.map((appointment) => appointment.doctor))).sort()
 
@@ -132,9 +173,35 @@ export const AppointmentDetailsPage: React.FC = () => {
                     <td>{getStatusBadge(appointment.status)}</td>
                     <td>{appointment.id}</td>
                     <td>
-                      <Link className="clinic-record-open" to={`/appointments/${appointment.id}`}>
-                        View details
-                      </Link>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
+                        {appointment.status !== 'cancelled' && appointment.status !== 'completed' && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenReschedule(appointment)}
+                            style={{
+                              padding: '4px 9px',
+                              fontSize: '11.5px',
+                              fontWeight: 600,
+                              borderRadius: '5px',
+                              border: '1px solid var(--line, #cbd5e1)',
+                              background: 'var(--surface, #ffffff)',
+                              color: 'var(--teal-primary, #0b8185)',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              transition: 'all 0.15s ease'
+                            }}
+                            title="Reschedule appointment"
+                          >
+                            <RotateCcw size={12} />
+                            <span>Reschedule</span>
+                          </button>
+                        )}
+                        <Link className="clinic-record-open" to={`/appointments/${appointment.id}`}>
+                          View details
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -156,6 +223,94 @@ export const AppointmentDetailsPage: React.FC = () => {
               Book appointment
             </Link>
           )}
+        </div>
+      )}
+
+      {/* Reschedule Modal */}
+      {rescheduleAppt && (
+        <div className="modal-overlay" onClick={() => setRescheduleAppt(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <RotateCcw size={18} style={{ color: 'var(--teal-primary, #0b8185)' }} />
+                <h3 style={{ margin: 0, fontSize: '15px' }}>Reschedule Appointment</h3>
+              </div>
+              <button type="button" className="btn-modal-close" onClick={() => setRescheduleAppt(null)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmReschedule}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ padding: '8px 12px', background: 'var(--surface-alt, #f8fafc)', borderRadius: '6px', fontSize: '13px' }}>
+                  <div>Booking ID: <strong>{rescheduleAppt.id}</strong></div>
+                  <div>Doctor: <strong>{rescheduleAppt.doctor}</strong> ({rescheduleAppt.chair})</div>
+                  <div>Current: <span>{rescheduleAppt.date} at {rescheduleAppt.time}</span></div>
+                </div>
+
+                <label className="form-field">
+                  <span>New Date *</span>
+                  <input
+                    type="date"
+                    required
+                    min={new Date().toISOString().slice(0, 10)}
+                    value={rescheduleDate}
+                    onChange={(e) => setRescheduleDate(e.target.value)}
+                  />
+                </label>
+
+                <label className="form-field">
+                  <span>New Time Slot *</span>
+                  <select
+                    value={rescheduleTime}
+                    onChange={(e) => setRescheduleTime(e.target.value)}
+                  >
+                    {[
+                      '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+                      '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+                      '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
+                    ].map((slot) => (
+                      <option key={slot} value={slot}>{slot}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="form-field">
+                  <span>Reason for Reschedule *</span>
+                  <textarea
+                    rows={2}
+                    required
+                    placeholder="E.g., Patient requested later time, doctor shift change..."
+                    value={rescheduleReason}
+                    onChange={(e) => setRescheduleReason(e.target.value)}
+                  />
+                </label>
+
+                {rescheduleError && (
+                  <div className="availability-warning-box">
+                    <AlertTriangle size={16} />
+                    <span style={{ fontSize: '12px' }}>{rescheduleError}</span>
+                  </div>
+                )}
+
+                {rescheduleSuccess && (
+                  <div className="availability-success-box">
+                    <Check size={16} />
+                    <span style={{ fontSize: '12px' }}>{rescheduleSuccess}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn-cancel" onClick={() => setRescheduleAppt(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="patient-intake-primary" disabled={Boolean(rescheduleSuccess)}>
+                  Confirm Reschedule
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </section>
