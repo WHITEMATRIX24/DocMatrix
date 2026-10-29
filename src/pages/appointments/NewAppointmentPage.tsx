@@ -254,19 +254,22 @@ export const NewAppointmentPage: React.FC = () => {
               </label>
               <Link
                 to="/patients/new"
+                className="patient-intake-secondary"
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '5px',
-                  color: 'var(--teal-primary, #0b8185)',
+                  gap: '6px',
+                  padding: '5px 12px',
                   fontSize: '12.5px',
                   fontWeight: 600,
-                  textDecoration: 'none'
+                  borderRadius: '6px',
+                  textDecoration: 'none',
+                  border: '1px solid #cbd5e1'
                 }}
                 title="Register a new patient"
               >
                 <UserPlus size={14} />
-                <span>Register Now &rarr;</span>
+                <span>+ Register Patient</span>
               </Link>
             </div>
 
@@ -291,8 +294,9 @@ export const NewAppointmentPage: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className="patient-search-container">
-                <div className="patient-search-input-wrap">
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                <div className="patient-search-container" style={{ flex: 1 }}>
+                  <div className="patient-search-input-wrap">
                   <Search size={16} className="search-icon" />
                   <input
                     type="text"
@@ -338,6 +342,31 @@ export const NewAppointmentPage: React.FC = () => {
                     )}
                   </div>
                 )}
+                </div>
+                <Link
+                  to="/patients/new"
+                  className="patient-intake-secondary"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    height: '42px',
+                    padding: '0 16px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    textDecoration: 'none',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#0f172a',
+                    cursor: 'pointer'
+                  }}
+                  title="Register a new patient"
+                >
+                  <UserPlus size={15} />
+                  <span>+ Register Now</span>
+                </Link>
               </div>
             )}
           </div>

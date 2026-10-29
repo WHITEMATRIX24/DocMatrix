@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarDays, ClipboardList, Inbox, Plus, Activity, UserPlus, CheckCircle2, Clock } from 'lucide-react'
+import { CalendarDays, ClipboardList, Inbox, Plus, Activity, UserPlus, CheckCircle2, Clock, RotateCcw } from 'lucide-react'
 import { useClinicData } from '@/services/clinicStore'
 import './calendar.css'
 
@@ -57,15 +57,28 @@ export default function AppointmentsWorkspace({ activeFeatureId, children }: App
           </div>
         </div>
         <div className="appointments-workspace-actions" style={{ display: 'flex', gap: '10px' }}>
-          <button
-            className="patient-intake-secondary"
-            onClick={() => navigate('/patients/new')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-            title="Register a new patient"
-          >
-            <UserPlus size={15} />
-            <span>Register Now</span>
-          </button>
+          {selectedTabId === 'appt.new' && (
+            <button
+              className="patient-intake-secondary"
+              onClick={() => navigate('/patients/new')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              title="Register a new patient"
+            >
+              <UserPlus size={15} />
+              <span>+ Register Patient</span>
+            </button>
+          )}
+          {selectedTabId === 'appt.calendar' && (
+            <button
+              className="patient-intake-secondary"
+              onClick={() => navigate('/appointments/details')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              title="View and Reschedule Appointments"
+            >
+              <RotateCcw size={15} />
+              <span>Reschedule</span>
+            </button>
+          )}
           <button
             className="patient-intake-secondary"
             onClick={() => navigate('/appointments/queue')}
