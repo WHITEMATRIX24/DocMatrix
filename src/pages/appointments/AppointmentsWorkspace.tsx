@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CalendarDays, ClipboardList, Inbox, Plus, Activity, UserPlus, CheckCircle2, Clock } from 'lucide-react'
-import { useClinicData } from '@/services/clinicStore'
+import { useClinicData, CLINIC_CONFIG, DENTISTS } from '@/services/clinicStore'
+import './calendar.css'
 
 type AppointmentTab = {
   id: string
@@ -77,6 +78,26 @@ export default function AppointmentsWorkspace({ activeFeatureId, children }: App
 
       {/* Convenient Live KPI Overview Widget Strip */}
       <div className="workspace-kpi-strip">
+        <div
+          className="kpi-widget-pill"
+          style={{ cursor: 'default', background: '#ecfdf5', borderColor: '#a7f3d0' }}
+          title="Clinic operating schedule"
+        >
+          <span className="kpi-dot green" />
+          <span className="kpi-label" style={{ color: '#065f46' }}>Clinic Hours:</span>
+          <strong className="kpi-value" style={{ color: '#047857' }}>{CLINIC_CONFIG.openingTime} - {CLINIC_CONFIG.closingTime}</strong>
+        </div>
+
+        <div
+          className="kpi-widget-pill"
+          style={{ cursor: 'default', background: '#f0fdfa', borderColor: '#99f6e4' }}
+          title="Dentists on duty today"
+        >
+          <span className="kpi-dot teal" />
+          <span className="kpi-label" style={{ color: '#115e59' }}>Doctors on Duty:</span>
+          <strong className="kpi-value" style={{ color: '#0b8185' }}>{DENTISTS.length} Active</strong>
+        </div>
+
         <button
           className="kpi-widget-pill"
           onClick={() => navigate('/appointments/calendar')}
@@ -132,6 +153,19 @@ export default function AppointmentsWorkspace({ activeFeatureId, children }: App
         {tabs.map((tab) => {
           const Icon = tab.icon
           const active = selectedTabId === tab.id
+          let badge: number | null = null
+          let badgeColor = ''
+          if (tab.id === 'appt.queue' && waitingCount > 0) {
+            badge = waitingCount
+            badgeColor = '#f59e0b'
+          } else if (tab.id === 'appt.calendar' && todayAppts.length > 0) {
+            badge = todayAppts.length
+            badgeColor = '#0b8185'
+          } else if (tab.id === 'appt.details-list' && appointments.length > 0) {
+            badge = appointments.length
+            badgeColor = '#64748b'
+          }
+
           return (
             <button
               key={tab.id}
@@ -141,6 +175,22 @@ export default function AppointmentsWorkspace({ activeFeatureId, children }: App
             >
               <Icon size={15} />
               <span>{tab.label}</span>
+              {badge !== null && (
+                <span
+                  style={{
+                    marginLeft: '6px',
+                    padding: '1px 6px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    borderRadius: '10px',
+                    background: active ? '#ffffff' : (badgeColor || '#0b8185'),
+                    color: active ? '#0b8185' : '#ffffff',
+                    lineHeight: '1.3'
+                  }}
+                >
+                  {badge}
+                </span>
+              )}
             </button>
           )
         })}
