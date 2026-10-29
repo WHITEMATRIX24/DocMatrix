@@ -227,6 +227,23 @@ html.dm-theme-transition::view-transition-new(root) {
   flex-direction: column;
   gap: 2px;
   padding: 10px 12px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
+.dmx-rail-nav::-webkit-scrollbar {
+  width: 5px;
+}
+
+.dmx-rail-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dmx-rail-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 99px;
 }
 
 .dmx-rail-section {
@@ -351,92 +368,125 @@ html.dm-theme-transition::view-transition-new(root) {
 .dmx-rail:is(:hover, :has(:focus-visible)) .dmx-rail-section { color: var(--rail-faint); transition-delay: 0.14s; }
 .dmx-rail:is(:hover, :has(:focus-visible)) .dmx-rail-section::before { opacity: 0; }
 
-/* Submodule flyouts */
-.dmx-module { position: relative; }
-
-.dmx-flyout {
-  position: absolute;
-  left: 100%;
-  top: -8px;
-  z-index: 5;
-  padding-left: 14px;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(-8px);
-  transition: opacity 0.16s ease, transform 0.24s var(--ease-out);
-}
-
-.dmx-flyout.is-bottom { top: auto; bottom: -8px; }
-
-.dmx-rail:hover .dmx-module:hover > .dmx-flyout,
-.dmx-module:has(:focus-visible) > .dmx-flyout {
-  opacity: 1;
-  pointer-events: auto;
-  transform: none;
-  transition-delay: 0.22s;
-}
-
-.dmx-flyout-card {
-  width: 248px;
+/* Submodule inline dropdown inside the navbar */
+.dmx-module {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  padding: 6px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--surface-raised);
-  box-shadow: var(--shadow-lg);
 }
 
-.dmx-flyout-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
-  padding: 9px 10px 10px;
-  border-bottom: 1px solid var(--line);
-  border-radius: 10px 10px 4px 4px;
-  color: var(--text-strong);
-  font-size: 11px;
-  font-weight: 750;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+/* Smooth dropdown container */
+.dmx-dropdown-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+  will-change: grid-template-rows, opacity;
 }
 
-.dmx-flyout-head > span:first-child { display: inline-flex; align-items: center; gap: 7px; }
-.dmx-flyout-head svg { color: var(--teal-primary); }
+.dmx-dropdown-anim {
+  min-height: 0;
+  overflow: hidden;
+}
 
-.dmx-flyout-hub {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
+/* Dropdown trigger: ONLY on hover over the main module (and keyboard focus / mobile tap) */
+.dmx-rail:is(:hover, :has(:focus-visible)) .dmx-module:hover > .dmx-dropdown-wrap,
+.dmx-rail:is(:hover, :has(:focus-visible)) .dmx-module:focus-within > .dmx-dropdown-wrap,
+.dmx-module.is-mobile-open > .dmx-dropdown-wrap {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+/* Chevron indicator rotates smoothly downwards */
+.dmx-nav-chevron {
+  flex: none;
+  color: var(--rail-faint);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s ease;
+}
+
+.dmx-rail:is(:hover, :has(:focus-visible)) .dmx-module:hover .dmx-nav-chevron,
+.dmx-rail:is(:hover, :has(:focus-visible)) .dmx-module:focus-within .dmx-nav-chevron,
+.dmx-module.is-mobile-open .dmx-nav-chevron {
+  transform: rotate(90deg) !important;
   color: var(--teal-primary);
-  font-size: 11px;
-  letter-spacing: 0;
-  text-transform: none;
 }
 
-.dmx-flyout-head:hover { background: var(--teal-tint); }
+/* Sub-items list with vertical lineage track */
+.dmx-sub-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px 6px 8px 46px;
+  position: relative;
+  transform: translateY(-6px);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
 
+.dmx-sub-list::before {
+  content: "";
+  position: absolute;
+  left: 27px;
+  top: 4px;
+  bottom: 8px;
+  width: 2px;
+  background: var(--rail-line);
+  border-radius: 2px;
+}
+
+.dmx-rail:is(:hover, :has(:focus-visible)) .dmx-module:hover .dmx-sub-list,
+.dmx-rail:is(:hover, :has(:focus-visible)) .dmx-module:focus-within .dmx-sub-list,
+.dmx-module.is-mobile-open .dmx-sub-list {
+  transform: translateY(0);
+}
+
+/* Sub-item buttons */
+.dmx-sub-item,
 .dmx-flyout-item {
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 10px;
-  border-radius: 9px;
-  color: var(--text);
+  padding: 7px 10px;
+  border-radius: 8px;
+  color: var(--rail-text);
   font-size: 12.5px;
   font-weight: 500;
   text-align: left;
-  transition: background-color 0.15s, color 0.15s;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
 }
 
-.dmx-flyout-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dmx-flyout-item:hover { background: var(--surface-alt); color: var(--text-strong); }
-.dmx-flyout-item.is-active { background: var(--teal-tint); color: var(--teal-primary); font-weight: 650; }
+.dmx-sub-item span,
+.dmx-flyout-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dmx-sub-item:hover,
+.dmx-flyout-item:hover {
+  background: var(--rail-hover);
+  color: var(--rail-text-strong);
+  transform: translateX(2px);
+}
+
+.dmx-sub-item.is-active,
+.dmx-flyout-item.is-active {
+  background: var(--rail-active);
+  color: var(--rail-accent);
+  font-weight: 650;
+}
+
+.dmx-sub-item.is-active svg,
+.dmx-flyout-item.is-active svg {
+  color: var(--rail-accent);
+}
 
 .dmx-rail-foot {
   position: relative;
@@ -1395,24 +1445,25 @@ html.dm-theme-transition::view-transition-new(root) {
   .dmx-rail-nav { overflow-y: auto; }
   .dmx-rail-close { display: grid; }
 
-  .dmx-flyout,
-  .dmx-rail:hover .dmx-module:hover > .dmx-flyout {
-    position: static;
-    display: none;
-    padding: 2px 0 6px 52px;
+  .dmx-module.is-mobile-open > .dmx-dropdown-wrap {
+    grid-template-rows: 1fr;
     opacity: 1;
-    pointer-events: auto;
-    transform: none;
   }
-
-  .dmx-module.is-mobile-open > .dmx-flyout { display: block; }
-  .dmx-module.is-mobile-open .dmx-nav-chevron { transform: rotate(90deg); }
-
-  .dmx-flyout-card { width: auto; padding: 0; border: 0; background: transparent; box-shadow: none; }
-  .dmx-flyout-head { display: none; }
-  .dmx-flyout-item { color: var(--rail-text); }
+  .dmx-module.is-mobile-open .dmx-nav-chevron {
+    transform: rotate(90deg) !important;
+    color: var(--teal-primary);
+  }
+  .dmx-sub-item,
+  .dmx-flyout-item {
+    color: var(--rail-text);
+  }
+  .dmx-sub-item:hover,
   .dmx-flyout-item:hover,
-  .dmx-flyout-item.is-active { background: var(--rail-hover); color: var(--rail-text-strong); }
+  .dmx-sub-item.is-active,
+  .dmx-flyout-item.is-active {
+    background: var(--rail-hover);
+    color: var(--rail-text-strong);
+  }
 
   .dmx-scrim {
     position: fixed;

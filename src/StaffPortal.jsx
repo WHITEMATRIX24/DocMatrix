@@ -298,31 +298,29 @@ export default function StaffPortal({
                   <ChevronRight size={14} className="dmx-nav-chevron" />
                 </button>
 
-                {/* Submodule flyout, revealed once the rail has expanded */}
-                <div className={`dmx-flyout ${isBottomAlign ? 'is-bottom' : ''}`}>
-                  <div className="dmx-flyout-card">
-                    <button className="dmx-flyout-head" onClick={() => navigateTo(`/${areaName.toLowerCase()}`)}>
-                      <span><IconComp size={14} /> {areaName}</span>
-                      <span className="dmx-flyout-hub">Open hub <ChevronRight size={12} /></span>
-                    </button>
-                    {visibleFeatures.map((feat) => {
-                      const isCurrent = activeFeature?.id === feat.id || (activeFeature?.id === 'appt.detail' && feat.id === 'appt.details-list')
-                      return (
-                        <button
-                          key={feat.id}
-                          data-testid={`sidebar-link-${feat.id}`}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            navigateTo(resolveFeatureRoute(feat.route, feat.area))
-                          }}
-                          className={`dmx-flyout-item ${isCurrent ? 'is-active' : ''}`}
-                          aria-current={isCurrent ? 'page' : undefined}
-                        >
-                          <span>{feat.name}</span>
-                          {isCurrent && <Check size={13} />}
-                        </button>
-                      )
-                    })}
+                {/* Smooth in-navbar dropdown of submodules on hover */}
+                <div className="dmx-dropdown-wrap">
+                  <div className="dmx-dropdown-anim">
+                    <div className="dmx-sub-list">
+                      {visibleFeatures.map((feat) => {
+                        const isCurrent = activeFeature?.id === feat.id || (activeFeature?.id === 'appt.detail' && feat.id === 'appt.details-list')
+                        return (
+                          <button
+                            key={feat.id}
+                            data-testid={`sidebar-link-${feat.id}`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              navigateTo(resolveFeatureRoute(feat.route, feat.area))
+                            }}
+                            className={`dmx-sub-item dmx-flyout-item ${isCurrent ? 'is-active' : ''}`}
+                            aria-current={isCurrent ? 'page' : undefined}
+                          >
+                            <span>{feat.name}</span>
+                            {isCurrent && <Check size={13} />}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
