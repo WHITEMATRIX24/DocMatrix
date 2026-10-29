@@ -59,6 +59,15 @@ export default function AppointmentsWorkspace({ activeFeatureId, children }: App
         <div className="appointments-workspace-actions" style={{ display: 'flex', gap: '10px' }}>
           <button
             className="patient-intake-secondary"
+            onClick={() => navigate('/patients/new')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            title="Register a new patient"
+          >
+            <UserPlus size={15} />
+            <span>Register Now</span>
+          </button>
+          <button
+            className="patient-intake-secondary"
             onClick={() => navigate('/appointments/queue')}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
