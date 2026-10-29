@@ -247,31 +247,10 @@ export const NewAppointmentPage: React.FC = () => {
         <form onSubmit={handleSubmit} className="booking-form-card">
           {/* Section 1: Patient Selection with Live Search (Name or Patient ID ONLY) */}
           <div className="form-section">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <label className="booking-section-title" style={{ margin: 0 }}>
-                <UserRound size={16} />
-                <span>1. Select Patient *</span>
-              </label>
-              <Link
-                to="/patients/new"
-                className="patient-intake-secondary"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '5px 12px',
-                  fontSize: '12.5px',
-                  fontWeight: 600,
-                  borderRadius: '6px',
-                  textDecoration: 'none',
-                  border: '1px solid #cbd5e1'
-                }}
-                title="Register a new patient"
-              >
-                <UserPlus size={14} />
-                <span>+ Register Patient</span>
-              </Link>
-            </div>
+            <label className="booking-section-title">
+              <UserRound size={16} />
+              <span>1. Select Patient *</span>
+            </label>
 
             {selectedPatient ? (
               <div className="selected-patient-pill">
@@ -294,8 +273,7 @@ export const NewAppointmentPage: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                <div className="patient-search-container" style={{ flex: 1 }}>
+              <div className="patient-search-container">
                   <div className="patient-search-input-wrap">
                   <Search size={16} className="search-icon" />
                   <input
@@ -342,31 +320,6 @@ export const NewAppointmentPage: React.FC = () => {
                     )}
                   </div>
                 )}
-                </div>
-                <Link
-                  to="/patients/new"
-                  className="patient-intake-secondary"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    height: '42px',
-                    padding: '0 16px',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    whiteSpace: 'nowrap',
-                    textDecoration: 'none',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    background: '#ffffff',
-                    color: '#0f172a',
-                    cursor: 'pointer'
-                  }}
-                  title="Register a new patient"
-                >
-                  <UserPlus size={15} />
-                  <span>+ Register Now</span>
-                </Link>
               </div>
             )}
           </div>

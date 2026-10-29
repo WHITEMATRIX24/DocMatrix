@@ -57,17 +57,6 @@ export default function AppointmentsWorkspace({ activeFeatureId, children }: App
           </div>
         </div>
         <div className="appointments-workspace-actions" style={{ display: 'flex', gap: '10px' }}>
-          {selectedTabId === 'appt.new' && (
-            <button
-              className="patient-intake-secondary"
-              onClick={() => navigate('/patients/new')}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-              title="Register a new patient"
-            >
-              <UserPlus size={15} />
-              <span>+ Register Patient</span>
-            </button>
-          )}
           {selectedTabId === 'appt.calendar' && (
             <button
               className="patient-intake-secondary"
