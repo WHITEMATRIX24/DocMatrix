@@ -404,6 +404,28 @@ export const CalendarPage: React.FC = () => {
             </button>
           </div>
 
+          {/* Reschedule Button in Calendar Header */}
+          <button
+            type="button"
+            className="patient-intake-secondary"
+            onClick={() => {
+              const apptToReschedule = dateAppointments.find((a) => a.status !== 'cancelled' && a.status !== 'completed') || appointments.find((a) => a.status !== 'cancelled' && a.status !== 'completed')
+              if (apptToReschedule) {
+                setActiveAppt(apptToReschedule)
+                setRescheduleDate(apptToReschedule.date)
+                setRescheduleTime(apptToReschedule.time)
+                setRescheduleReason('')
+                setRescheduleError('')
+                setShowRescheduleModal(true)
+              }
+            }}
+            style={{ padding: '6px 12px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            title="Reschedule an appointment"
+          >
+            <RotateCcw size={14} />
+            <span>Reschedule</span>
+          </button>
+
           {/* Quick Walk-in Button right on Calendar */}
           <button
             type="button"
@@ -498,26 +520,58 @@ export const CalendarPage: React.FC = () => {
                                 {/* Convenient Card Quick Actions */}
                                 <div className="card-action-bar">
                                   {appt.status !== 'completed' && appt.status !== 'cancelled' && (
-                                    <button
-                                      type="button"
-                                      className="card-quick-advance-btn"
-                                      onClick={(e) => handleQuickAdvanceStatus(e, appt)}
-                                      title={
-                                        appt.status === 'in-progress'
-                                          ? 'Mark Consultation Finished'
-                                          : appt.status === 'checked-in'
-                                          ? 'Call in to Chair'
-                                          : 'Mark Checked-In'
-                                      }
-                                    >
-                                      {appt.status === 'in-progress' ? (
-                                        <><Check size={11} /> Complete</>
-                                      ) : appt.status === 'checked-in' ? (
-                                        <><Play size={11} /> Call in</>
-                                      ) : (
-                                        <><UserCheck size={11} /> Check-in</>
-                                      )}
-                                    </button>
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="card-quick-advance-btn"
+                                        onClick={(e) => handleQuickAdvanceStatus(e, appt)}
+                                        title={
+                                          appt.status === 'in-progress'
+                                            ? 'Mark Consultation Finished'
+                                            : appt.status === 'checked-in'
+                                            ? 'Call in to Chair'
+                                            : 'Mark Checked-In'
+                                        }
+                                      >
+                                        {appt.status === 'in-progress' ? (
+                                          <><Check size={11} /> Complete</>
+                                        ) : appt.status === 'checked-in' ? (
+                                          <><Play size={11} /> Call in</>
+                                        ) : (
+                                          <><UserCheck size={11} /> Check-in</>
+                                        )}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="card-quick-reschedule-btn"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setActiveAppt(appt)
+                                          setRescheduleDate(appt.date)
+                                          setRescheduleTime(appt.time)
+                                          setRescheduleReason('')
+                                          setRescheduleError('')
+                                          setShowRescheduleModal(true)
+                                        }}
+                                        title="Reschedule appointment"
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '3px',
+                                          padding: '3px 7px',
+                                          fontSize: '11px',
+                                          fontWeight: 600,
+                                          borderRadius: '4px',
+                                          border: '1px solid var(--line, #cbd5e1)',
+                                          background: 'var(--surface, #ffffff)',
+                                          color: 'var(--teal-primary, #0b8185)',
+                                          cursor: 'pointer'
+                                        }}
+                                      >
+                                        <RotateCcw size={11} />
+                                        <span>Reschedule</span>
+                                      </button>
+                                    </>
                                   )}
 
                                   <button
@@ -592,13 +646,45 @@ export const CalendarPage: React.FC = () => {
 
                               <div className="card-action-bar">
                                 {appt.status !== 'completed' && appt.status !== 'cancelled' && (
-                                  <button
-                                    type="button"
-                                    className="card-quick-advance-btn"
-                                    onClick={(e) => handleQuickAdvanceStatus(e, appt)}
-                                  >
-                                    {appt.status === 'in-progress' ? 'Complete' : appt.status === 'checked-in' ? 'Call in' : 'Check-in'}
-                                  </button>
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="card-quick-advance-btn"
+                                      onClick={(e) => handleQuickAdvanceStatus(e, appt)}
+                                    >
+                                      {appt.status === 'in-progress' ? 'Complete' : appt.status === 'checked-in' ? 'Call in' : 'Check-in'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="card-quick-reschedule-btn"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setActiveAppt(appt)
+                                        setRescheduleDate(appt.date)
+                                        setRescheduleTime(appt.time)
+                                        setRescheduleReason('')
+                                        setRescheduleError('')
+                                        setShowRescheduleModal(true)
+                                      }}
+                                      title="Reschedule appointment"
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '3px',
+                                        padding: '3px 7px',
+                                        fontSize: '11px',
+                                        fontWeight: 600,
+                                        borderRadius: '4px',
+                                        border: '1px solid var(--line, #cbd5e1)',
+                                        background: 'var(--surface, #ffffff)',
+                                        color: 'var(--teal-primary, #0b8185)',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      <RotateCcw size={11} />
+                                      <span>Reschedule</span>
+                                    </button>
+                                  </>
                                 )}
                                 <button
                                   type="button"

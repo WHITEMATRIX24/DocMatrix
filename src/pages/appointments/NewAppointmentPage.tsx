@@ -208,19 +208,9 @@ export const NewAppointmentPage: React.FC = () => {
           <h2>Book Dental Appointment</h2>
           <p>Schedule a confirmed visit with doctor availability check and conflict prevention.</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <Link
-            to="/patients/new"
-            className="patient-intake-primary"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', padding: '6px 14px', fontSize: '13px' }}
-          >
-            <UserPlus size={15} />
-            <span>+ Register Patient</span>
-          </Link>
-          <Link to="/appointments/calendar" className="btn-back-calendar">
-            View Calendar
-          </Link>
-        </div>
+        <Link to="/appointments/calendar" className="btn-back-calendar">
+          View Calendar
+        </Link>
       </div>
 
       {bookingSuccess ? (
@@ -247,30 +237,10 @@ export const NewAppointmentPage: React.FC = () => {
         <form onSubmit={handleSubmit} className="booking-form-card">
           {/* Section 1: Patient Selection with Live Search (Name or Patient ID ONLY) */}
           <div className="form-section">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <label className="booking-section-title" style={{ margin: 0 }}>
-                <UserRound size={16} />
-                <span>1. Select Patient *</span>
-              </label>
-              <Link
-                to="/patients/new"
-                className="patient-intake-secondary"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '4px 10px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  borderRadius: '6px',
-                  textDecoration: 'none'
-                }}
-                title="Register a new patient"
-              >
-                <UserPlus size={14} />
-                <span>+ Register Patient</span>
-              </Link>
-            </div>
+            <label className="booking-section-title">
+              <UserRound size={16} />
+              <span>1. Select Patient *</span>
+            </label>
 
             {selectedPatient ? (
               <div className="selected-patient-pill">
