@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CalendarDays, ClipboardList, Inbox, Plus, Activity, UserPlus, CheckCircle2, Clock } from 'lucide-react'
-import { useClinicData, CLINIC_CONFIG, DENTISTS } from '@/services/clinicStore'
+import { useClinicData } from '@/services/clinicStore'
 import './calendar.css'
 
 type AppointmentTab = {
@@ -75,79 +75,6 @@ export default function AppointmentsWorkspace({ activeFeatureId, children }: App
           </button>
         </div>
       </header>
-
-      {/* Convenient Live KPI Overview Widget Strip */}
-      <div className="workspace-kpi-strip">
-        <div
-          className="kpi-widget-pill"
-          style={{ cursor: 'default', background: '#ecfdf5', borderColor: '#a7f3d0' }}
-          title="Clinic operating schedule"
-        >
-          <span className="kpi-dot green" />
-          <span className="kpi-label" style={{ color: '#065f46' }}>Clinic Hours:</span>
-          <strong className="kpi-value" style={{ color: '#047857' }}>{CLINIC_CONFIG.openingTime} - {CLINIC_CONFIG.closingTime}</strong>
-        </div>
-
-        <div
-          className="kpi-widget-pill"
-          style={{ cursor: 'default', background: '#f0fdfa', borderColor: '#99f6e4' }}
-          title="Dentists on duty today"
-        >
-          <span className="kpi-dot teal" />
-          <span className="kpi-label" style={{ color: '#115e59' }}>Doctors on Duty:</span>
-          <strong className="kpi-value" style={{ color: '#0b8185' }}>{DENTISTS.length} Active</strong>
-        </div>
-
-        <button
-          className="kpi-widget-pill"
-          onClick={() => navigate('/appointments/calendar')}
-          title="Open Calendar for Today"
-        >
-          <span className="kpi-dot blue" />
-          <span className="kpi-label">Today's Bookings:</span>
-          <strong className="kpi-value">{todayAppts.length}</strong>
-        </button>
-
-        <button
-          className="kpi-widget-pill"
-          onClick={() => navigate('/appointments/queue')}
-          title="Open Waiting Room in Live Queue"
-        >
-          <span className="kpi-dot amber" />
-          <span className="kpi-label">Waiting Room:</span>
-          <strong className="kpi-value badge-amber">{waitingCount}</strong>
-        </button>
-
-        <button
-          className="kpi-widget-pill"
-          onClick={() => navigate('/appointments/queue')}
-          title="View Active Consultations"
-        >
-          <span className="kpi-dot teal" />
-          <span className="kpi-label">In Consultation:</span>
-          <strong className="kpi-value badge-teal">{inConsultCount}</strong>
-        </button>
-
-        <button
-          className="kpi-widget-pill"
-          onClick={() => navigate('/appointments/details')}
-          title="View All Finished Appointments"
-        >
-          <span className="kpi-dot green" />
-          <span className="kpi-label">Completed Today:</span>
-          <strong className="kpi-value badge-green">{completedCount}</strong>
-        </button>
-
-        <button
-          className="kpi-widget-pill"
-          onClick={() => navigate('/appointments/queue')}
-          title="View Walk-ins"
-        >
-          <span className="kpi-dot purple" />
-          <span className="kpi-label">Walk-in Patients:</span>
-          <strong className="kpi-value badge-purple">{walkInCount}</strong>
-        </button>
-      </div>
 
       <nav className="appointments-workspace-tabs" aria-label="Appointment sections">
         {tabs.map((tab) => {

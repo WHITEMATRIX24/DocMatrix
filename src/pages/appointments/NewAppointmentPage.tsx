@@ -75,6 +75,86 @@ export const NewAppointmentPage: React.FC = () => {
   const selectedTreatment = DENTAL_TREATMENTS.find((t) => t.id === selectedTreatmentId)
 
   // Real-time availability check
+  const [viewMonthDate, setViewMonthDate] = useState(() => {
+    const d = new Date()
+    d.setDate(1)
+    return d
+  })
+
+  const calendarMonthData = useMemo(() => {
+    const year = viewMonthDate.getFullYear()
+    const month = viewMonthDate.getMonth()
+    const firstDayIndex = new Date(year, month, 1).getDay()
+    const totalDays = new Date(year, month + 1, 0).getDate()
+    const prevMonthDays = new Date(year, month, 0).getDate()
+    const todayStr = today()
+
+    const days: { dateStr: string; dayNum: number; isCurrentMonth: boolean; isPast: boolean; isToday: boolean; isSelected: boolean }[] = []
+
+    for (let i = firstDayIndex - 1; i >= 0; i--) {
+      const dayNum = prevMonthDays - i
+      const d = new Date(year, month - 1, dayNum)
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+      const dateStr = d.toISOString().slice(0, 10)
+      days.push({
+        dateStr,
+        dayNum,
+        isCurrentMonth: false,
+        isPast: dateStr < todayStr,
+        isToday: dateStr === todayStr,
+        isSelected: dateStr === selectedDate
+      })
+    }
+
+    for (let day = 1; day <= totalDays; day++) {
+      const d = new Date(year, month, day)
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+      const dateStr = d.toISOString().slice(0, 10)
+      days.push({
+        dateStr,
+        dayNum: day,
+        isCurrentMonth: true,
+        isPast: dateStr < todayStr,
+        isToday: dateStr === todayStr,
+        isSelected: dateStr === selectedDate
+      })
+    }
+
+    const remaining = (7 - (days.length % 7)) % 7
+    for (let day = 1; day <= remaining; day++) {
+      const d = new Date(year, month + 1, day)
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+      const dateStr = d.toISOString().slice(0, 10)
+      days.push({
+        dateStr,
+        dayNum: day,
+        isCurrentMonth: false,
+        isPast: dateStr < todayStr,
+        isToday: dateStr === todayStr,
+        isSelected: dateStr === selectedDate
+      })
+    }
+
+    return {
+      monthName: viewMonthDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
+      days
+    }
+  }, [viewMonthDate, selectedDate])
+
+  const handlePrevMonth = () => {
+    setViewMonthDate((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
+  }
+
+  const handleNextMonth = () => {
+    setViewMonthDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
+  }
+
+  const handleTodayMonth = () => {
+    const now = new Date()
+    setSelectedDate(today())
+    setViewMonthDate(new Date(now.getFullYear(), now.getMonth(), 1))
+  }
+
   const availability = useMemo(() => {
     const duration = selectedTreatment?.defaultDurationMinutes || 30
     return checkDentistAvailability(selectedDoctor, selectedDate, selectedTime, duration)
@@ -215,38 +295,37 @@ export const NewAppointmentPage: React.FC = () => {
                     )}
                   </div>
                 )}
-
-                <div className="search-helper-text">
-                  Tip: Search registered patients by <strong>Name</strong> or <strong>ID Number</strong> (e.g., PAT-1001 or 1001).
-                </div>
               </div>
             )}
           </div>
 
-          {/* Section 2: Dentist Selection */}
+          {/* Section 2: Dentist Selection (Dropdown) */}
           <div className="form-section">
             <label className="booking-section-title">
               <Stethoscope size={16} />
               <span>2. Select Dentist *</span>
             </label>
-            <div className="dentist-radio-grid">
-              {DENTISTS.map((dentist) => {
-                const isSelected = selectedDoctor === dentist.name
-                return (
-                  <div
-                    key={dentist.id}
-                    className={`dentist-select-card ${isSelected ? 'is-selected' : ''}`}
-                    onClick={() => setSelectedDoctor(dentist.name)}
-                  >
-                    <div className="dentist-card-header">
-                      <strong>{dentist.name}</strong>
-                      <span className="dentist-chair-tag">{dentist.chair}</span>
-                    </div>
-                    <span className="dentist-specialty">{dentist.specialization}</span>
-                    <span className="dentist-hours">Hours: {dentist.shiftStart} - {dentist.shiftEnd}</span>
-                  </div>
-                )
-              })}
+            <div className="form-row-2">
+              <label className="form-field">
+                <span>Doctor / Dentist</span>
+                <select
+                  value={selectedDoctor}
+                  onChange={(e) => setSelectedDoctor(e.target.value)}
+                >
+                  {DENTISTS.map((dentist) => (
+                    <option key={dentist.id} value={dentist.name}>
+                      {dentist.name} &bull; {dentist.specialization} &bull; {dentist.chair} ({dentist.shiftStart} - {dentist.shiftEnd})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {selectedDentist && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-muted, #64748b)', padding: '6px 0' }}>
+                  <span>Dedicated Chair: <strong style={{ color: 'var(--text-strong, #0f172a)' }}>{selectedDentist.chair}</strong></span>
+                  &bull;
+                  <span>Working Hours: <strong style={{ color: 'var(--teal-primary, #0b8185)' }}>{selectedDentist.shiftStart} - {selectedDentist.shiftEnd}</strong></span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -278,97 +357,168 @@ export const NewAppointmentPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Section 4: Date, Time & Priority (Duration bar is removed per requirement) */}
+          {/* Section 4: Interactive Calendar, Date & Time */}
           <div className="form-section">
             <label className="booking-section-title">
               <CalendarDays size={16} />
               <span>4. Schedule & Time *</span>
             </label>
 
-            <div className="form-row-3">
-              <label className="form-field">
-                <span>Appointment Date</span>
-                <input
-                  type="date"
-                  required
-                  min={today()}
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                />
-              </label>
+            {/* Interactive Booking Calendar & Time Slot Matrix */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 340px) 1fr', gap: '20px', alignItems: 'start' }}>
+              {/* Left Column: Visual Interactive Monthly Calendar */}
+              <div style={{ border: '1px solid var(--line, #e2e8f0)', borderRadius: '10px', padding: '14px', background: 'var(--surface, #ffffff)' }}>
+                {/* Calendar Month Header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <button
+                    type="button"
+                    onClick={handlePrevMonth}
+                    style={{ border: '1px solid var(--line, #e2e8f0)', background: 'transparent', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
+                    title="Previous Month"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
 
-              <label className="form-field">
-                <span>Time Slot</span>
-                <select
-                  value={selectedTime}
-                  onChange={(e) => setSelectedTime(e.target.value)}
-                >
-                  {timeSlots.map((slot) => (
-                    <option key={slot} value={slot}>{slot}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="form-field">
-                <span>Visit Priority</span>
-                <select
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value as AppointmentPriority)}
-                >
-                  <option value="normal">Normal Routine</option>
-                  <option value="urgent">Urgent / Pain</option>
-                  <option value="emergency">Emergency Immediate</option>
-                </select>
-              </label>
-            </div>
-
-            {/* Daily Schedule Preview */}
-            <div className="daily-schedule-preview" style={{ marginTop: '12px' }}>
-              <h4 style={{ fontSize: '13px', fontWeight: 600, margin: '0 0 6px 0', color: 'var(--text-strong, #0f172a)' }}>Daily schedule</h4>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {timeSlots.map((slot) => {
-                  const isBooked = appointments.some(
-                    (a) => a.doctor === selectedDoctor && a.date === selectedDate && a.time === slot && a.status !== 'cancelled'
-                  )
-                  const isSelected = selectedTime === slot
-                  return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <strong style={{ fontSize: '13.5px', color: 'var(--text-strong, #0f172a)' }}>{calendarMonthData.monthName}</strong>
                     <button
-                      key={slot}
                       type="button"
-                      disabled={isBooked}
-                      onClick={() => setSelectedTime(slot)}
-                      style={{
-                        padding: '4px 8px',
-                        fontSize: '11.5px',
-                        borderRadius: '4px',
-                        border: isSelected ? '1.5px solid var(--teal-primary, #0b8185)' : '1px solid var(--line, #cbd5e1)',
-                        background: isSelected ? 'var(--teal-tint, rgba(11, 129, 133, 0.12))' : isBooked ? 'var(--surface-alt, #f1f5f9)' : 'var(--surface, #ffffff)',
-                        color: isBooked ? 'var(--text-faint, #94a3b8)' : 'var(--text, #334155)',
-                        cursor: isBooked ? 'not-allowed' : 'pointer'
-                      }}
+                      onClick={handleTodayMonth}
+                      style={{ fontSize: '11px', fontWeight: 600, padding: '2px 7px', borderRadius: '4px', border: '1px solid var(--line, #cbd5e1)', background: 'transparent', cursor: 'pointer', color: 'var(--teal-primary, #0b8185)' }}
                     >
-                      {slot} {isBooked ? '(Booked)' : ''}
+                      Today
                     </button>
-                  )
-                })}
-              </div>
-            </div>
+                  </div>
 
-            {/* Conflict / Availability Warning Bar */}
-            {!availability.available ? (
-              <div className="availability-warning-box">
-                <AlertTriangle size={18} />
-                <div>
-                  <strong>Doctor Unavailable at this Time</strong>
-                  <p>{availability.reason}</p>
+                  <button
+                    type="button"
+                    onClick={handleNextMonth}
+                    style={{ border: '1px solid var(--line, #e2e8f0)', background: 'transparent', borderRadius: '6px', padding: '4px 8px', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
+                    title="Next Month"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+
+                {/* Day of Week Header */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', textAlign: 'center', fontSize: '11px', fontWeight: 700, color: 'var(--text-muted, #64748b)', marginBottom: '8px' }}>
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+                    <div key={d}>{d}</div>
+                  ))}
+                </div>
+
+                {/* Day Cells Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+                  {calendarMonthData.days.map((day, idx) => {
+                    const isDisabled = day.isPast
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        disabled={isDisabled}
+                        onClick={() => setSelectedDate(day.dateStr)}
+                        style={{
+                          height: '32px',
+                          display: 'grid',
+                          placeItems: 'center',
+                          borderRadius: '6px',
+                          border: day.isSelected ? '1.5px solid var(--teal-primary, #0b8185)' : day.isToday ? '1px solid var(--teal-primary, #0b8185)' : '1px solid transparent',
+                          background: day.isSelected ? 'var(--teal-primary, #0b8185)' : 'transparent',
+                          color: day.isSelected ? '#ffffff' : day.isPast ? 'var(--text-faint, #cbd5e1)' : !day.isCurrentMonth ? 'var(--text-faint, #94a3b8)' : 'var(--text, #334155)',
+                          fontWeight: day.isSelected || day.isToday ? 700 : 500,
+                          fontSize: '12px',
+                          cursor: isDisabled ? 'not-allowed' : 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {day.dayNum}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
-            ) : (
-              <div className="availability-success-box">
-                <Check size={16} />
-                <span>Slot is available with {selectedDoctor} on {selectedDentist?.chair}.</span>
+
+              {/* Right Column: Date Info, Priority, Time Slots and Availability */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <label className="form-field">
+                    <span>Selected Date</span>
+                    <input
+                      type="date"
+                      required
+                      min={today()}
+                      value={selectedDate}
+                      onChange={(e) => {
+                        setSelectedDate(e.target.value)
+                        const d = new Date(e.target.value)
+                        setViewMonthDate(new Date(d.getFullYear(), d.getMonth(), 1))
+                      }}
+                    />
+                  </label>
+
+                  <label className="form-field">
+                    <span>Visit Priority</span>
+                    <select
+                      value={priority}
+                      onChange={(e) => setPriority(e.target.value as AppointmentPriority)}
+                    >
+                      <option value="normal">Normal Routine</option>
+                      <option value="urgent">Urgent / Pain</option>
+                      <option value="emergency">Emergency Immediate</option>
+                    </select>
+                  </label>
+                </div>
+
+                {/* Daily Schedule Preview */}
+                <div className="daily-schedule-preview">
+                  <h4 style={{ fontSize: '13px', fontWeight: 600, margin: '0 0 6px 0', color: 'var(--text-strong, #0f172a)' }}>Daily schedule</h4>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {timeSlots.map((slot) => {
+                      const isBooked = appointments.some(
+                        (a) => a.doctor === selectedDoctor && a.date === selectedDate && a.time === slot && a.status !== 'cancelled'
+                      )
+                      const isSelected = selectedTime === slot
+                      return (
+                        <button
+                          key={slot}
+                          type="button"
+                          disabled={isBooked}
+                          onClick={() => setSelectedTime(slot)}
+                          style={{
+                            padding: '5px 9px',
+                            fontSize: '11.5px',
+                            borderRadius: '5px',
+                            border: isSelected ? '1.5px solid var(--teal-primary, #0b8185)' : '1px solid var(--line, #cbd5e1)',
+                            background: isSelected ? 'var(--teal-primary, #0b8185)' : isBooked ? 'var(--surface-alt, #f1f5f9)' : 'var(--surface, #ffffff)',
+                            color: isSelected ? '#ffffff' : isBooked ? 'var(--text-faint, #94a3b8)' : 'var(--text, #334155)',
+                            cursor: isBooked ? 'not-allowed' : 'pointer',
+                            fontWeight: isSelected ? 700 : 500
+                          }}
+                        >
+                          {slot} {isBooked ? '(Booked)' : ''}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Conflict / Availability Warning Bar */}
+                {!availability.available ? (
+                  <div className="availability-warning-box">
+                    <AlertTriangle size={18} />
+                    <div>
+                      <strong>Doctor Unavailable at this Time</strong>
+                      <p>{availability.reason}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="availability-success-box">
+                    <Check size={16} />
+                    <span>Slot is available with {selectedDoctor} on {selectedDentist?.chair}.</span>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
           {/* Section 5: Clinical Notes */}
