@@ -70,6 +70,20 @@ export const NewAppointmentPage: React.FC = () => {
     })
   }, [patients, patientSearch])
 
+  const [dentistSearch, setDentistSearch] = useState('')
+  const [isDentistSearchOpen, setIsDentistSearchOpen] = useState(false)
+
+  const matchedDentists = useMemo(() => {
+    if (!dentistSearch.trim()) return DENTISTS
+    const q = dentistSearch.toLowerCase().trim()
+    return DENTISTS.filter((d) => {
+      const nameMatch = d.name.toLowerCase().includes(q)
+      const specMatch = d.specialization.toLowerCase().includes(q)
+      const chairMatch = d.chair.toLowerCase().includes(q)
+      return nameMatch || specMatch || chairMatch
+    })
+  }, [dentistSearch])
+
   const selectedPatient = patients.find((p) => p.id === selectedPatientId)
   const selectedDentist = DENTISTS.find((d) => d.name === selectedDoctor)
   const selectedTreatment = DENTAL_TREATMENTS.find((t) => t.id === selectedTreatmentId)
@@ -299,34 +313,77 @@ export const NewAppointmentPage: React.FC = () => {
             )}
           </div>
 
-          {/* Section 2: Dentist Selection (Dropdown) */}
+          {/* Section 2: Searchable Dentist Selection */}
           <div className="form-section">
             <label className="booking-section-title">
               <Stethoscope size={16} />
               <span>2. Select Dentist *</span>
             </label>
-            <div className="form-row-2">
-              <label className="form-field">
-                <span>Doctor / Dentist</span>
-                <select
-                  value={selectedDoctor}
-                  onChange={(e) => setSelectedDoctor(e.target.value)}
-                >
-                  {DENTISTS.map((dentist) => (
-                    <option key={dentist.id} value={dentist.name}>
-                      {dentist.name} &bull; {dentist.specialization} &bull; {dentist.chair} ({dentist.shiftStart} - {dentist.shiftEnd})
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {selectedDentist && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text-muted, #64748b)', padding: '6px 0' }}>
-                  <span>Dedicated Chair: <strong style={{ color: 'var(--text-strong, #0f172a)' }}>{selectedDentist.chair}</strong></span>
-                  &bull;
-                  <span>Working Hours: <strong style={{ color: 'var(--teal-primary, #0b8185)' }}>{selectedDentist.shiftStart} - {selectedDentist.shiftEnd}</strong></span>
+
+            <div className="patient-search-container">
+              <div className="patient-search-input-wrap">
+                <Search size={16} className="search-icon" />
+                <input
+                  type="text"
+                  className="patient-search-field"
+                  placeholder="Search dentist by name, specialty, or chair (e.g. Arun, Priya, Ortho, Chair 1)..."
+                  value={isDentistSearchOpen ? dentistSearch : (selectedDoctor ? `${selectedDoctor} (${selectedDentist?.chair || ''})` : '')}
+                  onFocus={() => {
+                    setIsDentistSearchOpen(true)
+                    setDentistSearch('')
+                  }}
+                  onChange={(e) => {
+                    setDentistSearch(e.target.value)
+                    setIsDentistSearchOpen(true)
+                  }}
+                />
+              </div>
+
+              {isDentistSearchOpen && (
+                <div className="patient-search-dropdown" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                  {matchedDentists.length === 0 ? (
+                    <div className="no-patient-match">
+                      <span>No dentist found matching "{dentistSearch}".</span>
+                    </div>
+                  ) : (
+                    matchedDentists.map((d) => (
+                      <div
+                        key={d.id}
+                        className="patient-search-item"
+                        onClick={() => {
+                          setSelectedDoctor(d.name)
+                          setIsDentistSearchOpen(false)
+                          setDentistSearch('')
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                      >
+                        <div>
+                          <div className="item-patient-name" style={{ fontWeight: 600 }}>{d.name}</div>
+                          <div className="item-patient-meta" style={{ fontSize: '11.5px', color: '#64748b' }}>
+                            {d.specialization} &bull; Hours: {d.shiftStart} - {d.shiftEnd}
+                          </div>
+                        </div>
+                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: 'rgba(11, 129, 133, 0.1)', color: '#0b8185' }}>
+                          {d.chair}
+                        </span>
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
             </div>
+
+            {selectedDentist && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', color: 'var(--text-muted, #64748b)', marginTop: '4px' }}>
+                <span>Doctor: <strong style={{ color: 'var(--text-strong, #0f172a)' }}>{selectedDentist.name}</strong></span>
+                &bull;
+                <span>Specialty: <strong>{selectedDentist.specialization}</strong></span>
+                &bull;
+                <span>Chair: <strong style={{ color: 'var(--teal-primary, #0b8185)' }}>{selectedDentist.chair}</strong></span>
+                &bull;
+                <span>Shift: <strong>{selectedDentist.shiftStart} - {selectedDentist.shiftEnd}</strong></span>
+              </div>
+            )}
           </div>
 
           {/* Section 3: Treatment Selection (Duration automatically set) */}
