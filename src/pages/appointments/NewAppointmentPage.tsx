@@ -42,6 +42,7 @@ export const NewAppointmentPage: React.FC = () => {
 
   // State
   const [patientSearch, setPatientSearch] = useState('')
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [selectedPatientId, setSelectedPatientId] = useState(searchParams.get('patientId') || '')
   const [selectedDoctor, setSelectedDoctor] = useState(DENTISTS[0].name)
   const [selectedTreatmentId, setSelectedTreatmentId] = useState(DENTAL_TREATMENTS[0].id)
@@ -51,14 +52,21 @@ export const NewAppointmentPage: React.FC = () => {
   const [notes, setNotes] = useState('')
   const [bookingSuccess, setBookingSuccess] = useState<string | null>(null)
 
-  // Patient filter: strictly search by NAME or PATIENT UNIQUE ID (NO phone number)
+  // Patient filter: search by Name OR Patient ID Number (NO phone number)
   const matchedPatients = useMemo(() => {
-    if (!patientSearch.trim()) return []
+    if (!patientSearch.trim()) return patients
     const q = patientSearch.toLowerCase().trim()
+    const digitsOnly = q.replace(/\D/g, '')
     return patients.filter((p) => {
       const fullName = `${p.firstName} ${p.lastName}`.toLowerCase()
+      const firstName = p.firstName.toLowerCase()
+      const lastName = p.lastName.toLowerCase()
       const patientId = p.id.toLowerCase()
-      return fullName.includes(q) || patientId.includes(q)
+      const patientIdDigits = p.id.replace(/\D/g, '')
+
+      const nameMatch = fullName.includes(q) || firstName.includes(q) || lastName.includes(q)
+      const idMatch = patientId.includes(q) || (digitsOnly.length > 0 && patientIdDigits.includes(digitsOnly))
+      return nameMatch || idMatch
     })
   }, [patients, patientSearch])
 
@@ -146,12 +154,15 @@ export const NewAppointmentPage: React.FC = () => {
                 </div>
                 <div className="patient-pill-details">
                   <strong>{selectedPatient.firstName} {selectedPatient.lastName}</strong>
-                  <span>ID: {selectedPatient.id} &bull; {selectedPatient.age} yrs &bull; {selectedPatient.gender}</span>
+                  <span>Patient ID: <strong style={{ color: 'var(--teal-primary, #0b8185)' }}>{selectedPatient.id}</strong> &bull; {selectedPatient.age} yrs &bull; {selectedPatient.gender}</span>
                 </div>
                 <button
                   type="button"
                   className="btn-change-patient"
-                  onClick={() => setSelectedPatientId('')}
+                  onClick={() => {
+                    setSelectedPatientId('')
+                    setIsSearchOpen(true)
+                  }}
                 >
                   Change
                 </button>
@@ -163,17 +174,21 @@ export const NewAppointmentPage: React.FC = () => {
                   <input
                     type="text"
                     className="patient-search-field"
-                    placeholder="Search by Patient Name or Unique Patient ID (e.g. PAT-1001)..."
+                    placeholder="Search by Patient Name or ID Number (e.g., Aarav, PAT-1001, 1001)..."
                     value={patientSearch}
-                    onChange={(e) => setPatientSearch(e.target.value)}
+                    onFocus={() => setIsSearchOpen(true)}
+                    onChange={(e) => {
+                      setPatientSearch(e.target.value)
+                      setIsSearchOpen(true)
+                    }}
                   />
                 </div>
 
-                {patientSearch && (
-                  <div className="patient-search-dropdown">
+                {isSearchOpen && (
+                  <div className="patient-search-dropdown" style={{ maxHeight: '220px', overflowY: 'auto' }}>
                     {matchedPatients.length === 0 ? (
                       <div className="no-patient-match">
-                        <span>No patient found with that name or ID.</span>
+                        <span>No patient found with that name or ID number.</span>
                         <Link to="/patients/new" className="link-register-new">
                           Register new patient
                         </Link>
@@ -183,10 +198,18 @@ export const NewAppointmentPage: React.FC = () => {
                         <div
                           key={p.id}
                           className="patient-search-item"
-                          onClick={() => handleSelectPatient(p.id)}
+                          onClick={() => {
+                            handleSelectPatient(p.id)
+                            setIsSearchOpen(false)
+                          }}
                         >
-                          <div className="item-patient-name">{p.firstName} {p.lastName}</div>
-                          <div className="item-patient-meta">ID: <strong>{p.id}</strong> &bull; {p.age} yrs &bull; {p.gender}</div>
+                          <div className="item-patient-name" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span>{p.firstName} {p.lastName}</span>
+                            <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 7px', borderRadius: '10px', background: 'rgba(11, 129, 133, 0.1)', color: '#0b8185' }}>
+                              ID: {p.id}
+                            </span>
+                          </div>
+                          <div className="item-patient-meta">Age: {p.age} yrs &bull; {p.gender}</div>
                         </div>
                       ))
                     )}
@@ -194,7 +217,7 @@ export const NewAppointmentPage: React.FC = () => {
                 )}
 
                 <div className="search-helper-text">
-                  Tip: Quick selection by permanent ID or name. (Phone number search is disabled).
+                  Tip: Search registered patients by <strong>Name</strong> or <strong>ID Number</strong> (e.g., PAT-1001 or 1001).
                 </div>
               </div>
             )}

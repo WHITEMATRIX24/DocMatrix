@@ -208,14 +208,21 @@ export const CalendarPage: React.FC = () => {
     setShowQuickBook(true)
   }
 
-  // Patient search: strictly by Name or unique Patient ID (no phone number)
+  // Patient search: strictly by Name or unique Patient ID Number (no phone number)
   const matchedPatients = useMemo(() => {
-    if (!qbPatientSearch.trim()) return []
+    if (!qbPatientSearch.trim()) return patients
     const q = qbPatientSearch.toLowerCase().trim()
+    const digitsOnly = q.replace(/\D/g, '')
     return patients.filter((p) => {
       const fullName = `${p.firstName} ${p.lastName}`.toLowerCase()
+      const firstName = p.firstName.toLowerCase()
+      const lastName = p.lastName.toLowerCase()
       const patientId = p.id.toLowerCase()
-      return fullName.includes(q) || patientId.includes(q)
+      const patientIdDigits = p.id.replace(/\D/g, '')
+
+      const nameMatch = fullName.includes(q) || firstName.includes(q) || lastName.includes(q)
+      const idMatch = patientId.includes(q) || (digitsOnly.length > 0 && patientIdDigits.includes(digitsOnly))
+      return nameMatch || idMatch
     })
   }, [patients, qbPatientSearch])
 
