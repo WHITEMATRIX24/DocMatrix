@@ -845,13 +845,32 @@
   border-bottom: 1px solid var(--line, #f1f5f9);
 }
 
-.section-title {
+.booking-section-title,
+.form-section .section-title,
+.booking-form-card .section-title {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14.5px;
-  font-weight: 700;
-  color: var(--text-strong, #0f172a);
+  font-family: inherit !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+  letter-spacing: -0.01em !important;
+  color: var(--text-strong, #0f172a) !important;
+  margin: 0 0 6px 0 !important;
+}
+
+.booking-section-title span,
+.form-section .section-title span {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  color: var(--text-strong, #0f172a) !important;
+}
+
+.booking-section-title svg,
+.form-section .section-title svg {
+  color: var(--teal-primary, #0b8185);
+  flex-shrink: 0;
 }
 
 /* Patient Search Bar */

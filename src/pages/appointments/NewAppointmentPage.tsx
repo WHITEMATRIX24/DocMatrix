@@ -134,7 +134,7 @@ export const NewAppointmentPage: React.FC = () => {
         <form onSubmit={handleSubmit} className="booking-form-card">
           {/* Section 1: Patient Selection with Live Search (Name or Patient ID ONLY) */}
           <div className="form-section">
-            <label className="section-title">
+            <label className="booking-section-title">
               <UserRound size={16} />
               <span>1. Select Patient *</span>
             </label>
@@ -202,7 +202,7 @@ export const NewAppointmentPage: React.FC = () => {
 
           {/* Section 2: Dentist Selection */}
           <div className="form-section">
-            <label className="section-title">
+            <label className="booking-section-title">
               <Stethoscope size={16} />
               <span>2. Select Dentist *</span>
             </label>
@@ -229,7 +229,7 @@ export const NewAppointmentPage: React.FC = () => {
 
           {/* Section 3: Treatment Selection (Duration automatically set) */}
           <div className="form-section">
-            <label className="section-title">
+            <label className="booking-section-title">
               <Stethoscope size={16} />
               <span>3. Treatment & Procedure *</span>
             </label>
@@ -257,7 +257,7 @@ export const NewAppointmentPage: React.FC = () => {
 
           {/* Section 4: Date, Time & Priority (Duration bar is removed per requirement) */}
           <div className="form-section">
-            <label className="section-title">
+            <label className="booking-section-title">
               <CalendarDays size={16} />
               <span>4. Schedule & Time *</span>
             </label>
