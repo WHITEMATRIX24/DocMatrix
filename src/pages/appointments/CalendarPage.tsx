@@ -21,11 +21,16 @@ import {
   CalendarClock,
   RotateCcw,
   Check,
-  UserCheck
+  UserCheck,
+  UserPlus,
+  Search
 } from 'lucide-react'
 import {
   useClinicData,
   DENTISTS,
+  DENTAL_TREATMENTS,
+  bookAppointment,
+  registerWalkIn,
   updateAppointmentStatus,
   rescheduleAppointment,
   cancelAppointment,
@@ -33,7 +38,8 @@ import {
   generateWhatsAppMessage,
   checkDentistAvailability,
   type AppointmentRecord,
-  type AppointmentStatus
+  type AppointmentStatus,
+  type AppointmentPriority
 } from '@/services/clinicStore'
 
 type CalendarViewMode = 'day' | 'week' | 'dentist'
@@ -64,6 +70,26 @@ export const CalendarPage: React.FC = () => {
   const [rescheduleError, setRescheduleError] = useState('')
   const [cancelReason, setCancelReason] = useState('')
   const [whatsAppType, setWhatsAppType] = useState<'confirmation' | 'reminder_24h' | 'reminder_2h' | 'recall'>('confirmation')
+
+  // In-Calendar Quick Book Modal State
+  const [showQuickBook, setShowQuickBook] = useState(false)
+  const [qbDoctor, setQbDoctor] = useState(DENTISTS[0].name)
+  const [qbDate, setQbDate] = useState(selectedDate)
+  const [qbTime, setQbTime] = useState('10:00')
+  const [qbPatientSearch, setQbPatientSearch] = useState('')
+  const [qbSelectedPatientId, setQbSelectedPatientId] = useState('')
+  const [qbTreatmentId, setQbTreatmentId] = useState(DENTAL_TREATMENTS[0].id)
+  const [qbPriority, setQbPriority] = useState<AppointmentPriority>('normal')
+  const [qbNotes, setQbNotes] = useState('')
+  const [qbError, setQbError] = useState('')
+
+  // In-Calendar Quick Walk-in Modal State
+  const [showQuickWalkIn, setShowQuickWalkIn] = useState(false)
+  const [wiName, setWiName] = useState('')
+  const [wiMobile, setWiMobile] = useState('')
+  const [wiDoctor, setWiDoctor] = useState(DENTISTS[0].name)
+  const [wiComplaint, setWiComplaint] = useState('')
+  const [wiPriority, setWiPriority] = useState<AppointmentPriority>('normal')
 
   // Date manipulation helpers
   const handlePrevDay = () => {
@@ -170,6 +196,85 @@ export const CalendarPage: React.FC = () => {
     setShowWhatsAppModal(true)
   }
 
+  // Open Quick Book prefilled for a specific doctor & time slot
+  const handleOpenSlotBooking = (doctorName: string, slotTime: string, dateStr?: string) => {
+    setQbDoctor(doctorName)
+    setQbTime(slotTime)
+    setQbDate(dateStr || selectedDate)
+    setQbPatientSearch('')
+    setQbSelectedPatientId('')
+    setQbError('')
+    setShowQuickBook(true)
+  }
+
+  // Patient search: strictly by Name or unique Patient ID (no phone number)
+  const matchedPatients = useMemo(() => {
+    if (!qbPatientSearch.trim()) return []
+    const q = qbPatientSearch.toLowerCase().trim()
+    return patients.filter((p) => {
+      const fullName = `${p.firstName} ${p.lastName}`.toLowerCase()
+      const patientId = p.id.toLowerCase()
+      return fullName.includes(q) || patientId.includes(q)
+    })
+  }, [patients, qbPatientSearch])
+
+  const selectedQbPatient = patients.find((p) => p.id === qbSelectedPatientId)
+  const selectedQbTreatment = DENTAL_TREATMENTS.find((t) => t.id === qbTreatmentId)
+  const selectedQbDentist = DENTISTS.find((d) => d.name === qbDoctor)
+
+  // Real-time availability validation for Quick Book
+  const qbAvailability = useMemo(() => {
+    const duration = selectedQbTreatment?.defaultDurationMinutes || 30
+    return checkDentistAvailability(qbDoctor, qbDate, qbTime, duration)
+  }, [qbDoctor, qbDate, qbTime, selectedQbTreatment])
+
+  const handleExecuteQuickBook = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!qbSelectedPatientId) {
+      setQbError('Please search and select a patient by Name or Patient ID.')
+      return
+    }
+    if (!qbAvailability.available) {
+      setQbError(qbAvailability.reason || 'This slot is unavailable.')
+      return
+    }
+
+    bookAppointment({
+      patientId: qbSelectedPatientId,
+      doctor: qbDoctor,
+      chair: selectedQbDentist?.chair || 'Chair 1',
+      treatmentType: selectedQbTreatment?.name || 'General Dental Consultation',
+      visitType: selectedQbTreatment?.category || 'Consultation',
+      date: qbDate,
+      time: qbTime,
+      durationMinutes: selectedQbTreatment?.defaultDurationMinutes || 30,
+      priority: qbPriority,
+      notes: qbNotes
+    })
+
+    setShowQuickBook(false)
+  }
+
+  const handleExecuteQuickWalkIn = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!wiName.trim()) return
+
+    registerWalkIn({
+      patientName: wiName,
+      mobile: wiMobile,
+      gender: 'female',
+      age: '28',
+      complaint: wiComplaint || 'General Dental Consultation',
+      doctor: wiDoctor,
+      priority: wiPriority
+    })
+
+    setWiName('')
+    setWiMobile('')
+    setWiComplaint('')
+    setShowQuickWalkIn(false)
+  }
+
   const handleExecuteReschedule = (e: React.FormEvent) => {
     e.preventDefault()
     if (!activeAppt) return
@@ -208,7 +313,6 @@ export const CalendarPage: React.FC = () => {
     const message = generateWhatsAppMessage(whatsAppType, activeAppt, patient)
     sendAppointmentReminder(activeAppt.id, 'whatsapp')
 
-    // Open WhatsApp Web with prefilled message
     const phone = patient.mobile.replace(/\D/g, '')
     const url = `https://wa.me/91${phone}?text=${encodeURIComponent(message)}`
     window.open(url, '_blank')
@@ -268,7 +372,7 @@ export const CalendarPage: React.FC = () => {
           </div>
         </div>
 
-        {/* View Switchers & Actions */}
+        {/* View Switchers & Fast Actions */}
         <div className="calendar-top-actions">
           {/* View Mode Toggle */}
           <div className="calendar-view-toggle">
@@ -292,13 +396,27 @@ export const CalendarPage: React.FC = () => {
             </button>
           </div>
 
+          {/* Quick Walk-in Button right on Calendar */}
           <button
+            type="button"
+            className="patient-intake-secondary"
+            onClick={() => setShowQuickWalkIn(true)}
+            style={{ padding: '6px 12px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            title="Register a walk-in patient"
+          >
+            <UserPlus size={14} />
+            <span>+ Walk-in</span>
+          </button>
+
+          {/* Quick Book Button */}
+          <button
+            type="button"
             className="btn-quick-book"
-            onClick={() => navigate(`/appointments/new?date=${selectedDate}`)}
-            title="Book appointment for this date"
+            onClick={() => handleOpenSlotBooking(DENTISTS[0].name, '10:00', selectedDate)}
+            title="Open fast booking modal"
           >
             <Plus size={15} />
-            <span>Book</span>
+            <span>+ Quick Book</span>
           </button>
         </div>
       </header>
@@ -348,6 +466,13 @@ export const CalendarPage: React.FC = () => {
             onClick={() => setFilterStatus(filterStatus === 'scheduled' ? 'all' : 'scheduled')}
           >
             Scheduled ({dateAppointments.filter((a) => a.status === 'scheduled').length})
+          </button>
+          <button
+            type="button"
+            className={`status-pill pill-confirmed ${filterStatus === 'confirmed' ? 'is-active' : ''}`}
+            onClick={() => setFilterStatus(filterStatus === 'confirmed' ? 'all' : 'confirmed')}
+          >
+            Confirmed ({dateAppointments.filter((a) => a.status === 'confirmed').length})
           </button>
           <button
             type="button"
@@ -408,12 +533,8 @@ export const CalendarPage: React.FC = () => {
                           <button
                             type="button"
                             className="slot-book-btn"
-                            onClick={() =>
-                              navigate(
-                                `/appointments/new?date=${selectedDate}&time=${slot}&doctor=${encodeURIComponent(dentist.name)}`
-                              )
-                            }
-                            title={`Click to book ${dentist.name} at ${slot}`}
+                            onClick={() => handleOpenSlotBooking(dentist.name, slot, selectedDate)}
+                            title={`Click to fast book ${dentist.name} at ${slot}`}
                           >
                             <Plus size={11} />
                             <span>Book slot</span>
@@ -508,7 +629,7 @@ export const CalendarPage: React.FC = () => {
                           <button
                             type="button"
                             className="timeline-quick-book-btn"
-                            onClick={() => navigate(`/appointments/new?date=${selectedDate}&time=${slot}`)}
+                            onClick={() => handleOpenSlotBooking(DENTISTS[0].name, slot, selectedDate)}
                             title={`Book an appointment at ${slot}`}
                           >
                             <Plus size={12} /> Book {slot}
@@ -600,7 +721,7 @@ export const CalendarPage: React.FC = () => {
                           <button
                             type="button"
                             className="week-slot-add-btn"
-                            onClick={() => navigate(`/appointments/new?date=${w.dateStr}&time=${slot}`)}
+                            onClick={() => handleOpenSlotBooking(DENTISTS[0].name, slot, w.dateStr)}
                             title={`Book ${w.dateStr} at ${slot}`}
                           >
                             <Plus size={10} />
@@ -630,7 +751,219 @@ export const CalendarPage: React.FC = () => {
         )}
       </div>
 
-      {/* 4. APPOINTMENT DETAIL MODAL (Requirement #4, #5, #6, #8) */}
+      {/* 4. FAST IN-CALENDAR QUICK-BOOK MODAL (High Convenience) */}
+      {showQuickBook && (
+        <div className="calendar-modal-overlay">
+          <div className="sub-modal-card" style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CalendarDays size={18} style={{ color: '#0b8185' }} />
+                <h3 style={{ margin: 0 }}>Fast Appointment Booking</h3>
+              </div>
+              <button className="btn-close" onClick={() => setShowQuickBook(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleExecuteQuickBook} className="sub-modal-form">
+              {qbError && (
+                <div className="conflict-alert">
+                  <AlertTriangle size={15} />
+                  <span>{qbError}</span>
+                </div>
+              )}
+
+              {/* Patient Search: by Name or unique Patient ID (no phone number) */}
+              <div className="form-field">
+                <label>
+                  <span>Patient Search (by Name or Patient ID) *</span>
+                </label>
+                {selectedQbPatient ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(11, 129, 133, 0.08)', borderRadius: '6px', border: '1px solid #0b8185' }}>
+                    <div>
+                      <strong style={{ color: '#0f172a' }}>{selectedQbPatient.firstName} {selectedQbPatient.lastName}</strong>
+                      <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '8px' }}>ID: {selectedQbPatient.id}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setQbSelectedPatientId(''); setQbPatientSearch('') }}
+                      style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#64748b', fontSize: '12px' }}
+                    >
+                      Change
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="text"
+                        placeholder="Type patient name or ID (e.g. Aarav, PAT-1001)..."
+                        value={qbPatientSearch}
+                        onChange={(e) => setQbPatientSearch(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                    {matchedPatients.length > 0 && (
+                      <div style={{ marginTop: '6px', maxHeight: '140px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#ffffff', boxShadow: '0 4px 10px rgba(0,0,0,0.08)' }}>
+                        {matchedPatients.map((p) => (
+                          <div
+                            key={p.id}
+                            onClick={() => { setQbSelectedPatientId(p.id); setQbPatientSearch('') }}
+                            style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}
+                          >
+                            <strong>{p.firstName} {p.lastName}</strong>
+                            <span style={{ color: '#64748b', fontSize: '11px' }}>{p.id}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Dentist & Treatment */}
+              <div className="form-row-2">
+                <label className="form-field">
+                  <span>Dentist</span>
+                  <select value={qbDoctor} onChange={(e) => setQbDoctor(e.target.value)}>
+                    {DENTISTS.map((d) => (
+                      <option key={d.id} value={d.name}>{d.name} ({d.chair})</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="form-field">
+                  <span>Treatment Procedure</span>
+                  <select value={qbTreatmentId} onChange={(e) => setQbTreatmentId(e.target.value)}>
+                    {DENTAL_TREATMENTS.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name} ({t.defaultDurationMinutes}m)</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {/* Date & Time */}
+              <div className="form-row-2">
+                <label className="form-field">
+                  <span>Date</span>
+                  <input type="date" value={qbDate} onChange={(e) => setQbDate(e.target.value)} required />
+                </label>
+
+                <label className="form-field">
+                  <span>Time Slot</span>
+                  <select value={qbTime} onChange={(e) => setQbTime(e.target.value)}>
+                    {timeSlots.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {/* Conflict Status Display */}
+              <div style={{ padding: '6px 10px', borderRadius: '6px', background: qbAvailability.available ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)', border: `1px solid ${qbAvailability.available ? '#10b981' : '#ef4444'}`, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {qbAvailability.available ? (
+                  <>
+                    <CheckCircle2 size={14} style={{ color: '#10b981' }} />
+                    <span style={{ color: '#065f46', fontWeight: 600 }}>Doctor is available at this time</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle size={14} style={{ color: '#ef4444' }} />
+                    <span style={{ color: '#991b1b', fontWeight: 600 }}>{qbAvailability.reason || 'Slot conflict'}</span>
+                  </>
+                )}
+              </div>
+
+              <div className="modal-actions" style={{ marginTop: '12px' }}>
+                <button type="button" className="btn-cancel" onClick={() => setShowQuickBook(false)}>
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-confirm"
+                  disabled={!qbAvailability.available || !qbSelectedPatientId}
+                  style={{ opacity: (!qbAvailability.available || !qbSelectedPatientId) ? 0.6 : 1 }}
+                >
+                  Confirm & Drop on Calendar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 5. FAST IN-CALENDAR WALK-IN REGISTRATION MODAL */}
+      {showQuickWalkIn && (
+        <div className="calendar-modal-overlay">
+          <div className="sub-modal-card" style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <UserPlus size={18} style={{ color: '#0b8185' }} />
+                <h3 style={{ margin: 0 }}>Register Walk-in Patient</h3>
+              </div>
+              <button className="btn-close" onClick={() => setShowQuickWalkIn(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleExecuteQuickWalkIn} className="sub-modal-form">
+              <label className="form-field">
+                <span>Patient Full Name *</span>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. John Doe"
+                  value={wiName}
+                  onChange={(e) => setWiName(e.target.value)}
+                  autoFocus
+                />
+              </label>
+
+              <div className="form-row-2">
+                <label className="form-field">
+                  <span>Mobile Number</span>
+                  <input
+                    type="tel"
+                    placeholder="9876543210"
+                    value={wiMobile}
+                    onChange={(e) => setWiMobile(e.target.value)}
+                  />
+                </label>
+
+                <label className="form-field">
+                  <span>Assign Dentist</span>
+                  <select value={wiDoctor} onChange={(e) => setWiDoctor(e.target.value)}>
+                    {DENTISTS.map((d) => (
+                      <option key={d.id} value={d.name}>{d.name} ({d.chair})</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <label className="form-field">
+                <span>Primary Dental Complaint</span>
+                <input
+                  type="text"
+                  placeholder="e.g. Severe toothache, chipped molar, bleeding gums"
+                  value={wiComplaint}
+                  onChange={(e) => setWiComplaint(e.target.value)}
+                />
+              </label>
+
+              <div className="modal-actions">
+                <button type="button" className="btn-cancel" onClick={() => setShowQuickWalkIn(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-confirm">
+                  Issue Token & Add to Live Queue
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. APPOINTMENT DETAIL MODAL (Requirements #4, #5, #6, #8) */}
       {activeAppt && (
         <div className="calendar-modal-overlay">
           <div className="calendar-detail-modal">
@@ -780,7 +1113,7 @@ export const CalendarPage: React.FC = () => {
         </div>
       )}
 
-      {/* Reschedule Modal */}
+      {/* 7. Reschedule Modal (Requirement #5) */}
       {showRescheduleModal && activeAppt && (
         <div className="calendar-modal-overlay">
           <div className="sub-modal-card">
@@ -842,7 +1175,7 @@ export const CalendarPage: React.FC = () => {
         </div>
       )}
 
-      {/* Cancel Modal */}
+      {/* 8. Cancel Modal (Requirement #5) */}
       {showCancelModal && activeAppt && (
         <div className="calendar-modal-overlay">
           <div className="sub-modal-card">
@@ -876,7 +1209,7 @@ export const CalendarPage: React.FC = () => {
         </div>
       )}
 
-      {/* WhatsApp Reminder Modal */}
+      {/* 9. WhatsApp Reminder Modal (Requirement #6) */}
       {showWhatsAppModal && activeAppt && (
         <div className="calendar-modal-overlay">
           <div className="sub-modal-card">
