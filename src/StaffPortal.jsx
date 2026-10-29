@@ -177,19 +177,11 @@ export default function StaffPortal({
   const groupedAreas = useMemo(() => {
     const map = {}
     ALL_LAUNCH_FEATURES.forEach((f) => {
-      if (f.id === 'appt.detail') return
+      
       if (!map[f.area]) map[f.area] = []
       map[f.area].push(f)
     })
-    if (map['Appointments']) {
-      const hasCalendar = map['Appointments'].some((f) => f.id === 'appt.calendar')
-      if (!hasCalendar) {
-        map['Appointments'].unshift(
-          { id: 'appt.calendar', name: 'Calendar', route: '/appointments/calendar', area: 'Appointments' },
-          { id: 'appt.queue', name: 'Live queue', route: '/appointments/queue', area: 'Appointments' }
-        )
-      }
-    }
+    
     return map
   }, [])
 

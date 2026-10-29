@@ -1,766 +1,1391 @@
 /* =====================================================================
-   DOCMATRIX APPOINTMENTS CALENDAR MODULE
-   Pixel-perfect match to clinical design layout
+   DOCMATRIX APPOINTMENTS, CALENDAR & LIVE QUEUE STYLES
+   With Full Bright & Dark Mode Support via Theme CSS Variables
    ===================================================================== */
 
+/* ── 1. Appointments Workspace ────────────────────────────────────── */
+.appointments-workspace {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: calc(100vh - 70px);
+  background: var(--paper, #f8fafc);
+  color: var(--text, #334155);
+}
+
+.appointments-workspace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 28px 16px 28px;
+  background: var(--surface, #ffffff);
+  border-bottom: 1px solid var(--line, #e2e8f0);
+}
+
+.appointments-workspace-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.appointments-workspace-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: var(--teal-tint, rgba(11, 129, 133, 0.1));
+  color: var(--teal-primary, #0b8185);
+}
+
+.appointments-workspace-eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--teal-primary, #0b8185);
+  margin-bottom: 2px;
+}
+
+.appointments-workspace-title h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-strong, #0f172a);
+  margin: 0;
+}
+
+.appointments-workspace-title p {
+  font-size: 13px;
+  color: var(--text-muted, #64748b);
+  margin: 2px 0 0 0;
+}
+
+.appointments-workspace-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 28px;
+  background: var(--surface, #ffffff);
+  border-bottom: 1px solid var(--line, #e2e8f0);
+}
+
+.appointments-workspace-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.appointments-workspace-tab:hover {
+  color: var(--text-strong, #0f172a);
+  background: var(--surface-alt, #f1f5f9);
+}
+
+.appointments-workspace-tab.is-active {
+  color: var(--teal-primary, #0b8185);
+  border-bottom-color: var(--teal-primary, #0b8185);
+  background: transparent;
+}
+
+.appointments-workspace-content {
+  flex: 1;
+  padding: 24px 28px;
+  background: var(--paper, #f8fafc);
+}
+
+/* ── 2. Calendar Page Root & Toolbar ──────────────────────────────── */
 .calendar-page-root {
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: calc(100vh - 65px);
-  min-height: 600px;
-  background: #ffffff;
+  background: var(--surface, #ffffff);
+  border-radius: 12px;
+  border: 1px solid var(--line, #e2e8f0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   overflow: hidden;
-  font-family: 'Instrument Sans', 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
 }
 
-/* 1. Header Toolbar */
 .calendar-header-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 28px 12px 28px;
-  background: #ffffff;
-  border-bottom: 1px solid #f1f5f9;
-  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--surface, #ffffff);
+  border-bottom: 1px solid var(--line, #e2e8f0);
 }
 
-.calendar-heading-title {
-  font-size: 24px;
-  font-weight: 800;
-  color: #0f172a;
-  letter-spacing: -0.02em;
-  margin: 0;
+.calendar-date-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid var(--line, #cbd5e1);
+  background: var(--surface, #ffffff);
+  color: var(--text, #334155);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-icon:hover {
+  background: var(--surface-alt, #f1f5f9);
+}
+
+.btn-today {
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--line, #cbd5e1);
+  background: var(--surface, #ffffff);
+  color: var(--text, #334155);
+  cursor: pointer;
+}
+
+.btn-today:hover {
+  background: var(--surface-alt, #f1f5f9);
+}
+
+.calendar-display-date {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-strong, #0f172a);
+  margin: 0 6px;
+}
+
+.calendar-date-picker {
+  padding: 5px 8px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid var(--line, #cbd5e1);
+  background: var(--surface, #ffffff);
+  color: var(--text, #334155);
 }
 
 .calendar-top-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
-}
-
-.btn-calendar-walkin {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: 1.5px solid #e2e8f0;
-  background: #ffffff;
-  color: #1e293b;
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.btn-calendar-walkin:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-  transform: translateY(-1px);
-}
-
-.btn-calendar-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 18px;
-  border-radius: 8px;
-  border: none;
-  background: #008891;
-  color: #ffffff;
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 136, 145, 0.25);
-  transition: all 0.15s ease;
-}
-
-.btn-calendar-primary:hover {
-  background: #00757d;
-  box-shadow: 0 4px 12px rgba(0, 136, 145, 0.35);
-  transform: translateY(-1px);
-}
-
-/* 2. Secondary Filter & Date Controls Bar */
-.calendar-controls-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 14px;
-  padding: 10px 28px 14px 28px;
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-  flex-shrink: 0;
+  gap: 10px;
 }
 
-.calendar-controls-left {
+.calendar-view-toggle {
   display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-/* Day / Week / Doctor-wise Segmented Tabs */
-.view-mode-tabs {
-  display: inline-flex;
-  align-items: center;
-  background: #f1f5f9;
   border-radius: 8px;
   padding: 3px;
-  gap: 2px;
+  background: var(--surface-alt, #f1f5f9);
+  border: 1px solid var(--line, #e2e8f0);
 }
 
-.view-mode-tab {
+.toggle-btn {
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 6px;
   border: none;
   background: transparent;
-  padding: 6px 16px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #475569;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.view-mode-tab:hover:not(.is-active) {
-  color: #1e293b;
-}
-
-.view-mode-tab.is-active {
-  background: #008891;
-  color: #ffffff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-}
-
-/* Date Navigator */
-.date-nav-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.date-nav-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  color: #475569;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.date-nav-btn:hover {
-  background: #f8fafc;
-  color: #0f172a;
-  border-color: #cbd5e1;
-}
-
-.date-nav-picker {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 34px;
-  padding: 0 14px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  color: #1e293b;
-  font-size: 13px;
-  font-weight: 600;
+  color: var(--text-muted, #64748b);
   cursor: pointer;
 }
 
-.date-nav-picker:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
-.date-today-btn {
-  height: 34px;
-  padding: 0 14px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  color: #334155;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.date-today-btn:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
-/* Filters Right */
-.calendar-controls-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.calendar-filter-dropdown {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
+.toggle-btn.is-active {
+  background: var(--surface, #ffffff);
+  color: var(--teal-primary, #0b8185);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .calendar-filter-select {
-  appearance: none;
-  -webkit-appearance: none;
-  height: 34px;
-  padding: 0 30px 0 12px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  color: #334155;
+  padding: 6px 10px;
   font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  outline: none;
-  transition: all 0.15s ease;
+  border-radius: 6px;
+  border: 1px solid var(--line, #cbd5e1);
+  background: var(--surface, #ffffff);
+  color: var(--text, #334155);
 }
 
-.calendar-filter-select:focus {
-  border-color: #008891;
-  box-shadow: 0 0 0 2px rgba(0, 136, 145, 0.15);
-}
-
-.calendar-filter-dropdown svg {
-  position: absolute;
-  right: 10px;
-  pointer-events: none;
-  color: #64748b;
-}
-
-/* 3. Main Stage: Schedule Grid + Right Detail Drawer */
-.calendar-stage-layout {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-  position: relative;
-}
-
-/* Calendar Grid */
-.calendar-grid-container {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: auto;
-  background: #ffffff;
-}
-
-.calendar-grid-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  min-width: 780px;
-}
-
-.calendar-th-corner {
-  width: 90px;
-  min-width: 90px;
-  position: sticky;
-  top: 0;
-  left: 0;
-  z-index: 10;
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-  border-right: 1px solid #e2e8f0;
-}
-
-.calendar-th-doctor {
-  padding: 12px 16px;
-  text-align: center;
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-  border-right: 1px solid #f1f5f9;
-  position: sticky;
-  top: 0;
-  z-index: 9;
-}
-
-.th-doctor-name {
-  font-size: 13.5px;
-  font-weight: 750;
-  color: #1e293b;
-}
-
-.th-doctor-chair {
-  font-size: 11.5px;
-  font-weight: 500;
-  color: #64748b;
-  margin-top: 1px;
-}
-
-.calendar-time-cell {
-  width: 90px;
-  min-width: 90px;
-  padding: 14px 14px 0 0;
-  font-size: 12px;
+.btn-quick-book {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: #64748b;
-  text-align: right;
-  vertical-align: top;
-  border-bottom: 1px solid #f1f5f9;
-  border-right: 1px solid #e2e8f0;
-  background: #ffffff;
-  position: sticky;
-  left: 0;
-  z-index: 5;
-  user-select: none;
-}
-
-.calendar-slot-column {
-  min-width: 210px;
-  height: 82px;
-  padding: 4px 6px;
-  border-bottom: 1px solid #f1f5f9;
-  border-right: 1px solid #f1f5f9;
-  vertical-align: top;
-  background: #ffffff;
-  position: relative;
-}
-
-/* Appointment Cards */
-.calendar-appointment-card {
-  border-radius: 8px;
-  padding: 8px 10px;
+  border-radius: 6px;
+  border: none;
+  background: var(--teal-primary, #0b8185);
+  color: #ffffff;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-  user-select: none;
-  height: 100%;
+  transition: opacity 0.15s;
+}
+
+.btn-quick-book:hover {
+  opacity: 0.9;
+}
+
+/* ── 3. Calendar Grid Layouts ─────────────────────────────────────── */
+.calendar-grid-container {
+  overflow-x: auto;
+  min-height: 540px;
+  background: var(--surface, #ffffff);
+}
+
+/* Dentist View */
+.dentist-view-board {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  min-width: 800px;
+}
+
+.dentist-columns-header {
+  display: flex;
+  border-bottom: 2px solid var(--line, #e2e8f0);
+  background: var(--surface-alt, #f8fafc);
+}
+
+.time-gutter-header {
+  width: 70px;
+  min-width: 70px;
+  padding: 12px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+  border-right: 1px solid var(--line, #e2e8f0);
+  text-align: center;
+}
+
+.dentist-col-title {
+  flex: 1;
+  padding: 12px 14px;
+  border-right: 1px solid var(--line, #e2e8f0);
+}
+
+.dentist-col-title h4 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-strong, #0f172a);
+  margin: 0;
+}
+
+.dentist-col-title span {
+  font-size: 11.5px;
+  color: var(--text-muted, #64748b);
+}
+
+.dentist-columns-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.dentist-time-row {
+  display: flex;
+  min-height: 52px;
+  border-bottom: 1px solid var(--line, #f1f5f9);
+}
+
+.time-gutter-cell {
+  width: 70px;
+  min-width: 70px;
+  padding: 8px 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  border-right: 1px solid var(--line, #e2e8f0);
+  text-align: center;
+  background: var(--surface-alt, #f8fafc);
+}
+
+.dentist-slot-cell {
+  flex: 1;
+  padding: 4px 6px;
+  border-right: 1px solid var(--line, #f1f5f9);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dentist-slot-cell.slot-break {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    var(--line, rgba(0, 0, 0, 0.03)) 10px,
+    var(--line, rgba(0, 0, 0, 0.03)) 20px
+  );
+}
+
+.lunch-label {
+  font-size: 11px;
+  color: var(--text-faint, #94a3b8);
+  font-style: italic;
+  padding: 4px 6px;
+}
+
+/* Appointment Card in Calendar */
+.calendar-appointment-card {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--surface-raised, #ffffff);
+  border: 1px solid var(--line-strong, #cbd5e1);
+  border-left: 4px solid var(--teal-primary, #0b8185);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
 }
 
 .calendar-appointment-card:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
 }
 
-.calendar-appointment-card.is-selected {
-  outline: 2px solid #008891;
-  outline-offset: 1px;
-  box-shadow: 0 4px 14px rgba(0, 136, 145, 0.25);
-}
-
-/* Card Themes matching screenshot */
-.card-theme-blue {
-  background: #eff6ff;
-  border-left: 4px solid #2563eb;
-  color: #1e3a8a;
-}
-
-.card-theme-green {
-  background: #f0fdf4;
-  border-left: 4px solid #16a34a;
-  color: #14532d;
-}
-
-.card-theme-slate {
-  background: #f8fafc;
-  border-left: 4px solid #64748b;
-  color: #1e293b;
-}
-
-.card-theme-purple {
-  background: #faf5ff;
-  border-left: 4px solid #9333ea;
-  color: #581c87;
-}
-
-.card-theme-amber {
-  background: #fffbeb;
-  border-left: 4px solid #f59e0b;
-  color: #78350f;
-}
-
-.card-theme-cyan {
-  background: #f0f9ff;
-  border-left: 4px solid #0284c7;
-  color: #0c4a6e;
-}
-
-.card-theme-red {
-  background: #fef2f2;
-  border-left: 4px solid #ef4444;
-  color: #7f1d1d;
-}
-
-.card-theme-mint {
-  background: #ecfdf5;
-  border-left: 4px solid #10b981;
-  color: #064e3b;
+.card-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
 }
 
 .card-patient-name {
   font-size: 13px;
-  font-weight: 750;
-  line-height: 1.25;
-  margin-bottom: 2px;
+  font-weight: 700;
+  color: var(--text-strong, #0f172a);
 }
 
-.card-procedure-name {
+.card-treatment-name {
   font-size: 11.5px;
-  font-weight: 500;
-  opacity: 0.88;
-  line-height: 1.25;
-  margin-bottom: 3px;
+  color: var(--text, #334155);
+  margin-top: 2px;
 }
 
-.card-time-span {
-  font-size: 11px;
-  font-weight: 500;
-  opacity: 0.75;
-}
-
-/* 4. Right Slide-out Drawer */
-.calendar-detail-drawer {
-  width: 350px;
-  min-width: 350px;
-  max-width: 360px;
-  background: #ffffff;
-  border-left: 1px solid #e2e8f0;
+.card-meta-row {
   display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  box-shadow: -2px 0 16px rgba(0, 0, 0, 0.04);
-  z-index: 20;
-  transition: transform 0.2s ease;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  color: var(--text-muted, #64748b);
+  margin-top: 4px;
 }
 
-.drawer-header {
+/* Day & Week Views */
+.day-view-board {
+  padding: 16px 20px;
+}
+
+.day-timeline-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-strong, #0f172a);
+  margin: 0 0 16px 0;
+}
+
+.day-timeline-row {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  padding: 22px 20px 18px 20px;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line, #f1f5f9);
 }
 
-.drawer-patient-badge {
+.timeline-hour-col {
+  width: 70px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted, #64748b);
+}
+
+.timeline-slot-content {
+  flex: 1;
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.drawer-avatar-circle {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: #e0f2fe;
-  color: #0369a1;
-  font-size: 15px;
-  font-weight: 800;
+.available-tag {
+  font-size: 11px;
+  color: var(--text-faint, #94a3b8);
+  font-style: italic;
+}
+
+.week-view-board {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  flex-direction: column;
+  min-width: 800px;
 }
 
-.drawer-patient-info {
+.week-columns-header {
+  display: flex;
+  border-bottom: 2px solid var(--line, #e2e8f0);
+  background: var(--surface-alt, #f8fafc);
+}
+
+.week-col-title {
+  flex: 1;
+  padding: 10px 8px;
+  text-align: center;
+  border-right: 1px solid var(--line, #e2e8f0);
+}
+
+.week-col-title.today-highlight {
+  background: var(--teal-tint, rgba(11, 129, 133, 0.08));
+}
+
+.week-day-name {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+}
+
+.week-day-num {
+  font-size: 16px;
+  color: var(--text-strong, #0f172a);
+}
+
+.week-time-row {
+  display: flex;
+  min-height: 48px;
+  border-bottom: 1px solid var(--line, #f1f5f9);
+}
+
+.week-slot-cell {
+  flex: 1;
+  padding: 4px;
+  border-right: 1px solid var(--line, #f1f5f9);
   display: flex;
   flex-direction: column;
   gap: 3px;
 }
 
-.drawer-patient-name {
-  font-size: 17px;
-  font-weight: 750;
-  color: #0f172a;
+.week-mini-card {
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: var(--surface-alt, #f1f5f9);
+  border-left: 3px solid var(--teal-primary, #0b8185);
+  font-size: 11px;
+  cursor: pointer;
 }
 
-.drawer-patient-meta {
-  font-size: 12px;
-  color: #64748b;
-  font-weight: 500;
+.week-mini-card strong {
+  display: block;
+  color: var(--text-strong, #0f172a);
 }
 
-.drawer-status-pill {
-  align-self: flex-start;
-  margin-top: 4px;
+.week-mini-card span {
+  color: var(--text-muted, #64748b);
+}
+
+/* ── 4. Live Queue Page ────────────────────────────────────────────── */
+.live-queue-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.queue-summary-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: 10px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e2e8f0);
+}
+
+.queue-metric-card {
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metric-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, #64748b);
+}
+
+.metric-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text-strong, #0f172a);
+}
+
+.metric-sub {
+  font-size: 11px;
+  color: var(--text-faint, #94a3b8);
+}
+
+.btn-walkin-main {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 11px;
+  gap: 8px;
+  padding: 10px 18px;
+  font-size: 13.5px;
   font-weight: 700;
-  background: #e0f2fe;
-  color: #0284c7;
+  border-radius: 8px;
+  border: none;
+  background: var(--teal-primary, #0b8185);
+  color: #ffffff;
+  cursor: pointer;
+  transition: transform 0.15s;
 }
 
-.drawer-status-pill.status-consulting {
-  background: #dcfce7;
-  color: #15803d;
+.btn-walkin-main:hover {
+  transform: translateY(-1px);
 }
 
-.drawer-status-pill.status-cancelled {
+.queue-board-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .queue-board-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.queue-col {
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e2e8f0);
+  overflow: hidden;
+}
+
+.queue-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line, #e2e8f0);
+}
+
+.queue-col-header.waiting-header {
+  border-top: 3px solid #f59e0b;
+}
+
+.queue-col-header.in-consult-header {
+  border-top: 3px solid var(--teal-primary, #0b8185);
+}
+
+.queue-col-header.scheduled-header {
+  border-top: 3px solid #0ea5e9;
+}
+
+.col-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.col-title h3 {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text-strong, #0f172a);
+  margin: 0;
+}
+
+.col-count {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--surface-alt, #f1f5f9);
+  color: var(--text-strong, #0f172a);
+}
+
+.queue-col-list {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 280px;
+}
+
+.empty-queue-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 180px;
+  color: var(--text-faint, #94a3b8);
+  font-size: 13px;
+  text-align: center;
+}
+
+.queue-patient-card {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--surface-raised, #ffffff);
+  border: 1px solid var(--line, #e2e8f0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.queue-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.queue-token-pill {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--teal-tint, rgba(11, 129, 133, 0.12));
+  color: var(--teal-primary, #0b8185);
+}
+
+.priority-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.priority-badge.normal {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.priority-badge.urgent {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.priority-badge.emergency {
   background: #fee2e2;
   color: #b91c1c;
 }
 
-.drawer-close-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #94a3b8;
-  padding: 4px;
-  border-radius: 6px;
-  transition: color 0.15s ease, background 0.15s ease;
+.queue-patient-info h4 {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text-strong, #0f172a);
+  margin: 0 0 4px 0;
 }
 
-.drawer-close-btn:hover {
-  color: #0f172a;
-  background: #f1f5f9;
-}
-
-/* Drawer Detail Rows */
-.drawer-body {
-  padding: 20px;
+.queue-patient-sub {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--text-muted, #64748b);
+  margin-bottom: 6px;
+}
+
+.queue-treatment-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text, #334155);
+  background: var(--surface-alt, #f1f5f9);
+  padding: 3px 7px;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+.queue-doctor-assigned {
+  font-size: 11.5px;
+  color: var(--text-muted, #64748b);
+}
+
+.queue-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line, #f1f5f9);
+}
+
+.btn-start-consult,
+.btn-complete-visit,
+.btn-checkin-arrival {
   flex: 1;
-}
-
-.drawer-info-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.drawer-info-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  font-size: 13.5px;
-  color: #334155;
-  font-weight: 500;
-}
-
-.drawer-info-icon {
-  color: #64748b;
-  margin-top: 2px;
-  flex-shrink: 0;
-}
-
-.drawer-info-content {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.35;
-}
-
-.drawer-info-content strong {
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.drawer-info-content small {
-  font-size: 12px;
-  color: #64748b;
-}
-
-/* Drawer Notes Box */
-.drawer-notes-section {
-  display: flex;
-  flex-direction: column;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: 6px;
-  margin-top: 4px;
-}
-
-.drawer-notes-label {
+  padding: 6px 12px;
   font-size: 12.5px;
-  font-weight: 700;
-  color: #475569;
-}
-
-.drawer-notes-box {
-  background: #f8fafc;
-  border: 1px solid #f1f5f9;
-  border-radius: 8px;
-  padding: 12px 14px;
-  font-size: 13px;
-  line-height: 1.45;
-  color: #334155;
-}
-
-/* Drawer Action Buttons */
-.drawer-actions-container {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: auto;
-  padding-top: 16px;
-}
-
-.btn-start-consultation {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 11px 16px;
-  border-radius: 8px;
+  font-weight: 600;
+  border-radius: 6px;
   border: none;
-  background: #008891;
+  background: var(--teal-primary, #0b8185);
   color: #ffffff;
-  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn-complete-visit {
+  background: #16a34a;
+}
+
+.btn-quick-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line, #cbd5e1);
+  color: var(--text, #334155);
+  text-decoration: none;
+}
+
+.btn-view-link {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--teal-primary, #0b8185);
+  text-decoration: none;
+  padding: 4px 6px;
+}
+
+.chair-badge {
+  font-size: 11px;
   font-weight: 700;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 136, 145, 0.25);
-  transition: all 0.15s ease;
-}
-
-.btn-start-consultation:hover {
-  background: #00757d;
-  box-shadow: 0 4px 12px rgba(0, 136, 145, 0.35);
-  transform: translateY(-1px);
-}
-
-.drawer-button-pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.btn-drawer-secondary {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 9px 12px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #f1f5f9;
   color: #334155;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
 }
 
-.btn-drawer-secondary:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
+.in-progress-pulse {
+  font-size: 11px;
+  font-weight: 700;
+  color: #16a34a;
+  animation: pulse 1.5s infinite;
 }
 
-.btn-drawer-secondary.btn-cancel-appt {
-  border-color: #fecaca;
-  color: #dc2626;
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
-.btn-drawer-secondary.btn-cancel-appt:hover {
-  background: #fef2f2;
-  border-color: #fca5a5;
-}
-
-.btn-drawer-profile {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  color: #334155;
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.btn-drawer-profile:hover {
-  background: #f8fafc;
-  border-color: #cbd5e1;
-}
-
-/* Modal styles for Walk-in & + New Appointment */
-.calendar-modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(4px);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.calendar-modal-card {
-  width: 100%;
-  max-width: 480px;
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.18);
+/* ── 5. Booking Form Page ─────────────────────────────────────────── */
+.new-appointment-page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
-.calendar-modal-header {
+.page-header-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-.calendar-modal-header h3 {
+.page-header-row h2 {
   font-size: 18px;
-  font-weight: 750;
-  color: #0f172a;
+  font-weight: 700;
+  color: var(--text-strong, #0f172a);
   margin: 0;
 }
 
-.calendar-form-group {
+.page-header-row p {
+  font-size: 13px;
+  color: var(--text-muted, #64748b);
+  margin: 2px 0 0 0;
+}
+
+.btn-back-calendar {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--teal-primary, #0b8185);
+  text-decoration: none;
+}
+
+.booking-form-card {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+  border-radius: 12px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e2e8f0);
+}
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line, #f1f5f9);
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text-strong, #0f172a);
+}
+
+/* Patient Search Bar */
+.patient-search-container {
+  position: relative;
+}
+
+.patient-search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted, #64748b);
+}
+
+.patient-search-field {
+  width: 100%;
+  padding: 10px 12px 10px 38px;
+  font-size: 13.5px;
+  border-radius: 8px;
+  border: 1.5px solid var(--line-strong, #cbd5e1);
+  background: var(--surface, #ffffff);
+  color: var(--text-strong, #0f172a);
+}
+
+.patient-search-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  border-radius: 8px;
+  background: var(--surface-raised, #ffffff);
+  border: 1px solid var(--line-strong, #cbd5e1);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  z-index: 50;
+}
+
+.patient-search-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line, #f1f5f9);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.patient-search-item:hover {
+  background: var(--surface-alt, #f1f5f9);
+}
+
+.item-patient-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-strong, #0f172a);
+}
+
+.item-patient-meta {
+  font-size: 12px;
+  color: var(--text-muted, #64748b);
+  margin-top: 2px;
+}
+
+.selected-patient-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--teal-tint, rgba(11, 129, 133, 0.08));
+  border: 1px solid var(--teal-primary, #0b8185);
+}
+
+.patient-avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--teal-primary, #0b8185);
+  color: #ffffff;
+}
+
+.patient-pill-details strong {
+  display: block;
+  font-size: 14px;
+  color: var(--text-strong, #0f172a);
+}
+
+.patient-pill-details span {
+  font-size: 12px;
+  color: var(--text-muted, #64748b);
+}
+
+.btn-change-patient {
+  margin-left: auto;
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--teal-primary, #0b8185);
+  background: transparent;
+  color: var(--teal-primary, #0b8185);
+  cursor: pointer;
+}
+
+.search-helper-text {
+  font-size: 11.5px;
+  color: var(--text-muted, #64748b);
+  margin-top: 6px;
+}
+
+/* Dentist Radio Grid */
+.dentist-radio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.dentist-select-card {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--surface-raised, #ffffff);
+  border: 1.5px solid var(--line, #e2e8f0);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.dentist-select-card:hover {
+  border-color: var(--teal-primary, #0b8185);
+}
+
+.dentist-select-card.is-selected {
+  border-color: var(--teal-primary, #0b8185);
+  background: var(--teal-tint, rgba(11, 129, 133, 0.06));
+}
+
+.dentist-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dentist-card-header strong {
+  font-size: 13.5px;
+  color: var(--text-strong, #0f172a);
+}
+
+.dentist-chair-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface-alt, #f1f5f9);
+  color: var(--text-muted, #64748b);
+}
+
+.dentist-specialty {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text, #334155);
+  margin: 3px 0;
+}
+
+.dentist-hours {
+  display: block;
+  font-size: 11px;
+  color: var(--text-faint, #94a3b8);
+}
+
+/* Form Rows & Inputs */
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-row-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 700px) {
+  .form-row-2,
+  .form-row-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.form-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.calendar-form-group label {
+.form-field span {
   font-size: 12.5px;
   font-weight: 600;
-  color: #475569;
+  color: var(--text, #334155);
 }
 
-.calendar-form-group input,
-.calendar-form-group select {
-  height: 38px;
-  padding: 0 12px;
+.form-field input,
+.form-field select,
+.form-field textarea {
+  padding: 9px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong, #cbd5e1);
+  background: var(--surface, #ffffff);
+  color: var(--text-strong, #0f172a);
+}
+
+.treatment-preview-chip {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 10px 14px;
   border-radius: 8px;
-  border: 1px solid #d1d5db;
+  background: var(--surface-alt, #f1f5f9);
+}
+
+.treatment-preview-chip span {
+  font-size: 11.5px;
+  color: var(--text-muted, #64748b);
+}
+
+.treatment-preview-chip strong {
   font-size: 13.5px;
-  outline: none;
+  color: var(--teal-primary, #0b8185);
 }
 
-.calendar-form-group input:focus,
-.calendar-form-group select:focus {
-  border-color: #008891;
-  box-shadow: 0 0 0 2px rgba(0, 136, 145, 0.15);
+.availability-warning-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
 }
 
-@media (max-width: 900px) {
-  .calendar-detail-drawer {
-    position: absolute;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    width: 320px;
-    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
-  }
+.availability-warning-box p {
+  margin: 2px 0 0 0;
+  font-size: 12px;
 }
 
+.availability-success-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.form-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.btn-cancel {
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong, #cbd5e1);
+  background: var(--surface, #ffffff);
+  color: var(--text, #334155);
+  cursor: pointer;
+}
+
+.btn-submit-booking {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-size: 13.5px;
+  font-weight: 700;
+  border-radius: 6px;
+  border: none;
+  background: var(--teal-primary, #0b8185);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.btn-submit-booking:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── 6. Modals (Detail, Reschedule, WhatsApp, Cancel) ─────────────── */
+.calendar-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  display: grid;
+  place-items: center;
+  z-index: 1000;
+  padding: 16px;
+}
+
+.calendar-detail-modal,
+.sub-modal-card,
+.queue-modal-card {
+  width: 100%;
+  max-width: 600px;
+  border-radius: 12px;
+  background: var(--surface-raised, #ffffff);
+  border: 1px solid var(--line-strong, #cbd5e1);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line, #e2e8f0);
+}
+
+.modal-header h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-strong, #0f172a);
+  margin: 0;
+}
+
+.btn-close {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+}
+
+.btn-close:hover {
+  background: var(--surface-alt, #f1f5f9);
+}
+
+.modal-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: var(--surface-alt, #f8fafc);
+  border-bottom: 1px solid var(--line, #e2e8f0);
+}
+
+.modal-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding: 20px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detail-label {
+  font-size: 11.5px;
+  color: var(--text-muted, #64748b);
+}
+
+.detail-item strong {
+  font-size: 13.5px;
+  color: var(--text-strong, #0f172a);
+}
+
+.modal-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line, #e2e8f0);
+}
+
+.btn-action-reschedule,
+.btn-action-whatsapp,
+.btn-action-cancel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.btn-action-reschedule {
+  background: var(--surface-alt, #f1f5f9);
+  border: 1px solid var(--line-strong, #cbd5e1);
+  color: var(--text, #334155);
+}
+
+.btn-action-whatsapp {
+  background: #25d366;
+  border: none;
+  color: #ffffff;
+}
+
+.btn-action-cancel {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+
+.modal-integration-section {
+  padding: 14px 20px;
+  background: var(--surface-alt, #f8fafc);
+  border-top: 1px solid var(--line, #e2e8f0);
+}
+
+.integration-links-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.integration-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #cbd5e1);
+  color: var(--text, #334155);
+  text-decoration: none;
+}
+
+.integration-chip.highlight-chip {
+  background: var(--teal-tint, rgba(11, 129, 133, 0.1));
+  border-color: var(--teal-primary, #0b8185);
+  color: var(--teal-primary, #0b8185);
+}
+
+/* Status Badges */
+.status-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.badge-scheduled { background: #f1f5f9; color: #475569; }
+.badge-confirmed { background: #e0f2fe; color: #0369a1; }
+.badge-checkedin { background: #fef3c7; color: #b45309; }
+.badge-inprogress { background: #dcfce7; color: #15803d; }
+.badge-completed { background: #f0fdf4; color: #166534; }
+.badge-cancelled { background: #fee2e2; color: #b91c1c; }
+.badge-noshow { background: #f3e8ff; color: #7e22ce; }
+
+/* ── 7. DARK MODE COMPREHENSIVE OVERRIDES ─────────────────────────── */
+:root[data-theme="dark"] .appointments-workspace,
+:root[data-theme="dark"] .calendar-page-root,
+:root[data-theme="dark"] .live-queue-page,
+:root[data-theme="dark"] .new-appointment-page,
+:root[data-theme="dark"] .appointment-simple-panel,
+:root[data-theme="dark"] .clinic-record-page {
+  --paper: #060c0d;
+  --surface: #0c1415;
+  --surface-alt: #111b1c;
+  --surface-raised: #131e1f;
+  --line: rgba(214, 240, 236, 0.08);
+  --line-strong: rgba(214, 240, 236, 0.16);
+  --text-strong: #eef6f5;
+  --text: #c0cfcc;
+  --text-muted: #879a97;
+  --text-faint: #5b6d6a;
+  --teal-primary: #2cbdb7;
+  --teal-tint: rgba(44, 189, 183, 0.12);
+}
+
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea {
+  background: #111b1c !important;
+  color: #eef6f5 !important;
+  border-color: rgba(214, 240, 236, 0.16) !important;
+}
+
+:root[data-theme="dark"] .calendar-appointment-card {
+  background: #131e1f;
+  border-color: rgba(214, 240, 236, 0.14);
+}
+
+:root[data-theme="dark"] .btn-icon,
+:root[data-theme="dark"] .btn-today,
+:root[data-theme="dark"] .btn-cancel,
+:root[data-theme="dark"] .dentist-select-card {
+  background: #111b1c;
+  color: #c0cfcc;
+  border-color: rgba(214, 240, 236, 0.14);
+}
+
+:root[data-theme="dark"] .calendar-detail-modal,
+:root[data-theme="dark"] .sub-modal-card,
+:root[data-theme="dark"] .queue-modal-card {
+  background: #0c1415;
+  border-color: rgba(214, 240, 236, 0.18);
+  color: #eef6f5;
+}
+
+:root[data-theme="dark"] .whatsapp-bubble-preview pre {
+  background: #111b1c;
+  color: #eef6f5;
+  border: 1px solid rgba(214, 240, 236, 0.12);
+  padding: 12px;
+  border-radius: 8px;
+  white-space: pre-wrap;
+}

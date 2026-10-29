@@ -40,14 +40,34 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
     "inNav": false
   },
   {
+    "id": "appt.queue",
+    "name": "Live queue",
+    "description": "Live waiting room and walk-in consultation queue",
+    "source": "Part 1",
+    "phase": "launch",
+    "area": "Appointments",
+    "route": "/appointments/queue",
+    "inNav": true
+  },
+  {
+    "id": "appt.calendar",
+    "name": "Calendar",
+    "description": "View appointments by day, week, or dentist",
+    "source": "Part 1",
+    "phase": "launch",
+    "area": "Appointments",
+    "route": "/appointments/calendar",
+    "inNav": true
+  },
+  {
     "id": "appt.details-list",
     "name": "Appointment details",
     "description": "View appointment records linked to patients in the current session",
     "source": "Part 1",
-    "phase": "launch",
+    "phase": "v2",
     "area": "Appointments",
     "route": "/appointments/details",
-    "inNav": true
+    "inNav": false
   },
   {
     "id": "appt.enquiries",

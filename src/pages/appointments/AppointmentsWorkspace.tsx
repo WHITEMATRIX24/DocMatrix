@@ -1,6 +1,6 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarDays, ClipboardList, Inbox, Plus } from 'lucide-react'
+import { CalendarDays, ClipboardList, Inbox, Plus, Activity, UserPlus } from 'lucide-react'
 
 type AppointmentTab = {
   id: string
@@ -10,10 +10,11 @@ type AppointmentTab = {
 }
 
 const tabs: AppointmentTab[] = [
+  { id: 'appt.queue', label: 'Live Queue', path: '/appointments/queue', icon: Activity },
+  { id: 'appt.new', label: 'Book Appointment', path: '/appointments/new', icon: Plus },
   { id: 'appt.calendar', label: 'Calendar', path: '/appointments/calendar', icon: CalendarDays },
-  { id: 'appt.new', label: 'Book appointment', path: '/appointments/new', icon: Plus },
-  { id: 'appt.details-list', label: 'Appointment details', path: '/appointments/details', icon: CalendarDays },
-  { id: 'appt.enquiries', label: 'Missed enquiries', path: '/appointments/missed-enquiries', icon: Inbox },
+  { id: 'appt.details-list', label: 'All Appointments', path: '/appointments/details', icon: ClipboardList },
+  { id: 'appt.enquiries', label: 'Missed Enquiries', path: '/appointments/missed-enquiries', icon: Inbox },
 ]
 
 interface AppointmentsWorkspaceProps {
@@ -29,12 +30,30 @@ export default function AppointmentsWorkspace({ activeFeatureId, children }: App
     <section className="appointments-workspace">
       <header className="appointments-workspace-header">
         <div className="appointments-workspace-title">
-          <span className="appointments-workspace-icon"><ClipboardList size={19} /></span>
+          <span className="appointments-workspace-icon"><CalendarDays size={20} /></span>
           <div>
             <span className="appointments-workspace-eyebrow">CLINIC OPERATIONS</span>
-            <h1>Appointments</h1>
-            <p>Manage the schedule, bookings, and online enquiries in one place.</p>
+            <h1>Appointments & Queue Hub</h1>
+            <p>Real-time booking, doctor schedules, walk-in management, and clinical integrations.</p>
           </div>
+        </div>
+        <div className="appointments-workspace-actions" style={{ display: 'flex', gap: '10px' }}>
+          <button
+            className="patient-intake-secondary"
+            onClick={() => navigate('/appointments/queue')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <UserPlus size={15} />
+            <span>Walk-in Queue</span>
+          </button>
+          <button
+            className="patient-intake-primary"
+            onClick={() => navigate('/appointments/new')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Plus size={15} />
+            <span>Book Appointment</span>
+          </button>
         </div>
       </header>
 

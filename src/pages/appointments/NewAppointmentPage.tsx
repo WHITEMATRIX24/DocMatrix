@@ -1,138 +1,386 @@
-import React, { useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
-import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, UserRound } from 'lucide-react'
-import { bookAppointment, useClinicData, type AppointmentRecord } from '@/services/clinicStore'
+import React, { useState, useMemo } from 'react'
+import { useNavigate, Link, useSearchParams } from 'react-router-dom'
+import {
+  CalendarDays,
+  Clock,
+  User,
+  Search,
+  CheckCircle2,
+  AlertTriangle,
+  Stethoscope,
+  ChevronLeft,
+  ChevronRight,
+  UserRound,
+  Check
+} from 'lucide-react'
+import {
+  useClinicData,
+  bookAppointment,
+  checkDentistAvailability,
+  DENTISTS,
+  DENTAL_TREATMENTS,
+  type AppointmentPriority
+} from '@/services/clinicStore'
 
 const today = () => {
   const current = new Date()
   current.setMinutes(current.getMinutes() - current.getTimezoneOffset())
   return current.toISOString().slice(0, 10)
 }
-const dateKey = (value: Date) => {
-  const date = new Date(value)
-  date.setMinutes(date.getMinutes() - date.getTimezoneOffset())
-  return date.toISOString().slice(0, 10)
-}
-const visitTypes = ['Consultation', 'Check-up', 'Follow-up', 'Cleaning', 'Dental treatment', 'Other']
-const timeSlots = Array.from({ length: 17 }, (_, index) => {
-  const mins = 9 * 60 + index * 30
-  return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`
-})
-const displayTime = (value: string) => {
-  const [hour, minute] = value.split(':').map(Number)
-  return new Date(2000, 0, 1, hour, minute).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
-}
+
+const timeSlots = [
+  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
+]
 
 export const NewAppointmentPage: React.FC = () => {
-  const { patients, appointments } = useClinicData()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const [date, setDate] = useState(today)
-  const [visibleMonth, setVisibleMonth] = useState(() => {
-    const selected = new Date(`${today()}T12:00:00`)
-    return new Date(selected.getFullYear(), selected.getMonth(), 1)
-  })
-  const [patientId, setPatientId] = useState(searchParams.get('patientId') || '')
-  const [doctors, setDoctors] = useState<string[]>([])
-  const [doctor, setDoctor] = useState('')
-  const [doctorDraft, setDoctorDraft] = useState('')
-  const [addingDoctor, setAddingDoctor] = useState(false)
-  const [visitType, setVisitType] = useState('')
-  const [customVisitType, setCustomVisitType] = useState('')
-  const [time, setTime] = useState('')
-  const [bookedAppointment, setBookedAppointment] = useState<AppointmentRecord | null>(null)
-  const [notice, setNotice] = useState('')
+  const { patients, appointments } = useClinicData()
 
-  const selectedPatient = patients.find((patient) => patient.id === patientId)
-  const bookedPatient = patients.find((patient) => patient.id === bookedAppointment?.patientId)
-  const dayAppointments = appointments.filter((appointment) => appointment.date === date)
-  const bookedTimes = new Set(dayAppointments.filter((appointment) => appointment.doctor === doctor).map((appointment) => appointment.time))
-  const first = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1)
-  const calendarStart = new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay())
-  const monthDays = Array.from({ length: 42 }, (_, index) => new Date(calendarStart.getFullYear(), calendarStart.getMonth(), calendarStart.getDate() + index))
-  const todayDate = new Date(`${today()}T12:00:00`)
-  const previousMonthDisabled = visibleMonth <= new Date(todayDate.getFullYear(), todayDate.getMonth(), 1)
+  // State
+  const [patientSearch, setPatientSearch] = useState('')
+  const [selectedPatientId, setSelectedPatientId] = useState(searchParams.get('patientId') || '')
+  const [selectedDoctor, setSelectedDoctor] = useState(DENTISTS[0].name)
+  const [selectedTreatmentId, setSelectedTreatmentId] = useState(DENTAL_TREATMENTS[0].id)
+  const [selectedDate, setSelectedDate] = useState(today)
+  const [selectedTime, setSelectedTime] = useState('10:00')
+  const [priority, setPriority] = useState<AppointmentPriority>('normal')
+  const [notes, setNotes] = useState('')
+  const [bookingSuccess, setBookingSuccess] = useState<string | null>(null)
 
-  const selectDate = (value: string) => {
-    setDate(value)
-    setTime('')
-    const selected = new Date(`${value}T12:00:00`)
-    setVisibleMonth(new Date(selected.getFullYear(), selected.getMonth(), 1))
+  // Patient filter: strictly search by NAME or PATIENT UNIQUE ID (NO phone number)
+  const matchedPatients = useMemo(() => {
+    if (!patientSearch.trim()) return []
+    const q = patientSearch.toLowerCase().trim()
+    return patients.filter((p) => {
+      const fullName = `${p.firstName} ${p.lastName}`.toLowerCase()
+      const patientId = p.id.toLowerCase()
+      return fullName.includes(q) || patientId.includes(q)
+    })
+  }, [patients, patientSearch])
+
+  const selectedPatient = patients.find((p) => p.id === selectedPatientId)
+  const selectedDentist = DENTISTS.find((d) => d.name === selectedDoctor)
+  const selectedTreatment = DENTAL_TREATMENTS.find((t) => t.id === selectedTreatmentId)
+
+  // Real-time availability check
+  const availability = useMemo(() => {
+    const duration = selectedTreatment?.defaultDurationMinutes || 30
+    return checkDentistAvailability(selectedDoctor, selectedDate, selectedTime, duration)
+  }, [selectedDoctor, selectedDate, selectedTime, selectedTreatment])
+
+  const handleSelectPatient = (patientId: string) => {
+    setSelectedPatientId(patientId)
+    setPatientSearch('')
   }
 
-  const addDoctor = () => {
-    const name = doctorDraft.trim()
-    if (!name) return
-    if (!doctors.includes(name)) setDoctors((current) => [...current, name])
-    setDoctor(name)
-    setDoctorDraft('')
-    setAddingDoctor(false)
-  }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedPatientId) return
+    if (!availability.available) return
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const patient = patients.find((item) => item.id === patientId)
-    if (!patient) {
-      setNotice('Register a patient before booking this appointment.')
-      return
-    }
-    if (!doctor || !time || !visitType || (visitType === 'Other' && !customVisitType.trim())) return
-    if (bookedTimes.has(time)) {
-      setNotice('That doctor already has an appointment at this time. Choose another slot.')
-      return
-    }
-    const appointment = bookAppointment({ patientId: patient.id, doctor, visitType: visitType === 'Other' ? customVisitType.trim() : visitType, date, time })
-    setBookedAppointment(appointment)
-    setNotice('')
+    const newAppt = bookAppointment({
+      patientId: selectedPatientId,
+      doctor: selectedDoctor,
+      chair: selectedDentist?.chair || 'Chair 1',
+      treatmentType: selectedTreatment?.name || 'General Dental Consultation',
+      visitType: selectedTreatment?.category || 'Consultation',
+      date: selectedDate,
+      time: selectedTime,
+      durationMinutes: selectedTreatment?.defaultDurationMinutes || 30,
+      priority,
+      notes
+    })
+
+    setBookingSuccess(newAppt.id)
   }
 
   return (
-    <section className="appointment-booking-page" data-testid="feature-page-appt.new">
-      <header className="appointment-booking-heading"><div><h2>Book appointment</h2><p>Choose a patient, provider, visit type, date, and available time.</p></div></header>
-      {bookedAppointment && bookedPatient && <div className="clinic-record-prototype-note clinic-record-booking-confirmed" role="status"><CheckCircle2 size={16} /> Appointment added to this session · {bookedAppointment.id} · <Link to={`/patients/${bookedPatient.id}`}>Open {bookedPatient.firstName}’s record</Link></div>}
+    <div className="new-appointment-page" data-testid="feature-page-appt.new">
+      <div className="page-header-row">
+        <div>
+          <h2>Book Dental Appointment</h2>
+          <p>Schedule a confirmed visit with doctor availability check and conflict prevention.</p>
+        </div>
+        <Link to="/appointments/calendar" className="btn-back-calendar">
+          View Calendar
+        </Link>
+      </div>
 
-      <div className="appointment-booking-layout">
-        <form className="appointment-booking-form" onSubmit={handleSubmit}>
-          <label className="appointment-booking-field"><span>Patient</span><select name="patientId" value={patientId} onChange={(event) => setPatientId(event.target.value)} required disabled={!patients.length}><option value="" disabled>{patients.length ? 'Select registered patient' : 'No registered patients yet'}</option>{patients.map((patient) => <option key={patient.id} value={patient.id}>{patient.firstName} {patient.lastName} · {patient.id}</option>)}</select></label>
-          {!patients.length && <p className="appointment-booking-field-hint">Appointments must link to a patient. <Link to="/patients/new">Register a patient</Link>.</p>}
-          {selectedPatient && <Link className="clinic-record-inline-link" to={`/patients/${selectedPatient.id}`}><UserRound size={14} /> View patient record</Link>}
-
-          <div className="appointment-booking-inline-fields">
-            <label className="appointment-booking-field"><span>Doctor</span><select value={doctor} onChange={(event) => { if (event.target.value === '__add__') { setAddingDoctor(true); setDoctor('') } else setDoctor(event.target.value); setTime('') }} required><option value="" disabled>Select doctor</option>{doctors.map((name) => <option key={name} value={name}>{name}</option>)}<option value="__add__">+ Add doctor</option></select></label>
-            <label className="appointment-booking-field"><span>Visit type</span><select value={visitType} onChange={(event) => setVisitType(event.target.value)} required><option value="" disabled>Select visit type</option>{visitTypes.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+      {bookingSuccess ? (
+        <div className="booking-success-card">
+          <CheckCircle2 size={40} className="success-icon" />
+          <h3>Appointment Confirmed!</h3>
+          <p>Booking reference <strong>{bookingSuccess}</strong> has been registered successfully.</p>
+          <div className="success-meta-box">
+            <div>Patient: <strong>{selectedPatient?.firstName} {selectedPatient?.lastName}</strong></div>
+            <div>Doctor: <strong>{selectedDoctor}</strong> ({selectedDentist?.chair})</div>
+            <div>Schedule: <strong>{selectedDate} at {selectedTime}</strong></div>
+            <div>Procedure: <strong>{selectedTreatment?.name}</strong></div>
           </div>
-          {addingDoctor && <div className="appointment-booking-add-option"><label className="appointment-booking-field"><span>Doctor name</span><input value={doctorDraft} onChange={(event) => setDoctorDraft(event.target.value)} placeholder="Enter doctor name" autoFocus /></label><button type="button" className="appointment-booking-secondary" onClick={addDoctor} disabled={!doctorDraft.trim()}>Add doctor</button></div>}
-          {visitType === 'Other' && <label className="appointment-booking-field"><span>Visit type details</span><input value={customVisitType} onChange={(event) => setCustomVisitType(event.target.value)} placeholder="Enter visit type" required /></label>}
-
-          <div className="appointment-booking-inline-fields">
-            <label className="appointment-booking-field"><span>Date</span><input type="date" name="date" value={date} min={today()} onChange={(event) => selectDate(event.target.value)} required /></label>
-            <label className="appointment-booking-field"><span>Time</span><select name="time" value={time} onChange={(event) => setTime(event.target.value)} required><option value="" disabled>Select available time</option>{timeSlots.map((slot) => <option key={slot} value={slot} disabled={bookedTimes.has(slot)}>{displayTime(slot)}{bookedTimes.has(slot) ? ' · Booked' : ''}</option>)}</select></label>
+          <div className="success-action-row">
+            <button className="btn-book-another" onClick={() => setBookingSuccess(null)}>
+              Book Another Appointment
+            </button>
+            <Link to={`/appointments/${bookingSuccess}`} className="btn-view-booking">
+              View Booking Details
+            </Link>
           </div>
-          {notice && <p className="appointment-booking-empty" role="alert">{notice}</p>}
-          <button type="submit" className="appointment-booking-primary" disabled={!patients.length || !doctor || !time || bookedTimes.has(time) || !visitType || (visitType === 'Other' && !customVisitType.trim())}>Book appointment</button>
-        </form>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="booking-form-card">
+          {/* Section 1: Patient Selection with Live Search (Name or Patient ID ONLY) */}
+          <div className="form-section">
+            <label className="section-title">
+              <UserRound size={16} />
+              <span>1. Select Patient *</span>
+            </label>
 
-        <aside className="appointment-booking-calendar" aria-label="Schedule for selected date">
-          <div className="appointment-booking-calendar-heading"><div className="appointment-booking-calendar-icon"><CalendarDays size={17} /></div><div><h3>Daily schedule</h3><p>{date === today() ? 'Today' : new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</p></div></div>
-          <div className="appointment-booking-month">
-            <div className="appointment-booking-month-heading"><strong>{visibleMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</strong><div><button type="button" aria-label="Previous month" disabled={previousMonthDisabled} onClick={() => setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}><ChevronLeft size={15} /></button><button type="button" aria-label="Next month" onClick={() => setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}><ChevronRight size={15} /></button></div></div>
-            <div className="appointment-booking-calendar-grid" role="group" aria-label="Choose appointment date">
-              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((weekday) => <span className="appointment-booking-weekday" key={weekday}>{weekday}</span>)}
-              {monthDays.map((day) => {
-                const key = dateKey(day)
-                const hasAppointments = appointments.some((appointment) => appointment.date === key)
-                return <button type="button" key={key} disabled={key < today()} aria-label={`${day.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}${hasAppointments ? ', has appointments' : ''}`} aria-pressed={date === key} className={`appointment-booking-calendar-day${day.getMonth() === visibleMonth.getMonth() ? '' : ' is-outside'}${date === key ? ' is-selected' : ''}${hasAppointments ? ' has-appointments' : ''}`} onClick={() => selectDate(key)}>{day.getDate()}{hasAppointments && <i />}</button>
+            {selectedPatient ? (
+              <div className="selected-patient-pill">
+                <div className="patient-avatar">
+                  <User size={18} />
+                </div>
+                <div className="patient-pill-details">
+                  <strong>{selectedPatient.firstName} {selectedPatient.lastName}</strong>
+                  <span>ID: {selectedPatient.id} &bull; {selectedPatient.age} yrs &bull; {selectedPatient.gender}</span>
+                </div>
+                <button
+                  type="button"
+                  className="btn-change-patient"
+                  onClick={() => setSelectedPatientId('')}
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <div className="patient-search-container">
+                <div className="patient-search-input-wrap">
+                  <Search size={16} className="search-icon" />
+                  <input
+                    type="text"
+                    className="patient-search-field"
+                    placeholder="Search by Patient Name or Unique Patient ID (e.g. PAT-1001)..."
+                    value={patientSearch}
+                    onChange={(e) => setPatientSearch(e.target.value)}
+                  />
+                </div>
+
+                {patientSearch && (
+                  <div className="patient-search-dropdown">
+                    {matchedPatients.length === 0 ? (
+                      <div className="no-patient-match">
+                        <span>No patient found with that name or ID.</span>
+                        <Link to="/patients/new" className="link-register-new">
+                          Register new patient
+                        </Link>
+                      </div>
+                    ) : (
+                      matchedPatients.map((p) => (
+                        <div
+                          key={p.id}
+                          className="patient-search-item"
+                          onClick={() => handleSelectPatient(p.id)}
+                        >
+                          <div className="item-patient-name">{p.firstName} {p.lastName}</div>
+                          <div className="item-patient-meta">ID: <strong>{p.id}</strong> &bull; {p.age} yrs &bull; {p.gender}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                <div className="search-helper-text">
+                  Tip: Quick selection by permanent ID or name. (Phone number search is disabled).
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Section 2: Dentist Selection */}
+          <div className="form-section">
+            <label className="section-title">
+              <Stethoscope size={16} />
+              <span>2. Select Dentist *</span>
+            </label>
+            <div className="dentist-radio-grid">
+              {DENTISTS.map((dentist) => {
+                const isSelected = selectedDoctor === dentist.name
+                return (
+                  <div
+                    key={dentist.id}
+                    className={`dentist-select-card ${isSelected ? 'is-selected' : ''}`}
+                    onClick={() => setSelectedDoctor(dentist.name)}
+                  >
+                    <div className="dentist-card-header">
+                      <strong>{dentist.name}</strong>
+                      <span className="dentist-chair-tag">{dentist.chair}</span>
+                    </div>
+                    <span className="dentist-specialty">{dentist.specialization}</span>
+                    <span className="dentist-hours">Hours: {dentist.shiftStart} - {dentist.shiftEnd}</span>
+                  </div>
+                )
               })}
             </div>
-            <div className="appointment-booking-calendar-legend"><i /> Session appointments</div>
           </div>
-          {dayAppointments.length ? <div className="appointment-booking-agenda">{dayAppointments.map((appointment) => {
-            const patient = patients.find((record) => record.id === appointment.patientId)
-            return <div className="appointment-booking-agenda-row" key={appointment.id}><span className="appointment-booking-agenda-time">{displayTime(appointment.time)}</span><div><strong>{patient ? <Link to={`/patients/${patient.id}`}>{patient.firstName} {patient.lastName}</Link> : 'Patient unavailable'}</strong><span>{appointment.visitType} · {appointment.doctor}</span><Link className="clinic-record-open" to={`/appointments/${appointment.id}`}>Appointment details</Link></div></div>
-          })}</div> : <p className="appointment-booking-empty">No appointments for this date in the current session.</p>}
-          <p className="appointment-booking-calendar-note">Session prototype · Bookings clear when the page is refreshed.</p>
-        </aside>
-      </div>
-    </section>
+
+          {/* Section 3: Treatment Selection (Duration automatically set) */}
+          <div className="form-section">
+            <label className="section-title">
+              <Stethoscope size={16} />
+              <span>3. Treatment & Procedure *</span>
+            </label>
+            <div className="form-row-2">
+              <label className="form-field">
+                <span>Treatment Type</span>
+                <select
+                  value={selectedTreatmentId}
+                  onChange={(e) => setSelectedTreatmentId(e.target.value)}
+                >
+                  {DENTAL_TREATMENTS.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.category}) &bull; ₹{t.standardFee}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="treatment-preview-chip">
+                <span>Estimated Time & Fee:</span>
+                <strong>{selectedTreatment?.defaultDurationMinutes} mins &bull; ₹{selectedTreatment?.standardFee}</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 4: Date, Time & Priority (Duration bar is removed per requirement) */}
+          <div className="form-section">
+            <label className="section-title">
+              <CalendarDays size={16} />
+              <span>4. Schedule & Time *</span>
+            </label>
+
+            <div className="form-row-3">
+              <label className="form-field">
+                <span>Appointment Date</span>
+                <input
+                  type="date"
+                  required
+                  min={today()}
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                />
+              </label>
+
+              <label className="form-field">
+                <span>Time Slot</span>
+                <select
+                  value={selectedTime}
+                  onChange={(e) => setSelectedTime(e.target.value)}
+                >
+                  {timeSlots.map((slot) => (
+                    <option key={slot} value={slot}>{slot}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="form-field">
+                <span>Visit Priority</span>
+                <select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as AppointmentPriority)}
+                >
+                  <option value="normal">Normal Routine</option>
+                  <option value="urgent">Urgent / Pain</option>
+                  <option value="emergency">Emergency Immediate</option>
+                </select>
+              </label>
+            </div>
+
+            {/* Daily Schedule Preview */}
+            <div className="daily-schedule-preview" style={{ marginTop: '12px' }}>
+              <h4 style={{ fontSize: '13px', fontWeight: 600, margin: '0 0 6px 0', color: 'var(--text-strong, #0f172a)' }}>Daily schedule</h4>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {timeSlots.map((slot) => {
+                  const isBooked = appointments.some(
+                    (a) => a.doctor === selectedDoctor && a.date === selectedDate && a.time === slot && a.status !== 'cancelled'
+                  )
+                  const isSelected = selectedTime === slot
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      disabled={isBooked}
+                      onClick={() => setSelectedTime(slot)}
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: '11.5px',
+                        borderRadius: '4px',
+                        border: isSelected ? '1.5px solid var(--teal-primary, #0b8185)' : '1px solid var(--line, #cbd5e1)',
+                        background: isSelected ? 'var(--teal-tint, rgba(11, 129, 133, 0.12))' : isBooked ? 'var(--surface-alt, #f1f5f9)' : 'var(--surface, #ffffff)',
+                        color: isBooked ? 'var(--text-faint, #94a3b8)' : 'var(--text, #334155)',
+                        cursor: isBooked ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      {slot} {isBooked ? '(Booked)' : ''}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Conflict / Availability Warning Bar */}
+            {!availability.available ? (
+              <div className="availability-warning-box">
+                <AlertTriangle size={18} />
+                <div>
+                  <strong>Doctor Unavailable at this Time</strong>
+                  <p>{availability.reason}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="availability-success-box">
+                <Check size={16} />
+                <span>Slot is available with {selectedDoctor} on {selectedDentist?.chair}.</span>
+              </div>
+            )}
+          </div>
+
+          {/* Section 5: Clinical Notes */}
+          <div className="form-section">
+            <label className="form-field">
+              <span>Appointment Notes & Reason for Visit</span>
+              <textarea
+                rows={2}
+                placeholder="Optional notes: symptoms, patient requests, or pre-visit instructions..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </label>
+          </div>
+
+          {/* Submit Actions */}
+          <div className="form-actions-row">
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={() => navigate('/appointments/calendar')}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn-submit-booking"
+              disabled={!selectedPatientId || !availability.available}
+            >
+              <Check size={16} />
+              <span>Confirm & Book Appointment</span>
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   )
 }
 
