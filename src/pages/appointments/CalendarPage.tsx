@@ -20,7 +20,8 @@ import {
   Send,
   CalendarClock,
   RotateCcw,
-  Check
+  Check,
+  UserCheck
 } from 'lucide-react'
 import {
   useClinicData,
@@ -85,6 +86,13 @@ export const CalendarPage: React.FC = () => {
     setSelectedDate(d.toISOString().slice(0, 10))
   }
 
+  const handleJumpDate = (offsetDays: number) => {
+    const d = new Date()
+    d.setDate(d.getDate() + offsetDays)
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+    setSelectedDate(d.toISOString().slice(0, 10))
+  }
+
   // Week days for week view
   const weekDays = useMemo(() => {
     const curr = new Date(`${selectedDate}T12:00:00`)
@@ -118,6 +126,11 @@ export const CalendarPage: React.FC = () => {
     })
   }, [appointments, filterDoctor, filterStatus])
 
+  // Selected date's appointments for counts
+  const dateAppointments = useMemo(() => {
+    return appointments.filter((a) => a.date === selectedDate && a.status !== 'cancelled')
+  }, [appointments, selectedDate])
+
   const getPatient = (patientId: string) => patients.find((p) => p.id === patientId)
 
   // Status badge styling
@@ -138,6 +151,23 @@ export const CalendarPage: React.FC = () => {
       default:
         return <span className="status-badge badge-scheduled">Scheduled</span>
     }
+  }
+
+  // Quick 1-click status advancement on card
+  const handleQuickAdvanceStatus = (e: React.MouseEvent, appt: AppointmentRecord) => {
+    e.stopPropagation()
+    let nextStatus: AppointmentStatus = 'checked-in'
+    if (appt.status === 'scheduled' || appt.status === 'confirmed') nextStatus = 'checked-in'
+    else if (appt.status === 'checked-in') nextStatus = 'in-progress'
+    else if (appt.status === 'in-progress') nextStatus = 'completed'
+    updateAppointmentStatus(appt.id, nextStatus)
+  }
+
+  // Quick WhatsApp trigger from card
+  const handleQuickWhatsApp = (e: React.MouseEvent, appt: AppointmentRecord) => {
+    e.stopPropagation()
+    setActiveAppt(appt)
+    setShowWhatsAppModal(true)
   }
 
   const handleExecuteReschedule = (e: React.FormEvent) => {
@@ -200,6 +230,27 @@ export const CalendarPage: React.FC = () => {
             <button className="btn-icon" onClick={handleNextDay} title="Next">
               <ChevronRight size={16} />
             </button>
+
+            {/* Convenient Quick Date Jump Chips */}
+            <div className="date-quick-chips">
+              <button
+                type="button"
+                className="date-chip-btn"
+                onClick={() => handleJumpDate(-1)}
+                title="Jump to Yesterday"
+              >
+                Yesterday
+              </button>
+              <button
+                type="button"
+                className="date-chip-btn"
+                onClick={() => handleJumpDate(1)}
+                title="Jump to Tomorrow"
+              >
+                Tomorrow
+              </button>
+            </div>
+
             <span className="calendar-display-date">
               {new Date(`${selectedDate}T12:00:00`).toLocaleDateString(undefined, {
                 weekday: 'short',
@@ -217,7 +268,7 @@ export const CalendarPage: React.FC = () => {
           </div>
         </div>
 
-        {/* View Switchers & Filters */}
+        {/* View Switchers & Actions */}
         <div className="calendar-top-actions">
           {/* View Mode Toggle */}
           <div className="calendar-view-toggle">
@@ -241,41 +292,88 @@ export const CalendarPage: React.FC = () => {
             </button>
           </div>
 
-          {/* Doctor Filter */}
-          <select
-            className="calendar-filter-select"
-            value={filterDoctor}
-            onChange={(e) => setFilterDoctor(e.target.value)}
+          <button
+            className="btn-quick-book"
+            onClick={() => navigate(`/appointments/new?date=${selectedDate}`)}
+            title="Book appointment for this date"
           >
-            <option value="all">All Dentists</option>
-            {DENTISTS.map((d) => (
-              <option key={d.id} value={d.name}>{d.name}</option>
-            ))}
-          </select>
-
-          {/* Status Filter */}
-          <select
-            className="calendar-filter-select"
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-          >
-            <option value="all">All Statuses</option>
-            <option value="scheduled">Scheduled</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="checked-in">Checked-in</option>
-            <option value="in-progress">In Consultation</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-
-          <button className="btn-quick-book" onClick={() => navigate('/appointments/new')}>
             <Plus size={15} />
             <span>Book</span>
           </button>
         </div>
       </header>
 
-      {/* 2. CALENDAR VIEWS */}
+      {/* 2. Convenient Doctor & Status Filter Ribbon */}
+      <div className="calendar-filter-ribbon">
+        {/* Doctor Quick-Filter Chips */}
+        <div className="calendar-dentist-chips" aria-label="Filter by doctor">
+          <button
+            type="button"
+            className={`dentist-chip ${filterDoctor === 'all' ? 'is-active' : ''}`}
+            onClick={() => setFilterDoctor('all')}
+          >
+            <span>All Dentists</span>
+            <span className="chip-badge">{dateAppointments.length}</span>
+          </button>
+          {DENTISTS.map((d) => {
+            const count = dateAppointments.filter((a) => a.doctor === d.name).length
+            return (
+              <button
+                key={d.id}
+                type="button"
+                className={`dentist-chip ${filterDoctor === d.name ? 'is-active' : ''}`}
+                onClick={() => setFilterDoctor(d.name)}
+              >
+                <span className="dentist-avatar-dot" style={{ backgroundColor: d.color }} />
+                <span className="dentist-name-short">{d.name.replace('Dr. ', '')}</span>
+                <span className="chip-chair">{d.chair}</span>
+                <span className="chip-badge">{count}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Status Filter Quick Pills */}
+        <div className="calendar-status-pills" aria-label="Filter by status">
+          <button
+            type="button"
+            className={`status-pill ${filterStatus === 'all' ? 'is-active' : ''}`}
+            onClick={() => setFilterStatus('all')}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            className={`status-pill pill-scheduled ${filterStatus === 'scheduled' ? 'is-active' : ''}`}
+            onClick={() => setFilterStatus(filterStatus === 'scheduled' ? 'all' : 'scheduled')}
+          >
+            Scheduled ({dateAppointments.filter((a) => a.status === 'scheduled').length})
+          </button>
+          <button
+            type="button"
+            className={`status-pill pill-checkedin ${filterStatus === 'checked-in' ? 'is-active' : ''}`}
+            onClick={() => setFilterStatus(filterStatus === 'checked-in' ? 'all' : 'checked-in')}
+          >
+            Checked-In ({dateAppointments.filter((a) => a.status === 'checked-in').length})
+          </button>
+          <button
+            type="button"
+            className={`status-pill pill-inprogress ${filterStatus === 'in-progress' ? 'is-active' : ''}`}
+            onClick={() => setFilterStatus(filterStatus === 'in-progress' ? 'all' : 'in-progress')}
+          >
+            In Consultation ({dateAppointments.filter((a) => a.status === 'in-progress').length})
+          </button>
+          <button
+            type="button"
+            className={`status-pill pill-completed ${filterStatus === 'completed' ? 'is-active' : ''}`}
+            onClick={() => setFilterStatus(filterStatus === 'completed' ? 'all' : 'completed')}
+          >
+            Completed ({dateAppointments.filter((a) => a.status === 'completed').length})
+          </button>
+        </div>
+      </div>
+
+      {/* 3. CALENDAR VIEWS */}
       <div className="calendar-grid-container">
         {/* VIEW 1: DENTIST VIEW (Columns for each dentist) */}
         {viewMode === 'dentist' && (
@@ -304,31 +402,83 @@ export const CalendarPage: React.FC = () => {
 
                     return (
                       <div key={dentist.id} className={`dentist-slot-cell ${isLunch ? 'slot-break' : ''}`}>
-                        {isLunch && <span className="lunch-label">Break / Lunch</span>}
-                        {apptsInSlot.map((appt) => {
-                          const patient = getPatient(appt.patientId)
-                          return (
-                            <div
-                              key={appt.id}
-                              className={`calendar-appointment-card status-${appt.status}`}
-                              onClick={() => setActiveAppt(appt)}
-                            >
-                              <div className="card-top-row">
-                                <span className="card-patient-name">
-                                  {patient ? `${patient.firstName} ${patient.lastName}` : 'Walk-in'}
-                                </span>
-                                {getStatusBadge(appt.status)}
+                        {isLunch ? (
+                          <span className="lunch-label">Break / Lunch</span>
+                        ) : apptsInSlot.length === 0 ? (
+                          <button
+                            type="button"
+                            className="slot-book-btn"
+                            onClick={() =>
+                              navigate(
+                                `/appointments/new?date=${selectedDate}&time=${slot}&doctor=${encodeURIComponent(dentist.name)}`
+                              )
+                            }
+                            title={`Click to book ${dentist.name} at ${slot}`}
+                          >
+                            <Plus size={11} />
+                            <span>Book slot</span>
+                          </button>
+                        ) : (
+                          apptsInSlot.map((appt) => {
+                            const patient = getPatient(appt.patientId)
+                            return (
+                              <div
+                                key={appt.id}
+                                className={`calendar-appointment-card status-${appt.status}`}
+                                onClick={() => setActiveAppt(appt)}
+                              >
+                                <div className="card-top-row">
+                                  <span className="card-patient-name">
+                                    {patient ? `${patient.firstName} ${patient.lastName}` : 'Walk-in'}
+                                  </span>
+                                  {getStatusBadge(appt.status)}
+                                </div>
+                                <div className="card-treatment-name">
+                                  {appt.treatmentType || appt.visitType}
+                                </div>
+                                <div className="card-meta-row">
+                                  <span><Clock size={11} /> {appt.time} ({appt.durationMinutes || 30}m)</span>
+                                  <span>{appt.chair}</span>
+                                </div>
+
+                                {/* Convenient Card Quick Actions */}
+                                <div className="card-action-bar">
+                                  {appt.status !== 'completed' && appt.status !== 'cancelled' && (
+                                    <button
+                                      type="button"
+                                      className="card-quick-advance-btn"
+                                      onClick={(e) => handleQuickAdvanceStatus(e, appt)}
+                                      title={
+                                        appt.status === 'in-progress'
+                                          ? 'Mark Consultation Finished'
+                                          : appt.status === 'checked-in'
+                                          ? 'Call in to Chair'
+                                          : 'Mark Checked-In'
+                                      }
+                                    >
+                                      {appt.status === 'in-progress' ? (
+                                        <><Check size={11} /> Complete</>
+                                      ) : appt.status === 'checked-in' ? (
+                                        <><Play size={11} /> Call in</>
+                                      ) : (
+                                        <><UserCheck size={11} /> Check-in</>
+                                      )}
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    className="card-quick-wa-btn"
+                                    onClick={(e) => handleQuickWhatsApp(e, appt)}
+                                    title="Send WhatsApp Reminder"
+                                  >
+                                    <Send size={11} />
+                                  </button>
+                                </div>
                               </div>
-                              <div className="card-treatment-name">
-                                {appt.treatmentType || appt.visitType}
-                              </div>
-                              <div className="card-meta-row">
-                                <span><Clock size={11} /> {appt.time} ({appt.durationMinutes || 30}m)</span>
-                                <span>{appt.chair}</span>
-                              </div>
-                            </div>
-                          )
-                        })}
+                            )
+                          })
+                        )}
                       </div>
                     )
                   })}
@@ -342,7 +492,7 @@ export const CalendarPage: React.FC = () => {
         {viewMode === 'day' && (
           <div className="day-view-board">
             <div className="day-timeline-header">
-              <h3>Daily Schedule — {new Date(`${selectedDate}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</h3>
+              <h3>Daily Schedule &mdash; {new Date(`${selectedDate}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</h3>
             </div>
             <div className="day-timeline-list">
               {timeSlots.map((slot) => {
@@ -355,7 +505,14 @@ export const CalendarPage: React.FC = () => {
                     <div className="timeline-slot-content">
                       {appts.length === 0 ? (
                         <div className="timeline-empty-slot">
-                          <span className="available-tag">Available</span>
+                          <button
+                            type="button"
+                            className="timeline-quick-book-btn"
+                            onClick={() => navigate(`/appointments/new?date=${selectedDate}&time=${slot}`)}
+                            title={`Book an appointment at ${slot}`}
+                          >
+                            <Plus size={12} /> Book {slot}
+                          </button>
                         </div>
                       ) : (
                         appts.map((appt) => {
@@ -378,6 +535,26 @@ export const CalendarPage: React.FC = () => {
                                 <span>{appt.chair || 'Chair 1'}</span>
                                 {appt.notes && <span className="card-notes-preview">&bull; {appt.notes}</span>}
                               </div>
+
+                              <div className="card-action-bar">
+                                {appt.status !== 'completed' && appt.status !== 'cancelled' && (
+                                  <button
+                                    type="button"
+                                    className="card-quick-advance-btn"
+                                    onClick={(e) => handleQuickAdvanceStatus(e, appt)}
+                                  >
+                                    {appt.status === 'in-progress' ? 'Complete' : appt.status === 'checked-in' ? 'Call in' : 'Check-in'}
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  className="card-quick-wa-btn"
+                                  onClick={(e) => handleQuickWhatsApp(e, appt)}
+                                  title="WhatsApp Reminder"
+                                >
+                                  <Send size={11} /> WhatsApp
+                                </button>
+                              </div>
                             </div>
                           )
                         })
@@ -399,6 +576,9 @@ export const CalendarPage: React.FC = () => {
                 <div
                   key={w.dateStr}
                   className={`week-col-title ${w.dateStr === selectedDate ? 'today-highlight' : ''}`}
+                  onClick={() => setSelectedDate(w.dateStr)}
+                  style={{ cursor: 'pointer' }}
+                  title="Click to select this day"
                 >
                   <span className="week-day-name">{w.dayName}</span>
                   <strong className="week-day-num">{w.dayNum}</strong>
@@ -416,19 +596,30 @@ export const CalendarPage: React.FC = () => {
                     )
                     return (
                       <div key={w.dateStr} className="week-slot-cell">
-                        {appts.map((appt) => {
-                          const patient = getPatient(appt.patientId)
-                          return (
-                            <div
-                              key={appt.id}
-                              className={`week-mini-card status-${appt.status}`}
-                              onClick={() => setActiveAppt(appt)}
-                            >
-                              <strong>{patient ? patient.firstName : 'Patient'}</strong>
-                              <span>{appt.treatmentType?.slice(0, 16)}...</span>
-                            </div>
-                          )
-                        })}
+                        {appts.length === 0 ? (
+                          <button
+                            type="button"
+                            className="week-slot-add-btn"
+                            onClick={() => navigate(`/appointments/new?date=${w.dateStr}&time=${slot}`)}
+                            title={`Book ${w.dateStr} at ${slot}`}
+                          >
+                            <Plus size={10} />
+                          </button>
+                        ) : (
+                          appts.map((appt) => {
+                            const patient = getPatient(appt.patientId)
+                            return (
+                              <div
+                                key={appt.id}
+                                className={`week-mini-card status-${appt.status}`}
+                                onClick={() => setActiveAppt(appt)}
+                              >
+                                <strong>{patient ? patient.firstName : 'Patient'}</strong>
+                                <span>{appt.treatmentType?.slice(0, 16)}...</span>
+                              </div>
+                            )
+                          })
+                        )}
                       </div>
                     )
                   })}
@@ -439,7 +630,7 @@ export const CalendarPage: React.FC = () => {
         )}
       </div>
 
-      {/* 3. APPOINTMENT DETAIL MODAL */}
+      {/* 4. APPOINTMENT DETAIL MODAL (Requirement #4, #5, #6, #8) */}
       {activeAppt && (
         <div className="calendar-modal-overlay">
           <div className="calendar-detail-modal">
