@@ -167,15 +167,8 @@ export default function Login({ onLoginSuccess }) {
           loop
           muted
           playsInline
-          preload="metadata"
+          preload="auto"
           poster="/Modern Teal Dental Clinic Interior.png"
-          onTimeUpdate={(event) => {
-            const time = event.currentTarget.currentTime
-            const playbackRate = time >= 3 && time < 6 ? 0.5 : 1
-            if (event.currentTarget.playbackRate !== playbackRate) {
-              event.currentTarget.playbackRate = playbackRate
-            }
-          }}
           aria-hidden="true"
           tabIndex={-1}
         >
