@@ -13,6 +13,7 @@ import PrivacyPage from '@/pages/legal/PrivacyPage'
 import ComingSoonPage from '@/pages/roadmap/ComingSoonPage'
 import StaffPortal from '@/StaffPortal'
 import ForgotPassword from '@/pages/ForgotPassword'
+import Hero38 from '@/components/originkit/hero-38'
 
 // Lazy-load all launch feature components
 const AppointmentDetailsPage = lazy(() => import('@/pages/appointments/AppointmentDetailsPage'))
@@ -69,6 +70,7 @@ export function AppRoutes({
       <Route path="/solutions/:id" element={renderLandingPage('solution')} />
 
       {/* 3. Public Legal & Error Pages */}
+      <Route path="/hero-38" element={<Hero38 />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/forbidden" element={<ForbiddenPage />} />

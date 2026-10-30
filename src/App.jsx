@@ -13,6 +13,7 @@ import AppRoutes from './routes/appRoutes'
 import DemoBanner from './components/DemoBanner'
 import WhatsAppShortcut from './components/WhatsAppShortcut'
 import AIAgentShortcut from './components/AIAgentShortcut'
+import Hero38 from './components/originkit/hero-38'
 import { findDemoUserById, DEMO_USERS } from './mocks/auth'
 import { getCurrentUser, logout as authLogout } from './services/authService'
 
@@ -23,7 +24,7 @@ export function getSafeNextPath(rawNext) {
     if (decoded.startsWith('/') && !decoded.startsWith('//') && !decoded.includes('://')) {
       return decoded
     }
-  } catch {}
+  } catch { }
   return '/dashboard'
 }
 
@@ -803,7 +804,7 @@ export default function App() {
         }
         return findDemoUserById(saved) || DEMO_USERS.ORGANIZATION_ADMIN
       }
-    } catch {}
+    } catch { }
     return null
   })
 
@@ -832,7 +833,7 @@ export default function App() {
     setCurrentUser(user)
     try {
       sessionStorage.setItem('docmatrix-demo-session', user.id)
-    } catch {}
+    } catch { }
     const params = new URLSearchParams(location.search)
     const rawNext = params.get('next')
     const safeNext = getSafeNextPath(rawNext)
@@ -845,7 +846,7 @@ export default function App() {
     authLogout()
     try {
       sessionStorage.removeItem('docmatrix-demo-session')
-    } catch {}
+    } catch { }
     navigate('/')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -1013,529 +1014,462 @@ export default function App() {
 
           return (
             <main id="top" className={`page-container ${ready ? 'is-ready' : ''}`}>
-      {/* ===================================================================
+              {/* ===================================================================
           SECTION 1 — FULLSCREEN ANIMATED HERO
           =================================================================== */}
-      <section className="hero" id="home">
-        {/* Navigation Bar */}
-        <header className="topbar">
-          <Brand />
-          
-          <nav className="topbar-links" aria-label="Main navigation">
-            <a href="#mosaic" onClick={smoothScroll('mosaic')} className="nav-text-link">Platform</a>
-            <a href="#solutions" onClick={smoothScroll('solutions')} className="nav-text-link">Solutions</a>
-            <a href="#contact" onClick={smoothScroll('contact')} className="nav-text-link">Contact</a>
-          </nav>
+              <section className="hero" id="home">
+                {/* Navigation Bar */}
+                <header className="topbar">
+                  <Brand />
 
-          <div className="topbar-auth-group">
-            <a
-              href="/login"
-              onClick={navigateToAuth('login')}
-              className="btn-auth-signin"
-              aria-label="Clinic Login"
-            >
-              <LogIn size={15} strokeWidth={2.2} />
-              <span>Login</span>
-            </a>
-            <a
-              href="/signup"
-              onClick={navigateToAuth('signup')}
-              className="btn-auth-signup"
-              aria-label="Clinic Sign Up"
-            >
-              <span>Sign Up</span>
-              <ArrowRight size={15} strokeWidth={2.4} />
-            </a>
-          </div>
-        </header>
+                  <nav className="topbar-links" aria-label="Main navigation">
+                    <a href="#mosaic" onClick={smoothScroll('mosaic')} className="nav-text-link">Platform</a>
+                    <a href="#solutions" onClick={smoothScroll('solutions')} className="nav-text-link">Solutions</a>
+                    <a href="#contact" onClick={smoothScroll('contact')} className="nav-text-link">Contact</a>
+                  </nav>
 
-        {/* Hero Editorial Copy */}
-        <div className="hero-copy">
-          <p className="eyebrow">CLINIC MANAGEMENT PLATFORM</p>
-          <h1>
-            <AnimatedGradientText
-              speed={2}
-              colorFrom="#4ade80"
-              colorTo="#06b6d4"
-              className="docmatrix-headline"
-            >
-              {lineOne}
-            </AnimatedGradientText>
-            <span className="headline-teal">{lineTwo}</span>
-          </h1>
-          <p className="intro">
-            One connected platform for patient records, appointments, clinical workflows and billing.
-            Built for modern medical centers and healthcare networks.
-          </p>
-        </div>
+                  <div className="topbar-auth-group">
+                    <a
+                      href="/login"
+                      onClick={navigateToAuth('login')}
+                      className="btn-auth-signin"
+                      aria-label="Clinic Login"
+                    >
+                      <LogIn size={15} strokeWidth={2.2} />
+                      <span>Login</span>
+                    </a>
+                    <a
+                      href="/signup"
+                      onClick={navigateToAuth('signup')}
+                      className="btn-auth-signup"
+                      aria-label="Clinic Sign Up"
+                    >
+                      <span>Sign Up</span>
+                      <ArrowRight size={15} strokeWidth={2.4} />
+                    </a>
+                  </div>
+                </header>
 
-        {/* Interactive 3D Running Clinic Workflow Animation */}
-        <Interactive3DClinicFlow />
+                {/* Hero Editorial Copy */}
+                <div className="hero-copy">
+                  <p className="eyebrow">CLINIC MANAGEMENT PLATFORM</p>
+                  <h1>
+                    <AnimatedGradientText
+                      speed={2}
+                      colorFrom="#4ade80"
+                      colorTo="#06b6d4"
+                      className="docmatrix-headline"
+                    >
+                      {lineOne}
+                    </AnimatedGradientText>
+                    <span className="headline-teal">{lineTwo}</span>
+                  </h1>
+                  <p className="intro">
+                    One connected platform for patient records, appointments, clinical workflows and billing.
+                    Built for modern medical centers and healthcare networks.
+                  </p>
+                </div>
 
-        {/* Decorative Vertical Pale Word */}
-        <span className="vertical-word" aria-hidden="true">
-          CLINICAL
-        </span>
+                {/* Interactive 3D Running Clinic Workflow Animation */}
+                <Interactive3DClinicFlow />
+
+                {/* Decorative Vertical Pale Word */}
+                <span className="vertical-word" aria-hidden="true">
+                  CLINICAL
+                </span>
 
 
-        {/* Healthcare Partner Ticker Track */}
-        <div className="partner-row" aria-label="Connected healthcare ecosystem partners">
-          <div className="partner-track">
-            {[0, 1].map((set) => (
-              <div className="partner-set" key={set} aria-hidden={set === 1}>
-                {partners.map((partner) => (
-                  <span key={`${set}-${partner}`}>{partner}</span>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+                {/* Healthcare Partner Ticker Track */}
+                <div className="partner-row" aria-label="Connected healthcare ecosystem partners">
+                  <div className="partner-track">
+                    {[0, 1].map((set) => (
+                      <div className="partner-set" key={set} aria-hidden={set === 1}>
+                        {partners.map((partner) => (
+                          <span key={`${set}-${partner}`}>{partner}</span>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
 
-      {/* ===================================================================
+              {/* ===================================================================
           SECTION 2 — MINIMAL DARK CLINICAL MOSAIC (Continuously Resizing Loop)
           =================================================================== */}
-      <section
-        id="mosaic"
-        ref={mosaicRef}
-        className={`mosaic ${gridReady ? 'grid-ready' : ''}`}
-      >
-        <div className="mosaic-grid">
-          {/* Left Stack (2 Vertically Stacked Cards) */}
-          <div className="left-stack">
-            {/* Card 1: Longitudinal Dental Records */}
-            <article className="tile tile-emr">
-              <img src={clinicalImagery.records} alt="Doctor reviewing longitudinal patient records" />
-              <div className="tile-shade clinical" />
-              <p className="tile-kicker">LONGITUDINAL DENTAL RECORDS</p>
-              <h2>Complete Dental Care</h2>
-              <span>
-                Keep patient IDs, medical and dental history, allergy alerts, interactive tooth charts, treatment plans, and multi-visit treatment records connected in one place.
-              </span>
-            </article>
+              <section
+                id="mosaic"
+                ref={mosaicRef}
+                className={`mosaic ${gridReady ? 'grid-ready' : ''}`}
+              >
+                <div className="mosaic-grid">
+                  {/* Left Stack (2 Vertically Stacked Cards) */}
+                  <div className="left-stack">
+                    {/* Card 1: Longitudinal Dental Records */}
+                    <article className="tile tile-emr">
+                      <img src={clinicalImagery.records} alt="Doctor reviewing longitudinal patient records" />
+                      <div className="tile-shade clinical" />
+                      <p className="tile-kicker">LONGITUDINAL DENTAL RECORDS</p>
+                      <h2>Complete Dental Care</h2>
+                      <span>
+                        Keep patient IDs, medical and dental history, allergy alerts, interactive tooth charts, treatment plans, and multi-visit treatment records connected in one place.
+                      </span>
+                    </article>
 
-            {/* Card 3: Connected Financials */}
-            <article className="tile tile-trust">
-              <p className="tile-kicker">CONNECTED FINANCIALS</p>
-              <h3>Complete Financial Control</h3>
-              <span>
-                Manage itemised invoices, payments, expenses, GST-related reporting, accounts, profit-and-loss reports, and Tally exports.
-              </span>
-              <div className="teal-corner" />
-              <div className="dot-field" />
-            </article>
-          </div>
+                    {/* Card 3: Connected Financials */}
+                    <article className="tile tile-trust">
+                      <p className="tile-kicker">CONNECTED FINANCIALS</p>
+                      <h3>Complete Financial Control</h3>
+                      <span>
+                        Manage itemised invoices, payments, expenses, GST-related reporting, accounts, profit-and-loss reports, and Tally exports.
+                      </span>
+                      <div className="teal-corner" />
+                      <div className="dot-field" />
+                    </article>
+                  </div>
 
-          {/* Right Stack (3 Horizontal Bands, 5 Tiles) */}
-          <div className="right-stack">
-            {/* Card 2: Smart Clinic Operations */}
-            <article className="tile tile-stats">
-              <img src={clinicalImagery.corridor} alt="Modern hospital and clinic facilities" />
-              <div className="tile-shade soft" />
-              <div className="stats-copy">
-                <p>SMART CLINIC OPERATIONS</p>
-                <strong>Effortless Clinic Operations</strong>
-                <span>
-                  Coordinate appointments, doctor availability, WhatsApp reminders, recall notifications, and inventory alerts in one connected workflow.
-                </span>
-              </div>
-            </article>
+                  {/* Right Stack (3 Horizontal Bands, 5 Tiles) */}
+                  <div className="right-stack">
+                    {/* Card 2: Smart Clinic Operations */}
+                    <article className="tile tile-stats">
+                      <img src={clinicalImagery.corridor} alt="Modern hospital and clinic facilities" />
+                      <div className="tile-shade soft" />
+                      <div className="stats-copy">
+                        <p>SMART CLINIC OPERATIONS</p>
+                        <strong>Effortless Clinic Operations</strong>
+                        <span>
+                          Coordinate appointments, doctor availability, WhatsApp reminders, recall notifications, and inventory alerts in one connected workflow.
+                        </span>
+                      </div>
+                    </article>
 
-            {/* Middle Band: 2 Clinical Flow Tiles */}
-            <div className="middle-stack">
-              {/* Card 4: Dental Lab Coordination */}
-              <article className="tile tile-ai">
-                <img src={clinicalImagery.lab} alt="Diagnostic laboratory queue" />
-                <div className="tile-shade soft" />
-                <p className="tile-kicker">DENTAL LAB COORDINATION</p>
-                <h3>Dental Lab Tracking</h3>
-                <span>
-                  Track crowns, bridges, and dentures sent to dental laboratories, monitor their status, and connect lab work to patient treatments.
-                </span>
-              </article>
+                    {/* Middle Band: 2 Clinical Flow Tiles */}
+                    <div className="middle-stack">
+                      {/* Card 4: Dental Lab Coordination */}
+                      <article className="tile tile-ai">
+                        <img src={clinicalImagery.lab} alt="Diagnostic laboratory queue" />
+                        <div className="tile-shade soft" />
+                        <p className="tile-kicker">DENTAL LAB COORDINATION</p>
+                        <h3>Dental Lab Tracking</h3>
+                        <span>
+                          Track crowns, bridges, and dentures sent to dental laboratories, monitor their status, and connect lab work to patient treatments.
+                        </span>
+                      </article>
 
-              <article className="tile tile-easy">
-                <img src={clinicalImagery.consultation} alt="Doctor examination room" />
-                <div className="tile-shade soft" />
-                <p>Doctor Visits</p>
-              </article>
-            </div>
+                      <article className="tile tile-easy">
+                        <img src={clinicalImagery.consultation} alt="Doctor examination room" />
+                        <div className="tile-shade soft" />
+                        <p>Doctor Visits</p>
+                      </article>
+                    </div>
 
-            {/* Bottom Band: 2 Communication & Operational Tiles */}
-            <div className="bottom-stack">
-              {/* Card 5: Patient Engagement */}
-              <article className="tile tile-payment">
-                <img src={clinicalImagery.workflow} alt="Connected patient care workflow" />
-                <div className="tile-shade soft" />
-                <p className="tile-kicker">PATIENT ENGAGEMENT</p>
-                <h3>WhatsApp & Patient Engagement</h3>
-                <span>
-                  Automate appointment confirmations, reminders, rescheduling notifications, prescription and invoice delivery, and patient follow-ups.
-                </span>
-              </article>
+                    {/* Bottom Band: 2 Communication & Operational Tiles */}
+                    <div className="bottom-stack">
+                      {/* Card 5: Patient Engagement */}
+                      <article className="tile tile-payment">
+                        <img src={clinicalImagery.workflow} alt="Connected patient care workflow" />
+                        <div className="tile-shade soft" />
+                        <p className="tile-kicker">PATIENT ENGAGEMENT</p>
+                        <h3>WhatsApp & Patient Engagement</h3>
+                        <span>
+                          Automate appointment confirmations, reminders, rescheduling notifications, prescription and invoice delivery, and patient follow-ups.
+                        </span>
+                      </article>
 
-              {/* Card 6: Doctor-Reviewed AI */}
-              <article className="tile tile-invested">
-                <img src={clinicalImagery.prescription} alt="Clinical reliability desk" />
-                <div className="tile-shade clinical" />
-                <p className="tile-kicker">DOCTOR-REVIEWED AI • PLANNED</p>
-                <h3>AI-Assisted Clinical Workflows</h3>
-                <span>
-                  Support clinical documentation with consultation-note drafts, treatment-plan suggestions, and prescription assistance reviewed by the doctor.
-                </span>
-              </article>
-            </div>
-          </div>
-        </div>
-      </section>
+                      {/* Card 6: Doctor-Reviewed AI */}
+                      <article className="tile tile-invested">
+                        <img src={clinicalImagery.prescription} alt="Clinical reliability desk" />
+                        <div className="tile-shade clinical" />
+                        <p className="tile-kicker">DOCTOR-REVIEWED AI • PLANNED</p>
+                        <h3>AI-Assisted Clinical Workflows</h3>
+                        <span>
+                          Support clinical documentation with consultation-note drafts, treatment-plan suggestions, and prescription assistance reviewed by the doctor.
+                        </span>
+                      </article>
+                    </div>
+                  </div>
+                </div>
+              </section>
 
-      {/* ===================================================================
+              {/* ===================================================================
           SUBSEQUENT COMPATIBLE SECTIONS (DOC MATRIX CLINICAL PLATFORM)
           =================================================================== */}
 
-      {/* Section 3: Built for Modern Clinics Overview with FlickeringGrid */}
-      <section id="about" className="section-padded modern-clinics-section">
-        {/* Magic UI Flickering Grid Canvas Effect */}
-        <FlickeringGrid
-          squareSize={4}
-          gridGap={6}
-          color="#60A5FA"
-          maxOpacity={0.45}
-          flickerChance={0.12}
-          className="modern-clinics-flicker-grid"
-        />
+              {/* Section 3: Built for Modern Clinics — Originkit Hero 38 Section */}
+              <Hero38 />
 
-        <div className="wrap relative-content">
-          <div className="section-head rv">
-            <span className="section-kicker kicker-badge">BUILT FOR MODERN CLINICS</span>
-            <h2 className="section-title">
-              Healthcare technology, designed to{' '}
-              <span className="text-gradient-highlight">fade into the background</span>.
-            </h2>
-            <p className="section-lead">
-              DocMatrix connects the people, steps, and systems that make a clinic run — so teams spend{' '}
-              <mark className="text-pill-highlight">less time coordinating</mark> and{' '}
-              <mark className="text-pill-highlight">more time caring</mark>.
-            </p>
-          </div>
-
-          <div className="modern-cards-grid">
-            <div className="feature-modern-card rv">
-              <div className="card-icon-bubble">
-                <Stethoscope size={22} color="#008891" />
-              </div>
-              <h3 className="card-heading">
-                <span className="card-heading-accent">Complete Dental Care</span>
-              </h3>
-              <p className="card-desc">
-                Comprehensive <span className="card-key-phrase">patient records</span>, interactive tooth charts, structured treatment plans, and{' '}
-                <span className="card-key-phrase">multi-visit tracking</span>.
-              </p>
-            </div>
-
-            <div className="feature-modern-card rv">
-              <div className="card-icon-bubble">
-                <CalendarCheck size={22} color="#008891" />
-              </div>
-              <h3 className="card-heading">
-                <span className="card-heading-accent">Effortless Clinic Operations</span>
-              </h3>
-              <p className="card-desc">
-                <span className="card-key-phrase">Real-time appointments</span>, automated WhatsApp reminders, recall notifications, and connected{' '}
-                <span className="card-key-phrase">inventory management</span>.
-              </p>
-            </div>
-
-            <div className="feature-modern-card rv">
-              <div className="card-icon-bubble">
-                <CreditCard size={22} color="#008891" />
-              </div>
-              <h3 className="card-heading">
-                <span className="card-heading-accent">Complete Financial Control</span>
-              </h3>
-              <p className="card-desc">
-                <span className="card-key-phrase">Itemised billing</span>, GST reporting, real-time expense tracking, accounts management, and seamless{' '}
-                <span className="card-key-phrase">Tally export</span>.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Section 4: Solutions Overview Cards (Each linking to its separate page) */}
-      <section id="solutions" className="section-padded bg-soft">
-        <div className="wrap">
-          <div className="section-head rv">
-            <span className="section-kicker">SOLUTIONS</span>
-            <h2 className="section-title">Everything your dental practice needs.</h2>
-            <p className="section-lead">
-              Connected clinical workflows, smarter operations, and complete financial visibility — all in one dental practice management platform.
-            </p>
-          </div>
-
-          {/* 6-Card Overview Grid — Clicking any card opens its dedicated separate page */}
-          <div className="solutions-hex-grid">
-            {solutions.map((item, idx) => {
-              const Icon = item.icon
-              return (
-                <div
-                  key={item.title}
-                  onClick={openModulePage(item.id)}
-                  className="solution-box rv"
-                  style={{ transitionDelay: `${idx * 0.08}s` }}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter') openModulePage(item.id)(e) }}
-                >
-                  <div className="solution-icon-box" style={{ background: `${item.color}14`, color: item.color }}>
-                    <Icon size={24} />
+              {/* Section 4: Solutions Overview Cards (Each linking to its separate page) */}
+              <section id="solutions" className="section-padded bg-soft">
+                <div className="wrap">
+                  <div className="section-head rv">
+                    <span className="section-kicker">SOLUTIONS</span>
+                    <h2 className="section-title">Everything your dental practice needs.</h2>
+                    <p className="section-lead">
+                      Connected clinical workflows, smarter operations, and complete financial visibility — all in one dental practice management platform.
+                    </p>
                   </div>
-                  <h3 className="solution-title">{item.title}</h3>
-                  <p className="solution-desc">{item.desc}</p>
-                  <div className="solution-action">
-                    <span>Explore full module page</span>
-                    <ArrowRight size={14} />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </section>
 
-      {/* Section 6: Comprehensive Features List (15 capabilities) */}
-      <section id="features" className="section-padded bg-soft">
-        <div className="wrap">
-          <div className="section-head rv">
-            <span className="section-kicker">CAPABILITIES</span>
-            <h2 className="section-title">Everything a modern healthcare facility requires.</h2>
-            <p className="section-lead">
-              15 production-grade operational capabilities configured to your clinic's precise specialty and protocol.
-            </p>
-          </div>
-
-          <div className="features-compact-grid">
-            {features.map(([Icon, title], idx) => (
-              <div key={title} className="feature-compact-item rv" style={{ transitionDelay: `${idx * 0.04}s` }}>
-                <div className="feature-icon-circle">
-                  <Icon size={18} color="#008891" />
-                </div>
-                <span className="feature-compact-title">{title}</span>
-                <Check size={16} className="feature-check" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Section 7: Packages & Pricing Comparison */}
-      <section id="packages" className="section-padded bg-soft">
-        <div className="wrap">
-          <div className="section-head rv">
-            <span className="section-kicker">PACKAGES</span>
-            <h2 className="section-title">Find the right plan for your practice.</h2>
-            <p className="section-lead">
-              Transparent pricing, essential features, and room to grow as your dental practice evolves.
-            </p>
-          </div>
-
-          <div className="pricing-table-wrapper rv">
-            <div className="pricing-table-scroll">
-              <table className="pricing-table">
-                <thead>
-                  <tr>
-                    <th className="th-feature">
-                      <span className="th-feature-heading">Feature</span>
-                      <span className="th-feature-sub">16 practice capabilities</span>
-                    </th>
-                    {subscriptionPlans.map((plan) => (
-                      <th
-                        key={plan.id}
-                        className={`th-plan ${plan.featured ? 'is-featured' : ''}`}
-                      >
-                        <div className="plan-header-content">
-                          {plan.featured && (
-                            <span className="plan-subtle-badge">{plan.badge}</span>
-                          )}
-                          <h3 className="plan-name">{plan.name}</h3>
-                          <div className="plan-price">{plan.price}</div>
-                          <p className="plan-billing">{plan.billing}</p>
-                          <a
-                            href={`/not-built-yet?button=${encodeURIComponent(plan.name + ' Plan')}`}
-                            onClick={(e) => {
-                              e.preventDefault()
-                              navigate(`/not-built-yet?button=${encodeURIComponent(plan.name + ' Plan')}`)
-                            }}
-                            className={`plan-cta-btn ${
-                              plan.featured ? 'btn-teal-primary' : 'btn-outline-white'
-                            }`}
-                          >
-                            {plan.cta}
-                          </a>
+                  {/* 6-Card Overview Grid — Clicking any card opens its dedicated separate page */}
+                  <div className="solutions-hex-grid">
+                    {solutions.map((item, idx) => {
+                      const Icon = item.icon
+                      return (
+                        <div
+                          key={item.title}
+                          onClick={openModulePage(item.id)}
+                          className="solution-box rv"
+                          style={{ transitionDelay: `${idx * 0.08}s` }}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => { if (e.key === 'Enter') openModulePage(item.id)(e) }}
+                        >
+                          <div className="solution-icon-box" style={{ background: `${item.color}14`, color: item.color }}>
+                            <Icon size={24} />
+                          </div>
+                          <h3 className="solution-title">{item.title}</h3>
+                          <p className="solution-desc">{item.desc}</p>
+                          <div className="solution-action">
+                            <span>Explore full module page</span>
+                            <ArrowRight size={14} />
+                          </div>
                         </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {comparisonFeatures.map((item, idx) => (
-                    <tr key={item.name} className={idx % 2 === 1 ? 'row-alt' : ''}>
-                      <td className="td-feature">
-                        <span className="feature-name">{item.name}</span>
-                      </td>
-                      {subscriptionPlans.map((plan) => {
-                        const val = item.entitlements[plan.id]
-                        return (
-                          <td
-                            key={plan.id}
-                            className={`td-val ${plan.featured ? 'is-featured' : ''}`}
-                          >
-                            <PlanEntitlement val={val} isFeatured={plan.featured} />
-                          </td>
-                        )
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Section 9: Why Doc Matrix (6 Pillars) */}
-      <section id="why" className="section-padded bg-white">
-        <div className="wrap">
-          <div className="section-head rv">
-            <span className="section-kicker">WHY DOC MATRIX</span>
-            <h2 className="section-title">Why leading clinics choose DocMatrix.</h2>
-            <p className="section-lead">
-              The difference is in the connection — no gaps, no dropped handoffs, no lost history.
-            </p>
-          </div>
-
-          <div className="why-pillars-grid">
-            {why.map(([Icon, title, desc], idx) => (
-              <div key={title} className="why-box rv" style={{ transitionDelay: `${idx * 0.06}s` }}>
-                <div className="why-icon-bubble">
-                  <Icon size={22} color="#008891" />
+                      )
+                    })}
+                  </div>
                 </div>
-                <h3 className="why-box-title">{title}</h3>
-                <p className="why-box-desc">{desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+              </section>
 
-      {/* Section 10: Contact / Consultation Request */}
-      <section id="contact" className="section-padded bg-dark">
-        <div className="wrap contact-layout">
-          <div className="contact-text-col rv">
-            <span className="section-kicker light">READY TO CONNECT?</span>
-            <h2 className="contact-headline">Schedule a personalized platform walkthrough.</h2>
-            <p className="contact-lead">
-              See how DocMatrix organizes records and brings your clinical staff into sync.
-            </p>
-            <div className="contact-metrics">
-              <div>
-                <strong>+520</strong>
-                <span>Clinics live</span>
-              </div>
-              <div>
-                <strong>99.98%</strong>
-                <span>Uptime SLA</span>
-              </div>
-              <div>
-                <strong>&lt; 24h</strong>
-                <span>Onboarding turnaround</span>
-              </div>
-            </div>
-          </div>
+              {/* Section 6: Comprehensive Features List (15 capabilities) */}
+              <section id="features" className="section-padded bg-soft">
+                <div className="wrap">
+                  <div className="section-head rv">
+                    <span className="section-kicker">CAPABILITIES</span>
+                    <h2 className="section-title">Everything a modern healthcare facility requires.</h2>
+                    <p className="section-lead">
+                      15 production-grade operational capabilities configured to your clinic's precise specialty and protocol.
+                    </p>
+                  </div>
 
-          <div className="contact-form-col rv">
-            <form className="clinic-inquiry-form" onSubmit={(e) => { e.preventDefault(); alert('Thank you for reaching out! A DocMatrix specialist will contact you shortly.') }}>
-              <div className="form-row">
-                <label>
-                  <span>Your Full Name</span>
-                  <input type="text" placeholder="Dr. Sarah Johnson" required />
-                </label>
-                <label>
-                  <span>Work Email</span>
-                  <input type="email" placeholder="sarah@cliniccare.com" required />
-                </label>
-              </div>
-              <div className="form-row">
-                <label>
-                  <span>Phone Number</span>
-                  <input type="tel" placeholder="+91 98765 43210" required />
-                </label>
-                <label>
-                  <span>Clinic / Facility Name</span>
-                  <input type="text" placeholder="Metro Dental & Polyclinic" required />
-                </label>
-              </div>
-              <label className="form-full">
-                <span>Message or Practice Requirements</span>
-                <textarea rows={3} placeholder="Tell us about your clinic setup, staff size, and key workflow priorities..." />
-              </label>
-              <button type="submit" className="form-submit-btn">
-                Request Platform Demo <ArrowRight size={16} />
-              </button>
-            </form>
-          </div>
-        </div>
-      </section>
+                  <div className="features-compact-grid">
+                    {features.map(([Icon, title], idx) => (
+                      <div key={title} className="feature-compact-item rv" style={{ transitionDelay: `${idx * 0.04}s` }}>
+                        <div className="feature-icon-circle">
+                          <Icon size={18} color="#008891" />
+                        </div>
+                        <span className="feature-compact-title">{title}</span>
+                        <Check size={16} className="feature-check" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
 
-      {/* Footer */}
-      <footer className="footer-site">
-        <div className="wrap footer-content">
-          <div className="footer-brand-info">
-            <Brand light />
-            <p className="footer-bio">
-              DocMatrix connects healthcare operations, patient longitudinal journeys, diagnostic queues,
-              and omnichannel communication into one seamless clinic platform.
-            </p>
-          </div>
+              {/* Section 7: Packages & Pricing Comparison */}
+              <section id="packages" className="section-padded bg-soft">
+                <div className="wrap">
+                  <div className="section-head rv">
+                    <span className="section-kicker">PACKAGES</span>
+                    <h2 className="section-title">Find the right plan for your practice.</h2>
+                    <p className="section-lead">
+                      Transparent pricing, essential features, and room to grow as your dental practice evolves.
+                    </p>
+                  </div>
 
-          <div className="footer-nav-columns">
-            <div className="footer-col">
-              <h4>Platform</h4>
-              <a href="/not-built-yet?button=About%20Us" onClick={(e) => { e.preventDefault(); navigate('/not-built-yet?button=About%20Us') }}>About Us</a>
-              <a href="#solutions" onClick={smoothScroll('solutions')}>Solutions</a>
-              <a href="/login" onClick={navigateToAuth('login')}>Login</a>
-              <a href="/signup" onClick={navigateToAuth('signup')}>Sign Up</a>
-            </div>
+                  <div className="pricing-table-wrapper rv">
+                    <div className="pricing-table-scroll">
+                      <table className="pricing-table">
+                        <thead>
+                          <tr>
+                            <th className="th-feature">
+                              <span className="th-feature-heading">Feature</span>
+                              <span className="th-feature-sub">16 practice capabilities</span>
+                            </th>
+                            {subscriptionPlans.map((plan) => (
+                              <th
+                                key={plan.id}
+                                className={`th-plan ${plan.featured ? 'is-featured' : ''}`}
+                              >
+                                <div className="plan-header-content">
+                                  {plan.featured && (
+                                    <span className="plan-subtle-badge">{plan.badge}</span>
+                                  )}
+                                  <h3 className="plan-name">{plan.name}</h3>
+                                  <div className="plan-price">{plan.price}</div>
+                                  <p className="plan-billing">{plan.billing}</p>
+                                  <a
+                                    href={`/not-built-yet?button=${encodeURIComponent(plan.name + ' Plan')}`}
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      navigate(`/not-built-yet?button=${encodeURIComponent(plan.name + ' Plan')}`)
+                                    }}
+                                    className={`plan-cta-btn ${plan.featured ? 'btn-teal-primary' : 'btn-outline-white'
+                                      }`}
+                                  >
+                                    {plan.cta}
+                                  </a>
+                                </div>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {comparisonFeatures.map((item, idx) => (
+                            <tr key={item.name} className={idx % 2 === 1 ? 'row-alt' : ''}>
+                              <td className="td-feature">
+                                <span className="feature-name">{item.name}</span>
+                              </td>
+                              {subscriptionPlans.map((plan) => {
+                                const val = item.entitlements[plan.id]
+                                return (
+                                  <td
+                                    key={plan.id}
+                                    className={`td-val ${plan.featured ? 'is-featured' : ''}`}
+                                  >
+                                    <PlanEntitlement val={val} isFeatured={plan.featured} />
+                                  </td>
+                                )
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </section>
 
-            <div className="footer-col">
-              <h4>Solutions</h4>
-              <a href="/patients" onClick={openModulePage('records')}>Patient Records & Dental Care</a>
-              <a href="/appointments" onClick={openModulePage('appointments')}>Appointments & Operations</a>
-              <a href="/clinical" onClick={openModulePage('clinical')}>Clinical Workflows & Rx</a>
-              <a href="/billing" onClick={openModulePage('billing')}>Billing, Accounts & Tally</a>
-              <a href="/inventory" onClick={openModulePage('inventory')}>Inventory & Dental Lab</a>
-              <a href="/whatsapp" onClick={openModulePage('engagement')}>WhatsApp & Engagement</a>
-            </div>
+              {/* Section 9: Why Doc Matrix (6 Pillars) */}
+              <section id="why" className="section-padded bg-white">
+                <div className="wrap">
+                  <div className="section-head rv">
+                    <span className="section-kicker">WHY DOC MATRIX</span>
+                    <h2 className="section-title">Why leading clinics choose DocMatrix.</h2>
+                    <p className="section-lead">
+                      The difference is in the connection — no gaps, no dropped handoffs, no lost history.
+                    </p>
+                  </div>
 
-            <div className="footer-col">
-              <h4>Contact</h4>
-              <a href="mailto:info@docmatrix.co.in">info@docmatrix.co.in</a>
-              <a href="https://www.docmatrix.co.in" target="_blank" rel="noreferrer">www.docmatrix.co.in</a>
-              <span>Bengaluru, Karnataka, India</span>
-            </div>
-          </div>
-        </div>
+                  <div className="why-pillars-grid">
+                    {why.map(([Icon, title, desc], idx) => (
+                      <div key={title} className="why-box rv" style={{ transitionDelay: `${idx * 0.06}s` }}>
+                        <div className="why-icon-bubble">
+                          <Icon size={22} color="#008891" />
+                        </div>
+                        <h3 className="why-box-title">{title}</h3>
+                        <p className="why-box-desc">{desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
 
-        <div className="wrap footer-bottom-bar">
-          <p>© {new Date().getFullYear()} DocMatrix Technologies. All rights reserved. Healthcare in Sync.</p>
-          <div className="footer-legal">
-            <a href="/privacy" onClick={(e) => { e.preventDefault(); navigate('/privacy'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Privacy Policy</a>
-            <a href="/terms" onClick={(e) => { e.preventDefault(); navigate('/terms'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Terms of Service</a>
-            <a href="/not-built-yet?button=Security%20%26%20Compliance" onClick={(e) => { e.preventDefault(); navigate('/not-built-yet?button=Security%20%26%20Compliance') }}>Security & HIPAA/ABDM Compliance</a>
-          </div>
-        </div>
-      </footer>
-    </main>
+              {/* Section 10: Contact / Consultation Request */}
+              <section id="contact" className="section-padded bg-dark">
+                <div className="wrap contact-layout">
+                  <div className="contact-text-col rv">
+                    <span className="section-kicker light">READY TO CONNECT?</span>
+                    <h2 className="contact-headline">Schedule a personalized platform walkthrough.</h2>
+                    <p className="contact-lead">
+                      See how DocMatrix organizes records and brings your clinical staff into sync.
+                    </p>
+                    <div className="contact-metrics">
+                      <div>
+                        <strong>+520</strong>
+                        <span>Clinics live</span>
+                      </div>
+                      <div>
+                        <strong>99.98%</strong>
+                        <span>Uptime SLA</span>
+                      </div>
+                      <div>
+                        <strong>&lt; 24h</strong>
+                        <span>Onboarding turnaround</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="contact-form-col rv">
+                    <form className="clinic-inquiry-form" onSubmit={(e) => { e.preventDefault(); alert('Thank you for reaching out! A DocMatrix specialist will contact you shortly.') }}>
+                      <div className="form-row">
+                        <label>
+                          <span>Your Full Name</span>
+                          <input type="text" placeholder="Dr. Sarah Johnson" required />
+                        </label>
+                        <label>
+                          <span>Work Email</span>
+                          <input type="email" placeholder="sarah@cliniccare.com" required />
+                        </label>
+                      </div>
+                      <div className="form-row">
+                        <label>
+                          <span>Phone Number</span>
+                          <input type="tel" placeholder="+91 98765 43210" required />
+                        </label>
+                        <label>
+                          <span>Clinic / Facility Name</span>
+                          <input type="text" placeholder="Metro Dental & Polyclinic" required />
+                        </label>
+                      </div>
+                      <label className="form-full">
+                        <span>Message or Practice Requirements</span>
+                        <textarea rows={3} placeholder="Tell us about your clinic setup, staff size, and key workflow priorities..." />
+                      </label>
+                      <button type="submit" className="form-submit-btn">
+                        Request Platform Demo <ArrowRight size={16} />
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </section>
+
+              {/* Footer */}
+              <footer className="footer-site">
+                <div className="wrap footer-content">
+                  <div className="footer-brand-info">
+                    <Brand light />
+                    <p className="footer-bio">
+                      DocMatrix connects healthcare operations, patient longitudinal journeys, diagnostic queues,
+                      and omnichannel communication into one seamless clinic platform.
+                    </p>
+                  </div>
+
+                  <div className="footer-nav-columns">
+                    <div className="footer-col">
+                      <h4>Platform</h4>
+                      <a href="/not-built-yet?button=About%20Us" onClick={(e) => { e.preventDefault(); navigate('/not-built-yet?button=About%20Us') }}>About Us</a>
+                      <a href="#solutions" onClick={smoothScroll('solutions')}>Solutions</a>
+                      <a href="/login" onClick={navigateToAuth('login')}>Login</a>
+                      <a href="/signup" onClick={navigateToAuth('signup')}>Sign Up</a>
+                    </div>
+
+                    <div className="footer-col">
+                      <h4>Solutions</h4>
+                      <a href="/patients" onClick={openModulePage('records')}>Patient Records & Dental Care</a>
+                      <a href="/appointments" onClick={openModulePage('appointments')}>Appointments & Operations</a>
+                      <a href="/clinical" onClick={openModulePage('clinical')}>Clinical Workflows & Rx</a>
+                      <a href="/billing" onClick={openModulePage('billing')}>Billing, Accounts & Tally</a>
+                      <a href="/inventory" onClick={openModulePage('inventory')}>Inventory & Dental Lab</a>
+                      <a href="/whatsapp" onClick={openModulePage('engagement')}>WhatsApp & Engagement</a>
+                    </div>
+
+                    <div className="footer-col">
+                      <h4>Contact</h4>
+                      <a href="mailto:info@docmatrix.co.in">info@docmatrix.co.in</a>
+                      <a href="https://www.docmatrix.co.in" target="_blank" rel="noreferrer">www.docmatrix.co.in</a>
+                      <span>Bengaluru, Karnataka, India</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="wrap footer-bottom-bar">
+                  <p>© {new Date().getFullYear()} DocMatrix Technologies. All rights reserved. Healthcare in Sync.</p>
+                  <div className="footer-legal">
+                    <a href="/privacy" onClick={(e) => { e.preventDefault(); navigate('/privacy'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Privacy Policy</a>
+                    <a href="/terms" onClick={(e) => { e.preventDefault(); navigate('/terms'); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>Terms of Service</a>
+                    <a href="/not-built-yet?button=Security%20%26%20Compliance" onClick={(e) => { e.preventDefault(); navigate('/not-built-yet?button=Security%20%26%20Compliance') }}>Security & HIPAA/ABDM Compliance</a>
+                  </div>
+                </div>
+              </footer>
+            </main>
           )
         }}
       />

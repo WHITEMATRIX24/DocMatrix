@@ -1,0 +1,305 @@
+/* ===================================================================
+   ORIGINKIT HERO 38 — CLINICAL EDITION (DOCMATRIX)
+   =================================================================== */
+
+.hero-38.modern-clinics-hero38 {
+  --paper-bg: #fbfbf9;
+  --ink-primary: #0a101d;
+  --ink-secondary: #475569;
+  --teal-primary: #008891;
+  --teal-glow: #00c9d8;
+  --teal-soft: rgba(0, 136, 145, 0.08);
+  --emerald-accent: #10b981;
+  --card-bg: rgba(255, 255, 255, 0.88);
+  --card-border: rgba(0, 136, 145, 0.18);
+  --card-shadow: 0 10px 30px -10px rgba(0, 35, 45, 0.07);
+
+  position: relative;
+  width: 100%;
+  min-height: clamp(880px, 95vh, 1040px);
+  background-color: var(--paper-bg);
+  color: var(--ink-primary);
+  font-family: inherit;
+  overflow: hidden;
+  isolation: isolate;
+  padding: clamp(65px, 8vh, 100px) 0 clamp(85px, 10vh, 130px);
+}
+
+.hero-38,
+.hero-38 * {
+  box-sizing: border-box;
+}
+
+/* Ambient Radial Glow Layers */
+.hero38-ambient-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 75% 55% at 50% 28%, rgba(0, 201, 216, 0.12) 0%, rgba(0, 136, 145, 0.04) 45%, transparent 75%),
+    radial-gradient(circle at 15% 70%, rgba(0, 136, 145, 0.05) 0%, transparent 45%),
+    radial-gradient(circle at 85% 70%, rgba(16, 185, 129, 0.05) 0%, transparent 45%);
+}
+
+/* Watermark Text */
+.hero38-ghost-word {
+  position: absolute;
+  z-index: 0;
+  top: clamp(20px, 4vh, 45px);
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: clamp(80px, 14vw, 210px);
+  font-weight: 850;
+  line-height: 0.82;
+  letter-spacing: -0.05em;
+  color: rgba(0, 136, 145, 0.04);
+  user-select: none;
+  pointer-events: none;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Interactive Tree Branch Particle Visual */
+.hero38-visual-stage {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  transform: translateX(-50%);
+  top: clamp(80px, 11vh, 140px);
+  width: min(100vw, 1380px);
+  height: clamp(340px, 40vw, 480px);
+  pointer-events: auto;
+  opacity: 0.98;
+}
+
+/* Main Content Container */
+.hero38-content-container {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+  max-width: 1260px;
+  margin: 0 auto;
+  padding: 0 clamp(20px, 3.5vw, 40px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Editorial Headline Wrap */
+.hero38-headline-wrap {
+  text-align: center;
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto;
+}
+
+/* Main Heading */
+.hero38-heading {
+  margin: 0;
+  font-size: clamp(34px, 4.2vw, 64px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.12;
+  color: var(--ink-primary);
+  text-wrap: balance;
+}
+
+/* Shimmering Gradient Highlight */
+.hero38-gradient-highlight {
+  display: inline-block;
+  background: linear-gradient(135deg, #008891 0%, #00c9d8 45%, #10b981 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: hero38-grad-flow 4.5s ease infinite alternate;
+  font-weight: 850;
+}
+
+@keyframes hero38-grad-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+/* ===================================================================
+   SIDEWAYS 3-CARD HORIZONTAL GRID (SIDEWAYS ROW)
+   =================================================================== */
+.hero38-sideways-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(16px, 2.2vw, 28px);
+  width: 100%;
+  margin-top: clamp(160px, 20vw, 260px);
+}
+
+/* Card Styling */
+.hero38-card {
+  position: relative;
+  background: var(--card-bg);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1.5px solid var(--card-border);
+  border-radius: 22px;
+  padding: clamp(26px, 2.6vw, 34px) clamp(22px, 2vw, 28px);
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 20px;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+}
+
+.hero38-card:hover,
+.hero38-card.is-hovered {
+  transform: translateY(-7px);
+  background: rgba(255, 255, 255, 0.98);
+  border-color: rgba(0, 201, 216, 0.7);
+  box-shadow:
+    0 20px 45px -12px rgba(0, 136, 145, 0.18),
+    0 0 0 1px rgba(0, 201, 216, 0.35);
+}
+
+/* Top Card Row with Icon & Meta Pill */
+.hero38-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hero38-card-icon-bubble {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(0, 136, 145, 0.08);
+  border: 1px solid rgba(0, 136, 145, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.hero38-card:hover .hero38-card-icon-bubble {
+  background: rgba(0, 136, 145, 0.15);
+  border-color: rgba(0, 201, 216, 0.5);
+  transform: scale(1.08) rotate(-3deg);
+}
+
+.hero38-card-pill-meta {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--teal-primary);
+  background: rgba(0, 136, 145, 0.07);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+/* Card Content */
+.hero38-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.hero38-card-title {
+  margin: 0;
+  font-size: clamp(18px, 1.3vw, 21px);
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  color: var(--ink-primary);
+  transition: color 0.2s ease;
+}
+
+.hero38-card:hover .hero38-card-title {
+  color: var(--teal-primary);
+}
+
+.hero38-card-description {
+  margin: 0;
+  font-size: clamp(13.5px, 0.9vw, 15px);
+  line-height: 1.58;
+  color: #556270;
+}
+
+.hero38-keyword {
+  font-weight: 650;
+  color: #1a202c;
+}
+
+/* Card Footer */
+.hero38-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 14px;
+  border-top: 1px solid rgba(0, 136, 145, 0.1);
+}
+
+.hero38-card-action-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--teal-primary);
+  transition: transform 0.2s ease;
+}
+
+.hero38-card-arrow {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 136, 145, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--teal-primary);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hero38-card:hover .hero38-card-arrow {
+  background: var(--teal-primary);
+  color: #ffffff;
+  transform: translate(2px, -2px);
+}
+
+/* Responsive Sideways Handling */
+@media (max-width: 990px) {
+  .hero38-sideways-grid {
+    grid-template-columns: repeat(3, minmax(220px, 1fr));
+    overflow-x: auto;
+    padding-bottom: 12px;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .hero38-card {
+    scroll-snap-align: start;
+    min-width: 240px;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-38.modern-clinics-hero38 {
+    padding: 60px 0 80px;
+    min-height: auto;
+  }
+
+  .hero38-sideways-grid {
+    grid-template-columns: 1fr;
+    overflow-x: visible;
+  }
+
+  .hero38-card {
+    min-width: 100%;
+  }
+}
