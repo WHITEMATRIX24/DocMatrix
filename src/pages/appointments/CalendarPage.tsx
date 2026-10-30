@@ -984,8 +984,8 @@ export const CalendarPage: React.FC = () => {
 
       {/* 6. APPOINTMENT DETAIL MODAL (Requirements #4, #5, #6, #8) */}
       {activeAppt && (
-        <div className="calendar-modal-overlay">
-          <div className="calendar-detail-modal">
+        <div className="calendar-modal-overlay" onClick={() => setActiveAppt(null)}>
+          <div className="calendar-detail-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-title-wrap">
                 <span className="modal-ref-id">{activeAppt.id}</span>
@@ -996,7 +996,7 @@ export const CalendarPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Quick Status Control */}
+            {/* Quick Status Control Bar */}
             <div className="modal-status-bar">
               <div className="current-status-display">
                 <span>Current Status:</span>
@@ -1023,49 +1023,52 @@ export const CalendarPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Detail Grid */}
-            <div className="modal-detail-grid">
-              <div className="detail-item">
-                <span className="detail-label">Patient</span>
-                <strong>
-                  {(() => {
-                    const p = getPatient(activeAppt.patientId)
-                    return p ? `${p.firstName} ${p.lastName} (${p.id})` : 'Unknown Patient'
-                  })()}
-                </strong>
+            {/* Clean Structured Information Cards */}
+            <div className="modal-detail-content">
+              <div className="modal-detail-grid">
+                <div className="detail-item">
+                  <span className="detail-label">Patient</span>
+                  <strong className="detail-value">
+                    {(() => {
+                      const p = getPatient(activeAppt.patientId)
+                      return p ? `${p.firstName} ${p.lastName} (${p.id})` : 'Unknown Patient'
+                    })()}
+                  </strong>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Dentist</span>
+                  <strong className="detail-value">{activeAppt.doctor}</strong>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Treatment</span>
+                  <strong className="detail-value">{activeAppt.treatmentType || activeAppt.visitType}</strong>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Chair</span>
+                  <strong className="detail-value">{activeAppt.chair || 'Chair 1'}</strong>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Date & Time</span>
+                  <strong className="detail-value">{activeAppt.date} at {activeAppt.time} ({activeAppt.durationMinutes || 30} mins)</strong>
+                </div>
+                <div className="detail-item">
+                  <span className="detail-label">Priority</span>
+                  <strong className="detail-value text-capitalize">{activeAppt.priority || 'Normal'}</strong>
+                </div>
               </div>
-              <div className="detail-item">
-                <span className="detail-label">Dentist</span>
-                <strong>{activeAppt.doctor}</strong>
-              </div>
-              <div className="detail-item">
-                <span className="detail-label">Treatment</span>
-                <strong>{activeAppt.treatmentType || activeAppt.visitType}</strong>
-              </div>
-              <div className="detail-item">
-                <span className="detail-label">Chair</span>
-                <strong>{activeAppt.chair || 'Chair 1'}</strong>
-              </div>
-              <div className="detail-item">
-                <span className="detail-label">Date & Time</span>
-                <strong>{activeAppt.date} at {activeAppt.time} ({activeAppt.durationMinutes || 30} mins)</strong>
-              </div>
-              <div className="detail-item">
-                <span className="detail-label">Priority</span>
-                <strong className="text-capitalize">{activeAppt.priority || 'Normal'}</strong>
-              </div>
+
+              {activeAppt.notes && (
+                <div className="modal-notes-box">
+                  <span className="detail-label">Notes & Instructions:</span>
+                  <p>{activeAppt.notes}</p>
+                </div>
+              )}
             </div>
 
-            {activeAppt.notes && (
-              <div className="modal-notes-box">
-                <span className="detail-label">Notes & Instructions:</span>
-                <p>{activeAppt.notes}</p>
-              </div>
-            )}
-
-            {/* Action Bar (Requirement #5, #6, #8) */}
+            {/* Modern Action Bar with icons & crisp styling */}
             <div className="modal-actions-bar">
               <button
+                type="button"
                 className="btn-action-reschedule"
                 onClick={() => {
                   setRescheduleDate(activeAppt.date)
@@ -1078,6 +1081,7 @@ export const CalendarPage: React.FC = () => {
               </button>
 
               <button
+                type="button"
                 className="btn-action-whatsapp"
                 onClick={() => setShowWhatsAppModal(true)}
               >
@@ -1086,6 +1090,7 @@ export const CalendarPage: React.FC = () => {
               </button>
 
               <button
+                type="button"
                 className="btn-action-cancel"
                 onClick={() => setShowCancelModal(true)}
               >
@@ -1094,7 +1099,7 @@ export const CalendarPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Module Integration Hub (Requirement #8) */}
+            {/* Module Integration Hub (Clean Pill Chips) */}
             <div className="modal-integration-section">
               <span className="section-label">Connect Clinic Modules:</span>
               <div className="integration-links-row">
