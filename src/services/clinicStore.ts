@@ -103,6 +103,42 @@ export interface InvoiceRecord {
   createdAt: string
 }
 
+export interface TreatmentPlanRecord {
+  id: string
+  patientId: string
+  procedure: string
+  category: string
+  toothNumber?: string
+  status: 'Proposed' | 'Accepted' | 'In Progress' | 'Completed' | 'Pending'
+  cost: number
+  doctor: string
+  notes?: string
+  date: string
+}
+
+export interface PatientDocumentRecord {
+  id: string
+  patientId: string
+  title: string
+  category: 'Radiology' | 'Intraoral Photo' | 'Lab Report' | 'Prescription' | 'Consent' | 'Other'
+  fileName: string
+  fileSize: string
+  uploadDate: string
+  doctor?: string
+  url?: string
+}
+
+export interface PatientConsentRecord {
+  id: string
+  patientId: string
+  consentType: string
+  status: 'Signed' | 'Pending' | 'Declined'
+  dateRecorded: string
+  recordedBy: string
+  documentRef?: string
+  notes?: string
+}
+
 export interface DentistSchedule {
   id: string
   name: string
@@ -209,6 +245,32 @@ export const CLINIC_CONFIG = {
 
 // Initial seed data
 const initialPatients: PatientRecord[] = [
+  {
+    id: 'pt-1001',
+    firstName: 'Meera',
+    lastName: 'Nambiar',
+    age: '34',
+    dateOfBirth: '1990-04-12',
+    gender: 'female',
+    mobile: '9447123456',
+    countryCode: '+91',
+    email: 'meera.nambiar@example.com',
+    language: 'English, Malayalam',
+    city: 'Kochi',
+    state: 'Kerala',
+    postalCode: '682001',
+    address: '42 Orchid Park, Marine Drive',
+    emergencyName: 'Suresh Nambiar',
+    emergencyPhone: '9447123457',
+    relationship: 'Spouse',
+    allergies: 'yes',
+    allergiesDetails: 'Penicillin allergy, Latex sensitivity',
+    medications: 'yes',
+    medicationsDetails: 'Amoxicillin contraindicated; Paracetamol as needed',
+    conditions: 'yes',
+    conditionsDetails: 'Mild Asthma',
+    createdAt: '2026-01-10T10:00:00.000Z'
+  },
   {
     id: 'PAT-1001',
     firstName: 'Aarav',
@@ -349,6 +411,39 @@ const getTodayDateStr = () => {
 
 const initialAppointments: AppointmentRecord[] = [
   {
+    id: 'APT-1001',
+    patientId: 'pt-1001',
+    doctor: 'Dr. Arun Kumar',
+    chair: 'Chair 1',
+    treatmentType: 'Root Canal Treatment (Session 2/3)',
+    visitType: 'Dental procedure',
+    date: getTodayDateStr(),
+    time: '11:00',
+    durationMinutes: 45,
+    status: 'in-progress',
+    priority: 'urgent',
+    notes: 'Access opening completed. Bio-mechanical preparation and irrigation with NaOCl. Temp Cavit placed.',
+    checkInTime: '10:45',
+    consultationStartTime: '11:02',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'APT-1000',
+    patientId: 'pt-1001',
+    doctor: 'Dr. Arun Kumar',
+    chair: 'Chair 1',
+    treatmentType: 'Emergency Pain Relief Consultation',
+    visitType: 'Consultation',
+    date: '2026-10-24',
+    time: '14:30',
+    durationMinutes: 30,
+    status: 'completed',
+    priority: 'urgent',
+    notes: 'Acute irreversible pulpitis in #46. Emergency pulpectomy performed.',
+    completedTime: '15:15',
+    createdAt: '2026-10-24T09:00:00.000Z'
+  },
+  {
     id: 'APT-2001',
     patientId: 'PAT-1001',
     doctor: 'Dr. Arun Kumar',
@@ -428,10 +523,206 @@ const initialAppointments: AppointmentRecord[] = [
   }
 ]
 
+
+const initialClinicalNotes: ClinicalNoteRecord[] = [
+  {
+    id: 'NOT-1001',
+    patientId: 'pt-1001',
+    visitDate: '2026-10-24',
+    complaint: 'Severe throbbing pain in lower right posterior quadrant radiating to ear for 2 days.',
+    findings: 'Deep occlusal caries on tooth #46 involving pulp. Tenderness on vertical percussion positive. Cold test elicited prolonged lingering pain.',
+    plan: 'Single/two sitting Root Canal Treatment on #46 followed by full coverage crown. Patient allergic to Penicillin; prescribed Erythromycin.',
+    createdAt: '2026-10-24T15:00:00.000Z'
+  },
+  {
+    id: 'NOT-1002',
+    patientId: 'pt-1001',
+    visitDate: getTodayDateStr(),
+    complaint: 'Follow-up for second sitting RCT on #46.',
+    findings: 'Symptom-free. Temporary filling intact. Working length confirmed at 21mm MB, 21mm ML, 20.5mm Distal via RVG.',
+    plan: 'Canal biomechanical preparation with ProTaper Gold rotary files. Calcium hydroxide intracanal medicament. Next: Obturation.',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'NOT-1003',
+    patientId: 'PAT-1001',
+    visitDate: '2026-10-18',
+    complaint: 'Routine 6-month orthodontic bracket review and check-up.',
+    findings: 'Alignment progressing well. Mild supra-gingival calculus on lower anteriors.',
+    plan: '0.016x0.022 NiTi archwire engaged. Ultrasonic scaling scheduled.',
+    createdAt: '2026-10-18T11:00:00.000Z'
+  }
+]
+
+const initialInvoices: InvoiceRecord[] = [
+  {
+    id: 'INV-1001',
+    patientId: 'pt-1001',
+    description: 'Root Canal Treatment (#46) - Sitting 1 & 2',
+    amount: 3500,
+    status: 'Paid',
+    createdAt: '2026-10-24T15:15:00.000Z'
+  },
+  {
+    id: 'INV-1002',
+    patientId: 'pt-1001',
+    description: 'Zirconia Monolithic Crown (Post-RCT restoration)',
+    amount: 6000,
+    status: 'Unpaid',
+    createdAt: new Date().toISOString()
+  }
+]
+
+const initialTreatmentPlans: TreatmentPlanRecord[] = [
+  {
+    id: 'TRT-1001',
+    patientId: 'pt-1001',
+    procedure: 'Root Canal Treatment & Rotary Shaping',
+    category: 'Endodontics',
+    toothNumber: '46',
+    status: 'In Progress',
+    cost: 4500,
+    doctor: 'Dr. Arun Kumar',
+    notes: 'Working length established. Second sitting underway.',
+    date: '2026-10-24'
+  },
+  {
+    id: 'TRT-1002',
+    patientId: 'pt-1001',
+    procedure: 'CAD/CAM Zirconia Crown Restoration',
+    category: 'Prosthodontics',
+    toothNumber: '46',
+    status: 'Pending',
+    cost: 6500,
+    doctor: 'Dr. Arun Kumar',
+    notes: 'Scheduled post-obturation. Tooth preparation and digital optical scan pending.',
+    date: '2026-10-24'
+  },
+  {
+    id: 'TRT-1003',
+    patientId: 'pt-1001',
+    procedure: 'Comprehensive Ultrasonic Scaling & Polishing',
+    category: 'Preventive',
+    toothNumber: 'Full Mouth',
+    status: 'Accepted',
+    cost: 1200,
+    doctor: 'Dr. Priya Nair',
+    notes: 'Mild calculus accumulation.',
+    date: '2026-10-24'
+  },
+  {
+    id: 'TRT-1004',
+    patientId: 'PAT-1001',
+    procedure: 'Clear Aligner Assessment & Refinement Scan',
+    category: 'Orthodontics',
+    toothNumber: 'Upper & Lower',
+    status: 'In Progress',
+    cost: 3000,
+    doctor: 'Dr. Arun Kumar',
+    notes: 'Tray 14 of 20 evaluation.',
+    date: '2026-10-15'
+  },
+  {
+    id: 'TRT-1005',
+    patientId: 'PAT-1002',
+    procedure: 'Single Sitting Root Canal (#36)',
+    category: 'Endodontics',
+    toothNumber: '36',
+    status: 'Proposed',
+    cost: 4500,
+    doctor: 'Dr. Priya Nair',
+    notes: 'Awaiting patient approval.',
+    date: getTodayDateStr()
+  },
+  {
+    id: 'TRT-1006',
+    patientId: 'PAT-1003',
+    procedure: 'Surgical Wisdom Tooth Removal (#38)',
+    category: 'Oral Surgery',
+    toothNumber: '38',
+    status: 'Pending',
+    cost: 5000,
+    doctor: 'Dr. Tariq Antoun',
+    notes: 'Impaction class II position B. Pre-op bloods required.',
+    date: '2026-10-20'
+  }
+]
+
+const initialPatientDocuments: PatientDocumentRecord[] = [
+  {
+    id: 'DOC-1001',
+    patientId: 'pt-1001',
+    title: 'Diagnostic Digital RVG X-Ray (#46 Periapical)',
+    category: 'Radiology',
+    fileName: 'RVG_46_pre_op_periapical.dcm',
+    fileSize: '4.2 MB',
+    uploadDate: '2026-10-24',
+    doctor: 'Dr. Arun Kumar',
+    url: '/records/xray-sample.png'
+  },
+  {
+    id: 'DOC-1002',
+    patientId: 'pt-1001',
+    title: 'Full Mouth Orthopantomogram (OPG Scan)',
+    category: 'Radiology',
+    fileName: 'OPG_panoramic_nambiar_meera.jpg',
+    fileSize: '8.7 MB',
+    uploadDate: '2026-10-24',
+    doctor: 'Dr. Arun Kumar',
+    url: '/records/opg-sample.png'
+  },
+  {
+    id: 'DOC-1003',
+    patientId: 'pt-1001',
+    title: 'Working Length Determination Radiograph (#46)',
+    category: 'Radiology',
+    fileName: 'RVG_46_working_length_21mm.dcm',
+    fileSize: '3.9 MB',
+    uploadDate: getTodayDateStr(),
+    doctor: 'Dr. Arun Kumar'
+  }
+]
+
+const initialPatientConsents: PatientConsentRecord[] = [
+  {
+    id: 'CNS-1001',
+    patientId: 'pt-1001',
+    consentType: 'Informed Consent for Endodontic Root Canal Therapy',
+    status: 'Signed',
+    dateRecorded: '2026-10-24',
+    recordedBy: 'Dr. Arun Kumar',
+    documentRef: 'DMX-CONSENT-RCT-2026-089',
+    notes: 'Procedure risks, alternative treatment (extraction), and post-op crown necessity explained. Patient signed digitally.'
+  },
+  {
+    id: 'CNS-1002',
+    patientId: 'pt-1001',
+    consentType: 'Local Anesthesia Administration Consent',
+    status: 'Signed',
+    dateRecorded: '2026-10-24',
+    recordedBy: 'Dr. Arun Kumar',
+    documentRef: 'DMX-CONSENT-LA-2026-089',
+    notes: 'Lignocaine 2% with 1:80000 adrenaline verified safe with medical history.'
+  },
+  {
+    id: 'CNS-1003',
+    patientId: 'pt-1001',
+    consentType: 'CAD/CAM Prosthetic Restoration Consent',
+    status: 'Pending',
+    dateRecorded: getTodayDateStr(),
+    recordedBy: 'Dr. Arun Kumar',
+    documentRef: 'DMX-CONSENT-PROS-2026-114',
+    notes: 'Awaiting digital signature upon final margin preparation.'
+  }
+]
+
 let patientsState: PatientRecord[] = [...initialPatients]
 let appointmentsState: AppointmentRecord[] = [...initialAppointments]
-let clinicalNotesState: ClinicalNoteRecord[] = []
-let invoicesState: InvoiceRecord[] = []
+let clinicalNotesState: ClinicalNoteRecord[] = [...initialClinicalNotes]
+let invoicesState: InvoiceRecord[] = [...initialInvoices]
+let treatmentPlansState: TreatmentPlanRecord[] = [...initialTreatmentPlans]
+let patientDocumentsState: PatientDocumentRecord[] = [...initialPatientDocuments]
+let patientConsentsState: PatientConsentRecord[] = [...initialPatientConsents]
 let walkInCounter = 101
 
 const listeners = new Set<() => void>()
@@ -440,7 +731,10 @@ let cachedSnapshot = {
   patients: patientsState,
   appointments: appointmentsState,
   clinicalNotes: clinicalNotesState,
-  invoices: invoicesState
+  invoices: invoicesState,
+  treatmentPlans: treatmentPlansState,
+  patientDocuments: patientDocumentsState,
+  patientConsents: patientConsentsState
 }
 
 const emitChange = () => {
@@ -448,7 +742,10 @@ const emitChange = () => {
     patients: patientsState,
     appointments: appointmentsState,
     clinicalNotes: clinicalNotesState,
-    invoices: invoicesState
+    invoices: invoicesState,
+    treatmentPlans: treatmentPlansState,
+    patientDocuments: patientDocumentsState,
+    patientConsents: patientConsentsState
   }
   for (const listener of listeners) {
     listener()
@@ -911,13 +1208,82 @@ export function createInvoice(details: Omit<InvoiceRecord, 'id' | 'status' | 'cr
   return record
 }
 
+export const updatePatient = (
+  id: string,
+  updates: Partial<Omit<PatientRecord, 'id' | 'createdAt'>>
+): PatientRecord | null => {
+  const index = patientsState.findIndex((p) => p.id === id)
+  if (index === -1) return null
+  patientsState[index] = {
+    ...patientsState[index],
+    ...updates
+  }
+  patientsState = [...patientsState]
+  emitChange()
+  return patientsState[index]
+}
+
+export const addTreatmentPlan = (
+  data: Omit<TreatmentPlanRecord, 'id' | 'date'>
+): TreatmentPlanRecord => {
+  const newPlan: TreatmentPlanRecord = {
+    ...data,
+    id: `TRT-${Date.now().toString().slice(-4)}`,
+    date: new Date().toISOString().slice(0, 10)
+  }
+  treatmentPlansState = [newPlan, ...treatmentPlansState]
+  emitChange()
+  return newPlan
+}
+
+export const updateTreatmentPlanStatus = (
+  id: string,
+  status: TreatmentPlanRecord['status']
+): boolean => {
+  const plan = treatmentPlansState.find((p) => p.id === id)
+  if (!plan) return false
+  plan.status = status
+  treatmentPlansState = [...treatmentPlansState]
+  emitChange()
+  return true
+}
+
+export const addPatientDocument = (
+  data: Omit<PatientDocumentRecord, 'id' | 'uploadDate'>
+): PatientDocumentRecord => {
+  const newDoc: PatientDocumentRecord = {
+    ...data,
+    id: `DOC-${Date.now().toString().slice(-4)}`,
+    uploadDate: new Date().toISOString().slice(0, 10)
+  }
+  patientDocumentsState = [newDoc, ...patientDocumentsState]
+  emitChange()
+  return newDoc
+}
+
+export const addPatientConsent = (
+  data: Omit<PatientConsentRecord, 'id' | 'dateRecorded'>
+): PatientConsentRecord => {
+  const newConsent: PatientConsentRecord = {
+    ...data,
+    id: `CNS-${Date.now().toString().slice(-4)}`,
+    dateRecorded: new Date().toISOString().slice(0, 10)
+  }
+  patientConsentsState = [newConsent, ...patientConsentsState]
+  emitChange()
+  return newConsent
+}
+
 export const registerPatient = savePatient
 export const addClinicalNote = saveClinicalNote
 
 export const resetStoreForTesting = () => {
   patientsState = [...initialPatients]
   appointmentsState = [...initialAppointments]
-  clinicalNotesState = []
-  invoicesState = []
+  clinicalNotesState = [...initialClinicalNotes]
+  invoicesState = [...initialInvoices]
+  treatmentPlansState = [...initialTreatmentPlans]
+  patientDocumentsState = [...initialPatientDocuments]
+  patientConsentsState = [...initialPatientConsents]
   emitChange()
 }

@@ -173,15 +173,33 @@ export default function StaffPortal({
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // Group all launch features by area (Problem P5: list ALL 10 areas with their pages)
+  // Group all launch features by area with simplified Patients navigation
   const groupedAreas = useMemo(() => {
     const map = {}
     ALL_LAUNCH_FEATURES.forEach((f) => {
-      
       if (!map[f.area]) map[f.area] = []
       map[f.area].push(f)
     })
-    
+
+    // Simplify Patients module: Only Patients List & Patient Profile in sidebar
+    if (map['Patients']) {
+      map['Patients'] = map['Patients'].filter((f) => f.id === 'pat.list' || f.id === 'pat.profile')
+    }
+
+    // Move Dental Charting to Clinical module alongside Treatment Plans
+    if (map['Clinical']) {
+      const toothChart = ALL_LAUNCH_FEATURES.find((f) => f.id === 'pat.toothchart')
+      const clinicalFeatures = [...map['Clinical']]
+      if (toothChart && !clinicalFeatures.some((f) => f.id === 'pat.toothchart')) {
+        clinicalFeatures.splice(1, 0, {
+          ...toothChart,
+          area: 'Clinical',
+          name: 'Dental charting'
+        })
+      }
+      map['Clinical'] = clinicalFeatures
+    }
+
     return map
   }, [])
 
@@ -286,8 +304,6 @@ export default function StaffPortal({
                 >
                   <span className="dmx-nav-icon"><IconComp size={18} /></span>
                   <span className="dmx-nav-text">{areaName}</span>
-                  <span className="dmx-nav-count">{visibleFeatures.length}</span>
-                  <ChevronRight size={14} className="dmx-nav-chevron" />
                 </button>
 
                 {/* Smooth in-navbar dropdown of submodules on hover */}

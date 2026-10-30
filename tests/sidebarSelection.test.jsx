@@ -99,7 +99,7 @@ describe('Global Sidebar Selection & Navigation Engine', () => {
       { url: '/appointments/new', expectedId: 'appt.new' },
       { url: '/appointments/new', expectedId: 'appt.new' },
       { url: '/patients/list', expectedId: 'pat.list' },
-      { url: '/patients/new', expectedId: 'pat.new' },
+      { url: '/patients/pt-1001', expectedId: 'pat.profile' },
       { url: '/clinical/prescriptions', expectedId: 'clin.prescriptions' },
       { url: '/clinical/notes', expectedId: 'clin.notes' },
       { url: '/billing/invoices', expectedId: 'bill.invoices' },
