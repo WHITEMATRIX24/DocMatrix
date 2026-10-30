@@ -14,6 +14,7 @@ import DemoBanner from './components/DemoBanner'
 import WhatsAppShortcut from './components/WhatsAppShortcut'
 import AIAgentShortcut from './components/AIAgentShortcut'
 import Hero38 from './components/originkit/hero-38'
+import MeadowBlush from './components/originkit/ui/still-sunset-meadow'
 import { findDemoUserById, DEMO_USERS } from './mocks/auth'
 import { getCurrentUser, logout as authLogout } from './services/authService'
 
@@ -1363,24 +1364,28 @@ export default function App() {
               </section>
 
               {/* Section 10: Contact / Consultation Request */}
-              <section id="contact" className="section-padded bg-dark">
+              <section id="contact" className="section-padded contact-section-meadow">
+                <div className="contact-meadow-bg">
+                  <MeadowBlush />
+                </div>
+                <div className="contact-meadow-overlay" />
                 <div className="wrap contact-layout">
                   <div className="contact-text-col rv">
-                    <span className="section-kicker light">READY TO CONNECT?</span>
+                    <span className="section-kicker light contact-highlight-badge">READY TO CONNECT?</span>
                     <h2 className="contact-headline">Schedule a personalized platform walkthrough.</h2>
                     <p className="contact-lead">
                       See how DocMatrix organizes records and brings your clinical staff into sync.
                     </p>
                     <div className="contact-metrics">
-                      <div>
+                      <div className="contact-metric-card">
                         <strong>+520</strong>
                         <span>Clinics live</span>
                       </div>
-                      <div>
+                      <div className="contact-metric-card">
                         <strong>99.98%</strong>
                         <span>Uptime SLA</span>
                       </div>
-                      <div>
+                      <div className="contact-metric-card">
                         <strong>&lt; 24h</strong>
                         <span>Onboarding turnaround</span>
                       </div>
@@ -1388,7 +1393,7 @@ export default function App() {
                   </div>
 
                   <div className="contact-form-col rv">
-                    <form className="clinic-inquiry-form" onSubmit={(e) => { e.preventDefault(); alert('Thank you for reaching out! A DocMatrix specialist will contact you shortly.') }}>
+                    <form className="clinic-inquiry-form highlighted-glass-form" onSubmit={(e) => { e.preventDefault(); alert('Thank you for reaching out! A DocMatrix specialist will contact you shortly.') }}>
                       <div className="form-row">
                         <label>
                           <span>Your Full Name</span>
