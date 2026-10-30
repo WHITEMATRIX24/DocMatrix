@@ -837,6 +837,31 @@
   border: 1px solid var(--line, #e2e8f0);
 }
 
+.booking-form-card.booking-grid-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
+  gap: 24px;
+  align-items: start;
+}
+
+.booking-left-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.booking-right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+@media (max-width: 980px) {
+  .booking-form-card.booking-grid-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .form-section {
   display: flex;
   flex-direction: column;

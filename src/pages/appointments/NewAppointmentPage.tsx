@@ -244,7 +244,9 @@ export const NewAppointmentPage: React.FC = () => {
           </div>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="booking-form-card">
+        <form onSubmit={handleSubmit} className="booking-form-card booking-grid-layout">
+          {/* Left Column: Patient, Dentist, Treatment, Notes, Actions */}
+          <div className="booking-left-column">
           {/* Section 1: Patient Selection with Live Search (Name or Patient ID ONLY) */}
           <div className="form-section">
             <label className="booking-section-title">
@@ -415,15 +417,50 @@ export const NewAppointmentPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Section 4: Interactive Calendar, Date & Time */}
+          {/* Section 5: Clinical Notes */}
           <div className="form-section">
+            <label className="form-field">
+              <span>Appointment Notes & Reason for Visit</span>
+              <textarea
+                rows={2}
+                placeholder="Optional notes: symptoms, patient requests, or pre-visit instructions..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </label>
+          </div>
+
+          {/* Submit Actions */}
+          <div className="form-actions-row">
+            <button
+              type="button"
+              className="btn-cancel"
+              onClick={() => navigate('/appointments/calendar')}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn-submit-booking"
+              disabled={!selectedPatientId || !availability.available}
+            >
+              <Check size={16} />
+              <span>Confirm & Book Appointment</span>
+            </button>
+          </div>
+          </div>
+
+          {/* Right Column: Top Right Calendar, Schedule & Availability */}
+          <div className="booking-right-column">
+          {/* Section 4: Interactive Calendar, Date & Time */}
+          <div className="form-section" style={{ borderBottom: 'none', paddingBottom: 0 }}>
             <label className="booking-section-title">
               <CalendarDays size={16} />
               <span>4. Schedule & Time *</span>
             </label>
 
             {/* Interactive Booking Calendar & Time Slot Matrix */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 340px) 1fr', gap: '20px', alignItems: 'start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {/* Left Column: Visual Interactive Monthly Calendar */}
               <div style={{ border: '1px solid var(--line, #e2e8f0)', borderRadius: '10px', padding: '14px', background: 'var(--surface, #ffffff)' }}>
                 {/* Calendar Month Header */}
@@ -579,36 +616,6 @@ export const NewAppointmentPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Section 5: Clinical Notes */}
-          <div className="form-section">
-            <label className="form-field">
-              <span>Appointment Notes & Reason for Visit</span>
-              <textarea
-                rows={2}
-                placeholder="Optional notes: symptoms, patient requests, or pre-visit instructions..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </label>
-          </div>
-
-          {/* Submit Actions */}
-          <div className="form-actions-row">
-            <button
-              type="button"
-              className="btn-cancel"
-              onClick={() => navigate('/appointments/calendar')}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn-submit-booking"
-              disabled={!selectedPatientId || !availability.available}
-            >
-              <Check size={16} />
-              <span>Confirm & Book Appointment</span>
-            </button>
           </div>
         </form>
       )}
