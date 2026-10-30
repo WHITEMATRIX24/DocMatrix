@@ -228,31 +228,52 @@ export const AppointmentDetailPage: React.FC = () => {
 
       {/* Reschedule Modal */}
       {showReschedule && (
-        <div className="calendar-modal-overlay">
-          <div className="sub-modal-card">
+        <div className="calendar-modal-overlay" onClick={() => setShowReschedule(false)}>
+          <div className="sub-modal-card reschedule-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Reschedule Booking</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span className="reschedule-header-icon"><RotateCcw size={16} /></span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '15px' }}>Reschedule Booking</h3>
+                  <span style={{ fontSize: '11.5px', color: 'var(--text-muted, #64748b)' }}>ID: {appointment.id}</span>
+                </div>
+              </div>
               <button className="btn-close" onClick={() => setShowReschedule(false)}><X size={16} /></button>
             </div>
-            <form onSubmit={handleRescheduleSubmit} className="sub-modal-form">
+            <form onSubmit={handleRescheduleSubmit} className="sub-modal-form" style={{ padding: '20px' }}>
+              <div className="reschedule-context-banner">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>Patient: <strong style={{ color: 'var(--text-strong)' }}>{patient?.firstName} {patient?.lastName}</strong></span>
+                  <span style={{ fontSize: '11px', color: 'var(--teal-primary)', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: 'var(--teal-tint)' }}>{appointment.chair}</span>
+                </div>
+                <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Doctor: <strong style={{ color: 'var(--text-strong)' }}>{appointment.doctor}</strong> &bull; {appointment.treatmentType}
+                </div>
+                <div className="reschedule-current-pill">
+                  <span>Current Schedule:</span>
+                  <strong>{appointment.date} at {appointment.time}</strong>
+                </div>
+              </div>
+
               {rescheduleError && (
-                <div className="conflict-alert">
+                <div className="conflict-alert" style={{ marginBottom: '12px' }}>
                   <AlertTriangle size={15} />
                   <span>{rescheduleError}</span>
                 </div>
               )}
               <div className="form-row-2">
                 <label className="form-field">
-                  <span>New Date</span>
+                  <span>New Date *</span>
                   <input
                     type="date"
                     required
+                    min={new Date().toISOString().slice(0, 10)}
                     value={rescheduleDate}
                     onChange={(e) => setRescheduleDate(e.target.value)}
                   />
                 </label>
                 <label className="form-field">
-                  <span>New Time Slot</span>
+                  <span>New Time Slot *</span>
                   <input
                     type="time"
                     required
@@ -271,9 +292,12 @@ export const AppointmentDetailPage: React.FC = () => {
                   onChange={(e) => setRescheduleReason(e.target.value)}
                 />
               </label>
-              <div className="modal-actions">
-                <button type="button" className="btn-cancel" onClick={() => setShowReschedule(false)}>Close</button>
-                <button type="submit" className="btn-confirm">Save Changes</button>
+              <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
+                <button type="button" className="btn-cancel" onClick={() => setShowReschedule(false)}>Cancel</button>
+                <button type="submit" className="btn-confirm-reschedule">
+                  <RotateCcw size={14} />
+                  <span>Save Changes</span>
+                </button>
               </div>
             </form>
           </div>

@@ -395,26 +395,19 @@ export const NewAppointmentPage: React.FC = () => {
               <Stethoscope size={16} />
               <span>3. Treatment & Procedure *</span>
             </label>
-            <div className="form-row-2">
-              <label className="form-field">
-                <span>Treatment Type</span>
-                <select
-                  value={selectedTreatmentId}
-                  onChange={(e) => setSelectedTreatmentId(e.target.value)}
-                >
-                  {DENTAL_TREATMENTS.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} ({t.category}) &bull; ₹{t.standardFee}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="treatment-preview-chip">
-                <span>Estimated Time & Fee:</span>
-                <strong>{selectedTreatment?.defaultDurationMinutes} mins &bull; ₹{selectedTreatment?.standardFee}</strong>
-              </div>
-            </div>
+            <label className="form-field">
+              <span>Treatment Type</span>
+              <select
+                value={selectedTreatmentId}
+                onChange={(e) => setSelectedTreatmentId(e.target.value)}
+              >
+                {DENTAL_TREATMENTS.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.category})
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
           {/* Section 5: Clinical Notes */}
@@ -597,19 +590,14 @@ export const NewAppointmentPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Conflict / Availability Warning Bar */}
-                {!availability.available ? (
+                {/* Conflict / Availability Warning Bar (shown only when unavailable) */}
+                {!availability.available && (
                   <div className="availability-warning-box">
                     <AlertTriangle size={18} />
                     <div>
                       <strong>Doctor Unavailable at this Time</strong>
                       <p>{availability.reason}</p>
                     </div>
-                  </div>
-                ) : (
-                  <div className="availability-success-box">
-                    <Check size={16} />
-                    <span>Slot is available with {selectedDoctor} on {selectedDentist?.chair}.</span>
                   </div>
                 )}
               </div>

@@ -1135,32 +1135,55 @@ export const CalendarPage: React.FC = () => {
       {/* 7. Reschedule Modal (Requirement #5) */}
       {showRescheduleModal && activeAppt && (
         <div className="calendar-modal-overlay">
-          <div className="sub-modal-card">
+          <div className="sub-modal-card reschedule-modal-card">
             <div className="modal-header">
-              <h3>Reschedule Appointment ({activeAppt.id})</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span className="reschedule-header-icon"><RotateCcw size={16} /></span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '15px' }}>Reschedule Appointment</h3>
+                  <span style={{ fontSize: '11.5px', color: 'var(--text-muted, #64748b)' }}>ID: {activeAppt.id}</span>
+                </div>
+              </div>
               <button className="btn-close" onClick={() => setShowRescheduleModal(false)}>
                 <X size={16} />
               </button>
             </div>
-            <form onSubmit={handleExecuteReschedule} className="sub-modal-form">
+            <form onSubmit={handleExecuteReschedule} className="sub-modal-form" style={{ padding: '20px' }}>
+              {/* Context Summary Banner */}
+              <div className="reschedule-context-banner">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>Patient: <strong style={{ color: 'var(--text-strong)' }}>{activeAppt.patientName}</strong></span>
+                  <span style={{ fontSize: '11px', color: 'var(--teal-primary)', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: 'var(--teal-tint)' }}>{activeAppt.chair}</span>
+                </div>
+                <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Doctor: <strong style={{ color: 'var(--text-strong)' }}>{activeAppt.doctor}</strong> &bull; {activeAppt.treatmentType}
+                </div>
+                <div className="reschedule-current-pill">
+                  <span>Current Schedule:</span>
+                  <strong>{activeAppt.date} at {activeAppt.time}</strong>
+                </div>
+              </div>
+
               {rescheduleError && (
-                <div className="conflict-alert">
+                <div className="conflict-alert" style={{ marginBottom: '12px' }}>
                   <AlertTriangle size={15} />
                   <span>{rescheduleError}</span>
                 </div>
               )}
+
               <div className="form-row-2">
                 <label className="form-field">
-                  <span>New Date</span>
+                  <span>New Date *</span>
                   <input
                     type="date"
                     required
+                    min={new Date().toISOString().slice(0, 10)}
                     value={rescheduleDate}
                     onChange={(e) => setRescheduleDate(e.target.value)}
                   />
                 </label>
                 <label className="form-field">
-                  <span>New Time Slot</span>
+                  <span>New Time Slot *</span>
                   <select
                     value={rescheduleTime}
                     onChange={(e) => setRescheduleTime(e.target.value)}
@@ -1171,22 +1194,25 @@ export const CalendarPage: React.FC = () => {
                   </select>
                 </label>
               </div>
+
               <label className="form-field">
                 <span>Reason for Reschedule *</span>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Patient called to delay by 2 hours"
+                  placeholder="e.g. Patient requested later time, doctor shift change..."
                   value={rescheduleReason}
                   onChange={(e) => setRescheduleReason(e.target.value)}
                 />
               </label>
-              <div className="modal-actions">
+
+              <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
                 <button type="button" className="btn-cancel" onClick={() => setShowRescheduleModal(false)}>
-                  Back
+                  Cancel
                 </button>
-                <button type="submit" className="btn-confirm">
-                  Confirm Reschedule
+                <button type="submit" className="btn-confirm-reschedule">
+                  <RotateCcw size={14} />
+                  <span>Confirm Reschedule</span>
                 </button>
               </div>
             </form>
