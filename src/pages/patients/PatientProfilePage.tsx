@@ -1,18 +1,15 @@
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams, useLocation, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
   CalendarPlus,
   FileText,
-  Receipt,
   UserRound,
-  AlertTriangle,
   ShieldCheck,
   Phone,
   Mail,
   MapPin,
   Clock,
-  Calendar,
   CheckCircle2,
   FileDown,
   Upload,
@@ -131,19 +128,6 @@ export const PatientProfilePage: React.FC = () => {
       .sort((a, b) => b.date.localeCompare(a.date))[0]
   }, [patientAppointments])
 
-  // Medical Alert Text
-  const medicalAlerts = useMemo(() => {
-    if (!patient) return null
-    const parts = []
-    if (patient.allergies === 'yes' && patient.allergiesDetails) {
-      parts.push(`Allergies: ${patient.allergiesDetails}`)
-    }
-    if (patient.conditions === 'yes' && patient.conditionsDetails) {
-      parts.push(`Conditions: ${patient.conditionsDetails}`)
-    }
-    return parts.length > 0 ? parts.join(' • ') : null
-  }, [patient])
-
   // Edit Patient Modal State
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editForm, setEditForm] = useState<Partial<PatientRecord>>({})
@@ -152,6 +136,17 @@ export const PatientProfilePage: React.FC = () => {
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
   const [docTitle, setDocTitle] = useState('')
   const [docCategory, setDocCategory] = useState<PatientDocumentRecord['category']>('Radiology')
+  const [expandedVisitIds, setExpandedVisitIds] = useState<string[]>(() =>
+    patientAppointments[0] ? [patientAppointments[0].id] : []
+  )
+
+  const toggleVisitDetails = (appointmentId: string) => {
+    setExpandedVisitIds((expandedIds) =>
+      expandedIds.includes(appointmentId)
+        ? expandedIds.filter((expandedId) => expandedId !== appointmentId)
+        : [...expandedIds, appointmentId]
+    )
+  }
 
   const openEditModal = () => {
     if (!patient) return
@@ -224,6 +219,238 @@ export const PatientProfilePage: React.FC = () => {
 
   return (
     <section className="clinic-record-page pat-profile-page" data-testid="feature-page-pat.profile">
+      <style>{`
+        .pat-profile-layout {
+          display: grid;
+          grid-template-columns: 300px minmax(0, 1fr);
+          gap: 28px;
+          align-items: start;
+        }
+        .pat-profile-main {
+          min-width: 0;
+        }
+        .pat-profile-sidebar {
+          box-sizing: border-box;
+          overflow: visible;
+          padding: 0 16px 16px;
+          border: 1px solid #E3EAEA;
+          border-radius: 20px;
+          background: #fff;
+          box-shadow: none;
+        }
+        .pat-profile-banner {
+          height: 76px;
+          margin: 0 -16px;
+          background: #D5EDEA;
+        }
+        .pat-profile-avatar {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 80px;
+          height: 80px;
+          margin: -40px auto 10px;
+          border: 4px solid #fff;
+          border-radius: 50%;
+          background: #0F766E;
+          color: #fff;
+          font-size: 22px;
+          font-weight: 700;
+        }
+        .pat-profile-patient-name {
+          margin: 0 0 8px;
+          color: var(--text-main, #0f172a);
+          font-size: 22px;
+          font-weight: 700;
+          line-height: 1.25;
+          text-align: center;
+        }
+        .pat-profile-id-row,
+        .pat-profile-demographics,
+        .pat-profile-actions,
+        .pat-profile-contact,
+        .pat-profile-contact-item,
+        .pat-profile-menu-row {
+          display: flex;
+          align-items: center;
+        }
+        .pat-profile-id-row {
+          justify-content: center;
+          gap: 6px;
+        }
+        .pat-profile-status {
+          padding: 3px 8px;
+          border-radius: 999px;
+          background: #E8F5EC;
+          color: #26834A;
+          font-size: 11px;
+          font-weight: 600;
+        }
+        .pat-profile-id {
+          color: var(--text-muted, #64748b);
+          font-size: 11px;
+        }
+        .pat-profile-demographics {
+          justify-content: center;
+          gap: 5px;
+          margin: 8px 0 16px;
+          color: var(--text-muted, #64748b);
+          font-size: 12px;
+        }
+        .pat-profile-actions {
+          gap: 8px;
+        }
+        .pat-profile-action {
+          box-sizing: border-box;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 44px;
+          border: 1px solid #D8E2E2;
+          border-radius: 9px;
+          background: #fff;
+          color: var(--text-main, #0f172a);
+          font: inherit;
+          font-size: 12px;
+          font-weight: 600;
+          text-decoration: none;
+          cursor: pointer;
+        }
+        .pat-profile-action-primary {
+          width: 100%;
+          margin-bottom: 8px;
+          border-color: #0F766E;
+          background: #0F766E;
+          color: #fff;
+        }
+        .pat-profile-action-primary:hover {
+          background: #0b625c;
+          color: #fff;
+        }
+        .pat-profile-action-secondary {
+          flex: 1;
+        }
+        .pat-more-menu {
+          position: relative;
+        }
+        .pat-more-menu summary {
+          width: 44px;
+          list-style: none;
+          font-size: 20px;
+        }
+        .pat-more-menu summary::-webkit-details-marker {
+          display: none;
+        }
+        .pat-profile-menu {
+          position: absolute;
+          z-index: 5;
+          top: calc(100% + 6px);
+          right: 0;
+          min-width: 150px;
+          padding: 5px;
+          border: 1px solid #E3EAEA;
+          border-radius: 9px;
+          background: #fff;
+          box-shadow: 0 8px 20px rgba(15, 23, 42, .12);
+        }
+        .pat-profile-menu-row {
+          width: 100%;
+          min-height: 40px;
+          gap: 8px;
+          padding: 0 9px;
+          border: 0;
+          border-radius: 6px;
+          background: transparent;
+          color: var(--text-main, #0f172a);
+          font: inherit;
+          font-size: 12px;
+          text-align: left;
+          text-decoration: none;
+          cursor: pointer;
+        }
+        .pat-profile-menu-row:hover {
+          background: #F3F7F7;
+        }
+        .pat-profile-allergies {
+          margin-top: 16px;
+          padding: 10px;
+          border: 1px solid #F6D5D5;
+          border-radius: 10px;
+          background: #FFF4F4;
+        }
+        .pat-profile-allergies-title {
+          margin: 0 0 7px;
+          color: #7F3030;
+          font-size: 12px;
+          font-weight: 700;
+        }
+        .pat-profile-allergy-chips {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 5px;
+        }
+        .pat-profile-allergy-chip {
+          padding: 3px 7px;
+          border-radius: 999px;
+          background: #FCE5E5;
+          color: #8F3C3C;
+          font-size: 10px;
+          font-weight: 600;
+        }
+        .pat-profile-condition {
+          margin: 7px 0 0;
+          color: #7F3030;
+          font-size: 11px;
+          line-height: 1.4;
+        }
+        .pat-profile-medical-link,
+        .pat-profile-edit-link {
+          display: inline-block;
+          padding: 0;
+          border: 0;
+          background: none;
+          color: #0F766E;
+          font: inherit;
+          font-size: 11px;
+          font-weight: 600;
+          text-decoration: none;
+          cursor: pointer;
+        }
+        .pat-profile-medical-link {
+          margin-top: 9px;
+        }
+        .pat-profile-contact {
+          flex-direction: column;
+          align-items: stretch;
+          gap: 10px;
+          margin-top: 16px;
+          color: var(--text-main, #334155);
+          font-size: 11px;
+        }
+        .pat-profile-contact-item {
+          align-items: flex-start;
+          gap: 8px;
+          line-height: 1.45;
+          overflow-wrap: anywhere;
+        }
+        .pat-profile-contact-item svg {
+          flex: 0 0 auto;
+          margin-top: 1px;
+          color: #64817F;
+        }
+        .pat-profile-edit-link {
+          margin-top: 15px;
+        }
+        @media (max-width: 900px) {
+          .pat-profile-layout {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 20px;
+          }
+          .pat-profile-sidebar {
+            width: 100%;
+          }
+        }
+      `}</style>
       {/* Back to list navigation */}
       <div>
         <Link
@@ -236,108 +463,114 @@ export const PatientProfilePage: React.FC = () => {
         </Link>
       </div>
 
-      {/* 1. Unified Hero Profile Header */}
-      <header className="pat-hero-card">
-        <div className="pat-hero-main">
-          <div className="pat-hero-identity">
-            <span className="pat-hero-avatar">{initials}</span>
-            <div className="pat-hero-details">
-              <h1>
-                <span>{patient.firstName} {patient.lastName}</span>
-                <span className="pat-badge is-primary">{patient.id}</span>
-              </h1>
-
-              <div className="pat-hero-badges">
-                <span className="pat-badge">
-                  {patient.age ? `${patient.age} yrs` : patient.dateOfBirth || '—'}
-                </span>
-                <span className="pat-badge" style={{ textTransform: 'capitalize' }}>
-                  {patient.gender || 'Patient'}
-                </span>
-                <span className="pat-badge" style={{ color: '#059669', background: 'rgba(16, 185, 129, 0.1)', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
-                  Active Record
-                </span>
-              </div>
-
-              <div className="pat-hero-meta">
-                <span className="pat-meta-item">
-                  <Phone size={13} />
-                  <span>{patient.countryCode} {patient.mobile}</span>
-                </span>
-                {patient.email && (
-                  <span className="pat-meta-item">
-                    <Mail size={13} />
-                    <span>{patient.email}</span>
-                  </span>
-                )}
-                <span className="pat-meta-item">
-                  <MapPin size={13} />
-                  <span>{patient.city || 'Kochi, Kerala'}</span>
-                </span>
-              </div>
-            </div>
+      <div className="pat-profile-layout">
+        <aside className="pat-profile-sidebar" aria-label="Patient details">
+          <div className="pat-profile-banner" />
+          <span className="pat-profile-avatar">{initials}</span>
+          <h1 className="pat-profile-patient-name">{patient.firstName} {patient.lastName}</h1>
+          <div className="pat-profile-id-row">
+            <span className="pat-profile-status">Active</span>
+            <span className="pat-profile-id">{patient.id}</span>
+          </div>
+          <div className="pat-profile-demographics">
+            <span>{patient.age ? `${patient.age} yrs` : patient.dateOfBirth || '—'}</span>
+            <span aria-hidden="true">·</span>
+            <span style={{ textTransform: 'capitalize' }}>{patient.gender || 'Patient'}</span>
           </div>
 
-          {/* Action Buttons with permissions awareness */}
-          <div className="pat-hero-actions">
-            <button
-              type="button"
-              className="pat-btn pat-btn-secondary"
-              onClick={openEditModal}
-              title="Edit patient demographics and medical summary"
-            >
-              <Edit3 size={14} />
-              <span>Edit Patient</span>
-            </button>
-
+          <Link
+            className="pat-profile-action pat-profile-action-primary"
+            to={`/clinical/notes?patientId=${patient.id}`}
+            title="Start or review clinical consultation note"
+          >
+            Start consultation
+          </Link>
+          <div className="pat-profile-actions">
             <Link
-              className="pat-btn pat-btn-secondary"
-              to={`/patients/${patient.id}/tooth-chart`}
-              title="View and mark interactive dental tooth chart"
-            >
-              <Layers size={14} />
-              <span>Tooth Chart</span>
-            </Link>
-
-            <Link
-              className="pat-btn pat-btn-primary"
+              className="pat-profile-action pat-profile-action-secondary"
               to={`/appointments/new?patientId=${patient.id}`}
               title="Schedule consultation or dental procedure"
             >
-              <CalendarPlus size={14} />
-              <span>Book Appointment</span>
+              Book appointment
             </Link>
-
-            <Link
-              className="pat-btn pat-btn-secondary"
-              to={`/clinical/notes?patientId=${patient.id}`}
-              title="Start or review clinical consultation note"
-            >
-              <FileText size={14} />
-              <span>Start Consultation</span>
-            </Link>
+            <details className="pat-more-menu">
+              <summary className="pat-profile-action" aria-label="More patient actions" title="More patient actions">
+                ⋯
+              </summary>
+              <div className="pat-profile-menu">
+                <button type="button" className="pat-profile-menu-row" onClick={openEditModal}>
+                  <Edit3 size={14} />
+                  <span>Edit Patient</span>
+                </button>
+                <Link className="pat-profile-menu-row" to={`/patients/${patient.id}/tooth-chart`}>
+                  <Layers size={14} />
+                  <span>Tooth Chart</span>
+                </Link>
+              </div>
+            </details>
           </div>
-        </div>
 
-        {/* High-visibility Medical Alert Banner */}
-        {medicalAlerts ? (
-          <div className="pat-alert-banner" role="alert">
-            <AlertTriangle size={18} style={{ flexShrink: 0, color: '#dc2626' }} />
-            <div>
-              <strong>MEDICAL ALERT: </strong>
-              <span>{medicalAlerts}</span>
+          <section className="pat-profile-allergies" aria-label="Allergies and medical alerts">
+            <h2 className="pat-profile-allergies-title">Allergies</h2>
+            {patient.allergies === 'yes' && patient.allergiesDetails ? (
+              <div className="pat-profile-allergy-chips">
+                {patient.allergiesDetails.split(/[,;]+/).map((allergy, index) => (
+                  <span className="pat-profile-allergy-chip" key={`${allergy}-${index}`}>
+                    {allergy.trim()}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="pat-profile-allergy-chips">
+                <span className="pat-profile-allergy-chip">
+                  {patient.allergies === 'yes' ? 'Allergy reported' : 'No known allergies'}
+                </span>
+              </div>
+            )}
+            {patient.conditions === 'yes' && patient.conditionsDetails && (
+              <p className="pat-profile-condition">
+                <strong>Conditions:</strong> {patient.conditionsDetails}
+              </p>
+            )}
+            <button type="button" className="pat-profile-medical-link" onClick={() => setTab('medical')}>
+              All medical alerts →
+            </button>
+          </section>
+
+          <div className="pat-profile-contact" aria-label="Contact information">
+            <div className="pat-profile-contact-item">
+              <Phone size={14} />
+              <span>{patient.countryCode} {patient.mobile}</span>
+            </div>
+            {patient.email && (
+              <div className="pat-profile-contact-item">
+                <Mail size={14} />
+                <span>{patient.email}</span>
+              </div>
+            )}
+            <div className="pat-profile-contact-item">
+              <MapPin size={14} />
+              <span>
+                {[patient.address, patient.city, patient.state, patient.postalCode].filter(Boolean).join(', ') || 'Address not provided'}
+              </span>
+            </div>
+            <div className="pat-profile-contact-item">
+              <UserRound size={14} />
+              <span>
+                {patient.emergencyName || 'Emergency contact not specified'}
+                {patient.relationship && ` (${patient.relationship})`}
+                {patient.emergencyPhone && ` · ${patient.emergencyPhone}`}
+              </span>
             </div>
           </div>
-        ) : (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#059669' }}>
-            <ShieldCheck size={14} />
-            <span>No critical medical alerts or drug contraindications recorded.</span>
-          </div>
-        )}
-      </header>
+          <button type="button" className="pat-profile-edit-link" onClick={openEditModal}>
+            Edit details
+          </button>
+        </aside>
 
-      {/* 2. Unified 5 Profile Navigation Tabs */}
-      <nav className="pat-nav-tabs" aria-label="Patient Profile Sections">
+        <div className="pat-profile-main">
+          {/* 2. Unified 5 Profile Navigation Tabs */}
+          <nav className="pat-nav-tabs" aria-label="Patient Profile Sections">
         <button
           type="button"
           className={`pat-tab-btn ${activeTab === 'overview' ? 'is-active' : ''}`}
@@ -391,624 +624,468 @@ export const PatientProfilePage: React.FC = () => {
             <span className="pat-tab-badge">{patientConsentList.length}</span>
           )}
         </button>
-      </nav>
+          </nav>
 
-      {/* 3. Tab Contents */}
-      <div className="pat-tab-content">
+          {/* 3. Tab Contents */}
+          <div className="pat-tab-content">
         {/* TAB 1: OVERVIEW */}
         {activeTab === 'overview' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div className="pat-grid-2">
-              {/* Demographics & Contact */}
-              <article className="pat-card">
-                <div className="pat-card-head">
-                  <h3><UserRound size={16} /> Demographics & Contact</h3>
-                  <button
-                    type="button"
-                    onClick={openEditModal}
-                    className="pat-card-action"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                  >
-                    Edit
-                  </button>
-                </div>
-                <dl className="pat-dl">
-                  <div className="pat-dl-row">
-                    <dt>Full Name</dt>
-                    <dd>{patient.firstName} {patient.lastName}</dd>
+          <div className="pat-overview">
+            <article className="pat-overview-appointment">
+              {nextAppointment ? (
+                <>
+                  <div className="pat-overview-appointment-copy">
+                    <p className="pat-overview-eyebrow">
+                      {nextAppointment.date === new Date().toISOString().slice(0, 10) ? 'Today' : nextAppointment.date}
+                      {nextAppointment.time && ` · ${nextAppointment.time}`}
+                    </p>
+                    <h2>{nextAppointment.treatmentType || nextAppointment.visitType}</h2>
+                    {(nextAppointment.doctor || nextAppointment.chair) && (
+                      <p className="pat-overview-appointment-meta">
+                        {nextAppointment.doctor}
+                        {nextAppointment.doctor && nextAppointment.chair && ' · '}
+                        {nextAppointment.chair}
+                      </p>
+                    )}
                   </div>
-                  <div className="pat-dl-row">
-                    <dt>Date of Birth / Age</dt>
-                    <dd>{patient.dateOfBirth || '—'} {patient.age && `(${patient.age} yrs)`}</dd>
-                  </div>
-                  <div className="pat-dl-row">
-                    <dt>Gender</dt>
-                    <dd style={{ textTransform: 'capitalize' }}>{patient.gender || '—'}</dd>
-                  </div>
-                  <div className="pat-dl-row">
-                    <dt>Preferred Language</dt>
-                    <dd>{patient.language || 'English, Malayalam'}</dd>
-                  </div>
-                  <div className="pat-dl-row">
-                    <dt>Residential Address</dt>
-                    <dd>{[patient.address, patient.city, patient.state, patient.postalCode].filter(Boolean).join(', ') || '—'}</dd>
-                  </div>
-                  <div className="pat-dl-row">
-                    <dt>Emergency Contact</dt>
-                    <dd>
-                      {patient.emergencyName || '—'} {patient.emergencyPhone && `(${patient.emergencyPhone})`}
-                      {patient.relationship && ` • ${patient.relationship}`}
-                    </dd>
-                  </div>
-                </dl>
-              </article>
-
-              {/* Medical Summary */}
-              <article className="pat-card">
-                <div className="pat-card-head">
-                  <h3><ShieldCheck size={16} /> Medical Alerts & Screening</h3>
-                  <button
-                    type="button"
-                    onClick={() => setTab('medical')}
-                    className="pat-card-action"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                  >
-                    Full History →
-                  </button>
-                </div>
-                <dl className="pat-dl">
-                  <div className="pat-dl-row">
-                    <dt>Drug Allergies</dt>
-                    <dd>
-                      {patient.allergies === 'yes' ? (
-                        <span style={{ color: '#dc2626', fontWeight: 600 }}>{patient.allergiesDetails}</span>
-                      ) : (
-                        <span style={{ color: '#059669' }}>None reported</span>
-                      )}
-                    </dd>
-                  </div>
-                  <div className="pat-dl-row">
-                    <dt>Current Medications</dt>
-                    <dd>
-                      {patient.medications === 'yes' ? patient.medicationsDetails : 'None'}
-                    </dd>
-                  </div>
-                  <div className="pat-dl-row">
-                    <dt>Systemic Conditions</dt>
-                    <dd>
-                      {patient.conditions === 'yes' ? (
-                        <span style={{ color: '#d97706', fontWeight: 600 }}>{patient.conditionsDetails}</span>
-                      ) : (
-                        <span style={{ color: '#059669' }}>Healthy / None</span>
-                      )}
-                    </dd>
-                  </div>
-                  <div className="pat-dl-row">
-                    <dt>Dental Charting</dt>
-                    <dd>
-                      <Link to={`/patients/${patient.id}/tooth-chart`} style={{ color: 'var(--teal-primary, #0b8185)', textDecoration: 'none', fontWeight: 500 }}>
-                        Open Interactive Chart →
-                      </Link>
-                    </dd>
-                  </div>
-                </dl>
-              </article>
-            </div>
-
-            {/* Visit Status Cards */}
-            <div className="pat-grid-2">
-              {/* Next Appointment Card */}
-              <article className="pat-card">
-                <div className="pat-card-head">
-                  <h3><Calendar size={16} /> Next Appointment</h3>
-                  <Link to={`/appointments/new?patientId=${patient.id}`} className="pat-card-action">
-                    Schedule →
+                  <Link className="pat-overview-open-visit" to={`/appointments/${nextAppointment.id}`}>
+                    Open visit
+                  </Link>
+                </>
+              ) : (
+                <div className="pat-overview-appointment-copy">
+                  <p className="pat-overview-eyebrow">Appointment</p>
+                  <h2>No upcoming appointment</h2>
+                  <Link className="pat-overview-open-visit" to={`/appointments/new?patientId=${patient.id}`}>
+                    Book appointment
                   </Link>
                 </div>
-                {nextAppointment ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ fontSize: '15px', color: 'var(--text-main, #0f172a)' }}>
-                        {nextAppointment.treatmentType || nextAppointment.visitType}
-                      </strong>
-                      <span className="pat-badge is-primary" style={{ textTransform: 'capitalize' }}>
-                        {nextAppointment.status}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '13px', color: 'var(--teal-primary, #0b8185)', fontWeight: 600 }}>
-                      {nextAppointment.date} at {nextAppointment.time} ({nextAppointment.chair || 'Chair 1'})
-                    </div>
-                    <div style={{ fontSize: '12.5px', color: 'var(--text-muted, #64748b)' }}>
-                      Assigned: {nextAppointment.doctor}
-                    </div>
-                    {nextAppointment.notes && (
-                      <div style={{ fontSize: '12px', background: 'var(--surface, #fff)', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--line, #e2e8f0)', marginTop: '4px' }}>
-                        Note: {nextAppointment.notes}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div style={{ padding: '16px 0', color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
-                    No upcoming appointment booked.
-                    <div style={{ marginTop: '10px' }}>
-                      <Link to={`/appointments/new?patientId=${patient.id}`} className="pat-btn pat-btn-secondary" style={{ padding: '6px 12px', fontSize: '12.5px' }}>
-                        <CalendarPlus size={13} /> Book Next Slot
-                      </Link>
-                    </div>
-                  </div>
-                )}
-              </article>
+              )}
+            </article>
 
-              {/* Last Visit Summary Card */}
-              <article className="pat-card">
-                <div className="pat-card-head">
-                  <h3><Clock size={16} /> Last Visit Summary</h3>
-                  <button
-                    type="button"
-                    onClick={() => setTab('timeline')}
-                    className="pat-card-action"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                  >
-                    View All Visits →
-                  </button>
-                </div>
-                {lastAppointment ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <strong style={{ fontSize: '15px', color: 'var(--text-main, #0f172a)' }}>
-                        {lastAppointment.treatmentType || lastAppointment.visitType}
-                      </strong>
-                      <span className="pat-badge" style={{ color: '#059669', background: 'rgba(16, 185, 129, 0.1)' }}>
-                        Completed
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '13px', color: 'var(--text-muted, #475569)' }}>
-                      Date: {lastAppointment.date} · {lastAppointment.doctor}
-                    </div>
-                    {patientNotes.length > 0 && (
-                      <div style={{ fontSize: '12.5px', background: 'var(--surface, #fff)', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--line, #e2e8f0)', marginTop: '4px' }}>
-                        <strong>Findings: </strong>{patientNotes[0].findings}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div style={{ padding: '16px 0', color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
-                    No recorded prior visits in this clinic session.
-                  </div>
-                )}
-              </article>
-            </div>
-
-            {/* Pending Treatments Summary (Per Section 4 & 5 requirements) */}
-            <article className="pat-card" style={{ background: 'var(--surface, #ffffff)' }}>
-              <div className="pat-card-head">
-                <h3>
-                  <Stethoscope size={16} />
-                  <span>Pending Treatments & Care Plans</span>
-                  {pendingTreatments.length > 0 && (
-                    <span className="pat-badge" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#d97706', borderColor: 'rgba(245, 158, 11, 0.2)' }}>
-                      {pendingTreatments.length} Pending
-                    </span>
-                  )}
-                </h3>
-                <Link to="/clinical/treatment-plans" className="pat-card-action">
-                  Open Clinical Treatment Plans →
+            <article className="pat-overview-card pat-overview-treatment-card">
+              <div className="pat-overview-card-header">
+                <h2 className="pat-overview-card-title">Treatment plan</h2>
+                <Link to="/clinical/treatment-plans" className="pat-overview-link">
+                  View all →
                 </Link>
               </div>
-
               {pendingTreatments.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div className="pat-overview-treatment-list">
                   {pendingTreatments.map((plan) => (
-                    <div
-                      key={plan.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '12px 14px',
-                        borderRadius: '8px',
-                        border: '1px solid var(--line, #e2e8f0)',
-                        background: 'var(--surface-subtle, #f8fafc)'
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 600, color: 'var(--text-main, #0f172a)' }}>
-                          {plan.procedure}
-                          {plan.toothNumber && ` • Tooth #${plan.toothNumber}`}
-                        </div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>
-                          Doctor: {plan.doctor} · Category: {plan.category} {plan.notes && `· ${plan.notes}`}
-                        </div>
+                    <div className="pat-overview-treatment-row" key={plan.id}>
+                      <span className="pat-overview-treatment-icon"><Stethoscope size={17} /></span>
+                      <div className="pat-overview-treatment-copy">
+                        <strong>{plan.procedure}</strong>
+                        {plan.toothNumber && <span>Tooth #{plan.toothNumber}</span>}
                       </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-main, #0f172a)' }}>
-                          ₹{plan.cost.toLocaleString('en-IN')}
-                        </span>
-                        <span
-                          className="pat-badge"
-                          style={{
-                            background: plan.status === 'In Progress' ? 'rgba(14, 165, 233, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                            color: plan.status === 'In Progress' ? '#0ea5e9' : '#d97706',
-                            borderColor: plan.status === 'In Progress' ? 'rgba(14, 165, 233, 0.2)' : 'rgba(245, 158, 11, 0.2)',
-                            fontWeight: 600
-                          }}
-                        >
-                          {plan.status}
-                        </span>
-                      </div>
+                      <span className={`pat-overview-status ${plan.status === 'In Progress' ? 'is-in-progress' : 'is-pending'}`}>
+                        {plan.status}
+                      </span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
-                  No pending treatment plans. All proposed dental procedures are completed or up to date.
-                </p>
+                <p className="pat-overview-empty">No pending treatment plans.</p>
               )}
             </article>
 
-            {/* Invoices & Billing Quick View */}
-            {patientInvoices.length > 0 && (
-              <article className="pat-card">
-                <div className="pat-card-head">
-                  <h3><Receipt size={16} /> Recent Invoices</h3>
-                  <Link to={`/billing/invoices/new?patientId=${patient.id}`} className="pat-card-action">
-                    New Invoice →
+            <div className="pat-overview-summary-row">
+              <article className="pat-overview-card pat-overview-summary-card">
+                <h2 className="pat-overview-card-title">Last visit</h2>
+                {lastAppointment ? (
+                  <>
+                    <strong className="pat-overview-summary-title">
+                      {lastAppointment.treatmentType || lastAppointment.visitType}
+                    </strong>
+                    <span className="pat-overview-summary-meta">{lastAppointment.date}</span>
+                    <span className="pat-overview-last-status">{lastAppointment.status}</span>
+                  </>
+                ) : (
+                  <span className="pat-overview-summary-meta">No recorded prior visits.</span>
+                )}
+                <button type="button" className="pat-overview-link pat-overview-summary-link" onClick={() => setTab('timeline')}>
+                  All visits →
+                </button>
+              </article>
+
+              <article className="pat-overview-card pat-overview-summary-card">
+                <h2 className="pat-overview-card-title">Outstanding</h2>
+                <strong className="pat-overview-outstanding-total">
+                  ₹{patientInvoices.filter((invoice) => invoice.status === 'Unpaid').reduce((total, invoice) => total + invoice.amount, 0).toLocaleString('en-IN')}
+                </strong>
+                <div className="pat-overview-billing-links">
+                  <Link to={`/billing/invoices?patientId=${patient.id}`} className="pat-overview-link">
+                    View billing →
+                  </Link>
+                  <Link to={`/billing/invoices/new?patientId=${patient.id}`} className="pat-overview-link">
+                    New invoice
                   </Link>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {patientInvoices.map((inv) => (
-                    <div key={inv.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', padding: '8px 10px', background: 'var(--surface, #fff)', borderRadius: '6px', border: '1px solid var(--line, #e2e8f0)' }}>
-                      <div>
-                        <strong>{inv.description}</strong>
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>{inv.id} · {inv.createdAt.slice(0, 10)}</div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 700 }}>₹{inv.amount.toLocaleString('en-IN')}</div>
-                        <span style={{ fontSize: '11px', fontWeight: 600, color: inv.status === 'Paid' ? '#059669' : '#dc2626' }}>
-                          {inv.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </article>
-            )}
+            </div>
           </div>
         )}
 
         {/* TAB 2: MEDICAL HISTORY */}
         {activeTab === 'medical' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <section className="pat-medical-card">
+            <header className="pat-medical-header">
               <div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
-                  Patient Medical Screening & Dental Safety
-                </h3>
-                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
-                  Screening data recorded during intake and verified by treating clinician.
+                <h2 className="pat-medical-title">Medical history</h2>
+                <p className="pat-medical-subtitle">
+                  Recorded at intake and verified by the treating clinician.
                 </p>
               </div>
-              <button type="button" onClick={openEditModal} className="pat-btn pat-btn-secondary">
+              <button type="button" onClick={openEditModal} className="pat-btn pat-btn-secondary pat-medical-edit">
                 <Edit3 size={13} /> Edit Medical Details
               </button>
+            </header>
+
+            <div className="pat-medical-sections">
+              {patient.allergies !== 'unknown' && (
+                <section className="pat-medical-section">
+                  <h3 className="pat-medical-label">Allergies</h3>
+                  <div className="pat-medical-content">
+                    {patient.allergies === 'yes' ? (
+                      <>
+                        <div className="pat-medical-chips">
+                          {(patient.allergiesDetails || 'Allergy reported').split(/[,;\n]+/).map((allergy, index) => (
+                            allergy.trim() && (
+                              <span className="pat-medical-chip is-allergy" key={`${allergy}-${index}`}>
+                                {allergy.trim()}
+                              </span>
+                            )
+                          ))}
+                        </div>
+                        <p className="pat-medical-note">
+                          Verify anesthesia and prescribed medicines for allergy safety.
+                        </p>
+                      </>
+                    ) : (
+                      <p className="pat-medical-value">No known allergies recorded.</p>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {patient.medications !== 'unknown' && (
+                <section className="pat-medical-section">
+                  <h3 className="pat-medical-label">Current medications</h3>
+                  <div className="pat-medical-content">
+                    {patient.medications === 'yes' ? (
+                      patient.medicationsDetails ? (
+                        <ul className="pat-medical-medication-list">
+                          {patient.medicationsDetails.split(/[;\n]+/).map((item, index) => {
+                            const medication = item.trim()
+                            if (!medication) return null
+                            const contraindicated = /\b(?:contraindicated|avoid)\b/i.test(medication)
+                            const name = medication
+                              .replace(/\b(?:is\s+)?contraindicated\b/ig, '')
+                              .replace(/\bavoid\b/ig, '')
+                              .trim()
+
+                            return (
+                              <li key={`${medication}-${index}`}>
+                                {contraindicated && <span className="pat-medical-chip is-avoid">Avoid</span>}
+                                {name || medication}
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      ) : null
+                    ) : (
+                      <p className="pat-medical-value">None reported.</p>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {patient.conditions !== 'unknown' && (
+                <section className="pat-medical-section">
+                  <h3 className="pat-medical-label">Medical conditions</h3>
+                  <div className="pat-medical-content">
+                    {patient.conditions === 'yes' ? (
+                      <>
+                        {patient.conditionsDetails && (
+                          <div className="pat-medical-chips">
+                            {patient.conditionsDetails.split(/[,;\n]+/).map((condition, index) => (
+                              condition.trim() && (
+                                <span className="pat-medical-chip is-condition" key={`${condition}-${index}`}>
+                                  {condition.trim()}
+                                </span>
+                              )
+                            ))}
+                          </div>
+                        )}
+                        <p className="pat-medical-note">
+                          Monitor blood pressure and glucose before invasive dental procedures.
+                        </p>
+                      </>
+                    ) : (
+                      <p className="pat-medical-value">No medical conditions recorded.</p>
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {patient.language && (
+                <section className="pat-medical-section">
+                  <h3 className="pat-medical-label">Preferred language</h3>
+                  <div className="pat-medical-content">
+                    <p className="pat-medical-value">{patient.language}</p>
+                  </div>
+                </section>
+              )}
+
             </div>
-
-            <div className="pat-grid-2">
-              <article className="pat-card" style={{ borderColor: patient.allergies === 'yes' ? 'rgba(220, 38, 38, 0.3)' : undefined }}>
-                <div className="pat-card-head">
-                  <h3 style={{ color: patient.allergies === 'yes' ? '#dc2626' : undefined }}>
-                    <AlertTriangle size={16} /> Allergies & Sensitivities
-                  </h3>
-                  <span className="pat-badge" style={{ background: patient.allergies === 'yes' ? '#fee2e2' : '#ecfdf5', color: patient.allergies === 'yes' ? '#dc2626' : '#059669' }}>
-                    {patient.allergies === 'yes' ? 'Allergies Present' : 'No Allergies'}
-                  </span>
-                </div>
-                {patient.allergies === 'yes' ? (
-                  <div style={{ padding: '8px 0', color: 'var(--text-main, #0f172a)', fontSize: '14px', fontWeight: 500 }}>
-                    {patient.allergiesDetails}
-                    <div style={{ fontSize: '12px', color: '#dc2626', marginTop: '6px' }}>
-                      ⚠️ Clinicians must verify non-allergenic anesthesia and prescribed analgesics/antibiotics.
-                    </div>
-                  </div>
-                ) : (
-                  <p style={{ color: 'var(--text-muted, #64748b)', fontSize: '13.5px', margin: 0 }}>
-                    Patient declared no known allergies to local anesthetics, antibiotics (penicillin), latex, or analgesics.
-                  </p>
-                )}
-              </article>
-
-              <article className="pat-card">
-                <div className="pat-card-head">
-                  <h3><ShieldCheck size={16} /> Current Medications</h3>
-                  <span className="pat-badge">
-                    {patient.medications === 'yes' ? 'Active Prescriptions' : 'None'}
-                  </span>
-                </div>
-                {patient.medications === 'yes' ? (
-                  <div style={{ padding: '8px 0', color: 'var(--text-main, #0f172a)', fontSize: '14px' }}>
-                    {patient.medicationsDetails}
-                  </div>
-                ) : (
-                  <p style={{ color: 'var(--text-muted, #64748b)', fontSize: '13.5px', margin: 0 }}>
-                    Patient is not currently taking systemic long-term medications or blood thinners.
-                  </p>
-                )}
-              </article>
-
-              <article className="pat-card" style={{ borderColor: patient.conditions === 'yes' ? 'rgba(245, 158, 11, 0.3)' : undefined }}>
-                <div className="pat-card-head">
-                  <h3 style={{ color: patient.conditions === 'yes' ? '#d97706' : undefined }}>
-                    <Activity size={16} /> Systemic Medical Conditions
-                  </h3>
-                  <span className="pat-badge" style={{ background: patient.conditions === 'yes' ? '#fef3c7' : '#ecfdf5', color: patient.conditions === 'yes' ? '#d97706' : '#059669' }}>
-                    {patient.conditions === 'yes' ? 'Pre-existing Condition' : 'Clear'}
-                  </span>
-                </div>
-                {patient.conditions === 'yes' ? (
-                  <div style={{ padding: '8px 0', color: 'var(--text-main, #0f172a)', fontSize: '14px' }}>
-                    {patient.conditionsDetails}
-                    <div style={{ fontSize: '12px', color: '#b45309', marginTop: '6px' }}>
-                      ℹ️ Monitor vitals (BP / Blood Glucose) prior to invasive dental surgical procedures.
-                    </div>
-                  </div>
-                ) : (
-                  <p style={{ color: 'var(--text-muted, #64748b)', fontSize: '13.5px', margin: 0 }}>
-                    No recorded chronic conditions (Hypertension, Diabetes, Cardiac disease, Asthma, Bleeding disorders).
-                  </p>
-                )}
-              </article>
-
-              <article className="pat-card">
-                <div className="pat-card-head">
-                  <h3><Phone size={16} /> Emergency Safety Contact</h3>
-                </div>
-                <dl className="pat-dl">
-                  <div className="pat-dl-row">
-                    <dt>Contact Person</dt>
-                    <dd>{patient.emergencyName || 'Not specified'}</dd>
-                  </div>
-                  <div className="pat-dl-row">
-                    <dt>Phone</dt>
-                    <dd>{patient.emergencyPhone || '—'}</dd>
-                  </div>
-                  <div className="pat-dl-row">
-                    <dt>Relationship</dt>
-                    <dd>{patient.relationship || 'Spouse / Next of Kin'}</dd>
-                  </div>
-                </dl>
-              </article>
-            </div>
-          </div>
+          </section>
         )}
 
         {/* TAB 3: VISIT TIMELINE */}
         {activeTab === 'timeline' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <section className="pat-visit-card">
+            <header className="pat-visit-header">
               <div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
-                  Chronological Visit Timeline
-                </h3>
-                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
-                  All recorded appointments, clinical encounters, procedures, and findings.
+                <h2 className="pat-visit-title">Visit timeline</h2>
+                <p className="pat-visit-subtitle">
+                  All appointments, notes and findings, newest first.
                 </p>
               </div>
-
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <Link to={`/clinical/notes?patientId=${patient.id}`} className="pat-btn pat-btn-secondary">
-                  <FileText size={13} /> New Clinical Note
+              <div className="pat-visit-header-actions">
+                <Link to={`/clinical/notes?patientId=${patient.id}`} className="pat-btn pat-btn-secondary pat-visit-action">
+                  <FileText size={13} /> New clinical note
                 </Link>
-                <Link to={`/appointments/new?patientId=${patient.id}`} className="pat-btn pat-btn-primary">
-                  <CalendarPlus size={13} /> Book Visit
+                <Link to={`/appointments/new?patientId=${patient.id}`} className="pat-btn pat-btn-primary pat-visit-action">
+                  <CalendarPlus size={13} /> Book visit
                 </Link>
               </div>
-            </div>
+            </header>
 
             {patientAppointments.length > 0 ? (
-              <div className="pat-timeline">
-                {patientAppointments.map((appt) => {
+              <div className="pat-visit-timeline">
+                {patientAppointments.map((appt, index) => {
                   const linkedNote = patientNotes.find((n) => n.visitDate === appt.date)
+                  const expanded = expandedVisitIds.includes(appt.id)
+                  const appointmentNote = appt.notes?.trim()
+                  const noteParts = [
+                    linkedNote?.complaint?.trim(),
+                    linkedNote?.findings?.trim(),
+                    linkedNote?.plan?.trim()
+                  ].filter((part): part is string => Boolean(part))
+                  const normalize = (text: string) => text.toLocaleLowerCase().replace(/\s+/g, ' ').trim()
+                  const appendAppointmentNote = Boolean(
+                    appointmentNote &&
+                    !noteParts.some((part) =>
+                      normalize(part).includes(normalize(appointmentNote)) ||
+                      normalize(appointmentNote).includes(normalize(part))
+                    )
+                  )
+                  const hasDetails = Boolean(linkedNote || appointmentNote)
+                  const normalizedStatus = appt.status.toLowerCase()
+                  const statusClass = normalizedStatus === 'in-progress' || normalizedStatus === 'in progress'
+                    ? 'is-in-progress'
+                    : normalizedStatus === 'completed'
+                      ? 'is-completed'
+                      : 'is-other'
+                  const statusLabel = appt.status.replace(/-/g, ' ')
+
                   return (
-                    <div key={appt.id} className="pat-timeline-item">
-                      <div className="pat-timeline-dot">
-                        <Calendar size={11} style={{ color: 'var(--teal-primary, #0b8185)' }} />
-                      </div>
-
-                      <div className="pat-timeline-card">
-                        <div className="pat-timeline-head">
-                          <div>
-                            <div className="pat-timeline-date">{appt.date} · {appt.time}</div>
-                            <div className="pat-timeline-title">
-                              {appt.treatmentType || appt.visitType}
-                            </div>
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span className="pat-badge is-primary" style={{ textTransform: 'capitalize' }}>
-                              {appt.status}
-                            </span>
-                            <Link
-                              to={`/appointments/${appt.id}`}
-                              style={{ fontSize: '12px', color: 'var(--teal-primary, #0b8185)', textDecoration: 'none', fontWeight: 500 }}
-                            >
-                              View Appointment →
-                            </Link>
-                          </div>
+                    <article key={appt.id} className="pat-visit-item">
+                      <span className={`pat-visit-dot ${index === 0 ? 'is-newest' : ''}`} aria-hidden="true" />
+                      <div className="pat-visit-entry">
+                        <div className="pat-visit-row">
+                          <h3 className="pat-visit-entry-title">{appt.treatmentType || appt.visitType}</h3>
+                          <span className={`pat-visit-status ${statusClass}`}>{statusLabel}</span>
                         </div>
+                        <p className="pat-visit-meta">
+                          {[appt.date, appt.time, appt.doctor, appt.chair].filter(Boolean).join(' · ')}
+                        </p>
 
-                        <div style={{ fontSize: '13px', color: 'var(--text-muted, #475569)' }}>
-                          <strong>Doctor:</strong> {appt.doctor} {appt.chair && `• ${appt.chair}`}
-                        </div>
-
-                        {appt.notes && (
-                          <div style={{ fontSize: '12.5px', color: 'var(--text-main, #0f172a)', background: 'var(--surface, #ffffff)', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--line, #e2e8f0)' }}>
-                            <strong>Appointment Notes: </strong>{appt.notes}
-                          </div>
+                        {hasDetails && (
+                          <button
+                            type="button"
+                            className="pat-visit-toggle"
+                            aria-expanded={expanded}
+                            aria-controls={`visit-details-${appt.id}`}
+                            onClick={() => toggleVisitDetails(appt.id)}
+                          >
+                            {expanded ? 'Hide details ▴' : 'Show details ▾'}
+                          </button>
                         )}
 
-                        {linkedNote && (
-                          <div style={{ fontSize: '12.5px', background: 'rgba(11, 129, 133, 0.04)', padding: '10px 12px', borderRadius: '6px', border: '1px solid rgba(11, 129, 133, 0.15)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <div style={{ fontWeight: 600, color: 'var(--teal-primary, #0b8185)' }}>Clinical Note Record</div>
-                            <div><strong>Complaint:</strong> {linkedNote.complaint}</div>
-                            <div><strong>Findings:</strong> {linkedNote.findings}</div>
-                            <div><strong>Plan:</strong> {linkedNote.plan}</div>
-                          </div>
+                        {expanded && (
+                          <>
+                            {hasDetails && (
+                              <div className="pat-visit-details" id={`visit-details-${appt.id}`}>
+                                {linkedNote?.complaint?.trim() && (
+                                  <p><strong>Complaint:</strong> {linkedNote.complaint}</p>
+                                )}
+                                {linkedNote?.findings?.trim() && (
+                                  <p><strong>Findings:</strong> {linkedNote.findings}</p>
+                                )}
+                                {(linkedNote?.plan?.trim() || (appointmentNote && appendAppointmentNote)) && (
+                                  <p>
+                                    <strong>Plan:</strong>{' '}
+                                    {linkedNote?.plan?.trim()}
+                                    {linkedNote?.plan?.trim() && appointmentNote && appendAppointmentNote ? ' ' : ''}
+                                    {appointmentNote && appendAppointmentNote ? appointmentNote : ''}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )}
+                        {(expanded || !hasDetails) && (
+                          <Link to={`/appointments/${appt.id}`} className="pat-visit-link">
+                            View appointment →
+                          </Link>
                         )}
                       </div>
-                    </div>
+                    </article>
                   )
                 })}
               </div>
             ) : (
-              <div style={{ padding: '40px 20px', textAlign: 'center', background: 'var(--surface-subtle, #f8fafc)', borderRadius: '10px', border: '1px solid var(--line, #e2e8f0)' }}>
-                <Clock size={28} style={{ color: 'var(--text-muted, #94a3b8)', marginBottom: '8px' }} />
-                <h4 style={{ margin: '0 0 4px 0', fontSize: '15px' }}>No visits recorded yet</h4>
-                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
+              <div className="pat-visit-empty">
+                <Clock size={28} aria-hidden="true" />
+                <h3>No visits recorded yet</h3>
+                <p>
                   When this patient checks in for appointments or consultations, their timeline will populate chronologically.
                 </p>
               </div>
             )}
-          </div>
+          </section>
         )}
 
         {/* TAB 4: DOCUMENTS */}
         {activeTab === 'documents' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <section className="pat-documents-card">
+            <header className="pat-documents-header">
               <div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
-                  Diagnostic Records & Radiographs
-                </h3>
-                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
-                  Intraoral RVG scans, panoramic radiographs (OPG), photos, and lab records.
-                </p>
+                <h2 className="pat-documents-title">Documents</h2>
+                <p className="pat-documents-subtitle">X-rays, scans and reports.</p>
               </div>
-
               <button
                 type="button"
                 onClick={() => setUploadModalOpen(true)}
-                className="pat-btn pat-btn-primary"
+                className="pat-btn pat-btn-primary pat-documents-upload"
               >
-                <Upload size={13} /> Upload Document
+                <Upload size={15} /> Upload document
               </button>
-            </div>
+            </header>
 
             {patientDocs.length > 0 ? (
-              <div className="pat-docs-grid">
-                {patientDocs.map((doc) => (
-                  <div key={doc.id} className="pat-doc-card">
-                    <div className="pat-doc-info">
-                      <span className="pat-doc-icon">
-                        <FileText size={20} />
-                      </span>
-                      <div className="pat-doc-text">
-                        <h4>{doc.title}</h4>
-                        <p>{doc.category} · {doc.uploadDate}</p>
-                        <p style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)', marginTop: '2px' }}>
-                          {doc.fileName} ({doc.fileSize})
-                        </p>
+              <div className="pat-documents-list">
+                {patientDocs.map((doc) => {
+                  const dateValue = doc.uploadDate ? new Date(`${doc.uploadDate}T00:00:00`) : null
+                  const formattedDate = dateValue && !Number.isNaN(dateValue.getTime())
+                    ? dateValue.toLocaleDateString('en-GB', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric'
+                      })
+                    : ''
+                  const title = doc.title?.trim() || doc.fileName
+                  const metadata = [doc.category, formattedDate, doc.fileSize].filter(Boolean).join(' · ')
+
+                  return (
+                    <article key={doc.id} className="pat-documents-row">
+                      <div className="pat-documents-info">
+                        <span className="pat-documents-icon" aria-hidden="true">
+                          <FileText size={19} />
+                        </span>
+                        <div className="pat-documents-copy">
+                          <h3>{title}</h3>
+                          {metadata && <p>{metadata}</p>}
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="pat-doc-actions">
-                      <button
-                        type="button"
-                        onClick={() => alert(`Opening preview for ${doc.fileName} (Digital DICOM Viewer)`)}
-                        className="pat-action-btn"
-                        style={{ padding: '4px 10px', fontSize: '12px' }}
-                      >
-                        <ExternalLink size={12} /> Preview Scan
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => alert(`Downloading record: ${doc.fileName}`)}
-                        className="pat-action-btn"
-                        style={{ padding: '4px 10px', fontSize: '12px' }}
-                      >
-                        <FileDown size={12} /> Download
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                      <div className="pat-documents-actions">
+                        <button
+                          type="button"
+                          onClick={() => alert(`Opening preview for ${doc.fileName} (Digital DICOM Viewer)`)}
+                          className="pat-btn pat-btn-secondary pat-documents-action"
+                        >
+                          <ExternalLink size={14} /> Preview
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => alert(`Downloading record: ${doc.fileName}`)}
+                          className="pat-btn pat-btn-secondary pat-documents-action"
+                        >
+                          <FileDown size={14} /> Download
+                        </button>
+                      </div>
+                    </article>
+                  )
+                })}
               </div>
             ) : (
-              <div style={{ padding: '40px 20px', textAlign: 'center', background: 'var(--surface-subtle, #f8fafc)', borderRadius: '10px', border: '1px solid var(--line, #e2e8f0)' }}>
-                <FileText size={28} style={{ color: 'var(--text-muted, #94a3b8)', marginBottom: '8px' }} />
-                <h4 style={{ margin: '0 0 4px 0', fontSize: '15px' }}>No documents uploaded yet</h4>
-                <p style={{ margin: '0 0 12px 0', color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
-                  Upload digital radiographs, scan reports, or treatment consent files.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setUploadModalOpen(true)}
-                  className="pat-btn pat-btn-secondary"
-                  style={{ padding: '6px 14px', fontSize: '12.5px' }}
-                >
-                  <Upload size={13} /> Add First Document
-                </button>
+              <div className="pat-documents-empty">
+                <FileText size={26} aria-hidden="true" />
+                <p>No documents uploaded yet.</p>
               </div>
             )}
-          </div>
+          </section>
         )}
 
         {/* TAB 5: CONSENT RECORDS */}
         {activeTab === 'consents' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <section className="pat-consents-panel">
+            <header className="pat-consents-header">
               <div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
-                  Informed Consent & Regulatory Records
-                </h3>
-                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
-                  Signed procedural consents in compliance with DCI clinical practice guidelines.
-                </p>
+                <h2 className="pat-consents-title">Consent records</h2>
+                <p className="pat-consents-subtitle">Signed and pending consent forms.</p>
               </div>
-
-              <div style={{ fontSize: '12px', color: '#059669', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <CheckCircle2 size={14} /> ABDM & Digital Consent Compliant
-              </div>
-            </div>
+            </header>
 
             {patientConsentList.length > 0 ? (
-              <div>
-                {patientConsentList.map((c) => (
-                  <div key={c.id} className="pat-consent-card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
-                      <div>
-                        <strong style={{ fontSize: '14px', color: 'var(--text-main, #0f172a)' }}>
-                          {c.consentType}
-                        </strong>
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)', marginTop: '3px' }}>
-                          Recorded by: {c.recordedBy} · Date: {c.dateRecorded} {c.documentRef && `· Ref: ${c.documentRef}`}
-                        </div>
-                      </div>
+              <div className="pat-consents-list">
+                {patientConsentList.map((consent) => {
+                  const dateValue = consent.dateRecorded
+                    ? new Date(`${consent.dateRecorded}T00:00:00`)
+                    : null
+                  const formattedDate = dateValue && !Number.isNaN(dateValue.getTime())
+                    ? dateValue.toLocaleDateString('en-GB', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric'
+                      })
+                    : ''
+                  const metadata = [
+                    consent.recordedBy,
+                    formattedDate,
+                    consent.documentRef ? `Ref: ${consent.documentRef}` : ''
+                  ].filter(Boolean).join(' · ')
+                  const statusClass = consent.status === 'Signed'
+                    ? 'is-signed'
+                    : consent.status === 'Pending'
+                      ? 'is-pending'
+                      : 'is-other'
 
-                      <span className={c.status === 'Signed' ? 'pat-consent-status-signed' : 'pat-consent-status-pending'}>
-                        {c.status}
-                      </span>
-                    </div>
-
-                    {c.notes && (
-                      <div style={{ fontSize: '12.5px', color: 'var(--text-muted, #475569)', background: 'var(--surface, #fff)', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--line, #e2e8f0)' }}>
-                        {c.notes}
+                  return (
+                    <article key={consent.id} className="pat-consents-row">
+                      <div className="pat-consents-copy">
+                        <h3>{consent.consentType}</h3>
+                        {metadata && <p className="pat-consents-meta">{metadata}</p>}
+                        {consent.notes && <p className="pat-consents-note">{consent.notes}</p>}
                       </div>
-                    )}
-                  </div>
-                ))}
+                      <div className="pat-consents-status-column">
+                        <span className={`pat-consents-status ${statusClass}`}>{consent.status}</span>
+                      </div>
+                    </article>
+                  )
+                })}
               </div>
             ) : (
-              <div style={{ padding: '40px 20px', textAlign: 'center', background: 'var(--surface-subtle, #f8fafc)', borderRadius: '10px', border: '1px solid var(--line, #e2e8f0)' }}>
-                <CheckCircle2 size={28} style={{ color: 'var(--text-muted, #94a3b8)', marginBottom: '8px' }} />
-                <h4 style={{ margin: '0 0 4px 0', fontSize: '15px' }}>No specific procedural consents on file</h4>
-                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
-                  Informed consents signed prior to invasive procedures or endodontic treatments will be logged here.
-                </p>
+              <div className="pat-consents-empty">
+                <p>No consent records yet.</p>
               </div>
             )}
-          </div>
+          </section>
         )}
+      </div>
+        </div>
       </div>
 
       {/* ── EDIT PATIENT MODAL DIALOG ── */}

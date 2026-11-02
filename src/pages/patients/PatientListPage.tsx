@@ -1,268 +1,214 @@
 import React, { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Search, UserRound, AlertTriangle, ShieldCheck, Calendar, ArrowRight, Phone } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Phone, Search } from 'lucide-react'
 import { useClinicData, type PatientRecord } from '@/services/clinicStore'
 import './patientProfile.css'
+
+type PatientSort = 'recent' | 'name' | 'id'
+
+const PAGE_SIZE = 10
 
 export const PatientListPage: React.FC = () => {
   const navigate = useNavigate()
   const { patients, appointments } = useClinicData()
   const [query, setQuery] = useState('')
-  const [genderFilter, setGenderFilter] = useState<'all' | 'female' | 'male'>('all')
-  const [alertsOnly, setAlertsOnly] = useState(false)
+  const [sort, setSort] = useState<PatientSort>('recent')
+  const [currentPage, setCurrentPage] = useState(1)
 
-  // Map appointments to patients for quick Next/Last visit lookup
   const patientVisitMap = useMemo(() => {
-    const map = new Map<string, { nextAppt?: string; lastVisit?: string }>()
+    const map = new Map<string, string>()
     const today = new Date().toISOString().slice(0, 10)
 
-    for (const appt of appointments) {
-      if (appt.status === 'cancelled') continue
-      const current = map.get(appt.patientId) || {}
-      if (appt.date >= today) {
-        if (!current.nextAppt || appt.date < current.nextAppt) {
-          current.nextAppt = `${appt.date} (${appt.time})`
-        }
-      } else {
-        if (!current.lastVisit || appt.date > current.lastVisit) {
-          current.lastVisit = appt.date
-        }
+    for (const appointment of appointments) {
+      if (
+        appointment.status === 'cancelled' ||
+        (appointment.date >= today && appointment.status !== 'completed')
+      ) continue
+      const patientId = appointment.patientId.toLowerCase()
+      const lastVisit = map.get(patientId)
+      if (!lastVisit || appointment.date > lastVisit) {
+        map.set(patientId, appointment.date)
       }
-      map.set(appt.patientId, current)
     }
+
     return map
   }, [appointments])
 
-  // Filtered patients
-  const filtered = useMemo(() => {
-    return patients.filter((patient) => {
-      // 1. Text Search (name, phone, patient ID, city)
-      const q = query.trim().toLowerCase()
-      if (q) {
-        const fullName = `${patient.firstName} ${patient.lastName}`.toLowerCase()
-        const match =
-          fullName.includes(q) ||
-          patient.id.toLowerCase().includes(q) ||
-          patient.mobile.includes(q) ||
-          (patient.city && patient.city.toLowerCase().includes(q))
-        if (!match) return false
-      }
+  const filteredPatients = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    const matchingPatients = patients.filter((patient) => {
+      if (!normalizedQuery) return true
 
-      // 2. Gender Filter
-      if (genderFilter !== 'all') {
-        if ((patient.gender || '').toLowerCase() !== genderFilter) return false
-      }
-
-      // 3. Alerts Filter
-      if (alertsOnly) {
-        const hasAllergy = patient.allergies === 'yes' && Boolean(patient.allergiesDetails)
-        const hasCondition = patient.conditions === 'yes' && Boolean(patient.conditionsDetails)
-        if (!hasAllergy && !hasCondition) return false
-      }
-
-      return true
+      const fullName = `${patient.firstName} ${patient.lastName}`.toLowerCase()
+      return (
+        fullName.includes(normalizedQuery) ||
+        patient.id.toLowerCase().includes(normalizedQuery) ||
+        `${patient.countryCode} ${patient.mobile}`.toLowerCase().includes(normalizedQuery) ||
+        (patient.city || '').toLowerCase().includes(normalizedQuery)
+      )
     })
-  }, [patients, query, genderFilter, alertsOnly])
 
-  const getInitials = (p: PatientRecord) => {
-    const f = (p.firstName || '').charAt(0)
-    const l = (p.lastName || '').charAt(0)
-    return (f + l).toUpperCase() || 'PT'
+    return matchingPatients.sort((first, second) => {
+      if (sort === 'name') {
+        return `${first.firstName} ${first.lastName}`.localeCompare(`${second.firstName} ${second.lastName}`)
+      }
+      if (sort === 'id') {
+        return first.id.localeCompare(second.id, undefined, { numeric: true, sensitivity: 'base' })
+      }
+
+      const firstVisit = patientVisitMap.get(first.id.toLowerCase())
+      const secondVisit = patientVisitMap.get(second.id.toLowerCase())
+      if (!firstVisit && !secondVisit) return 0
+      if (!firstVisit) return 1
+      if (!secondVisit) return -1
+      return secondVisit.localeCompare(firstVisit)
+    })
+  }, [patients, patientVisitMap, query, sort])
+
+  const totalPages = Math.max(1, Math.ceil(filteredPatients.length / PAGE_SIZE))
+  const page = Math.min(currentPage, totalPages)
+  const firstItem = filteredPatients.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+  const lastItem = Math.min(page * PAGE_SIZE, filteredPatients.length)
+  const pagePatients = filteredPatients.slice(firstItem === 0 ? 0 : firstItem - 1, lastItem)
+
+  const getInitials = (patient: PatientRecord) => {
+    const first = (patient.firstName || '').charAt(0)
+    const last = (patient.lastName || '').charAt(0)
+    return (first + last).toUpperCase() || 'PT'
+  }
+
+  const openPatientProfile = (patientId: string) => {
+    navigate(`/patients/${patientId}`)
   }
 
   return (
-    <section className="clinic-record-page pat-profile-page" data-testid="feature-page-pat.list">
-      {/* 1. Header per Section 3 Specification */}
-      <header className="clinic-record-header" style={{ marginBottom: '4px' }}>
+    <section className="clinic-record-page pat-profile-page pat-list-page" data-testid="feature-page-pat.list">
+      <header className="pat-list-header">
         <div>
-          <span className="clinic-record-eyebrow">PATIENTS</span>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, margin: '2px 0 4px 0' }}>Patients</h1>
-          <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '14px' }}>
-            Manage patient records and access clinical information.
-          </p>
+          <h1>Patients</h1>
+          <p>{patients.length} registered {patients.length === 1 ? 'patient' : 'patients'}</p>
         </div>
+        <Link className="pat-list-register" to="/patients/new">Register patient</Link>
       </header>
 
-      {/* 2. Search & Filtering Controls */}
-      <div className="pat-filter-bar">
-        <div className="pat-search-wrap">
-          <Search size={16} className="pat-search-icon" />
+      <div className="pat-list-toolbar">
+        <div className="pat-list-search">
+          <Search size={17} aria-hidden="true" />
+          <label className="pat-list-sr-only" htmlFor="patient-list-search">Search patients</label>
           <input
-            className="pat-search-input"
+            id="patient-list-search"
+            type="search"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by patient name, phone, or patient ID..."
-            aria-label="Search patients"
+            onChange={(event) => {
+              setQuery(event.target.value)
+              setCurrentPage(1)
+            }}
+            placeholder="Search by name, patient ID or phone"
           />
         </div>
-
-        <div className="pat-filter-chips">
-          <button
-            type="button"
-            className={`pat-chip ${genderFilter === 'all' && !alertsOnly ? 'is-active' : ''}`}
-            onClick={() => {
-              setGenderFilter('all')
-              setAlertsOnly(false)
+        <div className="pat-list-select-wrap">
+          <label className="pat-list-sr-only" htmlFor="patient-list-sort">Sort patients</label>
+          <select
+            id="patient-list-sort"
+            value={sort}
+            onChange={(event) => {
+              const nextSort = event.target.value
+              if (nextSort === 'recent' || nextSort === 'name' || nextSort === 'id') {
+                setSort(nextSort)
+                setCurrentPage(1)
+              }
             }}
           >
-            All ({patients.length})
-          </button>
-
-          <button
-            type="button"
-            className={`pat-chip ${genderFilter === 'female' ? 'is-active' : ''}`}
-            onClick={() => setGenderFilter(genderFilter === 'female' ? 'all' : 'female')}
-          >
-            Female
-          </button>
-
-          <button
-            type="button"
-            className={`pat-chip ${genderFilter === 'male' ? 'is-active' : ''}`}
-            onClick={() => setGenderFilter(genderFilter === 'male' ? 'all' : 'male')}
-          >
-            Male
-          </button>
-
-          <button
-            type="button"
-            className={`pat-chip is-alert ${alertsOnly ? 'is-active' : ''}`}
-            onClick={() => setAlertsOnly(!alertsOnly)}
-          >
-            <AlertTriangle size={13} />
-            <span>Medical Alerts Only</span>
-          </button>
+            <option value="recent">Recent visit</option>
+            <option value="name">Name A–Z</option>
+            <option value="id">Patient ID</option>
+          </select>
         </div>
       </div>
 
-      {/* 3. Patients Table */}
-      {filtered.length > 0 ? (
-        <div className="pat-table-container">
-          <table className="pat-table" aria-label="Patients directory">
-            <thead>
-              <tr>
-                <th style={{ width: '120px' }}>Patient ID</th>
-                <th>Patient Name</th>
-                <th>Phone Number</th>
-                <th>Age / Gender</th>
-                <th>Medical Alerts</th>
-                <th>Visit Status</th>
-                <th style={{ textAlign: 'right' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((patient) => {
-                const visits = patientVisitMap.get(patient.id)
-                const hasAllergy = patient.allergies === 'yes' && Boolean(patient.allergiesDetails)
-                const hasCondition = patient.conditions === 'yes' && Boolean(patient.conditionsDetails)
-                const alertText = [
-                  hasAllergy ? patient.allergiesDetails : null,
-                  hasCondition ? patient.conditionsDetails : null
-                ].filter(Boolean).join(', ')
-
-                return (
+      <div className="pat-list-card">
+        {pagePatients.length > 0 ? (
+          <div className="pat-list-table-scroll">
+            <table className="pat-list-table" aria-label="Patients directory">
+              <thead>
+                <tr>
+                  <th scope="col">Patient</th>
+                  <th scope="col">Phone</th>
+                  <th scope="col">Last visit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pagePatients.map((patient) => (
                   <tr
+                    className="pat-list-row"
                     key={patient.id}
-                    className="pat-row"
-                    onClick={() => navigate(`/patients/${patient.id}`)}
+                    tabIndex={0}
+                    onClick={() => openPatientProfile(patient.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        openPatientProfile(patient.id)
+                      }
+                    }}
                   >
                     <td>
-                      <span className="pat-id-pill">{patient.id}</span>
-                    </td>
-
-                    <td>
-                      <div className="pat-cell-user">
-                        <span className="pat-avatar">{getInitials(patient)}</span>
-                        <div className="pat-user-info">
+                      <div className="pat-list-patient-cell">
+                        <span className="pat-list-avatar" aria-hidden="true">{getInitials(patient)}</span>
+                        <span className="pat-list-patient-copy">
                           <Link
+                            className="pat-list-patient-name"
                             to={`/patients/${patient.id}`}
-                            className="pat-user-name"
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(event) => event.stopPropagation()}
                           >
                             {patient.firstName} {patient.lastName}
                           </Link>
-                          <span className="pat-user-sub">
-                            {patient.city || 'Kochi'} {patient.email && `· ${patient.email}`}
-                          </span>
-                        </div>
+                          <span className="pat-list-patient-id">{patient.id}</span>
+                        </span>
                       </div>
                     </td>
-
                     <td>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                        <Phone size={13} style={{ color: 'var(--text-muted, #64748b)' }} />
-                        <span>{patient.countryCode} {patient.mobile}</span>
+                      <span className="pat-list-phone">
+                        <Phone size={14} aria-hidden="true" />
+                        {patient.countryCode} {patient.mobile}
                       </span>
                     </td>
-
-                    <td>
-                      <span style={{ textTransform: 'capitalize' }}>
-                        {patient.age ? `${patient.age} yrs` : patient.dateOfBirth || '—'} · {patient.gender || '—'}
-                      </span>
-                    </td>
-
-                    <td>
-                      {alertText ? (
-                        <span className="pat-alert-tag" title={alertText}>
-                          <AlertTriangle size={12} />
-                          <span>{alertText.length > 26 ? `${alertText.slice(0, 26)}…` : alertText}</span>
-                        </span>
-                      ) : (
-                        <span className="pat-clear-tag">
-                          <ShieldCheck size={12} />
-                          <span>No alerts</span>
-                        </span>
-                      )}
-                    </td>
-
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '12px' }}>
-                        {visits?.nextAppt ? (
-                          <span style={{ color: 'var(--teal-primary, #0b8185)', fontWeight: 600 }}>
-                            Next: {visits.nextAppt}
-                          </span>
-                        ) : visits?.lastVisit ? (
-                          <span style={{ color: 'var(--text-muted, #64748b)' }}>
-                            Last visit: {visits.lastVisit}
-                          </span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted, #94a3b8)' }}>No prior visits</span>
-                        )}
-                      </div>
-                    </td>
-
-                    <td style={{ textAlign: 'right' }}>
-                      <Link
-                        className="pat-action-btn"
-                        to={`/patients/${patient.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <span>Open Profile</span>
-                        <ArrowRight size={13} />
-                      </Link>
-                    </td>
+                    <td>{patientVisitMap.get(patient.id.toLowerCase()) || '—'}</td>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        /* 4. Empty State (No duplicate Add Patient button per Section 3 requirements) */
-        <div className="clinic-record-empty" style={{ padding: '48px 24px', textAlign: 'center' }}>
-          <span style={{ display: 'inline-flex', padding: '16px', borderRadius: '50%', background: 'var(--surface-subtle, #f1f5f9)', color: 'var(--teal-primary, #0b8185)', marginBottom: '12px' }}>
-            <UserRound size={32} />
-          </span>
-          <h2 style={{ fontSize: '18px', fontWeight: 600, margin: '0 0 6px 0' }}>
-            {query ? 'No matching patients found' : 'No patient records yet'}
-          </h2>
-          <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '14px', maxWidth: '440px', marginLeft: 'auto', marginRight: 'auto' }}>
-            {query
-              ? 'Try adjusting your search criteria, phone number, or patient ID.'
-              : 'Registered patients from the Clinic Dashboard and clinic appointments will appear here.'}
-          </p>
-        </div>
-      )}
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="pat-list-empty" role="status">
+            <h2>No patients found</h2>
+            <p>No patients found. Try a different name, ID or phone number.</p>
+          </div>
+        )}
+
+        <footer className="pat-list-pagination">
+          <span>Showing {firstItem}–{lastItem} of {filteredPatients.length}</span>
+          <div className="pat-list-pagination-actions">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((previous) => Math.max(1, previous - 1))}
+              disabled={page <= 1}
+              aria-label="Previous page"
+            >
+              <ChevronLeft size={16} aria-hidden="true" />
+              Previous
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((previous) => Math.min(totalPages, previous + 1))}
+              disabled={page >= totalPages}
+              aria-label="Next page"
+            >
+              Next
+              <ChevronRight size={16} aria-hidden="true" />
+            </button>
+          </div>
+        </footer>
+      </div>
     </section>
   )
 }
