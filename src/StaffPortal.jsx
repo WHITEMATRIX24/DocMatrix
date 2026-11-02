@@ -270,7 +270,7 @@ export default function StaffPortal({
           </button>
 
           <span className="dmx-rail-section">Practice</span>
-          {Object.entries(groupedAreas).map(([areaName, features], index, arr) => {
+          {Object.entries(groupedAreas).map(([areaName, features]) => {
             if (areaName === 'Accounts' && !['ORGANIZATION_ADMIN', 'ACCOUNTANT'].includes(currentUser.role)) {
               return null
             }
@@ -279,7 +279,6 @@ export default function StaffPortal({
             }
             const IconComp = AREA_ICONS[areaName] || Calendar
             const isAreaActive = activeFeature?.area === areaName || location.pathname.startsWith(`/${areaName.toLowerCase()}`)
-            const isBottomAlign = index >= arr.length - 3
 
             // Filter features allowed for current user role
             const visibleFeatures = features.filter((feat) => !feat.roles || feat.roles.includes(currentUser.role))
@@ -308,32 +307,32 @@ export default function StaffPortal({
                   <ChevronRight size={14} className="dmx-nav-chevron" />
                 </button>
 
-                {/* Sub-pages appear in a floating glass flyout on hover */}
-                <div className={`dmx-flyout ${isBottomAlign ? 'is-bottom' : ''}`}>
-                  <div className="dmx-flyout-card">
-                    <button type="button" className="dmx-flyout-head" onClick={() => navigateTo(`/${areaName.toLowerCase()}`)}>
-                      <span>{areaName}</span>
-                      <span className="dmx-flyout-hub">Overview <ChevronRight size={12} /></span>
-                    </button>
-                    {visibleFeatures.map((feat) => {
-                      const isCurrent = activeFeature?.id === feat.id || (activeFeature?.id === 'appt.detail' && feat.id === 'appt.details-list')
-                      return (
-                        <button
-                          key={feat.id}
-                          type="button"
-                          data-testid={`sidebar-link-${feat.id}`}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            navigateTo(resolveFeatureRoute(feat.route, feat.area))
-                          }}
-                          className={`dmx-flyout-item ${isCurrent ? 'is-active' : ''}`}
-                          aria-current={isCurrent ? 'page' : undefined}
-                        >
-                          <span>{feat.name}</span>
-                          {isCurrent && <Check size={13} />}
-                        </button>
-                      )
-                    })}
+                {/* Sub-pages slide open directly below the topic on hover or focus */}
+                <div className="dmx-sub">
+                  <div className="dmx-sub-inner">
+                    <div className="dmx-sub-list">
+                      {visibleFeatures.map((feat, i) => {
+                        const isCurrent = activeFeature?.id === feat.id || (activeFeature?.id === 'appt.detail' && feat.id === 'appt.details-list')
+                        return (
+                          <button
+                            key={feat.id}
+                            type="button"
+                            data-testid={`sidebar-link-${feat.id}`}
+                            style={{ '--i': i }}
+                            title={feat.name}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              navigateTo(resolveFeatureRoute(feat.route, feat.area))
+                            }}
+                            className={`dmx-sub-item ${isCurrent ? 'is-active' : ''}`}
+                            aria-current={isCurrent ? 'page' : undefined}
+                          >
+                            <span className="dmx-sub-dot" aria-hidden="true" />
+                            <span className="dmx-sub-label">{feat.name}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>

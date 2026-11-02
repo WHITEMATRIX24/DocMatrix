@@ -192,7 +192,7 @@ html.dm-theme-transition *::after {
 /* ---------------------------------------------------------------------
    Icon rail — a floating glass panel. Icons only until hovered (or
    keyboard-focused), then it widens over the page; hovering a module
-   reveals its sub-pages in a glass flyout.
+   slides its sub-pages open directly below it.
    --------------------------------------------------------------------- */
 .dmx-rail {
   position: fixed;
@@ -289,7 +289,12 @@ html.dm-theme-transition *::after {
   flex-direction: column;
   gap: 2px;
   padding: 6px 10px 12px;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
 }
+
+.dmx-rail-nav::-webkit-scrollbar { display: none; }
 
 .dmx-rail-section {
   position: relative;
@@ -396,92 +401,109 @@ html.dm-theme-transition *::after {
   background: var(--rail-accent);
 }
 
-/* Sub-page flyouts */
-.dmx-module { position: relative; flex: none; }
+/* Sub-pages: an inline reveal directly under the topic. Height animates through
+   grid rows (no measuring), items stagger in, and opening waits a beat so sweeping
+   the pointer down the list doesn't make rows jump. */
+.dmx-module { position: relative; flex: none; display: flex; flex-direction: column; }
 
-.dmx-flyout {
-  position: absolute;
-  left: 100%;
-  top: -10px;
-  z-index: 5;
-  padding-left: 16px; /* hover bridge between rail and card */
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(-10px) scale(0.98);
-  transform-origin: left center;
-  transition: opacity 0.16s ease, transform 0.3s var(--ease-out);
+.dmx-sub {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.34s var(--ease-out);
 }
 
-.dmx-flyout.is-bottom { top: auto; bottom: -10px; }
+.dmx-sub-inner { min-height: 0; overflow: hidden; }
 
-.dmx-rail:hover .dmx-module:hover > .dmx-flyout,
-.dmx-module:has(:focus-visible) > .dmx-flyout {
-  opacity: 1;
-  pointer-events: auto;
-  transform: none;
-  transition: opacity 0.22s ease 0.2s, transform 0.4s var(--ease-out) 0.2s;
-}
-
-.dmx-flyout-card {
-  width: 248px;
+.dmx-sub-list {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px;
-  border: 1px solid var(--glass-border);
-  border-radius: 22px;
-  background: var(--glass-strong);
-  box-shadow: var(--glass-highlight), var(--shadow-lg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  gap: 1px;
+  padding: 2px 0 8px;
 }
 
-.dmx-flyout-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px 10px;
-  border-radius: 14px;
-  color: var(--text-strong);
-  font-size: 13px;
-  font-weight: 650;
-  transition: background-color 0.2s ease;
+/* Thread through the dots, centred under the topic icon */
+.dmx-sub-list::before {
+  content: "";
+  position: absolute;
+  left: 22.5px;
+  top: 6px;
+  bottom: 16px;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--line-strong) 14%, var(--line-strong) 86%, transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
-.dmx-flyout-hub {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px 8px 3px 10px;
-  border-radius: 999px;
-  background: var(--surface-sunken);
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.dmx-flyout-head:hover { background: var(--surface-sunken); }
-.dmx-flyout-head:hover .dmx-flyout-hub { color: var(--teal-primary); }
-
-.dmx-flyout-item {
+.dmx-sub-item {
+  position: relative;
   width: 100%;
+  height: 34px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 9px 10px;
-  border-radius: 12px;
-  color: var(--text);
+  padding: 0 12px 0 50px;
+  border-radius: 14px;
+  color: var(--rail-text);
   font-size: 13px;
   font-weight: 500;
   text-align: left;
-  transition: background-color 0.18s ease, color 0.18s ease;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-10px);
+  transition: opacity 0.18s ease, transform 0.25s var(--ease-out), background-color 0.2s ease, color 0.2s ease;
 }
 
-.dmx-flyout-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dmx-flyout-item:hover { background: var(--surface-sunken); color: var(--text-strong); }
-.dmx-flyout-item.is-active { background: var(--teal-tint); color: var(--teal-primary); font-weight: 650; }
+.dmx-sub-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+.dmx-sub-dot {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: 50%;
+  background: var(--rail-faint);
+  transition: transform 0.35s var(--ease-out), background-color 0.2s ease, box-shadow 0.3s ease;
+}
+
+.dmx-sub-item:hover { background: var(--rail-hover); color: var(--rail-text-strong); }
+.dmx-sub-item:hover .dmx-sub-dot { transform: scale(1.5); background: var(--rail-text-strong); }
+.dmx-sub-item:active { transform: scale(0.98); }
+
+/* Current page: raised glass chip with a glowing dot */
+.dmx-sub-item.is-active {
+  background: var(--rail-active);
+  box-shadow: var(--glass-highlight), 0 6px 14px -8px rgba(16, 42, 42, 0.28);
+  color: var(--rail-accent);
+  font-weight: 600;
+}
+
+.dmx-sub-item.is-active .dmx-sub-dot {
+  background: var(--rail-accent);
+  box-shadow: 0 0 0 3px var(--teal-tint-strong);
+  transform: scale(1.2);
+}
+
+/* Open: pointer on the topic or sub-list, or keyboard focus inside it. Only once the rail is wide. */
+.dmx-rail:is(:hover, :has(:focus-visible)) .dmx-module:is(:hover, :focus-within) > .dmx-sub {
+  grid-template-rows: 1fr;
+  transition-delay: 0.16s;
+}
+
+.dmx-rail:is(:hover, :has(:focus-visible)) .dmx-module:is(:hover, :focus-within) .dmx-sub-list::before {
+  opacity: 1;
+  transition-delay: 0.3s;
+}
+
+.dmx-rail:is(:hover, :has(:focus-visible)) .dmx-module:is(:hover, :focus-within) .dmx-sub-item {
+  opacity: 1;
+  transform: none;
+  transition-delay: calc(0.2s + var(--i, 0) * 30ms), calc(0.2s + var(--i, 0) * 30ms), 0s, 0s;
+}
+
+.dmx-rail:is(:hover, :has(:focus-visible)) .dmx-module:is(:hover, :focus-within) .dmx-nav-chevron { transform: rotate(90deg); color: var(--rail-accent); }
+.dmx-nav-chevron { transition-property: opacity, transform, color; }
 
 .dmx-rail-foot {
   position: relative;
@@ -499,7 +521,7 @@ html.dm-theme-transition *::after {
 .dmx-rail-user strong { overflow: hidden; color: var(--rail-text-strong); font-size: 12.5px; font-weight: 650; text-overflow: ellipsis; }
 .dmx-rail-user small { color: var(--rail-text); font-size: 11px; text-transform: capitalize; }
 
-/* Short screens: tighten rows so the rail never needs to scroll (scrolling would clip flyouts) */
+/* Short screens: tighten rows so less of the rail needs to scroll */
 @media (max-height: 780px) and (min-width: 821px) {
   .dmx-nav-item,
   .dmx-nav-icon { height: 38px; }
@@ -1545,23 +1567,12 @@ html.dm-theme-transition *::after {
   .dmx-rail-nav { overflow-y: auto; overscroll-behavior: contain; }
   .dmx-rail-close { display: grid; }
 
-  /* Phones: sub-pages open inline under the tapped module */
-  .dmx-flyout,
-  .dmx-rail:hover .dmx-module:hover > .dmx-flyout,
-  .dmx-module:has(:focus-visible) > .dmx-flyout {
-    position: static;
-    display: none;
-    padding: 2px 0 6px 46px;
-    opacity: 1;
-    pointer-events: auto;
-    transform: none;
-  }
-
-  .dmx-module.is-mobile-open > .dmx-flyout { display: block; }
-  .dmx-module .dmx-nav-chevron { transition: transform 0.3s var(--ease-out); }
+  /* Phones: sub-pages open under the tapped topic */
+  .dmx-module.is-mobile-open > .dmx-sub { grid-template-rows: 1fr; }
+  .dmx-module.is-mobile-open .dmx-sub-item { opacity: 1; transform: none; transition-delay: calc(var(--i, 0) * 28ms), calc(var(--i, 0) * 28ms), 0s, 0s; }
+  .dmx-module.is-mobile-open .dmx-sub-list::before { opacity: 1; }
+  .dmx-module .dmx-nav-chevron { transition: transform 0.3s var(--ease-out), color 0.2s ease; }
   .dmx-module.is-mobile-open .dmx-nav-chevron { transform: rotate(90deg); }
-  .dmx-flyout-card { width: auto; padding: 0; border: 0; background: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
-  .dmx-flyout-head { display: none; }
 
   .dmx-scrim {
     position: fixed;
