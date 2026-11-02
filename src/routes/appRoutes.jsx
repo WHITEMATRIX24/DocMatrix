@@ -13,8 +13,10 @@ import PrivacyPage from '@/pages/legal/PrivacyPage'
 import ComingSoonPage from '@/pages/roadmap/ComingSoonPage'
 import StaffPortal from '@/StaffPortal'
 import ForgotPassword from '@/pages/ForgotPassword'
+import Hero38 from '@/components/originkit/hero-38'
 
 // Lazy-load all launch feature components
+const AppointmentDetailsPage = lazy(() => import('@/pages/appointments/AppointmentDetailsPage'))
 const lazyComponents = {}
 for (const page of LAUNCH_PAGE_MAP) {
   lazyComponents[page.id] = lazy(page.importFn)
@@ -68,6 +70,7 @@ export function AppRoutes({
       <Route path="/solutions/:id" element={renderLandingPage('solution')} />
 
       {/* 3. Public Legal & Error Pages */}
+      <Route path="/hero-38" element={<Hero38 />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/forbidden" element={<ForbiddenPage />} />
@@ -87,10 +90,20 @@ export function AppRoutes({
         {/* 5. Protected Area Hub Pages (Decision D4: Accounts and Settings role-limited) */}
         <Route
           path="/appointments"
-          element={<CalendarPage />}
+          element={<Navigate to="/appointments/calendar" replace />}
         />
-        <Route path="/appointments/queue" element={<CalendarPage />} />
-        <Route path="/appointments/calendar" element={<CalendarPage />} />
+        <Route
+          path="/appointments/details"
+          element={
+            <ProtectedRoute currentUser={currentUser}>
+              <AppointmentsWorkspace activeFeatureId="appt.details-list">
+                <Suspense fallback={<PageFallback />}>
+                  <AppointmentDetailsPage />
+                </Suspense>
+              </AppointmentsWorkspace>
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/patients"
           element={<AreaPage areaKey="patients" />}

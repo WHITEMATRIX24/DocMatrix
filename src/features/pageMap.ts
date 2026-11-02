@@ -24,11 +24,18 @@ export const LAUNCH_PAGE_MAP: PageMeta[] = [
     importFn: () => import('@/pages/appointments/AppointmentDetailPage'),
   },
   {
-    id: 'appt.details-list',
+    id: 'appt.queue',
     area: 'appointments',
-    filename: 'AppointmentDetailsPage.tsx',
-    componentName: 'AppointmentDetailsPage',
-    importFn: () => import('@/pages/appointments/AppointmentDetailsPage'),
+    filename: 'LiveQueuePage.tsx',
+    componentName: 'LiveQueuePage',
+    importFn: () => import('@/pages/appointments/LiveQueuePage'),
+  },
+  {
+    id: 'appt.calendar',
+    area: 'appointments',
+    filename: 'CalendarPage.tsx',
+    componentName: 'CalendarPage',
+    importFn: () => import('@/pages/appointments/CalendarPage'),
   },
   {
     id: 'appt.enquiries',

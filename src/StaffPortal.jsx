@@ -183,22 +183,35 @@ export default function StaffPortal({
   }
 
   // Group all launch features by area (Problem P5: list ALL 10 areas with their pages)
+
   const groupedAreas = useMemo(() => {
     const map = {}
     ALL_LAUNCH_FEATURES.forEach((f) => {
+
       if (f.id === 'appt.detail') return
+
       if (!map[f.area]) map[f.area] = []
       map[f.area].push(f)
     })
+
     if (map['Appointments']) {
+
       const hasCalendar = map['Appointments'].some((f) => f.id === 'appt.calendar')
+
       if (!hasCalendar) {
+
         map['Appointments'].unshift(
+
           { id: 'appt.calendar', name: 'Calendar', route: '/appointments/calendar', area: 'Appointments' },
+
           { id: 'appt.queue', name: 'Live queue', route: '/appointments/queue', area: 'Appointments' }
+
         )
+
       }
+
     }
+
     return map
   }, [])
 
@@ -309,38 +322,67 @@ export default function StaffPortal({
                 >
                   <span className="dmx-nav-icon"><IconComp size={18} /></span>
                   <span className="dmx-nav-text">{areaName}</span>
+
                   <span className="dmx-nav-count">{visibleFeatures.length}</span>
+
                   <ChevronRight size={14} className="dmx-nav-chevron" />
+
                 </button>
 
-                {/* Submodule inline dropdown tree */}
-                <div className="dmx-sub-tree" role="region" aria-label={`${areaName} submodules`}>
-                  <button
-                    type="button"
-                    className="dmx-sub-item dmx-sub-hub"
-                    onClick={() => navigateTo(`/${areaName.toLowerCase()}`)}
-                  >
-                    <span>Open {areaName} Hub →</span>
-                  </button>
-                  {visibleFeatures.map((feat) => {
-                    const isCurrent = activeFeature?.id === feat.id || (activeFeature?.id === 'appt.detail' && feat.id === 'appt.details-list')
-                    return (
-                      <button
-                        type="button"
-                        key={feat.id}
-                        data-testid={`sidebar-link-${feat.id}`}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          navigateTo(resolveFeatureRoute(feat.route, feat.area))
-                        }}
-                        className={`dmx-sub-item ${isCurrent ? 'is-active' : ''}`}
-                        aria-current={isCurrent ? 'page' : undefined}
-                      >
-                        <span>{feat.name}</span>
-                        {isCurrent && <Check size={13} />}
-                      </button>
-                    )
-                  })}
+
+
+                {/* Submodule flyout, revealed once the rail has expanded */}
+
+                <div className={`dmx-flyout ${isBottomAlign ? 'is-bottom' : ''}`}>
+
+                  <div className="dmx-flyout-card">
+
+                    <button className="dmx-flyout-head" onClick={() => navigateTo(`/${areaName.toLowerCase()}`)}>
+
+                      <span><IconComp size={14} /> {areaName}</span>
+
+                      <span className="dmx-flyout-hub">Open hub <ChevronRight size={12} /></span>
+
+                    </button>
+
+                    {visibleFeatures.map((feat) => {
+
+                      const isCurrent = activeFeature?.id === feat.id || (activeFeature?.id === 'appt.detail' && feat.id === 'appt.details-list')
+
+                      return (
+
+                        <button
+
+                          key={feat.id}
+
+                          data-testid={`sidebar-link-${feat.id}`}
+
+                          onClick={(e) => {
+
+                            e.stopPropagation()
+
+                            navigateTo(resolveFeatureRoute(feat.route, feat.area))
+
+                          }}
+
+                          className={`dmx-flyout-item ${isCurrent ? 'is-active' : ''}`}
+
+                          aria-current={isCurrent ? 'page' : undefined}
+
+                        >
+
+                          <span>{feat.name}</span>
+
+                          {isCurrent && <Check size={13} />}
+
+                        </button>
+
+                      )
+
+                    })}
+
+                  </div>
+
                 </div>
               </div>
             )
