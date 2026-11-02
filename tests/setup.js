@@ -33,12 +33,35 @@ global.IntersectionObserver = class IntersectionObserver {
 }
 
 // Mock HTMLCanvasElement getContext
-HTMLCanvasElement.prototype.getContext = () => ({
-  clearRect: () => {},
-  fillRect: () => {},
-  resetTransform: () => {},
-  scale: () => {}
-})
+HTMLCanvasElement.prototype.getContext = function (type) {
+  if (type === 'webgl' || type === 'webgl2' || type === 'experimental-webgl') {
+    const noop = () => {}
+    return new Proxy({
+      getExtension: () => null,
+      getParameter: () => 0,
+      getShaderParameter: () => true,
+      getProgramParameter: () => true,
+      createShader: () => ({}),
+      createProgram: () => ({}),
+      createBuffer: () => ({}),
+      createTexture: () => ({}),
+      createFramebuffer: () => ({}),
+      getAttribLocation: () => 0,
+      getUniformLocation: () => ({})
+    }, {
+      get: (target, prop) => {
+        if (prop in target) return target[prop]
+        return noop
+      }
+    })
+  }
+  return {
+    clearRect: () => {},
+    fillRect: () => {},
+    resetTransform: () => {},
+    scale: () => {}
+  }
+}
 
 // Mock window.scrollTo
 window.scrollTo = () => {}

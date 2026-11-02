@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
-import { isAuthenticated, loginWithGoogle } from '@/services/authService'
+import { isAuthenticated, loginWithGoogle, registerClinic } from '@/services/authService'
 import PasswordInput from '@/components/PasswordInput'
 import GoogleButton from '@/components/GoogleButton'
 import AuthBanner from '@/components/AuthBanner'
@@ -136,28 +136,10 @@ export default function Signup({ onLoginSuccess }) {
 
     setLoading(true)
     try {
-      // Simulate registration & auto-login
-      const newUser = {
-        id: 'usr-' + Date.now(),
-        name: form.fullName.trim(),
-        role: 'ORGANIZATION_ADMIN',
-        clinicName: form.clinicName.trim(),
-        email: form.email.trim(),
-        country: form.country,
-        state: form.state.trim(),
-        city: form.city.trim(),
-        location: form.location.trim(),
-        mobile: form.mobile.trim(),
-        practiceType: form.practiceType,
-        preferredMode: form.preferredMode,
-        clinicId: 'clinic-new-001'
-      }
-
-      sessionStorage.setItem('docmatrix-demo-session', newUser.id)
-      sessionStorage.setItem('docmatrix-demo-current-user', JSON.stringify(newUser))
+      const { user } = await registerClinic(form)
 
       if (onLoginSuccess) {
-        onLoginSuccess(newUser)
+        onLoginSuccess(user)
       }
       navigate('/dashboard', { replace: true })
     } catch (err) {

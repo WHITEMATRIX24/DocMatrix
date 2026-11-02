@@ -27,6 +27,7 @@ import {
   useClinicData,
   updatePatient,
   addPatientDocument,
+  addPatientConsent,
   type PatientRecord,
   type TreatmentPlanRecord,
   type PatientDocumentRecord,
@@ -153,6 +154,12 @@ export const PatientProfilePage: React.FC = () => {
   const [docTitle, setDocTitle] = useState('')
   const [docCategory, setDocCategory] = useState<PatientDocumentRecord['category']>('Radiology')
 
+  // Consent Modal State
+  const [consentModalOpen, setConsentModalOpen] = useState(false)
+  const [consentType, setConsentType] = useState('Informed Consent for Dental Treatment')
+  const [consentStatus, setConsentStatus] = useState<PatientConsentRecord['status']>('Signed')
+  const [consentNotes, setConsentNotes] = useState('')
+
   const openEditModal = () => {
     if (!patient) return
     setEditForm({
@@ -196,6 +203,23 @@ export const PatientProfilePage: React.FC = () => {
     setDocTitle('')
     setUploadModalOpen(false)
     setTab('documents')
+  }
+
+  const handleAddConsent = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!patient || !consentType.trim()) return
+    addPatientConsent({
+      patientId: patient.id,
+      consentType: consentType.trim(),
+      status: consentStatus,
+      recordedBy: 'Dr. Arun Kumar',
+      documentRef: `DMX-CNS-${Date.now().toString().slice(-6)}`,
+      notes: consentNotes.trim() || undefined
+    })
+    setConsentType('Informed Consent for Dental Treatment')
+    setConsentNotes('')
+    setConsentModalOpen(false)
+    setTab('consents')
   }
 
   if (!patient) {
@@ -966,8 +990,18 @@ export const PatientProfilePage: React.FC = () => {
                 </p>
               </div>
 
-              <div style={{ fontSize: '12px', color: '#059669', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <CheckCircle2 size={14} /> ABDM & Digital Consent Compliant
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ fontSize: '12px', color: '#059669', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <CheckCircle2 size={14} /> ABDM & Digital Consent Compliant
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setConsentModalOpen(true)}
+                  className="pat-btn pat-btn-primary"
+                  style={{ padding: '6px 14px', fontSize: '12.5px' }}
+                >
+                  <FileText size={13} /> Add Consent Record
+                </button>
               </div>
             </div>
 
@@ -1005,6 +1039,14 @@ export const PatientProfilePage: React.FC = () => {
                 <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
                   Informed consents signed prior to invasive procedures or endodontic treatments will be logged here.
                 </p>
+                <button
+                  type="button"
+                  onClick={() => setConsentModalOpen(true)}
+                  className="pat-btn pat-btn-secondary"
+                  style={{ padding: '6px 14px', fontSize: '12.5px', marginTop: '12px' }}
+                >
+                  <FileText size={13} /> Add First Consent
+                </button>
               </div>
             )}
           </div>
@@ -1221,6 +1263,76 @@ export const PatientProfilePage: React.FC = () => {
                 </button>
                 <button type="submit" className="pat-btn pat-btn-primary">
                   Upload Record
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── ADD CONSENT RECORD MODAL ── */}
+      {consentModalOpen && (
+        <div className="pat-modal-overlay" onClick={() => setConsentModalOpen(false)}>
+          <div className="pat-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="pat-modal-header">
+              <h3>Record Informed Consent</h3>
+              <button
+                type="button"
+                onClick={() => setConsentModalOpen(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #64748b)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddConsent}>
+              <div className="pat-modal-body">
+                <div className="pat-form-group">
+                  <label>Procedure / Consent Title</label>
+                  <input
+                    className="pat-form-input"
+                    placeholder="e.g. Informed Consent for Surgical Extraction"
+                    value={consentType}
+                    onChange={(e) => setConsentType(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="pat-form-group">
+                  <label>Status</label>
+                  <select
+                    className="pat-form-select"
+                    value={consentStatus}
+                    onChange={(e) => setConsentStatus(e.target.value as PatientConsentRecord['status'])}
+                  >
+                    <option value="Signed">Signed</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Declined">Declined</option>
+                  </select>
+                </div>
+
+                <div className="pat-form-group">
+                  <label>Clinical Notes & Risk Discussion</label>
+                  <textarea
+                    className="pat-form-textarea"
+                    rows={3}
+                    placeholder="Procedure risks, benefits, and alternative options discussed with patient..."
+                    value={consentNotes}
+                    onChange={(e) => setConsentNotes(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="pat-modal-footer">
+                <button
+                  type="button"
+                  className="pat-btn pat-btn-secondary"
+                  onClick={() => setConsentModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="pat-btn pat-btn-primary">
+                  Save Consent Record
                 </button>
               </div>
             </form>

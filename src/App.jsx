@@ -17,6 +17,7 @@ import Hero38 from './components/originkit/hero-38'
 import MeadowBlush from './components/originkit/ui/still-sunset-meadow'
 import { findDemoUserById, DEMO_USERS } from './mocks/auth'
 import { getCurrentUser, logout as authLogout } from './services/authService'
+import { syncWithBackend, clearClinicStore } from './services/clinicStore'
 
 export function getSafeNextPath(rawNext) {
   if (!rawNext) return '/dashboard'
@@ -816,6 +817,13 @@ export default function App() {
     }
   }, [currentUser, location.pathname, navigate])
 
+  // Background sync clinic data with backend when session is authenticated
+  useEffect(() => {
+    if (currentUser) {
+      syncWithBackend().catch(() => {})
+    }
+  }, [currentUser])
+
   // Hash compatibility: support deep-linking via #/route if accessed
   useEffect(() => {
     const handleHash = () => {
@@ -835,6 +843,7 @@ export default function App() {
     try {
       sessionStorage.setItem('docmatrix-demo-session', user.id)
     } catch { }
+    syncWithBackend().catch(() => {})
     const params = new URLSearchParams(location.search)
     const rawNext = params.get('next')
     const safeNext = getSafeNextPath(rawNext)
@@ -844,6 +853,7 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null)
+    clearClinicStore()
     authLogout()
     try {
       sessionStorage.removeItem('docmatrix-demo-session')
