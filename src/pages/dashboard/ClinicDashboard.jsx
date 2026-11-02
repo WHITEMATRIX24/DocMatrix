@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react'
 import {
-  Calendar, CheckCircle2, Receipt, CreditCard, ArrowUpRight, ArrowRight, Plus, UserPlus,
-  ChevronRight, Armchair, Clock, CircleAlert, PackageOpen, FlaskConical, Target
+  ArrowUpRight, ArrowRight, Plus, UserPlus, ChevronRight, Armchair, Clock, CircleAlert, CheckCircle2
 } from 'lucide-react'
 import { useClinicData } from '@/services/clinicStore'
 
@@ -28,36 +27,18 @@ function initials(name) {
   return name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
 }
 
-function Sparkline({ values = [] }) {
-  const w = 96
-  const h = 32
-  const min = Math.min(...values, 0)
-  const max = Math.max(...values, 1)
-  const safeVals = values.length >= 2 ? values : [0, values[0] || 0]
-  const points = safeVals.map((v, i) => [
-    (i / (safeVals.length - 1)) * w,
-    h - 3 - ((v - min) / (max - min || 1)) * (h - 6)
-  ])
-  const line = points.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
-  const [lastX, lastY] = points[points.length - 1]
-  return (
-    <svg className="dmx-sparkline" viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
-      <path className="dmx-sparkline-area" d={`${line} L${w},${h} L0,${h} Z`} />
-      <path className="dmx-sparkline-line" d={line} />
-      <circle className="dmx-sparkline-dot" cx={lastX} cy={lastY} r="2.6" />
-    </svg>
-  )
-}
+const RULER_TICKS = 41
 
-function ProgressRing({ value = 0 }) {
-  const r = 38
-  const c = 2 * Math.PI * r
+// Ruler with a marker at the given percentage, as in a measuring scale
+function Ruler({ value = 0 }) {
   const safeVal = Math.min(Math.max(value, 0), 100)
   return (
-    <svg className="dmx-ring" viewBox="0 0 96 96" aria-hidden="true">
-      <circle className="dmx-ring-track" cx="48" cy="48" r={r} />
-      <circle className="dmx-ring-value" cx="48" cy="48" r={r} strokeDasharray={c} strokeDashoffset={c * (1 - safeVal / 100)} />
-    </svg>
+    <div className="dmx-ruler" aria-hidden="true">
+      {Array.from({ length: RULER_TICKS }, (_, i) => (
+        <i key={i} className={i % 5 === 0 ? 'is-major' : ''} />
+      ))}
+      <span className="dmx-ruler-marker" style={{ left: `${safeVal}%` }} />
+    </div>
   )
 }
 
@@ -106,8 +87,6 @@ export default function ClinicDashboard({ currentUser, navigateTo }) {
         value: String(totalToday),
         delta: totalToday > 0 ? `${totalToday} visits` : '0 booked',
         deltaNote: 'scheduled for today',
-        trend: [0, Math.floor(totalToday / 2), totalToday],
-        icon: Calendar,
         route: '/appointments/calendar'
       },
       {
@@ -115,8 +94,6 @@ export default function ClinicDashboard({ currentUser, navigateTo }) {
         value: String(compCount),
         delta: `${compPct}%`,
         deltaNote: 'of today’s book seen',
-        trend: [0, Math.floor(compCount / 2), compCount],
-        icon: CheckCircle2,
         route: '/appointments/details'
       },
       {
@@ -124,8 +101,6 @@ export default function ClinicDashboard({ currentUser, navigateTo }) {
         value: String(patients.length),
         delta: `${patients.length} total`,
         deltaNote: 'registered patient files',
-        trend: [0, Math.floor(patients.length / 2), patients.length],
-        icon: Receipt,
         route: '/patients/list'
       },
       {
@@ -134,8 +109,6 @@ export default function ClinicDashboard({ currentUser, navigateTo }) {
         delta: `${waitingPatients.length} waiting`,
         deltaNote: 'reception check-in',
         tone: waitingPatients.length > 0 ? 'warn' : undefined,
-        trend: [0, waitingPatients.length],
-        icon: CreditCard,
         route: '/appointments/queue'
       }
     ]
@@ -241,7 +214,7 @@ export default function ClinicDashboard({ currentUser, navigateTo }) {
             <span>{dateLabel}</span>
           </div>
           <h1>
-            {greetingFor(now)}, <em>{shortName(currentUser.name || currentUser.fullName)}</em>
+            {greetingFor(now)}, <strong>{shortName(currentUser.name || currentUser.fullName)}</strong>
           </h1>
           <p>
             {currentUser.clinicName || 'Your clinic'} has <strong>{todayAppts.length} patient{todayAppts.length === 1 ? '' : 's'}</strong> booked today,{' '}
@@ -258,10 +231,22 @@ export default function ClinicDashboard({ currentUser, navigateTo }) {
         </div>
       </header>
 
-      <div className="dmx-kpi-grid">
-        {kpis.map((kpi, i) => {
-          const Icon = kpi.icon
-          return (
+      <div className="dmx-overview">
+        <button className="dmx-glow" onClick={() => navigateTo('/appointments/calendar')}>
+          <div className="dmx-glow-head">
+            <span>Today’s progress</span>
+            <span className="dmx-glow-chip"><span className="dmx-live-dot" /> Live</span>
+          </div>
+          <div className="dmx-glow-value">
+            <strong className="dmx-dot">{completionPct}</strong>
+            <span>%</span>
+          </div>
+          <p>{completedToday.length} of {todayAppts.length} visit{todayAppts.length === 1 ? '' : 's'} completed</p>
+          <Ruler value={completionPct} />
+        </button>
+
+        <div className="dmx-kpi-grid">
+          {kpis.map((kpi, i) => (
             <button
               key={kpi.label}
               className={`dmx-kpi ${kpi.tone === 'warn' ? 'is-warn' : ''}`}
@@ -269,21 +254,17 @@ export default function ClinicDashboard({ currentUser, navigateTo }) {
               onClick={() => navigateTo(kpi.route)}
             >
               <div className="dmx-kpi-top">
-                <span className="dmx-kpi-icon"><Icon size={16} /></span>
                 <span className="dmx-kpi-label">{kpi.label}</span>
-                <ArrowUpRight size={15} className="dmx-kpi-arrow" />
+                <span className="dmx-kpi-go" aria-hidden="true"><ArrowUpRight size={15} /></span>
               </div>
               <div className="dmx-kpi-body">
-                <strong>{kpi.value}</strong>
-                <Sparkline values={kpi.trend} />
+                <strong className="dmx-dot">{kpi.value}</strong>
+                <span className="dmx-chip">{kpi.delta}</span>
               </div>
-              <div className="dmx-kpi-foot">
-                <span className="dmx-delta">{kpi.delta}</span>
-                <span>{kpi.deltaNote}</span>
-              </div>
+              <p className="dmx-kpi-note">{kpi.deltaNote}</p>
             </button>
-          )
-        })}
+          ))}
+        </div>
       </div>
 
       <div className="dmx-grid-main">
@@ -375,11 +356,11 @@ export default function ClinicDashboard({ currentUser, navigateTo }) {
             </button>
           </div>
           {upNextAppointments.length === 0 ? (
-            <div style={{ padding: '36px 20px', textAlign: 'center', color: '#64748b' }}>
-              <Clock size={28} style={{ margin: '0 auto 8px', opacity: 0.4 }} />
-              <p style={{ margin: 0, fontSize: '14px', fontWeight: 600 }}>No upcoming appointments today</p>
-              <button className="dmx-link" style={{ marginTop: '8px' }} onClick={() => navigateTo('/appointments/new')}>
-                Book first appointment <ArrowRight size={13} />
+            <div className="dmx-empty">
+              <span className="dmx-empty-icon"><Clock size={20} /></span>
+              <p>No upcoming appointments today</p>
+              <button className="dmx-link" onClick={() => navigateTo('/appointments/new')}>
+                Book an appointment <ArrowRight size={13} />
               </button>
             </div>
           ) : (
@@ -417,10 +398,10 @@ export default function ClinicDashboard({ currentUser, navigateTo }) {
             <span className="dmx-count">{alertReminders.length}</span>
           </div>
           {alertReminders.length === 0 ? (
-            <div style={{ padding: '32px 16px', textAlign: 'center', color: '#64748b' }}>
-              <CheckCircle2 size={24} style={{ margin: '0 auto 8px', color: '#10b981' }} />
-              <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#065f46' }}>All caught up</p>
-              <small style={{ color: '#64748b' }}>No active medical alerts requiring immediate attention.</small>
+            <div className="dmx-empty is-positive">
+              <span className="dmx-empty-icon"><CheckCircle2 size={20} /></span>
+              <p>All caught up</p>
+              <small>No active medical alerts need attention.</small>
             </div>
           ) : (
             <ul className="dmx-reminder-list">
@@ -443,32 +424,6 @@ export default function ClinicDashboard({ currentUser, navigateTo }) {
           )}
         </section>
 
-        <section className="dmx-card dmx-targets">
-          <div className="dmx-card-head">
-            <div>
-              <h2>Today’s targets</h2>
-              <p>Progress against scheduled volume</p>
-            </div>
-            <Target size={17} className="dmx-card-head-icon" />
-          </div>
-          <div className="dmx-target-ring">
-            <ProgressRing value={completionPct} />
-            <div className="dmx-target-ring-label">
-              <strong>{completionPct}%</strong>
-              <small>completed</small>
-            </div>
-          </div>
-          <div className="dmx-target-rows">
-            <div className="dmx-target-row">
-              <div><span>Appointments seen</span><strong>{completedToday.length} <em>/ {todayAppts.length}</em></strong></div>
-              <div className="dmx-meter"><span style={{ width: `${completionPct}%` }} /></div>
-            </div>
-            <div className="dmx-target-row">
-              <div><span>Active Patients</span><strong>{patients.length} registered</strong></div>
-              <div className="dmx-meter"><span style={{ width: `${patients.length > 0 ? 100 : 0}%` }} /></div>
-            </div>
-          </div>
-        </section>
       </div>
     </section>
   )

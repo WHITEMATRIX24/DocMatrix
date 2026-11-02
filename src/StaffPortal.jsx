@@ -70,17 +70,8 @@ export default function StaffPortal({
     return location.pathname && location.pathname !== '/' ? location.pathname : '/dashboard'
   })
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  // Open the dropdown for the section in the URL on first render, so nothing animates on load
-  const [expandedAreas, setExpandedAreas] = useState(() => {
-    const segment = location.pathname.split('/')[1]?.toLowerCase()
-    const area = Object.keys(AREA_ICONS).find((name) => name.toLowerCase() === segment)
-    return { [area || 'Appointments']: true }
-  })
-
-  // One dropdown open at a time keeps the collapsed rail short enough to never scroll
-  const toggleArea = (areaName) => {
-    setExpandedAreas((prev) => (prev[areaName] ? {} : { [areaName]: true }))
-  }
+  // Phones show sub-pages as a tap-to-open list inside the drawer
+  const [mobileOpenArea, setMobileOpenArea] = useState(null)
   const [lang, setLang] = useState('en')
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
@@ -221,13 +212,6 @@ export default function StaffPortal({
     return getActiveFeatureForPath(location.pathname || activeRoute, ALL_LAUNCH_FEATURES)
   }, [activeRoute, location.pathname])
 
-  // Auto-expand area when navigating to any feature
-  useEffect(() => {
-    if (activeFeature?.area) {
-      setExpandedAreas({ [activeFeature.area]: true })
-    }
-  }, [activeFeature?.area])
-
   const isForbidden = useMemo(() => {
     if (!activeFeature || !activeFeature.roles) return false
     return !activeFeature.roles.includes(currentUser.role)
@@ -286,7 +270,7 @@ export default function StaffPortal({
           </button>
 
           <span className="dmx-rail-section">Practice</span>
-          {Object.entries(groupedAreas).map(([areaName, features]) => {
+          {Object.entries(groupedAreas).map(([areaName, features], index, arr) => {
             if (areaName === 'Accounts' && !['ORGANIZATION_ADMIN', 'ACCOUNTANT'].includes(currentUser.role)) {
               return null
             }
@@ -295,7 +279,7 @@ export default function StaffPortal({
             }
             const IconComp = AREA_ICONS[areaName] || Calendar
             const isAreaActive = activeFeature?.area === areaName || location.pathname.startsWith(`/${areaName.toLowerCase()}`)
-            const isExpanded = !!expandedAreas[areaName]
+            const isBottomAlign = index >= arr.length - 3
 
             // Filter features allowed for current user role
             const visibleFeatures = features.filter((feat) => !feat.roles || feat.roles.includes(currentUser.role))
@@ -304,51 +288,52 @@ export default function StaffPortal({
             return (
               <div
                 key={areaName}
-                className={`dmx-module ${isExpanded ? 'is-open' : ''}`}
+                className={`dmx-module ${mobileOpenArea === areaName ? 'is-mobile-open' : ''}`}
               >
                 <button
                   type="button"
-                  onClick={() => toggleArea(areaName)}
+                  onClick={() => {
+                    if (window.innerWidth <= 820) {
+                      setMobileOpenArea(mobileOpenArea === areaName ? null : areaName)
+                    } else {
+                      navigateTo(`/${areaName.toLowerCase()}`)
+                    }
+                  }}
                   className={`dmx-nav-item ${isAreaActive ? 'is-active' : ''}`}
-                  aria-expanded={isExpanded}
-                  aria-controls={`dmx-sub-${areaName}`}
+                  aria-haspopup="true"
                   title={areaName}
                 >
                   <span className="dmx-nav-icon"><IconComp size={18} /></span>
                   <span className="dmx-nav-text">{areaName}</span>
-                  <span className="dmx-nav-count" aria-hidden="true">{visibleFeatures.length}</span>
                   <ChevronRight size={14} className="dmx-nav-chevron" />
                 </button>
 
-
-
-                {/* Inline dropdown; collapsed rail shows it as a dot thread under the icon */}
-                <div className="dmx-sub" id={`dmx-sub-${areaName}`} aria-hidden={!isExpanded}>
-                  <div className="dmx-sub-inner">
-                    <div className="dmx-sub-list">
-                      {visibleFeatures.map((feat) => {
-                        const isCurrent = activeFeature?.id === feat.id || (activeFeature?.id === 'appt.detail' && feat.id === 'appt.details-list')
-                        return (
-                          <button
-                            key={feat.id}
-                            type="button"
-                            data-testid={`sidebar-link-${feat.id}`}
-                            tabIndex={isExpanded ? 0 : -1}
-                            title={feat.name}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              navigateTo(resolveFeatureRoute(feat.route, feat.area))
-                            }}
-                            className={`dmx-sub-item ${isCurrent ? 'is-active' : ''}`}
-                            aria-current={isCurrent ? 'page' : undefined}
-                          >
-                            <span className="dmx-sub-dot" aria-hidden="true" />
-                            <span className="dmx-sub-label">{feat.name}</span>
-                            {isCurrent && <Check size={13} className="dmx-sub-check" />}
-                          </button>
-                        )
-                      })}
-                    </div>
+                {/* Sub-pages appear in a floating glass flyout on hover */}
+                <div className={`dmx-flyout ${isBottomAlign ? 'is-bottom' : ''}`}>
+                  <div className="dmx-flyout-card">
+                    <button type="button" className="dmx-flyout-head" onClick={() => navigateTo(`/${areaName.toLowerCase()}`)}>
+                      <span>{areaName}</span>
+                      <span className="dmx-flyout-hub">Overview <ChevronRight size={12} /></span>
+                    </button>
+                    {visibleFeatures.map((feat) => {
+                      const isCurrent = activeFeature?.id === feat.id || (activeFeature?.id === 'appt.detail' && feat.id === 'appt.details-list')
+                      return (
+                        <button
+                          key={feat.id}
+                          type="button"
+                          data-testid={`sidebar-link-${feat.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            navigateTo(resolveFeatureRoute(feat.route, feat.area))
+                          }}
+                          className={`dmx-flyout-item ${isCurrent ? 'is-active' : ''}`}
+                          aria-current={isCurrent ? 'page' : undefined}
+                        >
+                          <span>{feat.name}</span>
+                          {isCurrent && <Check size={13} />}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
