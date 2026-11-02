@@ -1,7 +1,12 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Stethoscope, CheckCircle2, AlertTriangle, Layers, Save, UserRound, ArrowRight } from 'lucide-react'
-import { useClinicData } from '@/services/clinicStore'
+import {
+  useClinicData,
+  saveToothConditionForPatient,
+  getToothConditionsForPatient,
+  type ToothConditionType
+} from '@/services/clinicStore'
 import './patientProfile.css'
 
 // Adult Dentition FDI Quadrants
@@ -17,7 +22,7 @@ type ConditionType = 'Healthy' | 'Caries' | 'Restored' | 'Missing' | 'Crown' | '
 export const ToothChartPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { patients = [], clinicalNotes = [] } = useClinicData()
+  const { patients = [], clinicalNotes = [], toothCharts = {} } = useClinicData()
 
   // Select patient
   const patient = useMemo(() => {
@@ -25,13 +30,17 @@ export const ToothChartPage: React.FC = () => {
     return patients.find((p) => p.id.toLowerCase() === id.toLowerCase()) || patients[0] || null
   }, [patients, id])
 
-  // Interactive tooth conditions state
-  const [conditions, setConditions] = useState<Record<number, { condition: ConditionType; notes?: string }>>({
-    46: { condition: 'RCT', notes: 'Pulpitis. Second sitting RCT underway. Bio-mechanical preparation completed.' },
-    36: { condition: 'Caries', notes: 'Occlusal pit and fissure caries. Composite restoration recommended.' },
-    16: { condition: 'Restored', notes: 'Occlusal composite restoration placed 2025.' },
-    24: { condition: 'Healthy', notes: 'Normal vitality and intact margins.' }
+  const effectivePatientId = patient?.id || id || 'pt-1001'
+
+  // Interactive tooth conditions state synced with store
+  const [conditions, setConditions] = useState<Record<number, { condition: ConditionType; notes?: string }>>(() => {
+    return getToothConditionsForPatient(effectivePatientId) as Record<number, { condition: ConditionType; notes?: string }>
   })
+
+  // Keep state updated if patient changes or toothCharts sync from backend
+  useEffect(() => {
+    setConditions(getToothConditionsForPatient(effectivePatientId) as Record<number, { condition: ConditionType; notes?: string }>)
+  }, [effectivePatientId, toothCharts])
 
   const [selectedTooth, setSelectedTooth] = useState<number | null>(46)
   const [activeCondition, setActiveCondition] = useState<ConditionType>('RCT')
@@ -58,6 +67,12 @@ export const ToothChartPage: React.FC = () => {
         notes: toothNote
       }
     }))
+    saveToothConditionForPatient(
+      effectivePatientId,
+      selectedTooth,
+      activeCondition as ToothConditionType,
+      toothNote
+    )
   }
 
   const getToothColor = (num: number) => {

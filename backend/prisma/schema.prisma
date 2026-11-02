@@ -1,0 +1,345 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ------------------------------------------
+// Enums
+// ------------------------------------------
+
+enum BillingInterval {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+  UPGRADED
+  DOWNGRADED
+}
+
+enum ClinicStatus {
+  ACTIVE
+  TRIAL
+  SUSPENDED
+  READ_ONLY
+  CLOSED
+}
+
+enum StaffRole {
+  ORGANIZATION_ADMIN
+  BRANCH_ADMIN
+  RECEPTIONIST
+  DOCTOR
+  NURSE
+  LAB_TECHNICIAN
+  PHARMACIST
+  ACCOUNTANT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  UNDISCLOSED
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  CHECKED_IN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum AppointmentPriority {
+  NORMAL
+  URGENT
+  EMERGENCY
+}
+
+// ------------------------------------------
+// SaaS Billing & Plan Models (DocMatrix Provider)
+// ------------------------------------------
+
+model Plan {
+  id               String          @id @default(uuid())
+  name             String
+  slug             String          @unique
+  description      String?
+  basePrice        Decimal         @db.Decimal(10, 2)
+  currency         String          @default("INR")
+  billingInterval  BillingInterval @default(MONTHLY)
+  defaultTrialDays Int? // Configurable trial length; null = no trial offered
+  maxUsers         Int? // Staff seat limit; null = unlimited
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  features      PlanFeature[]
+  subscriptions Subscription[]
+
+  @@index([isActive])
+}
+
+model PlanFeature {
+  id         String   @id @default(uuid())
+  planId     String
+  featureKey String // e.g., 'WHATSAPP_AUTOMATION', 'CHAIRSIDE_IMAGING', 'CLINICAL_AI'
+  isEnabled  Boolean  @default(true)
+  limitValue Int? // Usage limit; null = unmetered
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, featureKey])
+  @@index([featureKey])
+}
+
+model Subscription {
+  id                 String             @id @default(uuid())
+  clinicId           String
+  planId             String
+  status             SubscriptionStatus @default(TRIALING)
+  billingInterval    BillingInterval    @default(MONTHLY)
+  lockedPrice        Decimal            @db.Decimal(10, 2) // Snapshotted price at signup/renewal
+  currency           String             @default("INR")
+  isTrial            Boolean            @default(false)
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  trialEndsAt        DateTime?
+  canceledAt         DateTime?
+  cancellationReason String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  plan   Plan   @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  @@index([clinicId, status])
+  @@index([currentPeriodEnd])
+}
+
+// ------------------------------------------
+// Tenant Model (Subscribing Dental Practice)
+// ------------------------------------------
+
+model Clinic {
+  id           String       @id @default(uuid())
+  name         String
+  slug         String       @unique
+  status       ClinicStatus @default(TRIAL)
+  phone        String
+  email        String
+  address      String?
+  city         String?
+  state        String?
+  country      String       @default("India")
+  postalCode   String?
+  timezone     String       @default("Asia/Kolkata")
+  currency     String       @default("INR")
+  practiceType String?      @default("Solo")
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  subscriptions   Subscription[]
+  users           User[]
+  patients        Patient[]
+  appointments    Appointment[]
+  toothConditions ToothCondition[]
+  documents       PatientDocument[]
+  consents        PatientConsent[]
+
+  @@index([status])
+  @@index([email])
+}
+
+// ------------------------------------------
+// User & Staff Model
+// ------------------------------------------
+
+model User {
+  id               String    @id @default(uuid())
+  clinicId         String? // Nullable: null for DocMatrix Platform Admins; required for clinic staff
+  email            String    @unique
+  passwordHash     String
+  fullName         String
+  phone            String?
+  role             StaffRole @default(DOCTOR)
+  isPlatformAdmin  Boolean   @default(false)
+  isPrimaryContact Boolean   @default(false) // Primary clinic owner/billing contact
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  clinic       Clinic?       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  appointments Appointment[] @relation("DoctorAppointments")
+
+  // Compound unique key enabling engine-level compound foreign key references
+  @@unique([id, clinicId])
+  @@index([clinicId, role])
+  @@index([email])
+}
+
+// ------------------------------------------
+// Clinical Patient Model
+// ------------------------------------------
+
+model Patient {
+  id                  String   @id @default(uuid())
+  clinicId            String
+  patientCode         String // Deterministic ID (e.g. 'pt-1001') unique within clinic
+  firstName           String
+  lastName            String
+  dateOfBirth         DateTime @db.Date
+  gender              Gender   @default(UNDISCLOSED)
+  mobile              String // Non-unique: allows family members to share a phone number
+  countryCode         String   @default("+91")
+  email               String?
+  city                String?
+  state               String?
+  postalCode          String?
+  address             String?
+  emergencyName       String?
+  emergencyPhone      String?
+  relationship        String?
+  medicalSafetyAlerts Json?
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  clinic          Clinic           @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  appointments    Appointment[]
+  toothConditions ToothCondition[]
+  documents       PatientDocument[]
+  consents        PatientConsent[]
+
+  // Deterministic identifier unique per clinic
+  @@unique([clinicId, patientCode])
+  // Compound key enabling engine-level compound foreign key references
+  @@unique([id, clinicId])
+  @@index([clinicId, mobile])
+  @@index([clinicId, lastName, firstName])
+}
+
+// ------------------------------------------
+// Scheduling & Appointment Model
+// ------------------------------------------
+
+model Appointment {
+  id                 String              @id @default(uuid())
+  clinicId           String
+  patientId          String
+  doctorId           String? // Optional to support reception triage & intake queues
+  startTime          DateTime            @db.Timestamptz(6)
+  endTime            DateTime            @db.Timestamptz(6)
+  durationMinutes    Int
+  operatoryChair     String? // e.g., 'Chair 1', 'Operatory A'
+  treatmentType      String?
+  visitType          String              @default("Consultation")
+  status             AppointmentStatus   @default(SCHEDULED)
+  priority           AppointmentPriority @default(NORMAL)
+  notes              String?
+  cancellationReason String?
+  isWalkIn           Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  // Tenant relationship
+  clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  // Compound foreign keys guaranteeing cross-clinic data integrity at the database engine level
+  patient Patient @relation(fields: [patientId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  doctor  User?   @relation("DoctorAppointments", fields: [doctorId, clinicId], references: [id, clinicId], onDelete: Restrict)
+
+  @@index([clinicId, startTime, endTime])
+  @@index([doctorId, startTime])
+  @@index([operatoryChair, startTime])
+  @@index([clinicId, status])
+}
+
+// ------------------------------------------
+// Interactive Tooth Chart Model (Odontogram)
+// ------------------------------------------
+
+model ToothCondition {
+  id          String   @id @default(uuid())
+  clinicId    String
+  patientId   String
+  toothNumber Int      // FDI 2-digit notation (11-18, 21-28, 31-38, 41-48)
+  condition   String   // 'Healthy' | 'Caries' | 'Restored' | 'Missing' | 'Crown' | 'RCT'
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient Patient @relation(fields: [patientId, clinicId], references: [id, clinicId], onDelete: Restrict)
+
+  @@unique([clinicId, patientId, toothNumber])
+  @@index([clinicId, patientId])
+}
+
+// ------------------------------------------
+// Patient Documents & Diagnostic Imaging Model
+// ------------------------------------------
+
+model PatientDocument {
+  id         String   @id @default(uuid())
+  clinicId   String
+  patientId  String
+  title      String
+  category   String   // 'Radiology' | 'Intraoral Photo' | 'Lab Report' | 'Prescription' | 'Consent' | 'Other'
+  fileName   String
+  fileSize   String
+  fileKey    String   // Secure internal storage key / identifier
+  mimeType   String?
+  doctorName String?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient Patient @relation(fields: [patientId, clinicId], references: [id, clinicId], onDelete: Restrict)
+
+  @@unique([id, clinicId])
+  @@index([clinicId, patientId])
+  @@index([clinicId, category])
+}
+
+// ------------------------------------------
+// Patient Informed Consent & Regulatory Records Model
+// ------------------------------------------
+
+model PatientConsent {
+  id            String   @id @default(uuid())
+  clinicId      String
+  patientId     String
+  consentType   String
+  status        String   @default("Signed") // 'Signed' | 'Pending' | 'Declined'
+  dateRecorded  DateTime @default(now())
+  recordedBy    String
+  documentRef   String?
+  notes         String?
+  witnessName   String?
+  signatureData String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient Patient @relation(fields: [patientId, clinicId], references: [id, clinicId], onDelete: Restrict)
+
+  @@unique([id, clinicId])
+  @@index([clinicId, patientId])
+  @@index([clinicId, status])
+}

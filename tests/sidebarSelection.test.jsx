@@ -128,7 +128,8 @@ describe('Global Sidebar Selection & Navigation Engine', () => {
       } else {
         expect(activeButtons).toHaveLength(0)
         expect(screen.queryByTestId('sidebar-link-pat.profile')).not.toBeInTheDocument()
-        expect(screen.getByRole('button', { name: testCase.expectedArea })).toHaveClass('is-active')
+        const areaBtn = screen.getAllByRole('button', { name: testCase.expectedArea }).find((btn) => btn.classList.contains('dmx-nav-item')) || screen.getAllByRole('button', { name: testCase.expectedArea })[0];
+        expect(areaBtn).toHaveClass('is-active')
       }
 
       unmount()

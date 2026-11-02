@@ -1,9 +1,12 @@
 import { useSyncExternalStore } from 'react'
+import { loadFromStorage, saveToStorage, removeFromStorage, STORAGE_KEYS } from './storageService'
+import { apiClient } from './apiClient'
 
 export type MedicalAnswer = 'yes' | 'no' | 'unknown'
 
 export interface PatientRecord {
   id: string
+  backendId?: string
   firstName: string
   lastName: string
   age: string
@@ -138,6 +141,16 @@ export interface PatientConsentRecord {
   documentRef?: string
   notes?: string
 }
+
+export type ToothConditionType = 'Healthy' | 'Caries' | 'Restored' | 'Missing' | 'Crown' | 'RCT'
+
+export interface ToothConditionRecord {
+  condition: ToothConditionType
+  notes?: string
+}
+
+export type PatientToothChartMap = Record<number, ToothConditionRecord>
+export type ClinicToothCharts = Record<string, PatientToothChartMap>
 
 export interface DentistSchedule {
   id: string
@@ -716,16 +729,122 @@ const initialPatientConsents: PatientConsentRecord[] = [
   }
 ]
 
-let patientsState: PatientRecord[] = [...initialPatients]
-let appointmentsState: AppointmentRecord[] = [...initialAppointments]
-let clinicalNotesState: ClinicalNoteRecord[] = [...initialClinicalNotes]
-let invoicesState: InvoiceRecord[] = [...initialInvoices]
-let treatmentPlansState: TreatmentPlanRecord[] = [...initialTreatmentPlans]
-let patientDocumentsState: PatientDocumentRecord[] = [...initialPatientDocuments]
-let patientConsentsState: PatientConsentRecord[] = [...initialPatientConsents]
-let walkInCounter = 101
+const initialToothCharts: ClinicToothCharts = {
+  'pt-1001': {
+    46: { condition: 'RCT', notes: 'Pulpitis. Second sitting RCT underway. Bio-mechanical preparation completed.' },
+    36: { condition: 'Caries', notes: 'Occlusal pit and fissure caries. Composite restoration recommended.' },
+    16: { condition: 'Restored', notes: 'Occlusal composite restoration placed 2025.' },
+    24: { condition: 'Healthy', notes: 'Normal vitality and intact margins.' }
+  }
+}
 
-const listeners = new Set<() => void>()
+interface StoredClinicSnapshot {
+  patients: PatientRecord[]
+  appointments: AppointmentRecord[]
+  clinicalNotes: ClinicalNoteRecord[]
+  invoices: InvoiceRecord[]
+  treatmentPlans: TreatmentPlanRecord[]
+  patientDocuments: PatientDocumentRecord[]
+  patientConsents: PatientConsentRecord[]
+  toothCharts?: ClinicToothCharts
+  walkInCounter?: number
+}
+
+// Active clinic context and multi-tenant storage scoping helpers
+const getActiveClinicId = (): string | null => {
+  try {
+    const raw = sessionStorage.getItem('docmatrix_auth_user') || localStorage.getItem('docmatrix_auth_user');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return parsed?.clinicId || null;
+    }
+  } catch {}
+  return null;
+};
+
+const hasAuthToken = (): boolean => {
+  try {
+    return Boolean(sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'));
+  } catch {
+    return false;
+  }
+};
+
+const getStorageKey = (): string => {
+  const clinicId = getActiveClinicId();
+  if (clinicId) {
+    return `docmatrix_clinic_data_${clinicId}`;
+  }
+  return STORAGE_KEYS.DATA;
+};
+
+const isAuth = hasAuthToken();
+const activeKey = getStorageKey();
+
+const emptySnapshot: StoredClinicSnapshot = {
+  patients: [],
+  appointments: [],
+  clinicalNotes: [],
+  invoices: [],
+  treatmentPlans: [],
+  patientDocuments: [],
+  patientConsents: [],
+  toothCharts: {},
+  walkInCounter: 101,
+};
+
+const demoSnapshot: StoredClinicSnapshot = {
+  patients: initialPatients,
+  appointments: initialAppointments,
+  clinicalNotes: initialClinicalNotes,
+  invoices: initialInvoices,
+  treatmentPlans: initialTreatmentPlans,
+  patientDocuments: initialPatientDocuments,
+  patientConsents: initialPatientConsents,
+  toothCharts: initialToothCharts,
+  walkInCounter: 101,
+};
+
+// Authenticated clinic sessions never load demo patients; they start with clinic-scoped data or empty
+const loadedData = loadFromStorage<StoredClinicSnapshot>(activeKey, isAuth ? emptySnapshot : demoSnapshot);
+
+let patientsState: PatientRecord[] = Array.isArray(loadedData?.patients)
+  ? loadedData.patients
+  : (isAuth ? [] : [...initialPatients]);
+
+let appointmentsState: AppointmentRecord[] = Array.isArray(loadedData?.appointments)
+  ? loadedData.appointments
+  : (isAuth ? [] : [...initialAppointments]);
+
+let clinicalNotesState: ClinicalNoteRecord[] = Array.isArray(loadedData?.clinicalNotes)
+  ? loadedData.clinicalNotes
+  : (isAuth ? [] : [...initialClinicalNotes]);
+
+let invoicesState: InvoiceRecord[] = Array.isArray(loadedData?.invoices)
+  ? loadedData.invoices
+  : (isAuth ? [] : [...initialInvoices]);
+
+let treatmentPlansState: TreatmentPlanRecord[] = Array.isArray(loadedData?.treatmentPlans)
+  ? loadedData.treatmentPlans
+  : (isAuth ? [] : [...initialTreatmentPlans]);
+
+let patientDocumentsState: PatientDocumentRecord[] = Array.isArray(loadedData?.patientDocuments)
+  ? loadedData.patientDocuments
+  : (isAuth ? [] : [...initialPatientDocuments]);
+
+let patientConsentsState: PatientConsentRecord[] = Array.isArray(loadedData?.patientConsents)
+  ? loadedData.patientConsents
+  : (isAuth ? [] : [...initialPatientConsents]);
+
+let toothChartsState: ClinicToothCharts = loadedData?.toothCharts && typeof loadedData.toothCharts === 'object'
+  ? loadedData.toothCharts
+  : (isAuth ? {} : { ...initialToothCharts });
+
+let walkInCounter = typeof loadedData?.walkInCounter === 'number' && loadedData.walkInCounter >= 100
+  ? loadedData.walkInCounter
+  : 101;
+
+const listeners = new Set<() => void>();
 
 let cachedSnapshot = {
   patients: patientsState,
@@ -734,8 +853,37 @@ let cachedSnapshot = {
   invoices: invoicesState,
   treatmentPlans: treatmentPlansState,
   patientDocuments: patientDocumentsState,
-  patientConsents: patientConsentsState
-}
+  patientConsents: patientConsentsState,
+  toothCharts: toothChartsState
+};
+
+const persistData = () => {
+  const currentKey = getStorageKey();
+  saveToStorage<StoredClinicSnapshot>(currentKey, {
+    patients: patientsState,
+    appointments: appointmentsState,
+    clinicalNotes: clinicalNotesState,
+    invoices: invoicesState,
+    treatmentPlans: treatmentPlansState,
+    patientDocuments: patientDocumentsState,
+    patientConsents: patientConsentsState,
+    toothCharts: toothChartsState,
+    walkInCounter
+  });
+  if (currentKey !== STORAGE_KEYS.DATA) {
+    saveToStorage<StoredClinicSnapshot>(STORAGE_KEYS.DATA, {
+      patients: patientsState,
+      appointments: appointmentsState,
+      clinicalNotes: clinicalNotesState,
+      invoices: invoicesState,
+      treatmentPlans: treatmentPlansState,
+      patientDocuments: patientDocumentsState,
+      patientConsents: patientConsentsState,
+      toothCharts: toothChartsState,
+      walkInCounter
+    });
+  }
+};
 
 const emitChange = () => {
   cachedSnapshot = {
@@ -745,8 +893,10 @@ const emitChange = () => {
     invoices: invoicesState,
     treatmentPlans: treatmentPlansState,
     patientDocuments: patientDocumentsState,
-    patientConsents: patientConsentsState
+    patientConsents: patientConsentsState,
+    toothCharts: toothChartsState
   }
+  persistData()
   for (const listener of listeners) {
     listener()
   }
@@ -764,6 +914,134 @@ export const getClinicSnapshot = () => cachedSnapshot
 export const useClinicData = () => {
   return useSyncExternalStore(subscribeClinicData, getClinicSnapshot, getClinicSnapshot)
 }
+
+/**
+ * Clear clinic-scoped store completely on logout or account switch
+ */
+export const clearClinicStore = () => {
+  const currentKey = getStorageKey();
+  removeFromStorage(currentKey);
+  removeFromStorage(STORAGE_KEYS.DATA);
+  patientsState = [];
+  appointmentsState = [];
+  clinicalNotesState = [];
+  invoicesState = [];
+  treatmentPlansState = [];
+  patientDocumentsState = [];
+  patientConsentsState = [];
+  toothChartsState = {};
+  walkInCounter = 101;
+  emitChange();
+};
+
+/**
+ * Synchronize local clinic store with DocMatrix NestJS/PostgreSQL backend.
+ * Overwrites with authoritative database records; never appends mock data.
+ */
+export const syncWithBackend = async (): Promise<void> => {
+  try {
+    const token = typeof sessionStorage !== 'undefined'
+      ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
+      : null;
+
+    if (!token) return;
+
+    const [remotePatients, remoteAppts, remoteCharts, remoteDocs, remoteConsents] = await Promise.all([
+      apiClient.get<any[]>('/patients?includeArchived=true'),
+      apiClient.get<any[]>('/appointments'),
+      apiClient.get<Record<string, Record<number, { condition: string; notes?: string }>>>('/clinical/tooth-charts').catch(() => ({})),
+      apiClient.get<any[]>('/clinical/documents').catch(() => []),
+      apiClient.get<any[]>('/clinical/consents').catch(() => []),
+    ]);
+
+    const mappedPatients: PatientRecord[] = Array.isArray(remotePatients)
+      ? remotePatients.map((p: any) => ({
+          id: p.patientCode || p.id,
+          backendId: p.id,
+          firstName: p.firstName,
+          lastName: p.lastName,
+          age: p.age || '30',
+          dateOfBirth: p.dateOfBirth || '',
+          gender: (p.gender || 'other').toLowerCase(),
+          mobile: p.mobile,
+          countryCode: p.countryCode || '+91',
+          email: p.email || '',
+          language: 'English',
+          city: p.city || '',
+          state: p.state || '',
+          postalCode: p.postalCode || '',
+          address: p.address || '',
+          emergencyName: p.emergencyName || '',
+          emergencyPhone: p.emergencyPhone || '',
+          relationship: p.relationship || '',
+          allergies: p.medicalSafetyAlerts?.allergies ? 'yes' : 'no',
+          allergiesDetails: p.medicalSafetyAlerts?.allergies || '',
+          medications: p.medicalSafetyAlerts?.medications ? 'yes' : 'no',
+          medicationsDetails: p.medicalSafetyAlerts?.medications || '',
+          conditions: p.medicalSafetyAlerts?.conditions ? 'yes' : 'no',
+          conditionsDetails: p.medicalSafetyAlerts?.conditions || '',
+          createdAt: p.createdAt || new Date().toISOString(),
+        }))
+      : [];
+
+    const mappedAppts: AppointmentRecord[] = Array.isArray(remoteAppts)
+      ? remoteAppts.map((a: any) => ({
+          id: a.id,
+          patientId: a.patientCode || a.patientId,
+          doctor: a.doctor || 'Unassigned',
+          chair: a.chair || 'Chair 1',
+          treatmentType: a.treatmentType || a.visitType || 'General Consultation',
+          visitType: a.visitType || 'General Consultation',
+          date: a.date,
+          time: a.time,
+          durationMinutes: a.durationMinutes || 30,
+          status: a.status as AppointmentStatus,
+          priority: (a.priority || 'normal') as AppointmentPriority,
+          notes: a.notes || '',
+          isWalkIn: a.isWalkIn,
+          createdAt: a.createdAt || new Date().toISOString(),
+        }))
+      : [];
+
+    const mappedDocs: PatientDocumentRecord[] = Array.isArray(remoteDocs)
+      ? remoteDocs.map((d: any) => ({
+          id: d.id,
+          patientId: d.patientId,
+          title: d.title,
+          category: d.category,
+          fileName: d.fileName,
+          fileSize: d.fileSize,
+          uploadDate: d.uploadDate || d.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+          doctor: d.doctor || 'Dr. Arun Kumar',
+          url: d.downloadUrl,
+        }))
+      : [];
+
+    const mappedConsents: PatientConsentRecord[] = Array.isArray(remoteConsents)
+      ? remoteConsents.map((c: any) => ({
+          id: c.id,
+          patientId: c.patientId,
+          consentType: c.consentType,
+          status: c.status || 'Signed',
+          dateRecorded: c.dateRecorded || c.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+          recordedBy: c.recordedBy || 'Clinical Staff',
+          documentRef: c.documentRef || '',
+          notes: c.notes || '',
+        }))
+      : [];
+
+    // Authoritative backend data: strictly assign (no dummy records retained)
+    patientsState = mappedPatients;
+    appointmentsState = mappedAppts;
+    toothChartsState = remoteCharts && typeof remoteCharts === 'object' ? (remoteCharts as ClinicToothCharts) : {};
+    patientDocumentsState = mappedDocs;
+    patientConsentsState = mappedConsents;
+
+    emitChange();
+  } catch (err) {
+    console.warn('[clinicStore] syncWithBackend failed:', err);
+  }
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. AVAILABILITY CHECKING & CONFLICT PREVENTION
@@ -906,6 +1184,37 @@ export const bookAppointment = (data: {
 
   appointmentsState = [newAppt, ...appointmentsState]
   emitChange()
+
+  // Background sync to backend if authenticated
+  try {
+    const token = typeof sessionStorage !== 'undefined'
+      ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
+      : null;
+    if (token) {
+      apiClient.post('/appointments', {
+        patientId: data.patientId,
+        doctorName: data.doctor,
+        chair,
+        treatmentType: data.treatmentType || data.visitType,
+        visitType: data.visitType,
+        date: data.date,
+        time: data.time,
+        durationMinutes: data.durationMinutes || 30,
+        priority: data.priority || 'normal',
+        notes: data.notes || '',
+      }).then((created) => {
+        if (created?.id && created.id !== newAppt.id) {
+          newAppt.id = created.id;
+          emitChange();
+        }
+      }).catch((err) => {
+        console.error('[clinicStore] bookAppointment failed:', err);
+        appointmentsState = appointmentsState.filter((a) => a.id !== newAppt.id);
+        emitChange();
+      });
+    }
+  } catch { /* ignore */ }
+
   return newAppt
 }
 
@@ -986,6 +1295,17 @@ export const cancelAppointment = (appointmentId: string, reason: string): boolea
   })
 
   emitChange()
+
+  // Background sync to backend if authenticated
+  try {
+    const token = typeof sessionStorage !== 'undefined'
+      ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
+      : null;
+    if (token) {
+      apiClient.post(`/appointments/${appointmentId}/cancel`, { reason }).catch(() => { /* silent */ });
+    }
+  } catch { /* ignore */ }
+
   return true
 }
 
@@ -1024,6 +1344,19 @@ export const updateAppointmentStatus = (
   })
 
   emitChange()
+
+  // Background sync to backend if authenticated
+  try {
+    const token = typeof sessionStorage !== 'undefined'
+      ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
+      : null;
+    if (token) {
+      apiClient.patch(`/appointments/${appointmentId}`, {
+        status,
+        notes: note,
+      }).catch(() => { /* silent */ });
+    }
+  } catch { /* ignore */ }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1107,6 +1440,35 @@ export const registerWalkIn = (data: {
 
   appointmentsState = [walkInAppt, ...appointmentsState]
   emitChange()
+
+  // Background sync to backend if authenticated
+  try {
+    const authToken = typeof sessionStorage !== 'undefined'
+      ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
+      : null;
+    if (authToken) {
+      apiClient.post('/appointments', {
+        patientId: patient.id,
+        doctorName: data.doctor,
+        chair: dentist?.chair || 'Chair 1',
+        treatmentType: data.complaint || 'General Dental Consultation',
+        visitType: 'Walk-In Consultation',
+        date: getTodayDateStr(),
+        time: currentTime,
+        durationMinutes: 30,
+        status: 'checked-in',
+        priority: data.priority || 'normal',
+        notes: `Walk-in token: ${token}. Chief complaint: ${data.complaint}`,
+        isWalkIn: true,
+      }).then((created) => {
+        if (created?.id && created.id !== walkInAppt.id) {
+          walkInAppt.id = created.id;
+          emitChange();
+        }
+      }).catch(() => { /* silent fallback */ });
+    }
+  } catch { /* ignore */ }
+
   return walkInAppt
 }
 
@@ -1176,6 +1538,48 @@ export const savePatient = (data: Omit<PatientRecord, 'id' | 'createdAt'>): Pati
   }
   patientsState = [newPatient, ...patientsState]
   emitChange()
+
+  // Background sync to backend if authenticated
+  try {
+    const token = typeof sessionStorage !== 'undefined'
+      ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
+      : null;
+    if (token) {
+      apiClient.post('/patients', {
+        patientCode: newPatient.id,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        dateOfBirth: data.dateOfBirth || '1990-01-01',
+        gender: (data.gender || 'undisclosed').toUpperCase(),
+        mobile: data.mobile,
+        countryCode: data.countryCode || '+91',
+        email: data.email || undefined,
+        city: data.city || undefined,
+        state: data.state || undefined,
+        postalCode: data.postalCode || undefined,
+        address: data.address || undefined,
+        emergencyName: data.emergencyName || undefined,
+        emergencyPhone: data.emergencyPhone || undefined,
+        relationship: data.relationship || undefined,
+        medicalSafetyAlerts: (data.allergies === 'yes' || data.conditions === 'yes' || data.medications === 'yes') ? {
+          allergies: data.allergiesDetails,
+          conditions: data.conditionsDetails,
+          medications: data.medicationsDetails,
+        } : undefined,
+      }).then((created) => {
+        if (created?.patientCode && created.patientCode !== newPatient.id) {
+          newPatient.id = created.patientCode;
+          newPatient.backendId = created.id;
+          emitChange();
+        }
+      }).catch((err) => {
+        console.error('[clinicStore] savePatient failed:', err);
+        patientsState = patientsState.filter((p) => p.id !== newPatient.id);
+        emitChange();
+      });
+    }
+  } catch { /* ignore */ }
+
   return newPatient
 }
 
@@ -1220,7 +1624,51 @@ export const updatePatient = (
   }
   patientsState = [...patientsState]
   emitChange()
+
+  // Background sync to backend if authenticated
+  try {
+    const token = typeof sessionStorage !== 'undefined'
+      ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
+      : null;
+    if (token) {
+      apiClient.patch(`/patients/${id}`, {
+        ...(updates.firstName && { firstName: updates.firstName }),
+        ...(updates.lastName && { lastName: updates.lastName }),
+        ...(updates.dateOfBirth && { dateOfBirth: updates.dateOfBirth }),
+        ...(updates.gender && { gender: updates.gender.toUpperCase() }),
+        ...(updates.mobile && { mobile: updates.mobile }),
+        ...(updates.countryCode && { countryCode: updates.countryCode }),
+        ...(updates.email !== undefined && { email: updates.email || null }),
+        ...(updates.city !== undefined && { city: updates.city || null }),
+        ...(updates.state !== undefined && { state: updates.state || null }),
+        ...(updates.postalCode !== undefined && { postalCode: updates.postalCode || null }),
+        ...(updates.address !== undefined && { address: updates.address || null }),
+        ...(updates.emergencyName !== undefined && { emergencyName: updates.emergencyName || null }),
+        ...(updates.emergencyPhone !== undefined && { emergencyPhone: updates.emergencyPhone || null }),
+        ...(updates.relationship !== undefined && { relationship: updates.relationship || null }),
+      }).catch(() => { /* silent fallback */ });
+    }
+  } catch { /* ignore */ }
+
   return patientsState[index]
+}
+
+export const archivePatient = (patientId: string): boolean => {
+  const p = patientsState.find((item) => item.id === patientId)
+  if (!p) return false
+  patientsState = patientsState.filter((item) => item.id !== patientId)
+  emitChange()
+
+  try {
+    const token = typeof sessionStorage !== 'undefined'
+      ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
+      : null;
+    if (token) {
+      apiClient.delete(`/patients/${patientId}`).catch(() => { /* silent */ });
+    }
+  } catch { /* ignore */ }
+
+  return true
 }
 
 export const addTreatmentPlan = (
@@ -1251,33 +1699,217 @@ export const updateTreatmentPlanStatus = (
 export const addPatientDocument = (
   data: Omit<PatientDocumentRecord, 'id' | 'uploadDate'>
 ): PatientDocumentRecord => {
+  const tempId = `DOC-${Date.now().toString().slice(-4)}`
+  const uploadDate = new Date().toISOString().slice(0, 10)
   const newDoc: PatientDocumentRecord = {
     ...data,
-    id: `DOC-${Date.now().toString().slice(-4)}`,
-    uploadDate: new Date().toISOString().slice(0, 10)
+    id: tempId,
+    uploadDate,
   }
   patientDocumentsState = [newDoc, ...patientDocumentsState]
   emitChange()
+
+  if (hasAuthToken()) {
+    apiClient
+      .post(`/patients/${encodeURIComponent(data.patientId)}/documents`, {
+        title: data.title,
+        category: data.category,
+        fileName: data.fileName,
+        fileSize: data.fileSize,
+        doctorName: data.doctor,
+      })
+      .then((created) => {
+        if (created?.id) {
+          patientDocumentsState = patientDocumentsState.map((d) =>
+            d.id === tempId ? { ...d, id: created.id, url: created.downloadUrl } : d,
+          )
+          emitChange()
+        }
+      })
+      .catch((err) => {
+        console.error('[clinicStore] addPatientDocument failed, rolling back:', err)
+        patientDocumentsState = patientDocumentsState.filter((d) => d.id !== tempId)
+        emitChange()
+      })
+  }
+
   return newDoc
+}
+
+export const deletePatientDocument = async (
+  patientId: string,
+  documentId: string,
+): Promise<boolean> => {
+  const previous = [...patientDocumentsState]
+  patientDocumentsState = patientDocumentsState.filter((d) => d.id !== documentId)
+  emitChange()
+
+  if (hasAuthToken()) {
+    try {
+      await apiClient.delete(
+        `/patients/${encodeURIComponent(patientId)}/documents/${encodeURIComponent(documentId)}`,
+      )
+      return true
+    } catch (err) {
+      console.error('[clinicStore] deletePatientDocument failed, rolling back:', err)
+      patientDocumentsState = previous
+      emitChange()
+      throw err
+    }
+  }
+  return true
 }
 
 export const addPatientConsent = (
   data: Omit<PatientConsentRecord, 'id' | 'dateRecorded'>
 ): PatientConsentRecord => {
+  const tempId = `CNS-${Date.now().toString().slice(-4)}`
+  const dateRecorded = new Date().toISOString().slice(0, 10)
   const newConsent: PatientConsentRecord = {
     ...data,
-    id: `CNS-${Date.now().toString().slice(-4)}`,
-    dateRecorded: new Date().toISOString().slice(0, 10)
+    id: tempId,
+    dateRecorded,
   }
   patientConsentsState = [newConsent, ...patientConsentsState]
   emitChange()
+
+  if (hasAuthToken()) {
+    apiClient
+      .post(`/patients/${encodeURIComponent(data.patientId)}/consents`, {
+        consentType: data.consentType,
+        status: data.status,
+        recordedBy: data.recordedBy,
+        documentRef: data.documentRef,
+        notes: data.notes,
+      })
+      .then((created) => {
+        if (created?.id) {
+          patientConsentsState = patientConsentsState.map((c) =>
+            c.id === tempId ? { ...c, id: created.id } : c,
+          )
+          emitChange()
+        }
+      })
+      .catch((err) => {
+        console.error('[clinicStore] addPatientConsent failed, rolling back:', err)
+        patientConsentsState = patientConsentsState.filter((c) => c.id !== tempId)
+        emitChange()
+      })
+  }
+
   return newConsent
+}
+
+export const updatePatientConsent = async (
+  patientId: string,
+  consentId: string,
+  patch: Partial<PatientConsentRecord>,
+): Promise<void> => {
+  const previous = [...patientConsentsState]
+  patientConsentsState = patientConsentsState.map((c) =>
+    c.id === consentId ? { ...c, ...patch } : c,
+  )
+  emitChange()
+
+  if (hasAuthToken()) {
+    try {
+      await apiClient.patch(
+        `/patients/${encodeURIComponent(patientId)}/consents/${encodeURIComponent(consentId)}`,
+        {
+          status: patch.status,
+          notes: patch.notes,
+        },
+      )
+    } catch (err) {
+      console.error('[clinicStore] updatePatientConsent failed, rolling back:', err)
+      patientConsentsState = previous
+      emitChange()
+      throw err
+    }
+  }
 }
 
 export const registerPatient = savePatient
 export const addClinicalNote = saveClinicalNote
 
+export const getToothConditionsForPatient = (patientId: string): PatientToothChartMap => {
+  if (toothChartsState[patientId]) {
+    return toothChartsState[patientId]
+  }
+  if (hasAuthToken()) {
+    return {}
+  }
+  return initialToothCharts[patientId] ? { ...initialToothCharts[patientId] } : {}
+}
+
+export const saveToothConditionForPatient = (
+  patientId: string,
+  toothNumber: number,
+  condition: ToothConditionType,
+  notes?: string
+) => {
+  const prevChart = { ...(toothChartsState[patientId] || {}) }
+  const currentChart = { ...prevChart }
+  currentChart[toothNumber] = { condition, notes }
+  toothChartsState = {
+    ...toothChartsState,
+    [patientId]: currentChart
+  }
+  emitChange()
+
+  if (hasAuthToken()) {
+    apiClient
+      .put(`/patients/${encodeURIComponent(patientId)}/tooth-chart`, {
+        toothNumber,
+        condition,
+        notes,
+      })
+      .catch((err) => {
+        console.error('[clinicStore] saveToothCondition failed, rolling back:', err)
+        toothChartsState = {
+          ...toothChartsState,
+          [patientId]: prevChart
+        }
+        emitChange()
+      })
+  }
+}
+
+export const saveFullToothChartForPatient = (
+  patientId: string,
+  chart: PatientToothChartMap
+) => {
+  const prevChart = toothChartsState[patientId]
+  toothChartsState = {
+    ...toothChartsState,
+    [patientId]: { ...chart }
+  }
+  emitChange()
+
+  if (hasAuthToken()) {
+    apiClient
+      .post(`/patients/${encodeURIComponent(patientId)}/tooth-chart/batch`, {
+        chart,
+      })
+      .catch((err) => {
+        console.error('[clinicStore] saveFullToothChart failed, rolling back:', err)
+        if (prevChart) {
+          toothChartsState = {
+            ...toothChartsState,
+            [patientId]: prevChart
+          }
+        } else {
+          const copy = { ...toothChartsState }
+          delete copy[patientId]
+          toothChartsState = copy
+        }
+        emitChange()
+      })
+  }
+}
+
 export const resetStoreForTesting = () => {
+  removeFromStorage(STORAGE_KEYS.DATA)
   patientsState = [...initialPatients]
   appointmentsState = [...initialAppointments]
   clinicalNotesState = [...initialClinicalNotes]
@@ -1285,5 +1917,7 @@ export const resetStoreForTesting = () => {
   treatmentPlansState = [...initialTreatmentPlans]
   patientDocumentsState = [...initialPatientDocuments]
   patientConsentsState = [...initialPatientConsents]
+  toothChartsState = { ...initialToothCharts }
+  walkInCounter = 101
   emitChange()
 }
