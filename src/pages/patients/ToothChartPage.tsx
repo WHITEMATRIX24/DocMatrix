@@ -8,16 +8,14 @@ import {
   type ToothConditionType
 } from '@/services/clinicStore'
 import './patientProfile.css'
-
-// Adult Dentition FDI Quadrants
-const QUADRANTS = {
-  upperRight: [18, 17, 16, 15, 14, 13, 12, 11],
-  upperLeft: [21, 22, 23, 24, 25, 26, 27, 28],
-  lowerRight: [48, 47, 46, 45, 44, 43, 42, 41],
-  lowerLeft: [31, 32, 33, 34, 35, 36, 37, 38]
-}
+import './toothChart.css'
+import { ToothChart } from './ToothChart'
 
 type ConditionType = 'Healthy' | 'Caries' | 'Restored' | 'Missing' | 'Crown' | 'RCT'
+
+// Five standard tooth surfaces used in odontogram notation
+const TOOTH_SURFACES = ['Buccal', 'Lingual', 'Mesial', 'Distal', 'Occlusal'] as const
+type ToothSurface = typeof TOOTH_SURFACES[number]
 
 export const ToothChartPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
@@ -46,8 +44,15 @@ export const ToothChartPage: React.FC = () => {
   const [activeCondition, setActiveCondition] = useState<ConditionType>('RCT')
   const [toothNote, setToothNote] = useState('Pulpitis. Second sitting RCT underway.')
 
+  // Dentition mode — adult (32 teeth) or primary (20 teeth)
+  const [dentitionMode, setDentitionMode] = useState<'adult' | 'primary'>('adult')
+
+  // UI-only surface selection — informational, not persisted separately
+  const [selectedSurface, setSelectedSurface] = useState<ToothSurface | null>(null)
+
   const selectTooth = (num: number) => {
     setSelectedTooth(num)
+    setSelectedSurface(null)
     const existing = conditions[num]
     if (existing) {
       setActiveCondition(existing.condition)
@@ -60,38 +65,24 @@ export const ToothChartPage: React.FC = () => {
 
   const applyCondition = () => {
     if (!selectedTooth) return
+    // Optionally prepend selected surface to notes as context
+    const surfacePrefix = selectedSurface ? `[${selectedSurface}] ` : ''
+    const finalNote = selectedSurface && toothNote && !toothNote.startsWith(`[${selectedSurface}]`)
+      ? `${surfacePrefix}${toothNote}`
+      : toothNote
     setConditions((prev) => ({
       ...prev,
       [selectedTooth]: {
         condition: activeCondition,
-        notes: toothNote
+        notes: finalNote
       }
     }))
     saveToothConditionForPatient(
       effectivePatientId,
       selectedTooth,
       activeCondition as ToothConditionType,
-      toothNote
+      finalNote
     )
-  }
-
-  const getToothColor = (num: number) => {
-    const c = conditions[num]?.condition
-    switch (c) {
-      case 'Caries':
-        return '#dc2626'
-      case 'Restored':
-        return '#2563eb'
-      case 'Missing':
-        return '#94a3b8'
-      case 'Crown':
-        return '#d97706'
-      case 'RCT':
-        return '#7c3aed'
-      case 'Healthy':
-      default:
-        return '#059669'
-    }
   }
 
   return (
@@ -114,7 +105,7 @@ export const ToothChartPage: React.FC = () => {
           <div>
             <span className="clinic-record-eyebrow">CLINICAL DENTAL CHARTING</span>
             <h1 style={{ fontSize: '24px', fontWeight: 700, margin: '2px 0 4px 0' }}>
-              Dental Chart & Odontogram
+              Dental Chart &amp; Odontogram
             </h1>
             <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '14px' }}>
               Full-arch adult FDI odontogram charting conditions, restorations, endodontics, and prosthetics.
@@ -141,166 +132,31 @@ export const ToothChartPage: React.FC = () => {
         </div>
       </header>
 
-      {/* Odontogram Canvas & Quadrants */}
+      {/* Odontogram Canvas */}
       <div className="pat-card" style={{ background: 'var(--surface, #ffffff)', padding: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--line, #e2e8f0)', paddingBottom: '12px' }}>
-          <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>Interactive FDI Adult Arch (32 Teeth)</h3>
-          <div style={{ display: 'flex', gap: '10px', fontSize: '12px', flexWrap: 'wrap' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#059669' }} /> Healthy
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#dc2626' }} /> Caries
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#2563eb' }} /> Restored
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#7c3aed' }} /> RCT
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#d97706' }} /> Crown
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#94a3b8' }} /> Missing
-            </span>
+        {/* Card header with title and legend */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--line, #e2e8f0)', paddingBottom: '12px', flexWrap: 'wrap', gap: '10px' }}>
+          <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>
+            Interactive FDI {dentitionMode === 'adult' ? 'Adult Arch (32 Teeth)' : 'Primary Dentition (20 Teeth)'}
+          </h3>
+          <div className="odo-legend">
+            <span className="odo-legend-item"><span className="odo-legend-dot" style={{ background: '#ffffff', border: '1.5px solid #cbd5e1' }} /> Healthy</span>
+            <span className="odo-legend-item"><span className="odo-legend-dot" style={{ background: '#dc2626' }} /> Caries</span>
+            <span className="odo-legend-item"><span className="odo-legend-dot" style={{ background: '#2563eb' }} /> Restored</span>
+            <span className="odo-legend-item"><span className="odo-legend-dot" style={{ background: '#7c3aed' }} /> RCT</span>
+            <span className="odo-legend-item"><span className="odo-legend-dot" style={{ background: '#d97706' }} /> Crown</span>
+            <span className="odo-legend-item"><span className="odo-legend-dot" style={{ background: '#94a3b8' }} /> Missing</span>
           </div>
         </div>
 
-        {/* Upper Arch */}
-        <div style={{ marginBottom: '24px' }}>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted, #64748b)', textAlign: 'center', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Maxillary Arch (Upper)
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', overflowX: 'auto', padding: '8px 0' }}>
-            {/* Quadrant 1: Upper Right */}
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {QUADRANTS.upperRight.map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => selectTooth(num)}
-                  style={{
-                    width: '38px',
-                    height: '52px',
-                    borderRadius: '8px',
-                    border: selectedTooth === num ? '2px solid var(--teal-primary, #0b8185)' : '1px solid var(--line, #cbd5e1)',
-                    background: selectedTooth === num ? 'rgba(11, 129, 133, 0.08)' : 'var(--surface-subtle, #f8fafc)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '6px 2px',
-                    cursor: 'pointer',
-                    transition: 'all 0.12s ease'
-                  }}
-                >
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>{num}</span>
-                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: getToothColor(num) }} />
-                </button>
-              ))}
-            </div>
-
-            <div style={{ width: '2px', background: 'var(--line, #cbd5e1)', height: '52px' }} />
-
-            {/* Quadrant 2: Upper Left */}
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {QUADRANTS.upperLeft.map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => selectTooth(num)}
-                  style={{
-                    width: '38px',
-                    height: '52px',
-                    borderRadius: '8px',
-                    border: selectedTooth === num ? '2px solid var(--teal-primary, #0b8185)' : '1px solid var(--line, #cbd5e1)',
-                    background: selectedTooth === num ? 'rgba(11, 129, 133, 0.08)' : 'var(--surface-subtle, #f8fafc)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '6px 2px',
-                    cursor: 'pointer',
-                    transition: 'all 0.12s ease'
-                  }}
-                >
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>{num}</span>
-                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: getToothColor(num) }} />
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Midline horizontal divider */}
-        <div style={{ borderTop: '2px dashed var(--line, #e2e8f0)', margin: '16px 0' }} />
-
-        {/* Lower Arch */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', overflowX: 'auto', padding: '8px 0' }}>
-            {/* Quadrant 4: Lower Right */}
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {QUADRANTS.lowerRight.map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => selectTooth(num)}
-                  style={{
-                    width: '38px',
-                    height: '52px',
-                    borderRadius: '8px',
-                    border: selectedTooth === num ? '2px solid var(--teal-primary, #0b8185)' : '1px solid var(--line, #cbd5e1)',
-                    background: selectedTooth === num ? 'rgba(11, 129, 133, 0.08)' : 'var(--surface-subtle, #f8fafc)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '6px 2px',
-                    cursor: 'pointer',
-                    transition: 'all 0.12s ease'
-                  }}
-                >
-                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: getToothColor(num) }} />
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>{num}</span>
-                </button>
-              ))}
-            </div>
-
-            <div style={{ width: '2px', background: 'var(--line, #cbd5e1)', height: '52px' }} />
-
-            {/* Quadrant 3: Lower Left */}
-            <div style={{ display: 'flex', gap: '6px' }}>
-              {QUADRANTS.lowerLeft.map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => selectTooth(num)}
-                  style={{
-                    width: '38px',
-                    height: '52px',
-                    borderRadius: '8px',
-                    border: selectedTooth === num ? '2px solid var(--teal-primary, #0b8185)' : '1px solid var(--line, #cbd5e1)',
-                    background: selectedTooth === num ? 'rgba(11, 129, 133, 0.08)' : 'var(--surface-subtle, #f8fafc)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '6px 2px',
-                    cursor: 'pointer',
-                    transition: 'all 0.12s ease'
-                  }}
-                >
-                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: getToothColor(num) }} />
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>{num}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-muted, #64748b)', textAlign: 'center', marginTop: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Mandibular Arch (Lower)
-          </div>
-        </div>
+        {/* Anatomical SVG Odontogram */}
+        <ToothChart
+          conditions={conditions}
+          selectedTooth={selectedTooth}
+          onToothSelect={selectTooth}
+          dentitionMode={dentitionMode}
+          onDentitionChange={setDentitionMode}
+        />
       </div>
 
       {/* Selected Tooth Inspector & Editor */}
@@ -314,7 +170,8 @@ export const ToothChartPage: React.FC = () => {
             <span className="pat-badge is-primary">FDI #{selectedTooth}</span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', alignItems: 'center' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '20px', alignItems: 'start' }}>
+            {/* Condition chips */}
             <div>
               <label style={{ fontSize: '12.5px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
                 Condition / Treatment Status
@@ -333,9 +190,34 @@ export const ToothChartPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Surface selector — UI only, informational */}
             <div>
               <label style={{ fontSize: '12.5px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
-                Clinical Findings & Notes
+                Tooth Surface <span style={{ fontWeight: 400, color: 'var(--text-muted, #64748b)', fontSize: '11px' }}>(informational)</span>
+              </label>
+              <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                {TOOTH_SURFACES.map((surface) => (
+                  <button
+                    key={surface}
+                    type="button"
+                    className={`odo-surface-btn${selectedSurface === surface ? ' is-selected' : ''}`}
+                    onClick={() => setSelectedSurface(selectedSurface === surface ? null : surface)}
+                  >
+                    {surface}
+                  </button>
+                ))}
+              </div>
+              {selectedSurface && (
+                <p style={{ margin: '6px 0 0', fontSize: '11.5px', color: 'var(--text-muted, #64748b)' }}>
+                  Surface prefix will be prepended to notes on Apply.
+                </p>
+              )}
+            </div>
+
+            {/* Notes input + Apply */}
+            <div>
+              <label style={{ fontSize: '12.5px', fontWeight: 600, display: 'block', marginBottom: '6px' }}>
+                Clinical Findings &amp; Notes
               </label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
