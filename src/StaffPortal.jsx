@@ -181,9 +181,9 @@ export default function StaffPortal({
       map[f.area].push(f)
     })
 
-    // Simplify Patients module: Only Patients List & Patient Profile in sidebar
+    // Keep only the Patients List in the sidebar; profile pages remain reachable from the list.
     if (map['Patients']) {
-      map['Patients'] = map['Patients'].filter((f) => f.id === 'pat.list' || f.id === 'pat.profile')
+      map['Patients'] = map['Patients'].filter((f) => f.id === 'pat.list')
     }
 
     // Move Dental Charting to Clinical module alongside Treatment Plans

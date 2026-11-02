@@ -99,7 +99,7 @@ describe('Global Sidebar Selection & Navigation Engine', () => {
       { url: '/appointments/new', expectedId: 'appt.new' },
       { url: '/appointments/new', expectedId: 'appt.new' },
       { url: '/patients/list', expectedId: 'pat.list' },
-      { url: '/patients/pt-1001', expectedId: 'pat.profile' },
+      { url: '/patients/pt-1001', expectedId: null, expectedArea: 'Patients' },
       { url: '/clinical/prescriptions', expectedId: 'clin.prescriptions' },
       { url: '/clinical/notes', expectedId: 'clin.notes' },
       { url: '/billing/invoices', expectedId: 'bill.invoices' },
@@ -122,9 +122,14 @@ describe('Global Sidebar Selection & Navigation Engine', () => {
       // Find all sidebar submodule buttons marked as the current page
       const activeButtons = screen.getAllByRole('button').filter((btn) => btn.dataset.testid?.startsWith('sidebar-link-') && btn.getAttribute('aria-current') === 'page')
 
-      // Exactly ONE button must be active
-      expect(activeButtons.length, `Expected exactly 1 active button for route ${testCase.url}`).toBe(1)
-      expect(activeButtons[0]).toHaveAttribute('data-testid', `sidebar-link-${testCase.expectedId}`)
+      if (testCase.expectedId) {
+        expect(activeButtons.length, `Expected exactly 1 active button for route ${testCase.url}`).toBe(1)
+        expect(activeButtons[0]).toHaveAttribute('data-testid', `sidebar-link-${testCase.expectedId}`)
+      } else {
+        expect(activeButtons).toHaveLength(0)
+        expect(screen.queryByTestId('sidebar-link-pat.profile')).not.toBeInTheDocument()
+        expect(screen.getByRole('button', { name: testCase.expectedArea })).toHaveClass('is-active')
+      }
 
       unmount()
     }
