@@ -36,7 +36,7 @@
   background: var(--surface, #ffffff);
   color: var(--text-main, #0f172a);
   font-size: 14px;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease;
 }
 
 .pat-search-input:focus {
@@ -64,7 +64,7 @@
   background: var(--surface, #ffffff);
   color: var(--text-muted, #475569);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease;
   user-select: none;
 }
 
@@ -235,7 +235,7 @@
   color: var(--text-main, #0f172a);
   text-decoration: none;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease;
   white-space: nowrap;
 }
 
@@ -369,7 +369,7 @@
   font-weight: 500;
   text-decoration: none;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease;
   border: 1px solid transparent;
   white-space: nowrap;
 }
@@ -438,7 +438,7 @@
   font-weight: 500;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease;
   white-space: nowrap;
   border-radius: 6px 6px 0 0;
 }
@@ -827,49 +827,49 @@
 }
 
 /* Dark Theme Harmony */
-:root[data-theme="dark"] .pat-search-input,
-:root[data-theme="dark"] .pat-table-container,
-:root[data-theme="dark"] .pat-hero-card,
-:root[data-theme="dark"] .pat-nav-tabs,
-:root[data-theme="dark"] .pat-tab-content,
-:root[data-theme="dark"] .pat-modal-content {
-  background: #111827;
-  border-color: #1f2937;
-  color: #f1f5f9;
+:root[data-theme="dark"] .dmx-shell .pat-search-input,
+:root[data-theme="dark"] .dmx-shell .pat-table-container,
+:root[data-theme="dark"] .dmx-shell .pat-hero-card,
+:root[data-theme="dark"] .dmx-shell .pat-nav-tabs,
+:root[data-theme="dark"] .dmx-shell .pat-tab-content,
+:root[data-theme="dark"] .dmx-shell .pat-modal-content {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--text-strong);
 }
 
-:root[data-theme="dark"] .pat-table th,
-:root[data-theme="dark"] .pat-card,
-:root[data-theme="dark"] .pat-timeline-card,
-:root[data-theme="dark"] .pat-doc-card,
-:root[data-theme="dark"] .pat-consent-card,
-:root[data-theme="dark"] .pat-modal-footer {
-  background: #1f2937;
-  border-color: #374151;
+:root[data-theme="dark"] .dmx-shell .pat-table th,
+:root[data-theme="dark"] .dmx-shell .pat-card,
+:root[data-theme="dark"] .dmx-shell .pat-timeline-card,
+:root[data-theme="dark"] .dmx-shell .pat-doc-card,
+:root[data-theme="dark"] .dmx-shell .pat-consent-card,
+:root[data-theme="dark"] .dmx-shell .pat-modal-footer {
+  background: var(--surface-alt);
+  border-color: var(--line);
 }
 
-:root[data-theme="dark"] .pat-chip {
-  background: #1f2937;
-  border-color: #374151;
-  color: #cbd5e1;
+:root[data-theme="dark"] .dmx-shell .pat-chip {
+  background: var(--surface-alt);
+  border-color: var(--line);
+  color: var(--text);
 }
 
-:root[data-theme="dark"] .pat-id-pill,
-:root[data-theme="dark"] .pat-badge,
-:root[data-theme="dark"] .pat-tab-badge {
-  background: #374151;
-  border-color: #4b5563;
-  color: #e2e8f0;
+:root[data-theme="dark"] .dmx-shell .pat-id-pill,
+:root[data-theme="dark"] .dmx-shell .pat-badge,
+:root[data-theme="dark"] .dmx-shell .pat-tab-badge {
+  background: var(--surface-sunken);
+  border-color: var(--line-strong);
+  color: var(--text);
 }
 
-:root[data-theme="dark"] .pat-action-btn,
-:root[data-theme="dark"] .pat-btn-secondary {
-  background: #1f2937;
-  border-color: #374151;
-  color: #f1f5f9;
+:root[data-theme="dark"] .dmx-shell .pat-action-btn,
+:root[data-theme="dark"] .dmx-shell .pat-btn-secondary {
+  background: var(--surface-alt);
+  border-color: var(--line-strong);
+  color: var(--text-strong);
 }
 
-:root[data-theme="dark"] .pat-alert-banner {
+:root[data-theme="dark"] .dmx-shell .pat-alert-banner {
   background: rgba(185, 28, 28, 0.2);
   border-color: rgba(220, 38, 38, 0.4);
   color: #fca5a5;

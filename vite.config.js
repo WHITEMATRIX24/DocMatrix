@@ -16,6 +16,8 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./tests/setup.js'],
+    // backend/ has its own Jest + NestJS test setup
+    exclude: ['**/node_modules/**', '**/dist/**', 'backend/**', '_import_staff_web/**'],
     testTimeout: 15000
   }
 })

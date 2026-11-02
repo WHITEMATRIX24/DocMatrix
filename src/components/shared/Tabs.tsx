@@ -47,7 +47,7 @@ export const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onChange }) => {
               cursor: 'pointer',
               whiteSpace: 'nowrap',
               minHeight: '44px',
-              transition: 'all 0.15s ease'
+              transition: 'transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease'
             }}
           >
             {tab.icon}

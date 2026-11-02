@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 export default function AIAgentShortcut() {
   return (
     <Link
-      to="/ai-agent"
+      to="/coming-soon/f34"
       className="ai-agent-shortcut"
       aria-label="Open AI Agent"
       title="AI Agent"

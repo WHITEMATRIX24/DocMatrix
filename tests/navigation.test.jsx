@@ -441,7 +441,7 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
     )
 
     // Open user role dropdown menu
-    const roleBtn = screen.getByText('ORGANIZATION_ADMIN')
+    const roleBtn = screen.getByRole('button', { name: /account menu/i })
     fireEvent.click(roleBtn)
 
     const logoutBtn = screen.getByText('Log Out')

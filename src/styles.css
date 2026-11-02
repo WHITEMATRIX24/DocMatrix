@@ -131,6 +131,7 @@ img {
   display: inline-flex;
   align-items: center;
   gap: 12px;
+  white-space: nowrap;
   font-size: clamp(15px, 1.05vw, 20px);
   font-weight: 750;
   letter-spacing: -0.025em;
@@ -211,7 +212,7 @@ img {
   white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
-  transition: all 0.22s var(--ease-apple);
+  transition: transform 0.22s var(--ease-apple), opacity 0.22s var(--ease-apple), color 0.22s var(--ease-apple), background-color 0.22s var(--ease-apple), border-color 0.22s var(--ease-apple), box-shadow 0.22s var(--ease-apple), filter 0.22s var(--ease-apple), width 0.22s var(--ease-apple);
 }
 
 .btn-auth-signin:hover {
@@ -243,7 +244,7 @@ img {
   text-decoration: none;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
-  transition: all 0.22s var(--ease-apple);
+  transition: transform 0.22s var(--ease-apple), opacity 0.22s var(--ease-apple), color 0.22s var(--ease-apple), background-color 0.22s var(--ease-apple), border-color 0.22s var(--ease-apple), box-shadow 0.22s var(--ease-apple), filter 0.22s var(--ease-apple), width 0.22s var(--ease-apple);
 }
 
 .btn-auth-signup:hover {
@@ -281,7 +282,7 @@ img {
   font-size: clamp(13px, 0.86vw, 16px);
   font-weight: 650;
   white-space: nowrap;
-  transition: all 0.25s var(--ease-apple);
+  transition: transform 0.25s var(--ease-apple), opacity 0.25s var(--ease-apple), color 0.25s var(--ease-apple), background-color 0.25s var(--ease-apple), border-color 0.25s var(--ease-apple), box-shadow 0.25s var(--ease-apple), filter 0.25s var(--ease-apple), width 0.25s var(--ease-apple);
 }
 
 .dark-pill {
@@ -403,6 +404,76 @@ img {
   letter-spacing: -0.018em;
 }
 
+/* Hero calls to action */
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: clamp(24px, 3vh, 32px);
+}
+
+.hero-cta {
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 24px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  transition: transform 0.35s var(--ease-apple), box-shadow 0.35s var(--ease-apple), background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+}
+
+.hero-cta svg { transition: transform 0.35s var(--ease-apple); }
+
+.hero-cta-primary {
+  background: linear-gradient(180deg, #0a9aa3, var(--teal-primary));
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 10px 24px -10px rgba(0, 136, 145, 0.7);
+}
+
+.hero-cta-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 16px 32px -12px rgba(0, 136, 145, 0.75);
+}
+
+.hero-cta-primary:hover svg { transform: translateX(3px); }
+
+.hero-cta-ghost {
+  border: 1px solid rgba(17, 26, 26, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--charcoal-dark);
+  backdrop-filter: blur(8px);
+}
+
+.hero-cta-ghost:hover {
+  transform: translateY(-2px);
+  border-color: var(--teal-primary);
+  color: var(--teal-primary);
+}
+
+.hero-cta:active { transform: translateY(0) scale(0.98); }
+.hero-cta:focus-visible { outline: 3px solid rgba(0, 136, 145, 0.35); outline-offset: 3px; }
+
+.hero-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+  color: #6b6b66;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.hero-trust li { display: inline-flex; align-items: center; gap: 6px; }
+.hero-trust svg { color: var(--teal-primary); }
+
 /* ===================================================================
    ORGANIC GLASS PORTAL & LIVING CLINIC ANIMATION (MERGED TO PAGE)
    =================================================================== */
@@ -520,7 +591,7 @@ img {
 .vertical-word {
   position: absolute;
   z-index: 1;
-  top: clamp(18px, 3vh, 36px);
+  top: clamp(104px, 14vh, 150px);
   right: 2.1vw;
   color: #deded8;
   font-size: clamp(58px, 7vw, 132px);
@@ -830,6 +901,17 @@ img {
 .tile-shade.soft {
   background: linear-gradient(90deg, rgba(11, 20, 20, 0.65), rgba(11, 20, 20, 0.25));
 }
+
+/* Bottom scrim so captions stay legible over bright photography */
+.tile-shade::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, rgba(5, 13, 13, 0.88) 0%, rgba(5, 13, 13, 0.55) 32%, transparent 62%);
+  pointer-events: none;
+}
+
+.tile :is(span, p, h2, h3, strong) { text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35); }
 
 .tile-emr,
 .tile-credit {
@@ -1352,7 +1434,7 @@ img {
   border-radius: var(--radius-md);
   padding: 36px 30px;
   box-shadow: 0 6px 24px rgba(0, 35, 45, 0.04);
-  transition: all 0.3s var(--ease-apple);
+  transition: transform 0.3s var(--ease-apple), opacity 0.3s var(--ease-apple), color 0.3s var(--ease-apple), background-color 0.3s var(--ease-apple), border-color 0.3s var(--ease-apple), box-shadow 0.3s var(--ease-apple), filter 0.3s var(--ease-apple), width 0.3s var(--ease-apple);
   position: relative;
   z-index: 2;
 }
@@ -1405,7 +1487,7 @@ img {
   padding: 34px 28px;
   display: flex;
   flex-direction: column;
-  transition: all 0.35s var(--ease-apple);
+  transition: transform 0.35s var(--ease-apple), opacity 0.35s var(--ease-apple), color 0.35s var(--ease-apple), background-color 0.35s var(--ease-apple), border-color 0.35s var(--ease-apple), box-shadow 0.35s var(--ease-apple), filter 0.35s var(--ease-apple), width 0.35s var(--ease-apple);
   text-decoration: none;
   color: inherit;
   cursor: pointer;
@@ -1588,7 +1670,7 @@ img {
   border-radius: 999px;
   cursor: pointer;
   font-family: inherit;
-  transition: all 0.2s var(--ease-apple);
+  transition: transform 0.2s var(--ease-apple), opacity 0.2s var(--ease-apple), color 0.2s var(--ease-apple), background-color 0.2s var(--ease-apple), border-color 0.2s var(--ease-apple), box-shadow 0.2s var(--ease-apple), filter 0.2s var(--ease-apple), width 0.2s var(--ease-apple);
 }
 
 .btn-back-to-solutions:hover {
@@ -1680,7 +1762,7 @@ img {
   font-size: 14px;
   font-weight: 650;
   text-decoration: none;
-  transition: all 0.2s var(--ease-apple);
+  transition: transform 0.2s var(--ease-apple), opacity 0.2s var(--ease-apple), color 0.2s var(--ease-apple), background-color 0.2s var(--ease-apple), border-color 0.2s var(--ease-apple), box-shadow 0.2s var(--ease-apple), filter 0.2s var(--ease-apple), width 0.2s var(--ease-apple);
   box-shadow: 0 4px 16px rgba(0, 136, 145, 0.28);
 }
 
@@ -1699,7 +1781,7 @@ img {
   font-size: 14px;
   font-weight: 650;
   text-decoration: none;
-  transition: all 0.2s var(--ease-apple);
+  transition: transform 0.2s var(--ease-apple), opacity 0.2s var(--ease-apple), color 0.2s var(--ease-apple), background-color 0.2s var(--ease-apple), border-color 0.2s var(--ease-apple), box-shadow 0.2s var(--ease-apple), filter 0.2s var(--ease-apple), width 0.2s var(--ease-apple);
 }
 
 .btn-hero-outline:hover {
@@ -1777,7 +1859,7 @@ img {
   border: 1px solid #e9f0f0;
   border-radius: 14px;
   padding: 24px 22px;
-  transition: all 0.25s var(--ease-apple);
+  transition: transform 0.25s var(--ease-apple), opacity 0.25s var(--ease-apple), color 0.25s var(--ease-apple), background-color 0.25s var(--ease-apple), border-color 0.25s var(--ease-apple), box-shadow 0.25s var(--ease-apple), filter 0.25s var(--ease-apple), width 0.25s var(--ease-apple);
   display: flex;
   flex-direction: column;
 }
@@ -1952,7 +2034,7 @@ img {
   box-shadow:
     0 8px 24px -6px rgba(0, 35, 45, 0.05),
     inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  transition: all 0.25s var(--ease-apple);
+  transition: transform 0.25s var(--ease-apple), opacity 0.25s var(--ease-apple), color 0.25s var(--ease-apple), background-color 0.25s var(--ease-apple), border-color 0.25s var(--ease-apple), box-shadow 0.25s var(--ease-apple), filter 0.25s var(--ease-apple), width 0.25s var(--ease-apple);
   overflow: hidden;
 }
 
@@ -2154,7 +2236,7 @@ img {
   font-size: 12px;
   font-weight: 650;
   text-decoration: none;
-  transition: all 0.2s var(--ease-apple);
+  transition: transform 0.2s var(--ease-apple), opacity 0.2s var(--ease-apple), color 0.2s var(--ease-apple), background-color 0.2s var(--ease-apple), border-color 0.2s var(--ease-apple), box-shadow 0.2s var(--ease-apple), filter 0.2s var(--ease-apple), width 0.2s var(--ease-apple);
   cursor: pointer;
 }
 
@@ -2284,7 +2366,7 @@ img {
   border: 1.5px solid rgba(255, 255, 255, 0.85);
   border-radius: 22px;
   padding: 34px 28px;
-  transition: all 0.35s var(--ease-apple);
+  transition: transform 0.35s var(--ease-apple), opacity 0.35s var(--ease-apple), color 0.35s var(--ease-apple), background-color 0.35s var(--ease-apple), border-color 0.35s var(--ease-apple), box-shadow 0.35s var(--ease-apple), filter 0.35s var(--ease-apple), width 0.35s var(--ease-apple);
   box-shadow:
     0 16px 36px -12px rgba(0, 35, 45, 0.07),
     0 2px 6px rgba(0, 0, 0, 0.02),
@@ -2446,7 +2528,7 @@ img {
   box-shadow:
     0 10px 28px -6px rgba(0, 0, 0, 0.55),
     inset 0 1px 1px 0 rgba(255, 255, 255, 0.25);
-  transition: all 0.3s var(--ease-apple);
+  transition: transform 0.3s var(--ease-apple), opacity 0.3s var(--ease-apple), color 0.3s var(--ease-apple), background-color 0.3s var(--ease-apple), border-color 0.3s var(--ease-apple), box-shadow 0.3s var(--ease-apple), filter 0.3s var(--ease-apple), width 0.3s var(--ease-apple);
   flex: 1;
   min-width: 130px;
 }
@@ -2579,7 +2661,7 @@ img {
     0 10px 26px -4px rgba(0, 180, 192, 0.45),
     0 0 20px rgba(0, 229, 255, 0.25),
     inset 0 1px 1px rgba(255, 255, 255, 0.4);
-  transition: all 0.3s var(--ease-apple);
+  transition: transform 0.3s var(--ease-apple), opacity 0.3s var(--ease-apple), color 0.3s var(--ease-apple), background-color 0.3s var(--ease-apple), border-color 0.3s var(--ease-apple), box-shadow 0.3s var(--ease-apple), filter 0.3s var(--ease-apple), width 0.3s var(--ease-apple);
 }
 
 .form-submit-btn:hover {
@@ -2643,7 +2725,10 @@ img {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
   padding-top: 28px;
+  /* clear the floating WhatsApp / AI shortcuts */
+  padding-right: 72px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   font-size: 12.5px;
 }
@@ -2680,7 +2765,9 @@ img {
 }
 
 @media (max-width: 900px) {
-  .topbar-links {
+  /* .topbar nav is more specific than .topbar-links, so match it here */
+  .topbar .topbar-links,
+  .topbar nav.topbar-links {
     display: none;
   }
 
@@ -2762,7 +2849,12 @@ img {
 
 @media (max-width: 640px) {
   .hero {
-    min-height: 1140px;
+    /* image band + copy block; avoids a tall empty gap under the CTAs */
+    min-height: calc(84px + 50vw + 120px + 470px);
+  }
+
+  .hero-copy h1 span {
+    white-space: normal;
   }
 
   .topbar,
@@ -3557,7 +3649,7 @@ img {
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease, color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease, width 0.2s ease;
   box-shadow: 0 4px 12px rgba(0, 136, 145, 0.22);
   margin-top: 4px;
 }
@@ -3725,7 +3817,7 @@ img {
   font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease;
 }
 
 .auth-modal-cancel:hover {
@@ -5742,7 +5834,7 @@ img {
   border: none;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(0, 136, 145, 0.25);
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease, color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease, width 0.2s ease;
 }
 
 .dm-action-btn-primary:hover {
@@ -5763,7 +5855,7 @@ img {
   font-weight: 700;
   border: 1px solid var(--line, #e9e9e5);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease, color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease, width 0.2s ease;
 }
 
 .dm-action-btn-secondary:hover {
@@ -5952,6 +6044,12 @@ img {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  padding: 8px 16px 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
@@ -5961,6 +6059,7 @@ img {
 }
 
 .auth-nav-brand .brand-title {
+  white-space: nowrap;
   font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
   font-size: clamp(16px, 1.1vw, 20px);
   font-weight: 800;
@@ -5971,21 +6070,31 @@ img {
 .auth-nav-links {
   display: flex;
   align-items: center;
-  gap: clamp(20px, 2.4vw, 36px);
+  gap: 2px;
+  padding: 5px;
+  /* frosted pill keeps links legible over the illustration */
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  box-shadow: 0 8px 24px -12px rgba(15, 40, 40, 0.25);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
 }
 
 .auth-nav-link {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 14.5px;
+  font-size: 14px;
   font-weight: 600;
-  color: #334155;
+  color: #22312f;
   text-decoration: none;
-  transition: color 0.18s ease;
-  padding: 4px 0;
+  transition: color 0.2s ease, background-color 0.2s ease;
+  padding: 7px 16px;
+  border-radius: 999px;
 }
 
 .auth-nav-link:hover {
   color: #0b8185;
+  background: rgba(11, 129, 133, 0.08);
 }
 
 .auth-nav-actions {
@@ -6017,7 +6126,7 @@ img {
   align-items: center;
   gap: 6px;
   border-radius: var(--radius-pill);
-  transition: all 0.2s var(--ease-apple);
+  transition: transform 0.2s var(--ease-apple), opacity 0.2s var(--ease-apple), color 0.2s var(--ease-apple), background-color 0.2s var(--ease-apple), border-color 0.2s var(--ease-apple), box-shadow 0.2s var(--ease-apple), filter 0.2s var(--ease-apple), width 0.2s var(--ease-apple);
 }
 
 .auth-nav-btn.btn-auth-signin {
@@ -6525,7 +6634,7 @@ img {
   border-radius: 12px;
   padding: 0 14px;
   height: 46px;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease, color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease, width 0.2s ease;
   gap: 10px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
 }
@@ -6661,7 +6770,7 @@ img {
   border-radius: 10px;
   cursor: pointer;
   box-shadow: 0 6px 20px -2px rgba(0, 136, 145, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.35);
-  transition: all 0.25s var(--ease-apple);
+  transition: transform 0.25s var(--ease-apple), opacity 0.25s var(--ease-apple), color 0.25s var(--ease-apple), background-color 0.25s var(--ease-apple), border-color 0.25s var(--ease-apple), box-shadow 0.25s var(--ease-apple), filter 0.25s var(--ease-apple), width 0.25s var(--ease-apple);
   letter-spacing: 0.1px;
 }
 
@@ -6729,7 +6838,7 @@ img {
   border: 1.5px solid rgba(255, 255, 255, 0.85);
   border-radius: 10px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.2s ease, color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease, width 0.2s ease;
   box-shadow: 0 2px 8px rgba(0, 35, 45, 0.03), inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
 }
 
@@ -6990,20 +7099,20 @@ img {
   bottom: max(24px, env(safe-area-inset-bottom));
   z-index: 1000;
   display: grid;
-  width: 58px;
-  height: 58px;
+  width: 52px;
+  height: 52px;
   place-items: center;
   color: #ffffff;
   background: #25d366;
-  border: 3px solid #ffffff;
+  border: 2px solid rgba(255, 255, 255, 0.9);
   border-radius: 50%;
-  box-shadow: 0 6px 20px rgba(16, 24, 40, 0.24);
-  transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+  box-shadow: 0 8px 22px -6px rgba(16, 24, 40, 0.35);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, background-color 0.2s ease;
 }
 
 .whatsapp-shortcut svg {
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
 }
 
 .whatsapp-shortcut:hover {
@@ -7021,8 +7130,8 @@ img {
   .whatsapp-shortcut {
     right: max(16px, env(safe-area-inset-right));
     bottom: max(16px, env(safe-area-inset-bottom));
-    width: 54px;
-    height: 54px;
+    width: 48px;
+    height: 48px;
   }
 }
 
@@ -7030,28 +7139,28 @@ img {
 .ai-agent-shortcut {
   position: fixed;
   right: max(24px, env(safe-area-inset-right));
-  bottom: max(96px, calc(env(safe-area-inset-bottom) + 72px));
+  bottom: max(88px, calc(env(safe-area-inset-bottom) + 64px));
   z-index: 1000;
   display: grid;
-  width: 58px;
-  height: 58px;
+  width: 52px;
+  height: 52px;
   place-items: center;
   color: #ffffff;
   background: linear-gradient(135deg, #6e40f3 0%, #a855f7 100%);
-  border: 3px solid #ffffff;
+  border: 2px solid rgba(255, 255, 255, 0.9);
   border-radius: 50%;
-  box-shadow: 0 6px 20px rgba(110, 64, 243, 0.35);
-  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  box-shadow: 0 8px 22px -6px rgba(110, 64, 243, 0.5);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, filter 0.2s ease;
 }
 
 .ai-agent-shortcut svg {
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
 }
 
 .ai-agent-shortcut:hover {
   transform: translateY(-3px);
-  background: linear-gradient(135deg, #5b30e0 0%, #9333ea 100%);
+  filter: brightness(1.08);
   box-shadow: 0 9px 24px rgba(110, 64, 243, 0.45);
 }
 
@@ -7063,8 +7172,21 @@ img {
 @media (max-width: 540px) {
   .ai-agent-shortcut {
     right: max(16px, env(safe-area-inset-right));
-    bottom: max(88px, calc(env(safe-area-inset-bottom) + 64px));
-    width: 54px;
-    height: 54px;
+    bottom: max(80px, calc(env(safe-area-inset-bottom) + 64px));
+    width: 48px;
+    height: 48px;
   }
+}
+/* Phones: keep the last auth controls clear of the floating shortcuts */
+@media (max-width: 768px) {
+  .login-page .login-form-overlay,
+  .signup-page .login-form-overlay {
+    padding-bottom: 136px;
+  }
+}
+
+@media (max-width: 420px) {
+  .topbar .btn-auth-signin span { display: none; }
+  .topbar .btn-auth-signin { width: 36px; padding: 0; justify-content: center; }
+  .brand-anchor { gap: 8px; font-size: 15px; }
 }

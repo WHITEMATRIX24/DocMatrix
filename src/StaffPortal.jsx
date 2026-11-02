@@ -70,15 +70,16 @@ export default function StaffPortal({
     return location.pathname && location.pathname !== '/' ? location.pathname : '/dashboard'
   })
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  // Open the dropdown for the section in the URL on first render, so nothing animates on load
   const [expandedAreas, setExpandedAreas] = useState(() => {
-    return { Appointments: true }
+    const segment = location.pathname.split('/')[1]?.toLowerCase()
+    const area = Object.keys(AREA_ICONS).find((name) => name.toLowerCase() === segment)
+    return { [area || 'Appointments']: true }
   })
 
+  // One dropdown open at a time keeps the collapsed rail short enough to never scroll
   const toggleArea = (areaName) => {
-    setExpandedAreas((prev) => ({
-      ...prev,
-      [areaName]: !prev[areaName]
-    }))
+    setExpandedAreas((prev) => (prev[areaName] ? {} : { [areaName]: true }))
   }
   const [lang, setLang] = useState('en')
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false)
@@ -183,33 +184,27 @@ export default function StaffPortal({
   }
 
   // Group all launch features by area (Problem P5: list ALL 10 areas with their pages)
-
   const groupedAreas = useMemo(() => {
     const map = {}
     ALL_LAUNCH_FEATURES.forEach((f) => {
-
       if (f.id === 'appt.detail') return
-
       if (!map[f.area]) map[f.area] = []
       map[f.area].push(f)
     })
 
+    // Keep only the Patients List in the sidebar; profile pages remain reachable from the list.
+    if (map['Patients']) {
+      map['Patients'] = map['Patients'].filter((f) => f.id === 'pat.list')
+    }
+
     if (map['Appointments']) {
-
       const hasCalendar = map['Appointments'].some((f) => f.id === 'appt.calendar')
-
       if (!hasCalendar) {
-
         map['Appointments'].unshift(
-
           { id: 'appt.calendar', name: 'Calendar', route: '/appointments/calendar', area: 'Appointments' },
-
           { id: 'appt.queue', name: 'Live queue', route: '/appointments/queue', area: 'Appointments' }
-
         )
-
       }
-
     }
 
     return map
@@ -229,10 +224,7 @@ export default function StaffPortal({
   // Auto-expand area when navigating to any feature
   useEffect(() => {
     if (activeFeature?.area) {
-      setExpandedAreas((prev) => ({
-        ...prev,
-        [activeFeature.area]: true
-      }))
+      setExpandedAreas({ [activeFeature.area]: true })
     }
   }, [activeFeature?.area])
 
@@ -319,70 +311,45 @@ export default function StaffPortal({
                   onClick={() => toggleArea(areaName)}
                   className={`dmx-nav-item ${isAreaActive ? 'is-active' : ''}`}
                   aria-expanded={isExpanded}
+                  aria-controls={`dmx-sub-${areaName}`}
+                  title={areaName}
                 >
                   <span className="dmx-nav-icon"><IconComp size={18} /></span>
                   <span className="dmx-nav-text">{areaName}</span>
-
-                  <span className="dmx-nav-count">{visibleFeatures.length}</span>
-
+                  <span className="dmx-nav-count" aria-hidden="true">{visibleFeatures.length}</span>
                   <ChevronRight size={14} className="dmx-nav-chevron" />
-
                 </button>
 
 
 
-                {/* Submodule flyout, revealed once the rail has expanded */}
-
-                <div className={`dmx-flyout ${isBottomAlign ? 'is-bottom' : ''}`}>
-
-                  <div className="dmx-flyout-card">
-
-                    <button className="dmx-flyout-head" onClick={() => navigateTo(`/${areaName.toLowerCase()}`)}>
-
-                      <span><IconComp size={14} /> {areaName}</span>
-
-                      <span className="dmx-flyout-hub">Open hub <ChevronRight size={12} /></span>
-
-                    </button>
-
-                    {visibleFeatures.map((feat) => {
-
-                      const isCurrent = activeFeature?.id === feat.id || (activeFeature?.id === 'appt.detail' && feat.id === 'appt.details-list')
-
-                      return (
-
-                        <button
-
-                          key={feat.id}
-
-                          data-testid={`sidebar-link-${feat.id}`}
-
-                          onClick={(e) => {
-
-                            e.stopPropagation()
-
-                            navigateTo(resolveFeatureRoute(feat.route, feat.area))
-
-                          }}
-
-                          className={`dmx-flyout-item ${isCurrent ? 'is-active' : ''}`}
-
-                          aria-current={isCurrent ? 'page' : undefined}
-
-                        >
-
-                          <span>{feat.name}</span>
-
-                          {isCurrent && <Check size={13} />}
-
-                        </button>
-
-                      )
-
-                    })}
-
+                {/* Inline dropdown; collapsed rail shows it as a dot thread under the icon */}
+                <div className="dmx-sub" id={`dmx-sub-${areaName}`} aria-hidden={!isExpanded}>
+                  <div className="dmx-sub-inner">
+                    <div className="dmx-sub-list">
+                      {visibleFeatures.map((feat) => {
+                        const isCurrent = activeFeature?.id === feat.id || (activeFeature?.id === 'appt.detail' && feat.id === 'appt.details-list')
+                        return (
+                          <button
+                            key={feat.id}
+                            type="button"
+                            data-testid={`sidebar-link-${feat.id}`}
+                            tabIndex={isExpanded ? 0 : -1}
+                            title={feat.name}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              navigateTo(resolveFeatureRoute(feat.route, feat.area))
+                            }}
+                            className={`dmx-sub-item ${isCurrent ? 'is-active' : ''}`}
+                            aria-current={isCurrent ? 'page' : undefined}
+                          >
+                            <span className="dmx-sub-dot" aria-hidden="true" />
+                            <span className="dmx-sub-label">{feat.name}</span>
+                            {isCurrent && <Check size={13} className="dmx-sub-check" />}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
-
                 </div>
               </div>
             )
@@ -467,6 +434,8 @@ export default function StaffPortal({
                 onClick={() => setNotificationsOpen(!notificationsOpen)}
                 className={`dmx-icon-btn notifications-btn ${notificationsOpen ? 'is-active' : ''}`}
                 aria-label="Clinical notifications"
+                aria-haspopup="dialog"
+                aria-expanded={notificationsOpen}
               >
                 <Bell size={16} />
                 <span className="dmx-badge">3</span>
@@ -505,11 +474,14 @@ export default function StaffPortal({
               <button
                 onClick={() => setRoleDropdownOpen(!roleDropdownOpen)}
                 className={`dmx-profile role-btn ${roleDropdownOpen ? 'is-active' : ''}`}
+                aria-label={`Account menu for ${displayName}, ${roleLabel}`}
+                aria-haspopup="menu"
+                aria-expanded={roleDropdownOpen}
               >
                 <span className="dmx-avatar dmx-avatar-solid">{initial}</span>
                 <span className="dmx-profile-text">
                   <strong>{displayName}</strong>
-                  <small>{currentUser.role}</small>
+                  <small>{roleLabel}</small>
                 </span>
                 <ChevronDown size={14} />
               </button>
@@ -566,7 +538,7 @@ export default function StaffPortal({
               patients={patientsList}
             />
           ) : (
-            <div className="dmx-page">
+            <div className="dmx-page" key={location.pathname}>
               {children || <Outlet />}
             </div>
           )}

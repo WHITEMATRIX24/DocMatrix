@@ -136,7 +136,7 @@ export function AreaPage({ areaKey }) {
               fontWeight: '700',
               color: 'var(--charcoal-dark, #111a1a)',
               textDecoration: 'none',
-              transition: 'all 0.18s ease'
+              transition: 'transform 0.18s ease, opacity 0.18s ease, color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease, width 0.18s ease'
             }}
           >
             <Home size={13} style={{ color: 'var(--teal-primary, #008891)' }} />
@@ -257,7 +257,7 @@ export function AreaPage({ areaKey }) {
                     color: 'var(--charcoal-dark, #111a1a)',
                     border: '1px solid var(--line, #e9e9e5)',
                     textDecoration: 'none',
-                    transition: 'all 0.15s ease'
+                    transition: 'transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease'
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = 'var(--teal-primary, #008891)'

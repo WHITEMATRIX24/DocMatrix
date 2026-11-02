@@ -82,7 +82,7 @@
   border: none;
   border-bottom: 2px solid transparent;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease;
 }
 
 .appointments-workspace-tab:hover {
@@ -1023,7 +1023,7 @@
   background: var(--surface-raised, #ffffff);
   border: 1.5px solid var(--line, #e2e8f0);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: transform 0.15s, opacity 0.15s, color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s, filter 0.15s, width 0.15s;
 }
 
 .dentist-select-card:hover {
@@ -1375,12 +1375,12 @@
 .badge-noshow { background: #f3e8ff; color: #7e22ce; }
 
 /* ── 7. DARK MODE COMPREHENSIVE OVERRIDES ─────────────────────────── */
-:root[data-theme="dark"] .appointments-workspace,
-:root[data-theme="dark"] .calendar-page-root,
-:root[data-theme="dark"] .live-queue-page,
-:root[data-theme="dark"] .new-appointment-page,
-:root[data-theme="dark"] .appointment-simple-panel,
-:root[data-theme="dark"] .clinic-record-page {
+:root[data-theme="dark"] .dmx-shell .appointments-workspace,
+:root[data-theme="dark"] .dmx-shell .calendar-page-root,
+:root[data-theme="dark"] .dmx-shell .live-queue-page,
+:root[data-theme="dark"] .dmx-shell .new-appointment-page,
+:root[data-theme="dark"] .dmx-shell .appointment-simple-panel,
+:root[data-theme="dark"] .dmx-shell .clinic-record-page {
   --paper: #060c0d;
   --surface: #0c1415;
   --surface-alt: #111b1c;
@@ -1395,37 +1395,37 @@
   --teal-tint: rgba(44, 189, 183, 0.12);
 }
 
-:root[data-theme="dark"] input,
-:root[data-theme="dark"] select,
-:root[data-theme="dark"] textarea {
+:root[data-theme="dark"] .dmx-shell input,
+:root[data-theme="dark"] .dmx-shell select,
+:root[data-theme="dark"] .dmx-shell textarea {
   background: #111b1c !important;
   color: #eef6f5 !important;
   border-color: rgba(214, 240, 236, 0.16) !important;
 }
 
-:root[data-theme="dark"] .calendar-appointment-card {
+:root[data-theme="dark"] .dmx-shell .calendar-appointment-card {
   background: #131e1f;
   border-color: rgba(214, 240, 236, 0.14);
 }
 
-:root[data-theme="dark"] .btn-icon,
-:root[data-theme="dark"] .btn-today,
-:root[data-theme="dark"] .btn-cancel,
-:root[data-theme="dark"] .dentist-select-card {
+:root[data-theme="dark"] .dmx-shell .btn-icon,
+:root[data-theme="dark"] .dmx-shell .btn-today,
+:root[data-theme="dark"] .dmx-shell .btn-cancel,
+:root[data-theme="dark"] .dmx-shell .dentist-select-card {
   background: #111b1c;
   color: #c0cfcc;
   border-color: rgba(214, 240, 236, 0.14);
 }
 
-:root[data-theme="dark"] .calendar-detail-modal,
-:root[data-theme="dark"] .sub-modal-card,
-:root[data-theme="dark"] .queue-modal-card {
+:root[data-theme="dark"] .dmx-shell .calendar-detail-modal,
+:root[data-theme="dark"] .dmx-shell .sub-modal-card,
+:root[data-theme="dark"] .dmx-shell .queue-modal-card {
   background: #0c1415;
   border-color: rgba(214, 240, 236, 0.18);
   color: #eef6f5;
 }
 
-:root[data-theme="dark"] .whatsapp-bubble-preview pre {
+:root[data-theme="dark"] .dmx-shell .whatsapp-bubble-preview pre {
   background: #111b1c;
   color: #eef6f5;
   border: 1px solid rgba(214, 240, 236, 0.12);
@@ -1457,7 +1457,7 @@
   font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease;
 }
 
 .kpi-widget-pill:hover {
@@ -1511,7 +1511,7 @@
   background: var(--surface, #ffffff);
   color: var(--text-muted, #64748b);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: transform 0.15s, opacity 0.15s, color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s, filter 0.15s, width 0.15s;
 }
 
 .date-chip-btn:hover {
@@ -1549,7 +1549,7 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: transform 0.15s, opacity 0.15s, color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s, filter 0.15s, width 0.15s;
 }
 
 .dentist-chip:hover {
@@ -1615,7 +1615,7 @@
   background: var(--surface, #ffffff);
   color: var(--text-muted, #64748b);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: transform 0.15s, opacity 0.15s, color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s, filter 0.15s, width 0.15s;
 }
 
 .status-pill:hover {
@@ -1646,7 +1646,7 @@
   font-weight: 600;
   cursor: pointer;
   opacity: 0.45;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease;
 }
 
 .slot-book-btn:hover {
@@ -1668,7 +1668,7 @@
   font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: transform 0.15s, opacity 0.15s, color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s, filter 0.15s, width 0.15s;
 }
 
 .timeline-quick-book-btn:hover {
@@ -1820,7 +1820,7 @@
   background: var(--teal-primary, #0b8185);
   color: #ffffff;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease;
 }
 
 .btn-confirm-reschedule:hover {
@@ -1840,7 +1840,7 @@
   background: var(--surface, #ffffff);
   color: var(--teal-primary, #0b8185);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease;
 }
 
 .card-quick-reschedule-btn:hover {
@@ -1848,29 +1848,29 @@
   border-color: var(--teal-primary, #0b8185);
 }
 
-:root[data-theme="dark"] .reschedule-modal-card {
+:root[data-theme="dark"] .dmx-shell .reschedule-modal-card {
   background: #0c1415;
   border-color: rgba(214, 240, 236, 0.16);
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6);
 }
 
-:root[data-theme="dark"] .reschedule-context-banner {
+:root[data-theme="dark"] .dmx-shell .reschedule-context-banner {
   background: #111b1c;
   border-color: rgba(214, 240, 236, 0.12);
 }
 
-:root[data-theme="dark"] .reschedule-current-pill {
+:root[data-theme="dark"] .dmx-shell .reschedule-current-pill {
   background: #0c1415;
   border-color: rgba(214, 240, 236, 0.14);
 }
 
-:root[data-theme="dark"] .card-quick-reschedule-btn {
+:root[data-theme="dark"] .dmx-shell .card-quick-reschedule-btn {
   background: #111b1c;
   border-color: rgba(214, 240, 236, 0.14);
   color: #2cbdb7;
 }
 
-:root[data-theme="dark"] .card-quick-reschedule-btn:hover {
+:root[data-theme="dark"] .dmx-shell .card-quick-reschedule-btn:hover {
   background: rgba(44, 189, 183, 0.16);
   border-color: #2cbdb7;
 }
@@ -2018,7 +2018,7 @@
   background: var(--surface, #ffffff);
   color: var(--text-strong, #0f172a);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease;
 }
 
 .btn-action-reschedule:hover {
@@ -2039,7 +2039,7 @@
   background: #10b981;
   color: #ffffff;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease;
 }
 
 .btn-action-whatsapp:hover {
@@ -2058,7 +2058,7 @@
   background: #fef2f2;
   color: #dc2626;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease;
 }
 
 .btn-action-cancel:hover {
@@ -2099,7 +2099,7 @@
   border: 1px solid var(--line, #cbd5e1);
   color: var(--text, #334155);
   text-decoration: none;
-  transition: all 0.15s ease;
+  transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease;
 }
 
 .integration-chip:hover {
@@ -2120,71 +2120,71 @@
 }
 
 /* Dark mode overrides for appointment detail modal */
-:root[data-theme="dark"] .calendar-detail-modal {
+:root[data-theme="dark"] .dmx-shell .calendar-detail-modal {
   background: #0c1415;
   border-color: rgba(214, 240, 236, 0.16);
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.7);
 }
 
-:root[data-theme="dark"] .modal-status-bar,
-:root[data-theme="dark"] .modal-integration-section,
-:root[data-theme="dark"] .modal-notes-box {
+:root[data-theme="dark"] .dmx-shell .modal-status-bar,
+:root[data-theme="dark"] .dmx-shell .modal-integration-section,
+:root[data-theme="dark"] .dmx-shell .modal-notes-box {
   background: #111b1c;
   border-color: rgba(214, 240, 236, 0.12);
 }
 
-:root[data-theme="dark"] .modal-actions-bar {
+:root[data-theme="dark"] .dmx-shell .modal-actions-bar {
   background: #0c1415;
   border-color: rgba(214, 240, 236, 0.12);
 }
 
-:root[data-theme="dark"] .status-changer select {
+:root[data-theme="dark"] .dmx-shell .status-changer select {
   background: #111b1c;
   color: #eef6f5;
   border-color: rgba(214, 240, 236, 0.18);
 }
 
-:root[data-theme="dark"] .btn-action-reschedule {
+:root[data-theme="dark"] .dmx-shell .btn-action-reschedule {
   background: #111b1c;
   border-color: rgba(214, 240, 236, 0.16);
   color: #eef6f5;
 }
 
-:root[data-theme="dark"] .btn-action-reschedule:hover {
+:root[data-theme="dark"] .dmx-shell .btn-action-reschedule:hover {
   background: rgba(44, 189, 183, 0.14);
   border-color: #2cbdb7;
   color: #2cbdb7;
 }
 
-:root[data-theme="dark"] .btn-action-cancel {
+:root[data-theme="dark"] .dmx-shell .btn-action-cancel {
   background: rgba(220, 38, 38, 0.12);
   border-color: rgba(220, 38, 38, 0.3);
   color: #f87171;
 }
 
-:root[data-theme="dark"] .btn-action-cancel:hover {
+:root[data-theme="dark"] .dmx-shell .btn-action-cancel:hover {
   background: rgba(220, 38, 38, 0.2);
 }
 
-:root[data-theme="dark"] .integration-chip {
+:root[data-theme="dark"] .dmx-shell .integration-chip {
   background: #111b1c;
   border-color: rgba(214, 240, 236, 0.14);
   color: #c0cfcc;
 }
 
-:root[data-theme="dark"] .integration-chip:hover {
+:root[data-theme="dark"] .dmx-shell .integration-chip:hover {
   border-color: #2cbdb7;
   color: #2cbdb7;
   background: #131e1f;
 }
 
-:root[data-theme="dark"] .integration-chip.highlight-chip {
+:root[data-theme="dark"] .dmx-shell .integration-chip.highlight-chip {
   background: rgba(44, 189, 183, 0.12);
   border-color: #2cbdb7;
   color: #2cbdb7;
 }
 
-:root[data-theme="dark"] .integration-chip.highlight-chip:hover {
+:root[data-theme="dark"] .dmx-shell .integration-chip.highlight-chip:hover {
   background: #2cbdb7;
   color: #060c0d;
 }

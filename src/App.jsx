@@ -1079,6 +1079,20 @@ export default function App() {
                     One connected platform for patient records, appointments, clinical workflows and billing.
                     Built for modern medical centers and healthcare networks.
                   </p>
+                  <div className="hero-actions">
+                    <a href="/signup" onClick={navigateToAuth('signup')} className="hero-cta hero-cta-primary">
+                      <span>Start free</span>
+                      <ArrowRight size={16} strokeWidth={2.4} />
+                    </a>
+                    <a href="#contact" onClick={smoothScroll('contact')} className="hero-cta hero-cta-ghost">
+                      <span>Book a demo</span>
+                    </a>
+                  </div>
+                  <ul className="hero-trust" aria-label="Highlights">
+                    <li><Check size={14} strokeWidth={2.6} /> Free plan for solo practices</li>
+                    <li><Check size={14} strokeWidth={2.6} /> ABDM ready</li>
+                    <li><Check size={14} strokeWidth={2.6} /> Setup in under 24h</li>
+                  </ul>
                 </div>
 
                 {/* Interactive 3D Running Clinic Workflow Animation */}

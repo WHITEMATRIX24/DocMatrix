@@ -253,7 +253,7 @@ export const PlanSubscriptionPage: React.FC = () => {
                     background: isCurrent ? '#f3f4f6' : '#0d9488',
                     color: isCurrent ? '#9ca3af' : '#ffffff',
                     border: 'none',
-                    transition: 'all 0.2s'
+                    transition: 'transform 0.2s, opacity 0.2s, color 0.2s, background-color 0.2s, border-color 0.2s, box-shadow 0.2s, filter 0.2s, width 0.2s'
                   }}
                 >
                   {isCurrent ? 'Active Subscription' : 'Upgrade Plan'}
