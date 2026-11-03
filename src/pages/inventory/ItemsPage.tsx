@@ -855,10 +855,12 @@ export const ItemsPage: React.FC = () => {
                 </h2>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
-                    Suggested quantities &middot; Editable before confirmation
+                    {inventory.suggestionMode === 'manual'
+                      ? 'Manual consumption entry · Record actual materials used'
+                      : 'Suggested quantities · Editable before confirmation'}
                   </span>
                   <span style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #dbeafe', fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '9999px' }}>
-                    Editable suggestions
+                    {inventory.suggestionMode === 'manual' ? 'Manual entry' : 'Editable suggestions'}
                   </span>
                 </div>
               </div>
@@ -874,39 +876,6 @@ export const ItemsPage: React.FC = () => {
             </div>
 
             <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {/* Doctor-Specific Explanation Callout - Clean, no verbose bullets */}
-              <div className={`ai-adaptive-insight mode-${inventory.suggestionMode}`}>
-                {inventory.suggestionMode === 'doctor-specific' ? (
-                  <>
-                    <Sparkles size={18} style={{ flexShrink: 0, color: 'var(--teal-primary, #008891)' }} />
-                    <div>
-                      <strong style={{ color: 'var(--text-main, #0f172a)' }}>Doctor-Specific Adaptive Model: </strong>
-                      {selectedDoctorId === 'doc-2'
-                        ? 'Doctor B (Dr. Priya Nair) uses 2 sets of Dental files (94% confidence) vs Clinic default of 1 set.'
-                        : selectedDoctorId === 'doc-1'
-                        ? 'Doctor A (Dr. Arun Kumar) uses 1 set of Dental files matching Clinic baseline.'
-                        : 'Doctor C (Dr. Tariq Antoun) uses 1 set of Dental files.'}
-                    </div>
-                  </>
-                ) : inventory.suggestionMode === 'standard' ? (
-                  <>
-                    <ShieldCheck size={18} style={{ flexShrink: 0, color: '#475569' }} />
-                    <div>
-                      <strong style={{ color: 'var(--text-main, #0f172a)' }}>Standard Template Mode: </strong>
-                      Populated from approved clinic procedure defaults.
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <Edit3 size={18} style={{ flexShrink: 0, color: '#b45309' }} />
-                    <div>
-                      <strong style={{ color: '#92400e' }}>Manual Entry Mode: </strong>
-                      Template suggestions disabled. Add materials and enter quantities directly.
-                    </div>
-                  </>
-                )}
-              </div>
-
               {/* Editable Suggestions Table */}
               <div style={{ overflowX: 'auto' }}>
                 <table className="ai-materials-table">
