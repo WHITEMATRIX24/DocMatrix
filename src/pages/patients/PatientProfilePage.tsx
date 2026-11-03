@@ -49,17 +49,19 @@ import { PrescriptionDetailsModal } from '@/components/clinical/PrescriptionDeta
 import { PrescriptionPrintModal } from '@/components/clinical/PrescriptionPrintModal'
 import { InvoiceDrawer, PaymentDialog, StatusPill, inr, localDate, prettyDate } from '@/pages/billing/BillingShared'
 import './patientProfile.css'
+import '@/pages/clinical/prescriptions.css'
 
 type TabKey = 'overview' | 'medical' | 'timeline' | 'billing' | 'documents' | 'consents' | 'prescriptions'
 const TAB_KEYS: TabKey[] = ['overview', 'medical', 'timeline', 'billing', 'documents', 'consents', 'prescriptions']
 
-type ActivityKind = 'visit' | 'note' | 'billing' | 'document' | 'consent'
+type ActivityKind = 'visit' | 'note' | 'billing' | 'document' | 'consent' | 'prescription'
 type ActivityItem = { id: string; kind: ActivityKind; date: string; title: string; detail?: string; link?: string; tone?: 'ok' | 'warn' | 'bad' }
 
 const ACTIVITY_FILTERS: { id: 'all' | ActivityKind; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'visit', label: 'Visits' },
   { id: 'note', label: 'Clinical notes' },
+  { id: 'prescription', label: 'Prescriptions' },
   { id: 'billing', label: 'Billing' },
   { id: 'document', label: 'Documents' },
   { id: 'consent', label: 'Consents' }
@@ -68,6 +70,7 @@ const ACTIVITY_FILTERS: { id: 'all' | ActivityKind; label: string }[] = [
 const ACTIVITY_ICONS: Record<ActivityKind, React.ComponentType<{ size?: number }>> = {
   visit: Calendar,
   note: StickyNote,
+  prescription: Pill,
   billing: Receipt,
   document: FileText,
   consent: CheckCircle2
@@ -318,8 +321,43 @@ export const PatientProfilePage: React.FC = () => {
         tone: c.status === 'Signed' ? 'ok' : c.status === 'Declined' ? 'bad' : 'warn'
       })
     })
+    patientPrescriptions.forEach((rx) => {
+      const creationDate = rx.createdAt || rx.prescribedAt || new Date().toISOString()
+      const meds = rx.items.map((it) => it.medicineName).join(', ')
+      // 1. Creation event
+      items.push({
+        id: `rx-create-${rx.id}`,
+        kind: 'prescription',
+        date: creationDate,
+        title: `Prescription ${rx.prescriptionNumber} created (${rx.status === 'DRAFT' ? 'Draft' : 'Issued'})`,
+        detail: [rx.diagnosis, meds && `Meds: ${meds}`, rx.doctor?.fullName && `By ${rx.doctor.fullName}`].filter(Boolean).join(' · '),
+        tone: rx.status === 'DRAFT' ? 'warn' : 'ok'
+      })
+      // 2. Finalization event (if persisted)
+      if (rx.finalizedAt) {
+        items.push({
+          id: `rx-final-${rx.id}`,
+          kind: 'prescription',
+          date: rx.finalizedAt,
+          title: `Prescription ${rx.prescriptionNumber} finalized`,
+          detail: `Approved & finalized for dispensing · Diagnosis: ${rx.diagnosis}`,
+          tone: 'ok'
+        })
+      }
+      // 3. Cancellation event (if persisted)
+      if (rx.cancelledAt) {
+        items.push({
+          id: `rx-canc-${rx.id}`,
+          kind: 'prescription',
+          date: rx.cancelledAt,
+          title: `Prescription ${rx.prescriptionNumber} cancelled`,
+          detail: `Reason: ${rx.cancellationReason || 'Prescription voided'}`,
+          tone: 'bad'
+        })
+      }
+    })
     return items.sort((a, b) => b.date.localeCompare(a.date))
-  }, [patientAppointments, patientNotes, patientInvoices, patientDocs, patientConsentList])
+  }, [patientAppointments, patientNotes, patientInvoices, patientDocs, patientConsentList, patientPrescriptions])
   const visibleActivity = activityFilter === 'all' ? activity : activity.filter((a) => a.kind === activityFilter)
 
   // Medical Alert Text
@@ -602,6 +640,16 @@ export const PatientProfilePage: React.FC = () => {
               <FileText size={14} />
               <span>Start Consultation</span>
             </Link>
+
+            <button
+              type="button"
+              className="pat-btn pat-btn-secondary"
+              onClick={() => setRxModalOpen(true)}
+              title="Author and issue digital prescription for this patient"
+            >
+              <Pill size={14} />
+              <span>Issue Prescription</span>
+            </button>
 
             <Link
               className="pat-btn pat-btn-secondary"
@@ -1015,6 +1063,97 @@ export const PatientProfilePage: React.FC = () => {
                 </div>
               </article>
             )}
+
+            {/* Compact Digital Prescriptions summary card */}
+            <article className="pat-card">
+              <div className="pat-card-head">
+                <h3><Pill size={16} /> Digital Prescriptions</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setRxModalOpen(true)}
+                    className="pat-btn pat-btn-secondary pat-btn-sm"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <Plus size={13} /> Issue Rx
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTab('prescriptions')}
+                    className="pat-card-action"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    All prescriptions ({patientPrescriptions.length}) →
+                  </button>
+                </div>
+              </div>
+              {patientPrescriptions.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {patientPrescriptions.slice(0, 3).map((rx) => {
+                    const isFinal = rx.status === 'FINALIZED'
+                    const isCanc = rx.status === 'CANCELLED'
+                    return (
+                      <div
+                        key={rx.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 14px',
+                          background: 'var(--paper, #f8fafc)',
+                          borderRadius: 'var(--rx-radius-sm, 8px)',
+                          border: '1px solid var(--line, #e2e8f0)',
+                          gap: '12px'
+                        }}
+                      >
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px', flexWrap: 'wrap' }}>
+                            <span className="rx-code-pill" style={{ fontSize: '11px', padding: '2px 6px' }}>{rx.prescriptionNumber}</span>
+                            <span
+                              className={`rx-badge ${isFinal ? 'rx-badge-finalized' : isCanc ? 'rx-badge-cancelled' : 'rx-badge-draft'}`}
+                              style={{ fontSize: '10px', padding: '1px 6px' }}
+                            >
+                              <span className="rx-badge-dot" />{rx.status}
+                            </span>
+                            <span style={{ fontSize: '11.5px', color: 'var(--text-muted, #64748b)' }}>
+                              {prettyDate((rx.prescribedAt || rx.createdAt || '').slice(0, 10))}
+                            </span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #0f172a)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {rx.diagnosis}
+                          </p>
+                          <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: 'var(--text-muted, #64748b)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {rx.items.map((i) => i.medicineName).join(', ') || 'No medications'}
+                          </p>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <button
+                            type="button"
+                            onClick={() => setViewingRx(rx)}
+                            className="rx-btn-icon"
+                            title="View details"
+                          >
+                            <Eye size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPrintingRx(rx)}
+                            className="rx-btn-icon"
+                            title="Print / Save PDF"
+                          >
+                            <Printer size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
+                  No digital prescriptions on record for this patient.
+                </p>
+              )}
+            </article>
           </div>
         )}
 
@@ -1057,14 +1196,30 @@ export const PatientProfilePage: React.FC = () => {
                 <MedicalRow
                   key={`${patient.id}-medications`}
                   icon={Pill}
-                  title="Current Medications"
+                  title="Current Medications (Patient-Reported)"
                   description={patient.medications === 'yes'
                     ? patient.medicationsDetails || 'Active medications reported.'
-                    : 'Patient is not currently taking systemic long-term medications or blood thinners.'}
+                    : 'Patient declared no routine systemic medications or blood thinners during intake screening.'}
                   status={patient.medications === 'yes' ? 'Medication reported' : 'None'}
                   statusTone={patient.medications === 'yes' ? 'amber' : 'gray'}
                   dividerAbove
                   hasAlert={patient.medications === 'yes'}
+                />
+                <MedicalRow
+                  key={`${patient.id}-prescribed-medications`}
+                  icon={Pill}
+                  title="Previously Prescribed Medications"
+                  description={
+                    patientPrescriptions.length > 0
+                      ? patientPrescriptions
+                          .map((p) => `${p.prescriptionNumber} (${p.status}): ` + p.items.map((it) => `${it.medicineName} ${it.dosage}`).join(', '))
+                          .slice(0, 4)
+                          .join(' · ')
+                      : 'No previously prescribed medications on record for this patient in DocMatrix.'
+                  }
+                  status={patientPrescriptions.length > 0 ? `${patientPrescriptions.length} Prescriptions on record` : 'None'}
+                  statusTone="gray"
+                  dividerAbove
                 />
                 <MedicalRow
                   key={`${patient.id}-conditions`}
@@ -1150,6 +1305,19 @@ export const PatientProfilePage: React.FC = () => {
                         {item.kind === 'billing' && item.id.startsWith('inv-') && (
                           <button type="button" className="pat-card-action pat-linklike" onClick={() => setOpenInvoiceId(item.id.slice(4))}>
                             View invoice →
+                          </button>
+                        )}
+                        {item.kind === 'prescription' && (
+                          <button
+                            type="button"
+                            className="pat-card-action pat-linklike"
+                            onClick={() => {
+                              const rxId = item.id.replace(/^rx-(create|final|canc)-/, '')
+                              const rx = patientPrescriptions.find((p) => p.id === rxId)
+                              if (rx) setViewingRx(rx)
+                            }}
+                          >
+                            View prescription →
                           </button>
                         )}
                       </div>
@@ -1404,157 +1572,131 @@ export const PatientProfilePage: React.FC = () => {
 
         {/* TAB 6: PRESCRIPTIONS */}
         {activeTab === 'prescriptions' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="pat-section-head">
               <div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
-                  Clinical Prescriptions History
-                </h3>
-                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
-                  Digital drug regimens and medications authored for this patient.
-                </p>
+                <h3>Clinical Prescriptions History</h3>
+                <p>Digital drug regimens, dosage instructions, and official letterhead prescriptions authored for this patient.</p>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <button
                   type="button"
                   onClick={() => setRxModalOpen(true)}
                   className="pat-btn pat-btn-primary"
-                  style={{ padding: '6px 14px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                 >
-                  <Pill size={14} /> Issue Prescription
+                  <Plus size={14} /> Issue Prescription
                 </button>
               </div>
             </div>
 
             {patientPrescriptions.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {patientPrescriptions.map((rx) => {
-                  const isFinal = rx.status === 'FINALIZED';
-                  const isCanc = rx.status === 'CANCELLED';
-                  return (
-                    <div
-                      key={rx.id}
-                      style={{
-                        background: 'var(--bg-card, #ffffff)',
-                        border: '1px solid var(--border-light, #e2e8f0)',
-                        borderRadius: '12px',
-                        padding: '16px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: '16px',
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                          <span
-                            style={{
-                              fontFamily: 'monospace',
-                              fontWeight: 700,
-                              fontSize: '12px',
-                              background: '#f1f5f9',
-                              padding: '2px 8px',
-                              borderRadius: '4px',
-                              color: '#0f172a',
-                            }}
-                          >
-                            {rx.prescriptionNumber}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              padding: '2px 8px',
-                              borderRadius: '12px',
-                              background: isFinal ? '#ecfdf5' : isCanc ? '#fff1f2' : '#fef3c7',
-                              color: isFinal ? '#047857' : isCanc ? '#be123c' : '#b45309',
-                              border: `1px solid ${isFinal ? '#a7f3d0' : isCanc ? '#fecdd3' : '#fde68a'}`,
-                            }}
-                          >
-                            {rx.status}
-                          </span>
-                          <span style={{ fontSize: '12px', color: '#64748b' }}>
-                            {new Date(rx.prescribedAt).toLocaleDateString('en-IN', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })}
-                          </span>
-                        </div>
+              <div className="rx-table-container">
+                <div className="rx-table-scroll">
+                  <table className="rx-table">
+                    <thead>
+                      <tr>
+                        <th>Rx Number</th>
+                        <th>Prescribed Date</th>
+                        <th>Prescriber Clinician</th>
+                        <th>Diagnosis & Medication Summary</th>
+                        <th>Status</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {patientPrescriptions.map((rx) => {
+                        const isFinal = rx.status === 'FINALIZED'
+                        const isDraft = rx.status === 'DRAFT'
+                        const isCanc = rx.status === 'CANCELLED'
 
-                        <p style={{ margin: '0 0 6px 0', fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>
-                          {rx.diagnosis}
-                        </p>
-
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                          {rx.items.map((it, idx) => (
-                            <span
-                              key={it.id || idx}
-                              style={{
-                                fontSize: '11.5px',
-                                background: '#f8fafc',
-                                border: '1px solid #e2e8f0',
-                                padding: '2px 8px',
-                                borderRadius: '6px',
-                                color: '#334155',
-                              }}
-                            >
-                              💊 {it.medicineName} {it.strength ? `(${it.strength})` : ''} · {it.frequency}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <button
-                          type="button"
-                          onClick={() => setViewingRx(rx)}
-                          className="pat-btn pat-btn-secondary"
-                          style={{ padding: '6px 12px', fontSize: '12px' }}
-                        >
-                          View
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPrintingRx(rx)}
-                          className="pat-btn pat-btn-secondary"
-                          style={{ padding: '6px 12px', fontSize: '12px' }}
-                          title="Print / Save PDF"
-                        >
-                          <Printer size={13} /> Print
-                        </button>
-                        {rx.status === 'DRAFT' && (
-                          <button
-                            type="button"
-                            onClick={() => setEditingRx(rx)}
-                            className="pat-btn pat-btn-primary"
-                            style={{ padding: '6px 12px', fontSize: '12px' }}
-                          >
-                            Edit Draft
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                        return (
+                          <tr key={rx.id}>
+                            <td>
+                              <span className="rx-code-pill">{rx.prescriptionNumber}</span>
+                            </td>
+                            <td>
+                              {new Date(rx.prescribedAt).toLocaleDateString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric'
+                              })}
+                            </td>
+                            <td>
+                              <div className="rx-doctor-name">{rx.doctor?.fullName || 'Dr. Arun Kumar'}</div>
+                              <div className="rx-doctor-role">Dental Surgeon</div>
+                            </td>
+                            <td className="rx-diagnosis-cell">
+                              <div className="rx-diagnosis-title">{rx.diagnosis}</div>
+                              <div className="rx-meds-summary">
+                                {rx.items.map((it) => it.medicineName).join(', ') || 'No medications'}
+                              </div>
+                            </td>
+                            <td>
+                              <span
+                                className={`rx-badge ${
+                                  isFinal
+                                    ? 'rx-badge-finalized'
+                                    : isCanc
+                                    ? 'rx-badge-cancelled'
+                                    : 'rx-badge-draft'
+                                }`}
+                              >
+                                <span className="rx-badge-dot" />
+                                {rx.status}
+                              </span>
+                            </td>
+                            <td className="rx-actions-cell">
+                              <div className="rx-actions-wrapper">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingRx(rx)}
+                                  className="rx-btn-icon"
+                                  title="View details"
+                                >
+                                  <Eye size={15} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setPrintingRx(rx)}
+                                  className="rx-btn-icon"
+                                  title="Print / Save PDF"
+                                >
+                                  <Printer size={15} />
+                                </button>
+                                {isDraft && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingRx(rx)}
+                                    className="rx-btn-icon"
+                                    title="Edit draft"
+                                  >
+                                    <Edit3 size={15} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             ) : (
-              <div className="pat-empty-card" style={{ textAlign: 'center', padding: '36px 20px', background: 'var(--surface-subtle, #f8fafc)', borderRadius: '10px', border: '1px solid var(--line, #e2e8f0)' }}>
-                <Pill size={32} color="var(--text-muted, #94a3b8)" style={{ margin: '0 auto 8px auto' }} />
-                <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', color: 'var(--text-main, #1e293b)' }}>
-                  No Prescriptions on Record
-                </h4>
-                <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
-                  No medications have been prescribed to this patient yet.
-                </p>
+              <div className="rx-empty" style={{ background: 'var(--surface, #ffffff)', border: '1px solid var(--line, #e2e8f0)', borderRadius: 'var(--rx-radius-lg, 16px)' }}>
+                <div className="rx-empty-icon">
+                  <Pill />
+                </div>
+                <h3>No Prescriptions on Record</h3>
+                <p>No digital prescriptions or medication regimens have been authored for this patient yet.</p>
                 <button
                   type="button"
                   onClick={() => setRxModalOpen(true)}
-                  className="pat-btn pat-btn-secondary"
-                  style={{ padding: '6px 14px', fontSize: '12.5px', marginTop: '12px' }}
+                  className="rx-btn rx-btn-primary rx-btn-sm"
                 >
-                  <Pill size={13} /> Issue First Prescription
+                  <Plus size={13} /> Issue First Prescription
                 </button>
               </div>
             )}

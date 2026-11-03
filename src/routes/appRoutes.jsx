@@ -112,6 +112,16 @@ export function AppRoutes({
           element={<AreaPage areaKey="patients" />}
         />
         <Route
+          path="/patients/:id/prescriptions"
+          element={
+            <ProtectedRoute currentUser={currentUser}>
+              <Suspense fallback={<PageFallback />}>
+                {React.createElement(lazyComponents['pat.profile'])}
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/clinical"
           element={<AreaPage areaKey="clinical" />}
         />
