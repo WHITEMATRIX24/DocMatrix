@@ -738,7 +738,26 @@ const initialToothCharts: ClinicToothCharts = {
   }
 }
 
+
+export interface EnquiryRecord {
+  id: string
+  name: string
+  phone?: string
+  email?: string
+  request: string
+  status: 'PENDING' | 'CONTACTED' | 'CONVERTED' | 'DISMISSED'
+  notes?: string
+  createdAt: string
+}
+
+export const initialEnquiries: EnquiryRecord[] = [
+  { id: 'enq-001', name: 'Ananya Pillai', phone: '+91 98472 33445', request: 'New patient · Cleaning', status: 'PENDING', createdAt: 'Today, 9:42 AM' },
+  { id: 'enq-002', name: 'Vivek Menon', phone: '+91 98460 54321', request: 'Existing patient · Tooth pain', status: 'PENDING', createdAt: 'Today, 9:18 AM' },
+  { id: 'enq-003', name: 'Sara Thomas', phone: '+91 97455 11223', request: 'New patient · Consultation', status: 'PENDING', createdAt: 'Yesterday, 5:36 PM' },
+]
+
 interface StoredClinicSnapshot {
+  enquiries?: EnquiryRecord[]
   patients: PatientRecord[]
   appointments: AppointmentRecord[]
   clinicalNotes: ClinicalNoteRecord[]
@@ -790,6 +809,7 @@ const emptySnapshot: StoredClinicSnapshot = {
   patientDocuments: [],
   patientConsents: [],
   toothCharts: {},
+  enquiries: [],
   walkInCounter: 101,
 };
 
@@ -802,6 +822,7 @@ const demoSnapshot: StoredClinicSnapshot = {
   patientDocuments: initialPatientDocuments,
   patientConsents: initialPatientConsents,
   toothCharts: initialToothCharts,
+  enquiries: initialEnquiries,
   walkInCounter: 101,
 };
 
@@ -840,6 +861,11 @@ let toothChartsState: ClinicToothCharts = loadedData?.toothCharts && typeof load
   ? loadedData.toothCharts
   : (isAuth ? {} : { ...initialToothCharts });
 
+let enquiriesState: EnquiryRecord[] = Array.isArray(loadedData?.enquiries)
+  ? loadedData.enquiries
+  : (isAuth ? [] : [...initialEnquiries]);
+
+
 let walkInCounter = typeof loadedData?.walkInCounter === 'number' && loadedData.walkInCounter >= 100
   ? loadedData.walkInCounter
   : 101;
@@ -854,7 +880,8 @@ let cachedSnapshot = {
   treatmentPlans: treatmentPlansState,
   patientDocuments: patientDocumentsState,
   patientConsents: patientConsentsState,
-  toothCharts: toothChartsState
+  toothCharts: toothChartsState,
+  enquiries: enquiriesState
 };
 
 const persistData = () => {
@@ -894,7 +921,8 @@ const emitChange = () => {
     treatmentPlans: treatmentPlansState,
     patientDocuments: patientDocumentsState,
     patientConsents: patientConsentsState,
-    toothCharts: toothChartsState
+    toothCharts: toothChartsState,
+  enquiries: enquiriesState
   }
   persistData()
   for (const listener of listeners) {
@@ -930,6 +958,7 @@ export const clearClinicStore = () => {
   patientDocumentsState = [];
   patientConsentsState = [];
   toothChartsState = {};
+  enquiriesState = [];
   walkInCounter = 101;
   emitChange();
 };
@@ -946,12 +975,13 @@ export const syncWithBackend = async (): Promise<void> => {
 
     if (!token) return;
 
-    const [remotePatients, remoteAppts, remoteCharts, remoteDocs, remoteConsents] = await Promise.all([
+    const [remotePatients, remoteAppts, remoteCharts, remoteDocs, remoteConsents, remoteEnquiries] = await Promise.all([
       apiClient.get<any[]>('/patients?includeArchived=true'),
       apiClient.get<any[]>('/appointments'),
       apiClient.get<Record<string, Record<number, { condition: string; notes?: string }>>>('/clinical/tooth-charts').catch(() => ({})),
       apiClient.get<any[]>('/clinical/documents').catch(() => []),
       apiClient.get<any[]>('/clinical/consents').catch(() => []),
+      apiClient.get<any[]>('/enquiries').catch(() => []),
     ]);
 
     const mappedPatients: PatientRecord[] = Array.isArray(remotePatients)
@@ -1031,11 +1061,25 @@ export const syncWithBackend = async (): Promise<void> => {
       : [];
 
     // Authoritative backend data: strictly assign (no dummy records retained)
+    const mappedEnquiries: EnquiryRecord[] = Array.isArray(remoteEnquiries)
+      ? remoteEnquiries.map((e: any) => ({
+          id: e.id,
+          name: e.name,
+          phone: e.phone || '',
+          email: e.email || '',
+          request: e.request,
+          status: (e.status || 'PENDING') as any,
+          notes: e.notes || '',
+          createdAt: e.createdAt || new Date().toISOString(),
+        }))
+      : [];
+
     patientsState = mappedPatients;
     appointmentsState = mappedAppts;
     toothChartsState = remoteCharts && typeof remoteCharts === 'object' ? (remoteCharts as ClinicToothCharts) : {};
     patientDocumentsState = mappedDocs;
     patientConsentsState = mappedConsents;
+    enquiriesState = mappedEnquiries;
 
     emitChange();
   } catch (err) {
@@ -1918,6 +1962,83 @@ export const resetStoreForTesting = () => {
   patientDocumentsState = [...initialPatientDocuments]
   patientConsentsState = [...initialPatientConsents]
   toothChartsState = { ...initialToothCharts }
+  enquiriesState = [...initialEnquiries]
   walkInCounter = 101
   emitChange()
 }
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. ONLINE / MISSED ENQUIRIES ACTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const addEnquiry = (enquiry: {
+  name: string
+  phone?: string
+  email?: string
+  request: string
+  status?: 'PENDING' | 'CONTACTED' | 'CONVERTED' | 'DISMISSED'
+  notes?: string
+}): EnquiryRecord => {
+  const newEnquiry: EnquiryRecord = {
+    id: `enq-${Date.now()}`,
+    name: enquiry.name.trim(),
+    phone: enquiry.phone?.trim() || '',
+    email: enquiry.email?.trim() || '',
+    request: enquiry.request.trim(),
+    status: enquiry.status || 'PENDING',
+    notes: enquiry.notes?.trim() || '',
+    createdAt: new Date().toISOString(),
+  }
+
+  enquiriesState = [newEnquiry, ...enquiriesState];
+  emitChange();
+
+  if (hasAuthToken()) {
+    apiClient.post('/enquiries', {
+      name: newEnquiry.name,
+      phone: newEnquiry.phone,
+      email: newEnquiry.email,
+      request: newEnquiry.request,
+      status: newEnquiry.status,
+      notes: newEnquiry.notes,
+    }).then((created: any) => {
+      if (created?.id && created.id !== newEnquiry.id) {
+        enquiriesState = enquiriesState.map((e) => (e.id === newEnquiry.id ? { ...e, id: created.id } : e));
+        emitChange();
+      }
+    }).catch((err) => {
+      console.warn('[clinicStore] addEnquiry failed on backend:', err);
+    });
+  }
+
+  return newEnquiry;
+};
+
+export const updateEnquiryStatus = (id: string, status: 'PENDING' | 'CONTACTED' | 'CONVERTED' | 'DISMISSED'): void => {
+  const prevEnquiries = [...enquiriesState];
+  enquiriesState = enquiriesState.map((e) => (e.id === id ? { ...e, status } : e));
+  emitChange();
+
+  if (hasAuthToken()) {
+    apiClient.patch(`/enquiries/${id}`, { status }).catch((err) => {
+      console.warn('[clinicStore] updateEnquiryStatus failed on backend:', err);
+      enquiriesState = prevEnquiries;
+      emitChange();
+    });
+  }
+};
+
+export const dismissEnquiry = (id: string): void => {
+  const prevEnquiries = [...enquiriesState];
+  enquiriesState = enquiriesState.filter((e) => e.id !== id);
+  emitChange();
+
+  if (hasAuthToken()) {
+    apiClient.delete(`/enquiries/${id}`).catch((err) => {
+      console.warn('[clinicStore] dismissEnquiry failed on backend:', err);
+      enquiriesState = prevEnquiries;
+      emitChange();
+    });
+  }
+};

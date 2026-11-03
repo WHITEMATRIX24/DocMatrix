@@ -161,6 +161,7 @@ model Clinic {
   toothConditions ToothCondition[]
   documents       PatientDocument[]
   consents        PatientConsent[]
+  enquiries       Enquiry[]
 
   @@index([status])
   @@index([email])
@@ -342,4 +343,27 @@ model PatientConsent {
   @@unique([id, clinicId])
   @@index([clinicId, patientId])
   @@index([clinicId, status])
+}
+
+// ------------------------------------------
+// Online / Web Enquiries & Leads Model
+// ------------------------------------------
+
+model Enquiry {
+  id        String   @id @default(uuid())
+  clinicId  String
+  name      String
+  phone     String?
+  email     String?
+  request   String   // e.g. 'New patient · Cleaning', 'Tooth pain'
+  status    String   @default("PENDING") // 'PENDING' | 'CONTACTED' | 'CONVERTED' | 'DISMISSED'
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+
+  @@unique([id, clinicId])
+  @@index([clinicId, status])
+  @@index([clinicId, createdAt])
 }

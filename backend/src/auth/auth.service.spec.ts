@@ -1,4 +1,3 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { UnauthorizedException } from '@nestjs/common';
 import bcrypt from 'bcryptjs';
 import { AuthService } from './auth.service.js';

@@ -1,4 +1,3 @@
-import { describe, it, expect } from 'vitest';
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { TenantGuard } from './tenant.guard.js';
 
