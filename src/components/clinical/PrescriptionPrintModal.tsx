@@ -1,6 +1,7 @@
 import React from 'react';
-import { Printer, X, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Printer, X, AlertTriangle } from 'lucide-react';
 import { PrescriptionRecord } from '../../services/clinicStore';
+import '../../pages/clinical/prescriptions.css';
 
 interface PrescriptionPrintModalProps {
   prescription: PrescriptionRecord;
@@ -33,94 +34,76 @@ export const PrescriptionPrintModal: React.FC<PrescriptionPrintModalProps> = ({
     : [];
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 print:p-0 print:bg-white print:static print:inset-auto">
-      {/* Print-specific style overrides */}
-      <style>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          #printable-prescription, #printable-prescription * {
-            visibility: visible;
-          }
-          #printable-prescription {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            margin: 0;
-            padding: 20px;
-            background: white !important;
-            color: black !important;
-            box-shadow: none !important;
-            border: none !important;
-          }
-          .no-print {
-            display: none !important;
-          }
-        }
-      `}</style>
-
-      <div className="relative w-full max-w-3xl bg-white rounded-xl shadow-2xl overflow-hidden print:max-w-none print:shadow-none print:rounded-none">
+    <div className="rx-modal-overlay">
+      <div className="rx-modal-dialog rx-modal-dialog-wide" role="dialog" aria-modal="true">
         {/* Top Modal Controls (Hidden in Print) */}
-        <div className="no-print flex items-center justify-between px-6 py-4 bg-slate-900 text-white border-b border-slate-800">
-          <div className="flex items-center gap-2">
-            <Printer className="w-5 h-5 text-indigo-400" />
-            <span className="font-semibold text-base">Print Prescription — {prescription.prescriptionNumber}</span>
+        <div className="rx-modal-header no-print">
+          <div className="rx-modal-header-info">
+            <div className="rx-modal-header-icon">
+              <Printer />
+            </div>
+            <div className="rx-modal-header-text">
+              <h2>Print Prescription — {prescription.prescriptionNumber}</h2>
+              <p>Official clinic letterhead layout</p>
+            </div>
             <span
-              className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
+              className={`rx-badge ${
                 isFinalized
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  ? 'rx-badge-finalized'
                   : isCancelled
-                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                  : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  ? 'rx-badge-cancelled'
+                  : 'rx-badge-draft'
               }`}
             >
+              <span className="rx-badge-dot" />
               {prescription.status}
             </span>
           </div>
-          <div className="flex items-center gap-3">
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
               onClick={handlePrint}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+              className="rx-btn rx-btn-primary"
             >
-              <Printer className="w-4 h-4" />
+              <Printer />
               Print / Save as PDF
             </button>
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+              className="rx-modal-close-btn"
+              aria-label="Close dialog"
             >
-              <X className="w-5 h-5" />
+              <X />
             </button>
           </div>
         </div>
 
         {/* Printable Document Container */}
-        <div id="printable-prescription" className="p-8 text-slate-900 bg-white font-sans">
+        <div id="printable-prescription" className="rx-print-document">
           {/* Clinic Header / Letterhead */}
-          <div className="border-b-2 border-indigo-600 pb-5 mb-6 flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-indigo-900 flex items-center gap-2">
-                <span className="p-1.5 bg-indigo-600 text-white rounded-lg text-base font-black">DM</span>
-                {clinicName}
-              </h1>
-              <p className="text-xs text-slate-500 mt-1">{clinicAddress}</p>
-              <p className="text-xs text-slate-500">Phone: {clinicPhone} | Email: {clinicEmail}</p>
+          <div className="rx-letterhead">
+            <div className="rx-letterhead-brand">
+              <span className="rx-letterhead-logo">DM</span>
+              <div className="rx-letterhead-clinic">
+                <h1>{clinicName}</h1>
+                <p>{clinicAddress}</p>
+                <p>Phone: {clinicPhone} | Email: {clinicEmail}</p>
+              </div>
             </div>
-            <div className="text-right">
-              <div className="inline-block px-3 py-1 bg-slate-100 rounded text-xs font-mono font-bold text-slate-800 tracking-wider">
+            <div className="rx-letterhead-meta">
+              <div className="rx-code-pill" style={{ fontSize: '13px' }}>
                 {prescription.prescriptionNumber}
               </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Date: {new Date(prescription.prescribedAt).toLocaleDateString('en-IN', {
+              <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>
+                Date:{' '}
+                {new Date(prescription.prescribedAt).toLocaleDateString('en-IN', {
                   day: '2-digit',
                   month: 'short',
                   year: 'numeric',
                 })}
               </p>
               {isCancelled && (
-                <span className="inline-block mt-1 text-xs font-bold text-rose-600 border border-rose-300 px-2 py-0.5 rounded bg-rose-50">
+                <span className="rx-badge rx-badge-cancelled" style={{ marginTop: '4px' }}>
                   CANCELLED / VOID
                 </span>
               )}
@@ -128,114 +111,104 @@ export const PrescriptionPrintModal: React.FC<PrescriptionPrintModalProps> = ({
           </div>
 
           {/* Doctor & Patient Information Grid */}
-          <div className="grid grid-cols-2 gap-6 bg-slate-50 border border-slate-200 rounded-lg p-4 mb-6 text-sm">
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">
-                Prescribing Practitioner
-              </span>
-              <p className="font-bold text-slate-900 text-base">
-                {doctor?.fullName || 'Dr. Arun Kumar'}
-              </p>
-              <p className="text-xs text-slate-600 font-medium">Dental Surgeon & Clinical Consultant</p>
-              <p className="text-xs text-slate-500">DocMatrix Practitioner ID: {doctor?.id?.slice(0, 8) || 'DOC-REG'}</p>
+          <div className="rx-meta-banner" style={{ marginBottom: '20px' }}>
+            <div className="rx-meta-item">
+              <h5>Prescribing Practitioner</h5>
+              <p>{doctor?.fullName || 'Dr. Arun Kumar'}</p>
+              <p className="rx-meta-sub">Dental Surgeon & Clinical Consultant</p>
+              <p className="rx-meta-sub">Practitioner ID: {doctor?.id?.slice(0, 8) || 'DOC-REG'}</p>
             </div>
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-1">
-                Patient Demographics
-              </span>
-              <p className="font-bold text-slate-900 text-base">
-                {patient ? `${patient.firstName} ${patient.lastName}` : 'Registered Patient'}
-              </p>
-              <p className="text-xs text-slate-600">
-                Patient ID: <span className="font-mono font-semibold">{patient?.patientCode || prescription.patientId}</span>
+            <div className="rx-meta-item">
+              <h5>Patient Demographics</h5>
+              <p>{patient ? `${patient.firstName} ${patient.lastName}` : 'Registered Patient'}</p>
+              <p className="rx-meta-sub">
+                Patient ID: {patient?.patientCode || prescription.patientId}
                 {patient?.gender && ` · Gender: ${patient.gender.toUpperCase()}`}
               </p>
-              {patient?.mobile && <p className="text-xs text-slate-500">Contact: {patient.mobile}</p>}
+              {patient?.mobile && <p className="rx-meta-sub">Contact: {patient.mobile}</p>}
             </div>
           </div>
 
           {/* Medical Safety Alerts / Allergies (If Any) */}
           {alerts.length > 0 && (
-            <div className="mb-6 p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2.5 text-xs text-rose-900">
-              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div className="rx-alert-box rx-alert-danger" style={{ marginBottom: '20px' }}>
+              <AlertTriangle />
               <div>
-                <span className="font-bold uppercase tracking-wide text-rose-700">Clinical Safety Alerts & Allergies: </span>
-                <span className="font-medium">{alerts.join(' · ')}</span>
+                <strong>Clinical Safety Alerts & Allergies: </strong>
+                <span>{alerts.join(' · ')}</span>
               </div>
             </div>
           )}
 
           {/* Diagnosis & Clinical Notes */}
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Diagnosis:</span>
-              <span className="text-sm font-semibold text-slate-900">{prescription.diagnosis}</span>
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span className="rx-label">Diagnosis:</span>
+              <strong style={{ fontSize: '14px', color: '#0f172a' }}>{prescription.diagnosis}</strong>
             </div>
             {prescription.clinicalNotes && (
-              <div className="text-xs text-slate-600 mt-1 pl-3 border-l-2 border-indigo-200">
-                <span className="font-medium text-slate-700">Clinical Findings: </span>
+              <div style={{ fontSize: '12px', color: '#475569', marginTop: '4px', paddingLeft: '10px', borderLeft: '2px solid var(--rx-teal)' }}>
+                <span style={{ fontWeight: 600 }}>Clinical Findings: </span>
                 {prescription.clinicalNotes}
               </div>
             )}
             {isCancelled && prescription.cancellationReason && (
-              <div className="text-xs text-rose-700 mt-2 pl-3 border-l-2 border-rose-400 bg-rose-50 py-1 rounded-r">
-                <span className="font-bold">Cancellation Reason: </span>
+              <div style={{ fontSize: '12px', color: 'var(--rx-cancelled)', marginTop: '6px', padding: '6px 10px', background: 'var(--rx-cancelled-bg)', borderRadius: '4px' }}>
+                <strong>Cancellation Reason: </strong>
                 {prescription.cancellationReason}
               </div>
             )}
           </div>
 
           {/* Rx Symbol & Medication Table */}
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-2xl font-black font-serif text-indigo-900">℞</span>
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Medication Regimen</span>
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '24px', fontWeight: 900, fontFamily: 'serif', color: 'var(--rx-teal)' }}>℞</span>
+              <span className="rx-label">Medication Regimen</span>
             </div>
 
-            <div className="border border-slate-200 rounded-lg overflow-hidden">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
-                    <th className="py-2.5 px-3 w-8 text-center">#</th>
-                    <th className="py-2.5 px-3">Medicine & Strength</th>
-                    <th className="py-2.5 px-3">Dosage / Route</th>
-                    <th className="py-2.5 px-3">Frequency</th>
-                    <th className="py-2.5 px-3">Duration</th>
-                    <th className="py-2.5 px-3 text-center">Qty</th>
-                    <th className="py-2.5 px-3">Instructions</th>
+            <table className="rx-print-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '32px', textAlign: 'center' }}>#</th>
+                  <th>Medicine & Strength</th>
+                  <th>Dosage / Route</th>
+                  <th>Frequency</th>
+                  <th>Duration</th>
+                  <th style={{ textAlign: 'center' }}>Qty</th>
+                  <th>Instructions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {prescription.items.map((item, index) => (
+                  <tr key={item.id || index}>
+                    <td style={{ textAlign: 'center', fontFamily: 'monospace', color: '#64748b' }}>{index + 1}</td>
+                    <td>
+                      <strong>{item.medicineName}</strong>
+                      {item.strength && <span style={{ marginLeft: '4px', color: '#64748b' }}>({item.strength})</span>}
+                    </td>
+                    <td>
+                      {item.dosage}
+                      <span style={{ display: 'block', fontSize: '11px', color: '#64748b' }}>{item.route || 'Oral'}</span>
+                    </td>
+                    <td style={{ fontWeight: 600, color: 'var(--rx-teal)' }}>{item.frequency}</td>
+                    <td>{item.duration}</td>
+                    <td style={{ textAlign: 'center', fontWeight: 600, fontFamily: 'monospace' }}>
+                      {item.quantity ?? '—'}
+                    </td>
+                    <td style={{ fontStyle: 'italic', color: '#475569' }}>
+                      {item.instructions || 'As advised'}
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {prescription.items.map((item, index) => (
-                    <tr key={item.id || index} className="hover:bg-slate-50/50">
-                      <td className="py-2.5 px-3 text-center text-slate-500 font-mono">{index + 1}</td>
-                      <td className="py-2.5 px-3 font-bold text-slate-900">
-                        {item.medicineName}
-                        {item.strength && <span className="ml-1 text-slate-600 font-normal">({item.strength})</span>}
-                      </td>
-                      <td className="py-2.5 px-3 font-medium text-slate-700">
-                        {item.dosage}
-                        <span className="text-slate-400 text-[11px] block">{item.route || 'Oral'}</span>
-                      </td>
-                      <td className="py-2.5 px-3 font-semibold text-indigo-700">{item.frequency}</td>
-                      <td className="py-2.5 px-3 text-slate-700">{item.duration}</td>
-                      <td className="py-2.5 px-3 text-center font-mono font-semibold text-slate-800">
-                        {item.quantity ?? '—'}
-                      </td>
-                      <td className="py-2.5 px-3 text-slate-600 italic">
-                        {item.instructions || 'As advised'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
 
-          {/* General Advice & Warnings */}
-          <div className="mb-10 text-[11px] text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100">
-            <p className="font-semibold text-slate-700 mb-0.5">Patient Advice:</p>
-            <ul className="list-disc pl-4 space-y-0.5">
+          {/* Patient Advice */}
+          <div style={{ marginBottom: '32px', fontSize: '11.5px', color: '#64748b', background: '#f8fafc', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+            <strong style={{ color: '#334155', display: 'block', marginBottom: '4px' }}>Patient Advice:</strong>
+            <ul style={{ margin: 0, paddingLeft: '18px', lineHeight: 1.5 }}>
               <li>Complete the full antibiotic course even if symptoms subside.</li>
               <li>Seek immediate medical attention if adverse allergic symptoms (rash, swelling, breathing difficulty) occur.</li>
               <li>Keep all medications out of reach of children and store in a cool, dry place.</li>
@@ -243,22 +216,18 @@ export const PrescriptionPrintModal: React.FC<PrescriptionPrintModalProps> = ({
           </div>
 
           {/* Signature & Authentication Footer */}
-          <div className="pt-6 border-t border-slate-200 flex items-end justify-between text-xs">
+          <div className="rx-signature-row">
             <div>
-              <p className="text-[10px] text-slate-400">
-                Generated via DocMatrix Clinical Workstation
-              </p>
-              <p className="text-[10px] text-slate-400">
-                Prescription ID: <span className="font-mono">{prescription.id}</span>
-              </p>
-              <p className="text-[10px] text-slate-500 mt-1 italic">
-                * Note: Computer-generated prescription document. Requires physical practitioner seal and signature where required by local statute.
+              <p style={{ margin: 0, color: '#94a3b8' }}>Generated via DocMatrix Clinical Workstation</p>
+              <p style={{ margin: '2px 0 0', color: '#94a3b8', fontFamily: 'monospace' }}>Prescription ID: {prescription.id}</p>
+              <p style={{ margin: '4px 0 0', fontStyle: 'italic', color: '#64748b' }}>
+                * Computer-generated clinical record. Physical clinician signature & stamp validate document where mandated by statute.
               </p>
             </div>
-            <div className="text-center min-w-[200px]">
-              <div className="border-b border-slate-400 h-14 mb-2"></div>
-              <p className="font-bold text-slate-900">{doctor?.fullName || 'Authorized Dental Surgeon'}</p>
-              <p className="text-[11px] text-slate-500">Clinician Signature & Stamp</p>
+            <div className="rx-signature-box">
+              <div className="rx-signature-line" />
+              <strong style={{ display: 'block', color: '#0f172a' }}>{doctor?.fullName || 'Authorized Dental Surgeon'}</strong>
+              <span style={{ color: '#64748b' }}>Clinician Signature & Stamp</span>
             </div>
           </div>
         </div>
@@ -266,4 +235,3 @@ export const PrescriptionPrintModal: React.FC<PrescriptionPrintModalProps> = ({
     </div>
   );
 };
-

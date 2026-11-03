@@ -2019,8 +2019,6 @@ export const PatientProfilePage: React.FC = () => {
           onClose={() => setPayInvoiceId(null)}
         />
       )}
-        />
-      )}
     </section>
   )
 }

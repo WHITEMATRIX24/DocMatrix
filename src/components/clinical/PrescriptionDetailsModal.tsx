@@ -6,16 +6,13 @@ import {
   FileCheck2,
   Ban,
   AlertTriangle,
-  Clock,
-  User,
-  Calendar,
-  Pill,
 } from 'lucide-react';
 import {
   PrescriptionRecord,
   finalizePrescription,
   cancelPrescription,
 } from '../../services/clinicStore';
+import '../../pages/clinical/prescriptions.css';
 
 interface PrescriptionDetailsModalProps {
   prescription: PrescriptionRecord;
@@ -82,31 +79,40 @@ export const PrescriptionDetailsModal: React.FC<PrescriptionDetailsModalProps> =
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="relative w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]">
+    <div className="rx-modal-overlay">
+      <div className="rx-modal-dialog" role="dialog" aria-modal="true">
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
-          <div className="flex items-center gap-3">
-            <span className="font-mono font-bold text-base bg-indigo-600 px-2.5 py-1 rounded-md text-white">
+        <div className="rx-modal-header">
+          <div className="rx-modal-header-info">
+            <span
+              className="rx-code-pill"
+              style={{
+                background: 'var(--rx-teal)',
+                color: '#ffffff',
+                fontSize: '13px',
+              }}
+            >
               {prescription.prescriptionNumber}
             </span>
-            <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
+            <div className="rx-modal-header-text">
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 Prescription Details
                 <span
-                  className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
+                  className={`rx-badge ${
                     isFinalized
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      ? 'rx-badge-finalized'
                       : isCancelled
-                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      ? 'rx-badge-cancelled'
+                      : 'rx-badge-draft'
                   }`}
                 >
+                  <span className="rx-badge-dot" />
                   {prescription.status}
                 </span>
               </h2>
-              <p className="text-xs text-slate-400">
-                Issued on {new Date(prescription.prescribedAt).toLocaleDateString('en-IN', {
+              <p>
+                Issued on{' '}
+                {new Date(prescription.prescribedAt).toLocaleDateString('en-IN', {
                   day: 'numeric',
                   month: 'short',
                   year: 'numeric',
@@ -116,52 +122,47 @@ export const PrescriptionDetailsModal: React.FC<PrescriptionDetailsModalProps> =
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            className="rx-modal-close-btn"
+            aria-label="Close dialog"
           >
-            <X className="w-5 h-5" />
+            <X />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto space-y-6">
+        <div className="rx-modal-body">
           {error && (
-            <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-start gap-2.5">
-              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div className="rx-alert-box rx-alert-danger">
+              <AlertTriangle />
               <div>
-                <p className="font-bold">Error</p>
-                <p>{error}</p>
+                <strong>Error</strong>
+                <p style={{ margin: '2px 0 0', fontSize: '12px' }}>{error}</p>
               </div>
             </div>
           )}
 
           {/* Patient & Practitioner Banner */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm">
-            <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
-                Patient
-              </span>
-              <p className="font-bold text-slate-900">
-                {patient ? `${patient.firstName} ${patient.lastName}` : 'Assigned Patient'}
-              </p>
-              <p className="text-xs text-slate-500 font-mono">
+          <div className="rx-meta-banner">
+            <div className="rx-meta-item">
+              <h5>Patient</h5>
+              <p>{patient ? `${patient.firstName} ${patient.lastName}` : 'Assigned Patient'}</p>
+              <p className="rx-meta-sub">
                 ID: {patient?.patientCode || prescription.patientId} · {patient?.gender?.toUpperCase()}
               </p>
             </div>
-            <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
-                Prescriber Clinician
-              </span>
-              <p className="font-bold text-slate-900">{doctor?.fullName || 'Dr. Arun Kumar'}</p>
-              <p className="text-xs text-slate-500">Dental Surgeon & Clinical Consultant</p>
+            <div className="rx-meta-item">
+              <h5>Prescriber Clinician</h5>
+              <p>{doctor?.fullName || 'Dr. Arun Kumar'}</p>
+              <p className="rx-meta-sub">Dental Surgeon & Clinical Consultant</p>
             </div>
           </div>
 
           {/* Medical Safety Alerts */}
           {alerts.length > 0 && (
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2.5 text-xs text-rose-800">
-              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div className="rx-alert-box rx-alert-danger">
+              <AlertTriangle />
               <div>
-                <span className="font-bold">Documented Patient Allergies: </span>
+                <strong>Documented Patient Allergies: </strong>
                 <span>{alerts.join(' · ')}</span>
               </div>
             </div>
@@ -169,12 +170,29 @@ export const PrescriptionDetailsModal: React.FC<PrescriptionDetailsModalProps> =
 
           {/* Diagnosis & Findings */}
           <div>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
-              Clinical Diagnosis
-            </h4>
-            <p className="text-sm font-semibold text-slate-900">{prescription.diagnosis}</p>
+            <span className="rx-label">Clinical Diagnosis</span>
+            <p
+              style={{
+                margin: '4px 0 0',
+                fontWeight: 700,
+                fontSize: '14px',
+                color: 'var(--text-strong, #0f172a)',
+              }}
+            >
+              {prescription.diagnosis}
+            </p>
             {prescription.clinicalNotes && (
-              <p className="text-xs text-slate-600 mt-1 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+              <p
+                style={{
+                  margin: '8px 0 0',
+                  padding: '10px 12px',
+                  background: 'var(--paper, #f8fafc)',
+                  borderRadius: 'var(--rx-radius-sm)',
+                  border: '1px solid var(--line, #e2e8f0)',
+                  fontSize: '12.5px',
+                  color: 'var(--text, #334155)',
+                }}
+              >
                 {prescription.clinicalNotes}
               </p>
             )}
@@ -182,58 +200,104 @@ export const PrescriptionDetailsModal: React.FC<PrescriptionDetailsModalProps> =
 
           {/* Medication Items List */}
           <div>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
+            <span
+              className="rx-label"
+              style={{ display: 'block', marginBottom: '8px' }}
+            >
               Prescribed Medications ({prescription.items.length})
-            </h4>
-            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-200">
+            </span>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}
+            >
               {prescription.items.map((it, idx) => (
-                <div key={it.id || idx} className="p-3.5 hover:bg-slate-50/50 flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold flex items-center justify-center">
-                        {idx + 1}
-                      </span>
-                      <p className="font-bold text-sm text-slate-900">
-                        {it.medicineName}{' '}
+                <div
+                  key={it.id || idx}
+                  className="rx-med-card"
+                  style={{ padding: '12px 14px' }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '8px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className="rx-med-number">{idx + 1}</span>
+                      <strong
+                        style={{
+                          fontSize: '13.5px',
+                          color: 'var(--text-strong, #0f172a)',
+                        }}
+                      >
+                        {it.medicineName}
                         {it.strength && (
-                          <span className="text-xs font-normal text-slate-500">({it.strength})</span>
+                          <span
+                            style={{
+                              marginLeft: '6px',
+                              fontSize: '12px',
+                              fontWeight: 500,
+                              color: 'var(--text-muted, #64748b)',
+                            }}
+                          >
+                            ({it.strength})
+                          </span>
                         )}
-                      </p>
+                      </strong>
                     </div>
-                    <p className="text-xs text-slate-600 mt-1 pl-7">
-                      <span className="font-semibold text-slate-700">{it.dosage}</span> ·{' '}
-                      <span className="text-indigo-700 font-medium">{it.frequency}</span> ·{' '}
-                      <span>Duration: {it.duration}</span>
-                      {it.quantity && <span> · Qty: {it.quantity}</span>}
-                    </p>
-                    {it.instructions && (
-                      <p className="text-[11px] text-slate-500 mt-0.5 pl-7 italic">
-                        Usage: {it.instructions}
-                      </p>
-                    )}
+                    <span className="rx-code-pill">{it.route || 'Oral'}</span>
                   </div>
-                  <span className="text-[11px] font-medium bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md">
-                    {it.route || 'Oral'}
-                  </span>
+
+                  <div
+                    style={{
+                      fontSize: '12px',
+                      color: 'var(--text, #334155)',
+                      paddingLeft: '28px',
+                    }}
+                  >
+                    <span>Dosage: <strong>{it.dosage}</strong></span> ·{' '}
+                    <span style={{ color: 'var(--rx-teal)', fontWeight: 600 }}>{it.frequency}</span> ·{' '}
+                    <span>Duration: {it.duration}</span>
+                    {it.quantity && <span> · Qty: {it.quantity}</span>}
+                  </div>
+
+                  {it.instructions && (
+                    <div
+                      style={{
+                        fontSize: '11.5px',
+                        color: 'var(--text-muted, #64748b)',
+                        paddingLeft: '28px',
+                        fontStyle: 'italic',
+                      }}
+                    >
+                      Usage instructions: {it.instructions}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           </div>
 
           {/* Audit Trail Metadata */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs text-slate-600 space-y-1">
-            <p className="font-semibold text-slate-700 mb-1">Prescription Audit History</p>
+          <div className="rx-audit-box">
+            <strong>Prescription Audit History</strong>
             <p>
               • Created on:{' '}
               {new Date(prescription.createdAt || prescription.prescribedAt).toLocaleString('en-IN')}
             </p>
             {prescription.finalizedAt && (
-              <p className="text-emerald-700">
+              <p style={{ color: 'var(--rx-finalized)', fontWeight: 600 }}>
                 • Finalized on: {new Date(prescription.finalizedAt).toLocaleString('en-IN')}
               </p>
             )}
             {prescription.cancelledAt && (
-              <p className="text-rose-700">
+              <p style={{ color: 'var(--rx-cancelled)', fontWeight: 600 }}>
                 • Cancelled on: {new Date(prescription.cancelledAt).toLocaleString('en-IN')}
                 {prescription.cancellationReason && ` (Reason: ${prescription.cancellationReason})`}
               </p>
@@ -242,12 +306,15 @@ export const PrescriptionDetailsModal: React.FC<PrescriptionDetailsModalProps> =
 
           {/* Cancellation Form Expansion */}
           {cancelling && (
-            <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-3">
-              <h5 className="text-xs font-bold uppercase tracking-wider text-rose-900 flex items-center gap-1.5">
-                <Ban className="w-4 h-4 text-rose-600" />
-                Cancel Prescription
-              </h5>
-              <p className="text-xs text-rose-700">
+            <div
+              className="rx-alert-box rx-alert-danger"
+              style={{ flexDirection: 'column', gap: '10px' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Ban />
+                <strong>Cancel Prescription</strong>
+              </div>
+              <p style={{ margin: 0, fontSize: '12px' }}>
                 Documenting a clinical justification reason is mandatory for regulatory audit compliance.
               </p>
               <textarea
@@ -255,13 +322,14 @@ export const PrescriptionDetailsModal: React.FC<PrescriptionDetailsModalProps> =
                 placeholder="e.g. Patient reported severe allergic hives, discontinued medication regimen"
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
-                className="w-full p-2.5 text-xs bg-white border border-rose-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                className="rx-textarea"
+                style={{ borderColor: 'var(--rx-cancelled)' }}
               />
-              <div className="flex items-center gap-2 justify-end">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', alignSelf: 'flex-end' }}>
                 <button
                   type="button"
                   onClick={() => setCancelling(false)}
-                  className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-800"
+                  className="rx-btn rx-btn-secondary rx-btn-sm"
                 >
                   Dismiss
                 </button>
@@ -269,7 +337,7 @@ export const PrescriptionDetailsModal: React.FC<PrescriptionDetailsModalProps> =
                   type="button"
                   disabled={loading}
                   onClick={handleCancel}
-                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold rounded-lg shadow-xs"
+                  className="rx-btn rx-btn-danger rx-btn-sm"
                 >
                   {loading ? 'Cancelling...' : 'Confirm Cancellation'}
                 </button>
@@ -279,27 +347,27 @@ export const PrescriptionDetailsModal: React.FC<PrescriptionDetailsModalProps> =
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 bg-slate-100 border-t border-slate-200 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
+        <div className="rx-modal-footer">
+          <div>
             {!isCancelled && !cancelling && (
               <button
                 type="button"
                 onClick={() => setCancelling(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 text-xs font-semibold rounded-lg transition-colors border border-rose-200"
+                className="rx-btn rx-btn-danger rx-btn-sm"
               >
-                <Ban className="w-3.5 h-3.5" />
+                <Ban />
                 Cancel Prescription
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="rx-modal-footer-actions">
             <button
               type="button"
               onClick={() => onPrint(prescription)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-xs font-semibold transition-colors shadow-xs"
+              className="rx-btn rx-btn-secondary"
             >
-              <Printer className="w-4 h-4 text-slate-500" />
+              <Printer />
               Print / Save as PDF
             </button>
 
@@ -307,9 +375,9 @@ export const PrescriptionDetailsModal: React.FC<PrescriptionDetailsModalProps> =
               <button
                 type="button"
                 onClick={() => onEditDraft(prescription)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold transition-colors shadow-xs"
+                className="rx-btn rx-btn-secondary"
               >
-                <Edit3 className="w-4 h-4" />
+                <Edit3 />
                 Edit Draft
               </button>
             )}
@@ -319,9 +387,9 @@ export const PrescriptionDetailsModal: React.FC<PrescriptionDetailsModalProps> =
                 type="button"
                 disabled={loading}
                 onClick={handleFinalize}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition-colors shadow-xs"
+                className="rx-btn rx-btn-primary"
               >
-                <FileCheck2 className="w-4 h-4" />
+                <FileCheck2 />
                 {loading ? 'Finalizing...' : 'Finalize Prescription'}
               </button>
             )}
@@ -331,4 +399,3 @@ export const PrescriptionDetailsModal: React.FC<PrescriptionDetailsModalProps> =
     </div>
   );
 };
-

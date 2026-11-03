@@ -7,9 +7,6 @@ import {
   FileCheck2,
   Save,
   Pill,
-  Clock,
-  Sparkles,
-  Search,
 } from 'lucide-react';
 import {
   PrescriptionRecord,
@@ -19,6 +16,7 @@ import {
   updatePrescription,
   finalizePrescription,
 } from '../../services/clinicStore';
+import '../../pages/clinical/prescriptions.css';
 
 interface PrescriptionModalProps {
   initialPrescription?: PrescriptionRecord | null;
@@ -252,217 +250,206 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 flex flex-col max-h-[90vh]">
+    <div className="rx-modal-overlay">
+      <div className="rx-modal-dialog rx-modal-dialog-wide" role="dialog" aria-modal="true">
         {/* Modal Header */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-600 rounded-lg text-white">
-              <Pill className="w-5 h-5" />
+        <div className="rx-modal-header">
+          <div className="rx-modal-header-info">
+            <div className="rx-modal-header-icon">
+              <Pill />
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-white">
+            <div className="rx-modal-header-text">
+              <h2>
                 {initialPrescription ? 'Edit Prescription Draft' : 'New Digital Prescription'}
               </h2>
-              <p className="text-xs text-slate-400">
+              <p>
                 Author and issue clinical medications on clinic letterhead
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            className="rx-modal-close-btn"
+            aria-label="Close dialog"
           >
-            <X className="w-5 h-5" />
+            <X />
           </button>
         </div>
 
-        {/* Modal Body / Scrollable Form */}
-        <div className="p-6 overflow-y-auto space-y-6">
+        {/* Modal Body */}
+        <div className="rx-modal-body">
           {error && (
-            <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-sm flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div className="rx-alert-box rx-alert-danger">
+              <AlertTriangle />
               <div>
-                <p className="font-semibold">Prescription Error</p>
-                <p className="text-xs mt-0.5">{error}</p>
+                <strong>Prescription Error</strong>
+                <p style={{ margin: '2px 0 0', fontSize: '12px' }}>{error}</p>
               </div>
             </div>
           )}
 
-          {/* Section 1: Patient Selection & Medical Safety Preview */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4.5 space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
+          {/* Section 1: Patient Selection & Date */}
+          <div className="rx-form-grid-3">
+            <div className="rx-col-span-2 rx-form-group">
+              <label className="rx-label">
                 Patient Selection
+                {defaultPatientId && (
+                  <span style={{ marginLeft: '8px', textTransform: 'none', color: 'var(--rx-teal)', fontWeight: 600 }}>
+                    (Locked to active patient)
+                  </span>
+                )}
               </label>
-              {defaultPatientId && (
-                <span className="text-[11px] font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-                  Patient locked from active profile
-                </span>
-              )}
+              <select
+                disabled={Boolean(defaultPatientId)}
+                value={selectedPatientId}
+                onChange={(e) => setSelectedPatientId(e.target.value)}
+                className="rx-select"
+              >
+                {patients.map((p) => (
+                  <option key={p.id} value={p.backendId || p.id}>
+                    {p.firstName} {p.lastName} ({p.id}) · {p.gender?.toUpperCase()} · {p.mobile}
+                  </option>
+                ))}
+              </select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-2">
-                <select
-                  disabled={Boolean(defaultPatientId)}
-                  value={selectedPatientId}
-                  onChange={(e) => setSelectedPatientId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium disabled:bg-slate-100 disabled:text-slate-600"
-                >
-                  {patients.map((p) => (
-                    <option key={p.id} value={p.backendId || p.id}>
-                      {p.firstName} {p.lastName} ({p.id}) · {p.gender?.toUpperCase()} · {p.mobile}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <input
-                  type="date"
-                  value={prescribedAt}
-                  onChange={(e) => setPrescribedAt(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
+            <div className="rx-form-group">
+              <label className="rx-label">Prescription Date</label>
+              <input
+                type="date"
+                value={prescribedAt}
+                onChange={(e) => setPrescribedAt(e.target.value)}
+                className="rx-input"
+              />
             </div>
-
-            {/* Medical Alerts & Allergies Banner */}
-            {medicalAlerts.length > 0 && (
-              <div className="mt-2 p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2.5 text-xs text-rose-800">
-                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold">Patient Allergies & Safety Alerts: </span>
-                  <span className="font-medium">{medicalAlerts.join(' · ')}</span>
-                </div>
-              </div>
-            )}
           </div>
 
+          {/* Medical Alerts & Allergies Banner */}
+          {medicalAlerts.length > 0 && (
+            <div className="rx-alert-box rx-alert-danger">
+              <AlertTriangle />
+              <div>
+                <strong>Patient Allergies & Safety Alerts: </strong>
+                <span>{medicalAlerts.join(' · ')}</span>
+              </div>
+            </div>
+          )}
+
           {/* Section 2: Diagnosis & Clinical Consultation Notes */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 block mb-1.5">
-                Clinical Diagnosis <span className="text-rose-500">*</span>
+          <div className="rx-form-grid">
+            <div className="rx-form-group">
+              <label className="rx-label">
+                Clinical Diagnosis <span className="rx-req">*</span>
               </label>
               <input
                 type="text"
                 placeholder="e.g. Acute Irreversible Pulpitis, Dental Caries"
                 value={diagnosis}
                 onChange={(e) => setDiagnosis(e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="rx-input"
               />
             </div>
 
-            <div>
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 block mb-1.5">
-                Clinical Notes / Findings (Optional)
-              </label>
+            <div className="rx-form-group">
+              <label className="rx-label">Clinical Notes / Findings (Optional)</label>
               <input
                 type="text"
                 placeholder="e.g. Tenderness on percussion, deep cavity on mesial"
                 value={clinicalNotes}
                 onChange={(e) => setClinicalNotes(e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="rx-input"
               />
             </div>
           </div>
 
-          {/* Section 3: Medication Items Table */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+          {/* Section 3: Medication Items */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div className="rx-med-head">
+              <div className="rx-med-title">
+                <span style={{ fontSize: '13px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-strong, #0f172a)' }}>
                   Medications & Prescribed Regimen
-                </h3>
-                <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-mono font-medium">
+                </span>
+                <span className="rx-code-pill">
                   {items.length} {items.length === 1 ? 'drug' : 'drugs'}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={handleAddItem}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg border border-indigo-200 transition-colors"
+                className="rx-btn rx-btn-secondary rx-btn-sm"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <Plus />
                 Add Medication
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {items.map((item, index) => (
-                <div
-                  key={item.tempId || index}
-                  className="bg-slate-50 border border-slate-200 rounded-xl p-4 transition-all hover:border-slate-300"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
-                      <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[11px] font-bold">
-                        {index + 1}
-                      </span>
+                <div key={item.tempId || index} className="rx-med-card">
+                  <div className="rx-med-head">
+                    <span className="rx-med-title">
+                      <span className="rx-med-number">{index + 1}</span>
                       Medicine #{index + 1}
                     </span>
                     {items.length > 1 && (
                       <button
                         type="button"
                         onClick={() => handleRemoveItem(index)}
-                        className="text-slate-400 hover:text-rose-600 transition-colors p-1"
+                        className="rx-btn-icon"
                         title="Remove medication"
+                        style={{ color: 'var(--rx-cancelled)' }}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 />
                       </button>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
-                    <div className="md:col-span-2">
-                      <label className="text-[11px] font-medium text-slate-600 block mb-1">
-                        Medicine Name <span className="text-rose-500">*</span>
+                  <div className="rx-form-grid-4">
+                    <div className="rx-col-span-2 rx-form-group">
+                      <label className="rx-label">
+                        Medicine Name <span className="rx-req">*</span>
                       </label>
                       <input
                         type="text"
                         placeholder="e.g. Amoxicillin, Paracetamol"
                         value={item.medicineName}
                         onChange={(e) => handleItemChange(index, 'medicineName', e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        className="rx-input"
                       />
                     </div>
 
-                    <div>
-                      <label className="text-[11px] font-medium text-slate-600 block mb-1">
-                        Strength (Optional)
-                      </label>
+                    <div className="rx-form-group">
+                      <label className="rx-label">Strength (Optional)</label>
                       <input
                         type="text"
-                        placeholder="e.g. 500 mg, 625 mg, 0.2%"
+                        placeholder="e.g. 500 mg, 625 mg"
                         value={item.strength || ''}
                         onChange={(e) => handleItemChange(index, 'strength', e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        className="rx-input"
                       />
                     </div>
 
-                    <div>
-                      <label className="text-[11px] font-medium text-slate-600 block mb-1">
-                        Dosage Unit <span className="text-rose-500">*</span>
+                    <div className="rx-form-group">
+                      <label className="rx-label">
+                        Dosage Unit <span className="rx-req">*</span>
                       </label>
                       <input
                         type="text"
-                        placeholder="e.g. 1 tablet, 5 ml, 1 drop"
+                        placeholder="e.g. 1 tablet, 5 ml"
                         value={item.dosage}
                         onChange={(e) => handleItemChange(index, 'dosage', e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        className="rx-input"
                       />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
-                    <div>
-                      <label className="text-[11px] font-medium text-slate-600 block mb-1">Route</label>
+                  <div className="rx-form-grid-4">
+                    <div className="rx-form-group">
+                      <label className="rx-label">Route</label>
                       <select
                         value={item.route || 'Oral'}
                         onChange={(e) => handleItemChange(index, 'route', e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        className="rx-select"
                       >
                         {COMMON_ROUTES.map((r) => (
                           <option key={r} value={r}>
@@ -472,9 +459,9 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
                       </select>
                     </div>
 
-                    <div>
-                      <label className="text-[11px] font-medium text-slate-600 block mb-1">
-                        Frequency <span className="text-rose-500">*</span>
+                    <div className="rx-form-group">
+                      <label className="rx-label">
+                        Frequency <span className="rx-req">*</span>
                       </label>
                       <input
                         type="text"
@@ -482,7 +469,7 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
                         placeholder="e.g. 1-0-1, TID, PRN"
                         value={item.frequency}
                         onChange={(e) => handleItemChange(index, 'frequency', e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        className="rx-input"
                       />
                       <datalist id={`freq-list-${index}`}>
                         {COMMON_FREQUENCIES.map((f) => (
@@ -491,21 +478,21 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
                       </datalist>
                     </div>
 
-                    <div>
-                      <label className="text-[11px] font-medium text-slate-600 block mb-1">
-                        Duration <span className="text-rose-500">*</span>
+                    <div className="rx-form-group">
+                      <label className="rx-label">
+                        Duration <span className="rx-req">*</span>
                       </label>
                       <input
                         type="text"
                         placeholder="e.g. 5 days, 1 week"
                         value={item.duration}
                         onChange={(e) => handleItemChange(index, 'duration', e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        className="rx-input"
                       />
                     </div>
 
-                    <div>
-                      <label className="text-[11px] font-medium text-slate-600 block mb-1">Total Quantity</label>
+                    <div className="rx-form-group">
+                      <label className="rx-label">Total Quantity</label>
                       <input
                         type="number"
                         min="1"
@@ -518,21 +505,19 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
                             e.target.value ? parseInt(e.target.value, 10) : undefined
                           )
                         }
-                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        className="rx-input"
                       />
                     </div>
                   </div>
 
-                  <div>
-                    <label className="text-[11px] font-medium text-slate-600 block mb-1">
-                      Patient Usage Instructions
-                    </label>
+                  <div className="rx-form-group">
+                    <label className="rx-label">Patient Usage Instructions</label>
                     <input
                       type="text"
                       placeholder="e.g. Take immediately after meals with warm water"
                       value={item.instructions || ''}
                       onChange={(e) => handleItemChange(index, 'instructions', e.target.value)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      className="rx-input"
                     />
                   </div>
                 </div>
@@ -541,25 +526,25 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
           </div>
         </div>
 
-        {/* Modal Footer Actions */}
-        <div className="px-6 py-4 bg-slate-100 border-t border-slate-200 flex items-center justify-between shrink-0">
+        {/* Modal Footer */}
+        <div className="rx-modal-footer">
           <button
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-4 py-2 text-slate-600 hover:text-slate-800 text-sm font-semibold transition-colors"
+            className="rx-btn rx-btn-secondary"
           >
             Cancel
           </button>
 
-          <div className="flex items-center gap-3">
+          <div className="rx-modal-footer-actions">
             <button
               type="button"
               disabled={loading}
               onClick={() => handleSubmit(false)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-xl text-sm font-semibold transition-colors shadow-xs"
+              className="rx-btn rx-btn-secondary"
             >
-              <Save className="w-4 h-4 text-slate-500" />
+              <Save />
               Save Draft
             </button>
 
@@ -567,9 +552,9 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
               type="button"
               disabled={loading}
               onClick={() => handleSubmit(true)}
-              className="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-semibold transition-colors shadow-sm disabled:opacity-50"
+              className="rx-btn rx-btn-primary"
             >
-              <FileCheck2 className="w-4 h-4" />
+              <FileCheck2 />
               {loading ? 'Processing...' : 'Finalize Prescription'}
             </button>
           </div>
