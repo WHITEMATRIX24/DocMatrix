@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, it, expect, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { within, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import App from '@/App'
 import PatientListPage from '@/pages/patients/PatientListPage'
@@ -94,7 +94,7 @@ describe('Patients Module Refactoring & Clinical Centralization', () => {
   })
 
   // 4. UNIFIED PATIENT PROFILE 5-TAB STRUCTURE & DATA LOADING
-  it('renders all 5 unified profile tabs with authentic clinical data', () => {
+  it('renders all 6 unified profile tabs with authentic clinical data', () => {
     render(
       <MemoryRouter initialEntries={['/patients/pt-1001']}>
         <Routes>
@@ -117,28 +117,28 @@ describe('Patients Module Refactoring & Clinical Centralization', () => {
     expect(screen.getByRole('link', { name: /Start Consultation/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Tooth Chart/i })).toBeInTheDocument()
 
-    // 5 Tabs Presence
-    const tabs = ['Overview', 'Medical History', 'Visit Timeline', 'Documents', 'Consent Records']
+    // 6 Tabs Presence
+    const tabs = ['Overview', 'Medical History', 'Activity', 'Billing', 'Documents', 'Consent Records']
     for (const tab of tabs) {
       expect(screen.getByRole('button', { name: new RegExp(tab, 'i') })).toBeInTheDocument()
     }
 
     // Switch to Medical History Tab
-    fireEvent.click(screen.getByRole('button', { name: /Medical History/i }))
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Patient Profile Sections' })).getByRole('button', { name: /Medical History/i }))
     expect(screen.getByText(/Patient Medical Screening & Dental Safety/i)).toBeInTheDocument()
     expect(screen.getAllByText(/Penicillin allergy, Latex sensitivity/i).length).toBeGreaterThan(0)
 
-    // Switch to Visit Timeline Tab
-    fireEvent.click(screen.getByRole('button', { name: /Visit Timeline/i }))
-    expect(screen.getByText(/Chronological Visit Timeline/i)).toBeInTheDocument()
+    // Switch to Activity Tab (visits, notes, bills, documents, consents)
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Patient Profile Sections' })).getByRole('button', { name: /^Activity/i }))
+    expect(screen.getByRole('heading', { name: /Patient activity/i })).toBeInTheDocument()
 
     // Switch to Documents Tab
-    fireEvent.click(screen.getByRole('button', { name: /Documents/i }))
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Patient Profile Sections' })).getByRole('button', { name: /Documents/i }))
     expect(screen.getByText(/Diagnostic Records & Radiographs/i)).toBeInTheDocument()
     expect(screen.getByText(/Diagnostic Digital RVG X-Ray/i)).toBeInTheDocument()
 
     // Switch to Consent Records Tab
-    fireEvent.click(screen.getByRole('button', { name: /Consent Records/i }))
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Patient Profile Sections' })).getByRole('button', { name: /Consent Records/i }))
     expect(screen.getByText(/Informed Consent & Regulatory Records/i)).toBeInTheDocument()
     expect(screen.getByText(/Informed Consent for Endodontic Root Canal Therapy/i)).toBeInTheDocument()
   })
@@ -153,7 +153,7 @@ describe('Patients Module Refactoring & Clinical Centralization', () => {
         </Routes>
       </MemoryRouter>
     )
-    expect(screen.getByText(/Chronological Visit Timeline/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Patient activity/i })).toBeInTheDocument()
     unmountTimeline()
 
     // B. Documents deep link

@@ -1,8 +1,2 @@
-import React from 'react'
-import { FeaturePlaceholder } from '@/components/FeaturePlaceholder'
-
-export const PatientConsentsPage: React.FC = () => {
-  return <FeaturePlaceholder id="pat.consents" />
-}
-
-export default PatientConsentsPage
+// /patients/:id/consents opens the patient profile on its "consents" tab.
+export { PatientProfilePage as PatientConsentsPage, default } from './PatientProfilePage'
