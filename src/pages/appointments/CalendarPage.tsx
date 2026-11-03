@@ -1157,7 +1157,7 @@ export const CalendarPage: React.FC = () => {
               {/* Context Summary Banner */}
               <div className="reschedule-context-banner">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>Patient: <strong style={{ color: 'var(--text-strong)' }}>{activeAppt.patientName}</strong></span>
+                  <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>Patient: <strong style={{ color: 'var(--text-strong)' }}>{(activeAppt as any).patientName || patients.find(p => p.id === activeAppt.patientId)?.firstName || 'Patient'}</strong></span>
                   <span style={{ fontSize: '11px', color: 'var(--teal-primary)', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: 'var(--teal-tint)' }}>{activeAppt.chair}</span>
                 </div>
                 <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px' }}>

@@ -1726,7 +1726,7 @@ export const addPatientDocument = (
           emitChange()
         }
       })
-      .catch((err) => {
+      .catch((err: any) => {
         console.error('[clinicStore] addPatientDocument failed, rolling back:', err)
         patientDocumentsState = patientDocumentsState.filter((d) => d.id !== tempId)
         emitChange()
@@ -1790,7 +1790,7 @@ export const addPatientConsent = (
           emitChange()
         }
       })
-      .catch((err) => {
+      .catch((err: any) => {
         console.error('[clinicStore] addPatientConsent failed, rolling back:', err)
         patientConsentsState = patientConsentsState.filter((c) => c.id !== tempId)
         emitChange()
@@ -1864,7 +1864,7 @@ export const saveToothConditionForPatient = (
         condition,
         notes,
       })
-      .catch((err) => {
+      .catch((err: any) => {
         console.error('[clinicStore] saveToothCondition failed, rolling back:', err)
         toothChartsState = {
           ...toothChartsState,
@@ -1891,7 +1891,7 @@ export const saveFullToothChartForPatient = (
       .post(`/patients/${encodeURIComponent(patientId)}/tooth-chart/batch`, {
         chart,
       })
-      .catch((err) => {
+      .catch((err: any) => {
         console.error('[clinicStore] saveFullToothChart failed, rolling back:', err)
         if (prevChart) {
           toothChartsState = {

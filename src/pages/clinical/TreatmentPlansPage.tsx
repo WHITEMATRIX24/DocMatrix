@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Stethoscope, CheckCircle2, Clock, AlertCircle, Plus, UserRound, ArrowRight, Filter } from 'lucide-react'
+import { Stethoscope, CheckCircle2, Clock, AlertCircle, Plus, UserRound, ArrowRight, Filter, Sparkles } from 'lucide-react'
+import { TreatmentMaterialUsageModal } from '@/components/inventory/TreatmentMaterialUsageModal'
 import {
   useClinicData,
   updateTreatmentPlanStatus,
@@ -14,6 +15,7 @@ export const TreatmentPlansPage: React.FC = () => {
   const { treatmentPlans = [], patients = [] } = useClinicData()
   const [activeStatus, setActiveStatus] = useState<PlanStatusFilter>('All')
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedPlanForModal, setSelectedPlanForModal] = useState<TreatmentPlanRecord | null>(null)
 
   // Map patient id to patient object
   const patientMap = useMemo(() => {
@@ -65,6 +67,10 @@ export const TreatmentPlansPage: React.FC = () => {
 
   const handleStatusChange = (id: string, newStatus: TreatmentPlanRecord['status']) => {
     updateTreatmentPlanStatus(id, newStatus)
+    if (newStatus === 'Completed') {
+      const plan = (treatmentPlans as TreatmentPlanRecord[]).find((p) => p.id === id)
+      if (plan) setSelectedPlanForModal(plan)
+    }
   }
 
   const getStatusBadgeStyle = (status: TreatmentPlanRecord['status']) => {
@@ -215,14 +221,26 @@ export const TreatmentPlansPage: React.FC = () => {
                     </td>
 
                     <td style={{ textAlign: 'right' }}>
-                      <Link
-                        to={`/patients/${plan.patientId}`}
-                        className="pat-action-btn"
-                        style={{ padding: '4px 10px', fontSize: '12px' }}
-                      >
-                        <span>Patient Profile</span>
-                        <ArrowRight size={12} />
-                      </Link>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          type="button"
+                          className="pat-action-btn"
+                          onClick={() => setSelectedPlanForModal(plan)}
+                          style={{ padding: '4px 8px', fontSize: '11.5px', background: 'rgba(11, 129, 133, 0.08)', color: 'var(--teal-primary, #0b8185)', border: '1px solid rgba(11, 129, 133, 0.25)', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          title="Record material consumption"
+                        >
+                          <Sparkles size={11} />
+                          <span>Materials</span>
+                        </button>
+                        <Link
+                          to={`/patients/${plan.patientId}`}
+                          className="pat-action-btn"
+                          style={{ padding: '4px 10px', fontSize: '12px' }}
+                        >
+                          <span>Patient Profile</span>
+                          <ArrowRight size={12} />
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -240,6 +258,21 @@ export const TreatmentPlansPage: React.FC = () => {
               : `No treatment plans currently in "${activeStatus}" state.`}
           </p>
         </div>
+      )}
+
+      {/* Adaptive Treatment Material Usage Modal */}
+      {selectedPlanForModal && (
+        <TreatmentMaterialUsageModal
+          isOpen={Boolean(selectedPlanForModal)}
+          onClose={() => setSelectedPlanForModal(null)}
+          treatmentId={selectedPlanForModal.id}
+          patientId={selectedPlanForModal.patientId}
+          patientName={patientMap.get(selectedPlanForModal.patientId.toLowerCase()) ? `${patientMap.get(selectedPlanForModal.patientId.toLowerCase())?.firstName} ${patientMap.get(selectedPlanForModal.patientId.toLowerCase())?.lastName}` : selectedPlanForModal.patientId}
+          doctorId={selectedPlanForModal.doctor.includes('Priya') ? 'doc-2' : selectedPlanForModal.doctor.includes('Tariq') ? 'doc-3' : 'doc-1'}
+          doctorName={selectedPlanForModal.doctor}
+          procedureId={selectedPlanForModal.procedure.toLowerCase().includes('root canal') ? 'trt-root-canal' : selectedPlanForModal.procedure.toLowerCase().includes('extraction') ? 'trt-extraction' : 'trt-root-canal'}
+          procedureName={selectedPlanForModal.procedure}
+        />
       )}
     </section>
   )

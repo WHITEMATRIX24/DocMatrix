@@ -15,8 +15,11 @@ import {
   Stethoscope,
   CheckCircle2,
   Activity,
-  History
+  History,
+  Sparkles,
+  Package
 } from 'lucide-react'
+import { TreatmentMaterialUsageModal } from '@/components/inventory/TreatmentMaterialUsageModal'
 import {
   useClinicData,
   updateAppointmentStatus,
@@ -39,6 +42,7 @@ export const AppointmentDetailPage: React.FC = () => {
   const [showReschedule, setShowReschedule] = useState(false)
   const [showCancel, setShowCancel] = useState(false)
   const [showWhatsApp, setShowWhatsApp] = useState(false)
+  const [showMaterialModal, setShowMaterialModal] = useState(false)
 
   const [rescheduleDate, setRescheduleDate] = useState(appointment?.date || '')
   const [rescheduleTime, setRescheduleTime] = useState(appointment?.time || '10:00')
@@ -62,6 +66,9 @@ export const AppointmentDetailPage: React.FC = () => {
 
   const handleStatusChange = (newStatus: AppointmentStatus) => {
     updateAppointmentStatus(appointment.id, newStatus)
+    if (newStatus === 'completed') {
+      setShowMaterialModal(true)
+    }
   }
 
   const handleRescheduleSubmit = (e: React.FormEvent) => {
@@ -157,6 +164,15 @@ export const AppointmentDetailPage: React.FC = () => {
 
       {/* Action Buttons: Reschedule, WhatsApp, Cancel */}
       <div className="appointment-action-controls">
+        <button
+          className="btn-reschedule"
+          style={{ borderColor: 'rgba(11, 129, 133, 0.4)', color: 'var(--teal-primary, #0b8185)' }}
+          onClick={() => setShowMaterialModal(true)}
+          title="Review and confirm materials used during this procedure"
+        >
+          <Sparkles size={15} />
+          <span>Record Material Usage</span>
+        </button>
         <button className="btn-reschedule" onClick={() => setShowReschedule(true)}>
           <RotateCcw size={15} />
           <span>Reschedule Booking</span>
@@ -363,6 +379,19 @@ export const AppointmentDetailPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      {showMaterialModal && (
+        <TreatmentMaterialUsageModal
+          isOpen={showMaterialModal}
+          onClose={() => setShowMaterialModal(false)}
+          appointmentId={appointment.id}
+          patientId={patient.id}
+          patientName={`${patient.firstName} ${patient.lastName}`}
+          doctorId={appointment.doctor.includes('Priya') ? 'doc-2' : appointment.doctor.includes('Tariq') ? 'doc-3' : 'doc-1'}
+          doctorName={appointment.doctor}
+          procedureId={(appointment.treatmentType || appointment.visitType || '').toLowerCase().includes('root canal') ? 'trt-root-canal' : (appointment.treatmentType || '').toLowerCase().includes('extraction') ? 'trt-extraction' : 'trt-root-canal'}
+          procedureName={appointment.treatmentType || appointment.visitType || 'Root Canal Treatment'}
+        />
       )}
     </section>
   )
