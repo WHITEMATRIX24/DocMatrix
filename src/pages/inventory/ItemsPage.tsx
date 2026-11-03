@@ -416,89 +416,53 @@ export const ItemsPage: React.FC = () => {
         </button>
       </div>
 
-      {/* TAB 1: STOCK LEVELS & BATCHES (MINIMAL & CONVENIENT) */}
+      {/* TAB 1: STOCK LEVELS & BATCHES (SIMPLE & STANDARD) */}
       {activeTab === 'stock' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          {/* 1. Unified Minimal Control Toolbar */}
-          <div className="min-filter-bar">
-            {/* Search Input */}
-            <div className="min-search-wrapper">
-              <Search size={15} className="min-search-icon" />
-              <input
-                className="min-search-input"
-                placeholder="Search items by name, SKU, or batch..."
-                value={searchStock}
-                onChange={(e) => setSearchStock(e.target.value)}
-              />
-            </div>
-
-            {/* Quick Status Filter Pills */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                className={`status-filter-pill ${statusQuickFilter === 'all' ? 'is-active' : ''}`}
-                onClick={() => setStatusQuickFilter('all')}
-              >
-                <span>All</span>
-                <span className="status-count-badge">{inventory.items.length}</span>
-              </button>
-              <button
-                type="button"
-                className={`status-filter-pill ${statusQuickFilter === 'low' ? 'is-active' : ''} ${lowStockCount > 0 ? 'is-alert' : ''}`}
-                onClick={() => setStatusQuickFilter('low')}
-              >
-                <span>Low Stock</span>
-                <span className="status-count-badge">{lowStockCount}</span>
-              </button>
-              <button
-                type="button"
-                className={`status-filter-pill is-warning ${statusQuickFilter === 'expiring' ? 'is-active' : ''}`}
-                onClick={() => setStatusQuickFilter('expiring')}
-              >
-                <span>Near Expiry</span>
-                <span className="status-count-badge">{nearExpiryCount}</span>
-              </button>
-            </div>
-
-            {/* View Mode Switcher: Table / Cards */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', background: '#f1f5f9', padding: '3px', borderRadius: '9999px', border: '1px solid #e2e8f0' }}>
-                <button
-                  type="button"
-                  className={`ai-mode-btn ${stockViewMode === 'table' ? 'is-active' : ''}`}
-                  onClick={() => setStockViewMode('table')}
-                  style={{
-                    padding: '5px 14px',
-                    fontSize: '12.5px',
-                    borderRadius: '9999px',
-                    background: stockViewMode === 'table' ? '#ffffff' : 'transparent',
-                    color: stockViewMode === 'table' ? 'var(--teal-primary, #008891)' : '#64748b',
-                    fontWeight: stockViewMode === 'table' ? 700 : 500,
-                    boxShadow: stockViewMode === 'table' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none'
-                  }}
-                  title="Compact Table Sheet View"
-                >
-                  <List size={14} /> Table
-                </button>
-                <button
-                  type="button"
-                  className={`ai-mode-btn ${stockViewMode === 'grid' ? 'is-active' : ''}`}
-                  onClick={() => setStockViewMode('grid')}
-                  style={{
-                    padding: '5px 14px',
-                    fontSize: '12.5px',
-                    borderRadius: '9999px',
-                    background: stockViewMode === 'grid' ? '#ffffff' : 'transparent',
-                    color: stockViewMode === 'grid' ? 'var(--teal-primary, #008891)' : '#64748b',
-                    fontWeight: stockViewMode === 'grid' ? 700 : 500,
-                    boxShadow: stockViewMode === 'grid' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none'
-                  }}
-                  title="Card Grid View"
-                >
-                  <LayoutGrid size={14} /> Cards
-                </button>
+          {/* Standard Filter Toolbar */}
+          <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '280px', flexWrap: 'wrap' }}>
+              {/* Search */}
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', minWidth: '220px', flex: 1, maxWidth: '320px' }}>
+                <Search size={15} style={{ position: 'absolute', left: '12px', color: '#94a3b8', pointerEvents: 'none' }} />
+                <input
+                  style={{ width: '100%', padding: '7px 12px 7px 34px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#f8fafc', outline: 'none' }}
+                  placeholder="Search item, SKU, or batch..."
+                  value={searchStock}
+                  onChange={(e) => setSearchStock(e.target.value)}
+                />
               </div>
 
+              {/* Department Dropdown */}
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#ffffff', color: '#0f172a', cursor: 'pointer', fontWeight: 500 }}
+              >
+                {clinicalDepartments.map((dept) => (
+                  <option key={dept.id} value={dept.id}>
+                    {dept.label} ({getDeptCount(dept.id)})
+                  </option>
+                ))}
+              </select>
+
+              {/* Status Filter Dropdown */}
+              <select
+                value={statusQuickFilter}
+                onChange={(e) => setStatusQuickFilter(e.target.value as any)}
+                style={{ padding: '7px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#ffffff', color: '#0f172a', cursor: 'pointer', fontWeight: 500 }}
+              >
+                <option value="all">All Status ({inventory.items.length})</option>
+                <option value="low">Low Stock ({lowStockCount})</option>
+                <option value="expiring">Near Expiry ({nearExpiryCount})</option>
+              </select>
+            </div>
+
+            {/* Right Action: Receive Stock */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '12.5px', color: '#64748b' }}>
+                Showing <strong>{filteredStock.length}</strong> items
+              </span>
               {filteredStock[0] && (
                 <button
                   type="button"
@@ -509,285 +473,131 @@ export const ItemsPage: React.FC = () => {
                     setNewBatchExpiry('2028-12-31')
                     setNewBatchQty(first.reorderLevel * 2)
                   }}
-                  className="careplus-pill-btn"
-                  style={{ padding: '6px 14px', fontSize: '12px' }}
+                  className="pat-btn pat-btn-primary"
+                  style={{ padding: '7px 16px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '8px' }}
                 >
-                  <Plus size={13} />
-                  <span>Receive Stock</span>
+                  <Plus size={14} /> Receive Stock
                 </button>
               )}
             </div>
           </div>
 
-          {/* 2. Compact Department Filter Pills Strip (Minimal 34px Profile) */}
-          <div className="min-dept-bar">
-            {clinicalDepartments.map((dept) => {
-              const DeptIcon = dept.icon
-              const isActive = categoryFilter === dept.id
-              const count = getDeptCount(dept.id)
+          {/* Standard Clean Inventory Table */}
+          <div className="inv-sheet-container" style={{ borderRadius: '12px', boxShadow: 'none' }}>
+            <table className="inv-sheet-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '28%' }}>Item & SKU</th>
+                  <th style={{ width: '15%' }}>Department</th>
+                  <th style={{ width: '12%' }}>In Stock</th>
+                  <th style={{ width: '12%' }}>Reorder Level</th>
+                  <th style={{ width: '20%' }}>Active Batches (FEFO)</th>
+                  <th style={{ width: '8%' }}>Status</th>
+                  <th style={{ width: '5%', textAlign: 'right' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredStock.map((stock) => {
+                  const isLow = stock.totalStock <= stock.reorderLevel
+                  const sortedBatches = [...stock.activeBatches].sort((a, b) => a.expiryDate.localeCompare(b.expiryDate))
 
-              return (
-                <button
-                  key={dept.id}
-                  type="button"
-                  className={`min-dept-pill ${isActive ? 'is-active' : ''}`}
-                  onClick={() => setCategoryFilter(dept.id)}
-                >
-                  <DeptIcon size={14} />
-                  <span>{dept.label}</span>
-                  <span className="min-dept-badge">{count}</span>
-                </button>
-              )
-            })}
-          </div>
-
-          {/* VIEW 1: CAREPLUS ROUNDED CARD GRID VIEW */}
-          {stockViewMode === 'grid' && (
-            <div className="stock-card-grid">
-              {filteredStock.map((item) => {
-                const isLow = item.totalStock <= item.reorderLevel
-                const sortedBatches = [...item.activeBatches].sort((a, b) => a.expiryDate.localeCompare(b.expiryDate))
-                const primaryBatch = sortedBatches[0]
-                const catVisual = getCategoryVisual(item.category)
-                const CatIcon = catVisual.icon
-
-                return (
-                  <div key={item.id} className={`stock-item-card ${isLow ? 'is-low-stock' : ''}`}>
-                    {/* Card Header: Icon Avatar + Category & SKU + Status Pill */}
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                          <div className="stock-icon-avatar" style={{ background: catVisual.bg, color: catVisual.color }}>
-                            <CatIcon size={20} />
-                          </div>
-                          <div style={{ minWidth: 0 }}>
-                            <span style={{ fontSize: '11px', fontWeight: 700, color: catVisual.color, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                              {item.category}
-                            </span>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {item.sku}
-                            </div>
-                          </div>
+                  return (
+                    <tr key={stock.id} className="inv-sheet-row">
+                      {/* Item & SKU */}
+                      <td>
+                        <div style={{ fontWeight: 600, fontSize: '13.5px', color: '#0f172a' }}>
+                          {stock.name}
                         </div>
+                        <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace', marginTop: '2px' }}>
+                          {stock.sku}
+                        </div>
+                      </td>
 
+                      {/* Department */}
+                      <td>
+                        <span style={{ fontSize: '12.5px', color: '#475569', fontWeight: 500 }}>
+                          {stock.category}
+                        </span>
+                      </td>
+
+                      {/* Stock */}
+                      <td>
+                        <span style={{ fontSize: '14px', fontWeight: 700, color: isLow ? '#dc2626' : '#0f172a' }}>
+                          {stock.totalStock} {stock.unit}
+                        </span>
+                      </td>
+
+                      {/* Reorder Level */}
+                      <td>
+                        <span style={{ fontSize: '12.5px', color: '#64748b' }}>
+                          {stock.reorderLevel} {stock.unit}
+                        </span>
+                      </td>
+
+                      {/* Batches & Expiry */}
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          {sortedBatches.slice(0, 2).map((b, idx) => (
+                            <div key={b.batchNumber} style={{ fontSize: '11.5px', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <strong>{b.batchNumber}</strong>
+                              <span>({b.quantity} {stock.unit})</span>
+                              <span style={{ color: '#64748b', fontSize: '10.5px' }}>Exp: {b.expiryDate}</span>
+                              {idx === 0 && sortedBatches.length > 1 && (
+                                <span className="fefo-pill">FEFO</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td>
                         {isLow ? (
-                          <span className="careplus-status-pill is-low">
-                            Low Stock
-                          </span>
+                          <span className="careplus-status-pill is-low">Low Stock</span>
                         ) : (
-                          <span className="careplus-status-pill is-optimal">
-                            Optimal
-                          </span>
+                          <span className="careplus-status-pill is-optimal">In Stock</span>
                         )}
-                      </div>
+                      </td>
 
-                      {/* Item Name */}
-                      <h3
-                        title={item.name}
-                        style={{
-                          margin: '12px 0 2px 0',
-                          fontSize: '15.5px',
-                          fontWeight: 700,
-                          color: 'var(--text-main, #0f172a)',
-                          lineHeight: '1.3',
-                          minHeight: '40px'
-                        }}
-                      >
-                        {item.name}
-                      </h3>
-                    </div>
-
-                    {/* Stock Level Counter */}
-                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                      <div>
-                        <span style={{ fontSize: '24px', fontWeight: 800, color: isLow ? '#dc2626' : 'var(--text-main, #0f172a)' }}>
-                          {item.totalStock}
-                        </span>
-                        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted, #64748b)', marginLeft: '6px' }}>
-                          {item.unit}
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '11.5px', color: 'var(--text-muted, #64748b)' }}>
-                        Reorder: <strong>{item.reorderLevel}</strong>
-                      </span>
-                    </div>
-
-                    {/* Active Lot Pill */}
-                    <div className="careplus-batch-pill">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span className="fefo-pill">FEFO</span>
-                        <strong style={{ fontSize: '12px', color: 'var(--text-main, #0f172a)' }}>
-                          {primaryBatch ? primaryBatch.batchNumber : 'GEN-LOT'}
-                        </strong>
-                      </div>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)' }}>
-                        Exp: {primaryBatch ? primaryBatch.expiryDate : '2028-12-31'}
-                      </span>
-                    </div>
-
-                    {/* Footer: Price and Cyan Pill Action Button */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '4px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted, #64748b)' }}>
-                        ₹{item.costPerUnit} / {item.unit}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setBatchModalItem(item)
-                          setNewBatchNumber(`${item.sku.split('-')[0]}-${new Date().getFullYear()}-01`)
-                          setNewBatchExpiry('2028-12-31')
-                          setNewBatchQty(item.reorderLevel * 2)
-                        }}
-                        className="careplus-pill-btn"
-                      >
-                        <Plus size={13} />
-                        <span>Receive Lot</span>
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
-          {/* VIEW 2: ORGANIZED INVENTORY SHEET / TABLE */}
-          {stockViewMode === 'table' && (
-            <div className="inv-sheet-container">
-              <table className="inv-sheet-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '25%' }}>Item & SKU</th>
-                    <th style={{ width: '13%' }}>Category</th>
-                    <th style={{ width: '12%' }}>Current Stock</th>
-                    <th style={{ width: '12%' }}>Reorder Level</th>
-                    <th style={{ width: '23%' }}>Batch Breakdown & FEFO</th>
-                    <th style={{ width: '8%' }}>Status</th>
-                    <th style={{ width: '7%', textAlign: 'right' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredStock.map((stock) => {
-                    const isLow = stock.totalStock <= stock.reorderLevel
-                    const sortedBatches = [...stock.activeBatches].sort((a, b) => a.expiryDate.localeCompare(b.expiryDate))
-                    const catVisual = getCategoryVisual(stock.category)
-
-                    return (
-                      <tr key={stock.id} className="inv-sheet-row">
-                        {/* 1. Item & SKU */}
-                        <td>
-                          <div style={{ fontWeight: 700, fontSize: '13.5px', color: '#0f172a' }}>
-                            {stock.name}
-                          </div>
-                          <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace', marginTop: '2px' }}>
-                            SKU: {stock.sku}
-                          </div>
-                        </td>
-
-                        {/* 2. Category */}
-                        <td>
-                          <span
-                            style={{
-                              background: catVisual.bg,
-                              color: catVisual.color,
-                              padding: '3px 10px',
-                              borderRadius: '9999px',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              display: 'inline-block',
-                              whiteSpace: 'nowrap'
+                      {/* Actions */}
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBatchModalItem(stock)
+                              setNewBatchNumber(`${stock.sku.split('-')[0]}-${new Date().getFullYear()}-01`)
+                              setNewBatchExpiry('2028-12-31')
+                              setNewBatchQty(stock.reorderLevel * 2)
                             }}
+                            className="pat-btn"
+                            style={{ padding: '4px 10px', fontSize: '11.5px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                            title="Receive new batch lot"
                           >
-                            {stock.category}
-                          </span>
-                        </td>
-
-                        {/* 3. Current Stock */}
-                        <td>
-                          <span style={{ fontSize: '15px', fontWeight: 800, color: isLow ? '#dc2626' : '#0f172a' }}>
-                            {stock.totalStock}
-                          </span>
-                          <span style={{ fontSize: '12px', fontWeight: 500, color: '#64748b', marginLeft: '4px' }}>
-                            {stock.unit}
-                          </span>
-                        </td>
-
-                        {/* 4. Reorder Level */}
-                        <td>
-                          <span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>
-                            {stock.reorderLevel} {stock.unit}
-                          </span>
-                        </td>
-
-                        {/* 5. Batch Breakdown & FEFO */}
-                        <td>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                            {sortedBatches.map((b, idx) => (
-                              <div key={b.batchNumber} className="inv-batch-pill-row">
-                                <span className="inv-batch-num">{b.batchNumber}:</span>
-                                <span className="inv-batch-qty">{b.quantity} {stock.unit}</span>
-                                <span className="inv-batch-exp">(Exp: {b.expiryDate})</span>
-                                {idx === 0 && sortedBatches.length > 1 && (
-                                  <span className="fefo-pill" style={{ marginLeft: '2px' }}>FEFO</span>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-
-                        {/* 6. Status */}
-                        <td>
-                          {isLow ? (
-                            <span className="careplus-status-pill is-low">
-                              Low Stock
-                            </span>
-                          ) : (
-                            <span className="careplus-status-pill is-optimal">
-                              Optimal
-                            </span>
-                          )}
-                        </td>
-
-                        {/* 7. Actions */}
-                        <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <Plus size={11} /> Lot
+                          </button>
+                          {stock.activeBatches[0] && (
                             <button
                               type="button"
                               onClick={() => {
-                                setBatchModalItem(stock)
-                                setNewBatchNumber(`${stock.sku.split('-')[0]}-${new Date().getFullYear()}-01`)
-                                setNewBatchExpiry('2028-12-31')
-                                setNewBatchQty(stock.reorderLevel * 2)
+                                setAdjustModalData({ item: stock, batch: stock.activeBatches[0] })
+                                setAdjustAmount(0)
                               }}
-                              className="careplus-pill-btn"
-                              style={{ padding: '4px 12px', fontSize: '11.5px' }}
-                              title="Receive new batch lot"
+                              className="pat-btn"
+                              style={{ padding: '4px 8px', fontSize: '11.5px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f8fafc' }}
+                              title="Adjust stock quantity"
                             >
-                              <Plus size={12} />
-                              <span>Lot</span>
+                              Adjust
                             </button>
-                            {stock.activeBatches[0] && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setAdjustModalData({ item: stock, batch: stock.activeBatches[0] })
-                                  setAdjustAmount(0)
-                                }}
-                                className="careplus-pill-btn secondary"
-                                style={{ padding: '4px 10px', fontSize: '11.5px' }}
-                                title="Quick adjust stock level"
-                              >
-                                <span>Adjust</span>
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
