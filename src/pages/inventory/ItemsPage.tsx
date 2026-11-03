@@ -769,109 +769,388 @@ export const ItemsPage: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: ADAPTIVE MATERIAL CONSUMPTION - EXACT CHATGPT PROTOTYPE */}
+      {/* TAB 2: ADAPTIVE MATERIAL CONSUMPTION TERMINAL (EXACT ORIGINAL IMPLEMENTATION) */}
       {activeTab === 'consumption' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', width: '100%', padding: '10px 0' }}>
-          {/* ChatGPT Replica Card */}
-          <div className="chatgpt-usage-card">
-            {/* Title & Subtitle */}
-            <div>
-              <h2 className="chatgpt-usage-title">
-                Root Canal – Material Usage
-              </h2>
-              <div className="chatgpt-usage-subtitle">
-                Suggested quantities &middot; Editable before confirmation
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Controls Bar: Sleek Careplus Island */}
+          <div className="consumption-controls-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+              <div className="consumption-ctrl-group">
+                <label className="consumption-ctrl-label">Procedure</label>
+                <select
+                  value={selectedProcedureId}
+                  onChange={(e) => handleProcedureSwitch(e.target.value)}
+                  className="consumption-select"
+                >
+                  {inventory.templates.map((tmpl) => (
+                    <option key={tmpl.procedureId} value={tmpl.procedureId}>
+                      {tmpl.procedureName} ({tmpl.category})
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="chatgpt-badge-blue">
-                Editable suggestions
+
+              <div className="consumption-ctrl-group">
+                <label className="consumption-ctrl-label">Doctor (Adaptive Target)</label>
+                <select
+                  value={selectedDoctorId}
+                  onChange={(e) => handleDoctorSwitch(e.target.value)}
+                  className="consumption-select"
+                >
+                  {doctorsList.map((doc) => (
+                    <option key={doc.id} value={doc.id}>
+                      {doc.label} &bull; Files: {doc.filePref}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="consumption-ctrl-group">
+                <label className="consumption-ctrl-label">Suggestion Mode</label>
+                <div className="ai-mode-selector">
+                  <button
+                    type="button"
+                    className={`ai-mode-btn ${inventory.suggestionMode === 'standard' ? 'is-active' : ''}`}
+                    onClick={() => handleModeChange('standard')}
+                  >
+                    Standard template
+                  </button>
+                  <button
+                    type="button"
+                    className={`ai-mode-btn ${inventory.suggestionMode === 'doctor-specific' ? 'is-active' : ''}`}
+                    onClick={() => handleModeChange('doctor-specific')}
+                  >
+                    <Sparkles size={12} /> Doctor-specific
+                  </button>
+                  <button
+                    type="button"
+                    className={`ai-mode-btn ${inventory.suggestionMode === 'manual' ? 'is-active' : ''}`}
+                    onClick={() => handleModeChange('manual')}
+                  >
+                    Manual
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* List of Material Items */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {terminalItems.map((item, idx) => (
-                <div key={item.itemId || idx} className="chatgpt-material-row">
-                  <div className="chatgpt-material-info">
-                    <span className="chatgpt-material-name">{item.name}</span>
-                    <span className="chatgpt-material-unit">{item.unit}</span>
-                  </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => resetAdaptiveInventory()}
+                className="consumption-subtle-btn"
+                title="Reset demo data to initial defaults"
+              >
+                <RotateCcw size={13} /> Reset Demo Data
+              </button>
+            </div>
+          </div>
 
-                  <div className="chatgpt-material-actions">
+          {/* Interactive Screen Container */}
+          <div style={{ background: 'var(--surface, #ffffff)', border: '1px solid var(--line, #e2e8f0)', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
+            {/* Screen Header */}
+            <div style={{ padding: '20px 24px', background: '#ffffff', borderBottom: '1px solid var(--line, #f1f5f9)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h2 style={{ fontSize: '20px', fontWeight: 700, margin: '0 0 6px 0', color: 'var(--text-main, #0f172a)' }}>
+                  {activeTemplate.procedureName} – Material Usage
+                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
+                    Suggested quantities &middot; Editable before confirmation
+                  </span>
+                  <span style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #dbeafe', fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '9999px' }}>
+                    Editable suggestions
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="ai-pill ai-pill-adaptive" style={{ fontSize: '12px', padding: '5px 12px' }}>
+                  {activeDoctor.name} ({activeDoctor.filePref} file avg)
+                </span>
+                <span className="ai-pill ai-pill-standard" style={{ fontSize: '12px', padding: '5px 12px', textTransform: 'capitalize' }}>
+                  {inventory.suggestionMode} Mode
+                </span>
+              </div>
+            </div>
+
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Doctor-Specific Explanation Callout - Clean, no verbose bullets */}
+              <div className={`ai-adaptive-insight mode-${inventory.suggestionMode}`}>
+                {inventory.suggestionMode === 'doctor-specific' ? (
+                  <>
+                    <Sparkles size={18} style={{ flexShrink: 0, color: 'var(--teal-primary, #008891)' }} />
+                    <div>
+                      <strong style={{ color: 'var(--text-main, #0f172a)' }}>Doctor-Specific Adaptive Model: </strong>
+                      {selectedDoctorId === 'doc-2'
+                        ? 'Doctor B (Dr. Priya Nair) uses 2 sets of Dental files (94% confidence) vs Clinic default of 1 set.'
+                        : selectedDoctorId === 'doc-1'
+                        ? 'Doctor A (Dr. Arun Kumar) uses 1 set of Dental files matching Clinic baseline.'
+                        : 'Doctor C (Dr. Tariq Antoun) uses 1 set of Dental files.'}
+                    </div>
+                  </>
+                ) : inventory.suggestionMode === 'standard' ? (
+                  <>
+                    <ShieldCheck size={18} style={{ flexShrink: 0, color: '#475569' }} />
+                    <div>
+                      <strong style={{ color: 'var(--text-main, #0f172a)' }}>Standard Template Mode: </strong>
+                      Populated from approved clinic procedure defaults.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Edit3 size={18} style={{ flexShrink: 0, color: '#b45309' }} />
+                    <div>
+                      <strong style={{ color: '#92400e' }}>Manual Entry Mode: </strong>
+                      Template suggestions disabled. Add materials and enter quantities directly.
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Editable Suggestions Table */}
+              <div style={{ overflowX: 'auto' }}>
+                <table className="ai-materials-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '28%' }}>Material</th>
+                      <th style={{ width: '14%' }}>Suggested</th>
+                      <th style={{ width: '20%' }}>Actual Quantity</th>
+                      <th style={{ width: '14%' }}>Wastage</th>
+                      <th style={{ width: '18%' }}>Batch & Stock</th>
+                      <th style={{ width: '6%', textAlign: 'center' }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {terminalItems.map((item, idx) => {
+                      const stockItem = inventory.items.find((i) => i.id === item.itemId)
+                      const batches = stockItem?.activeBatches || []
+
+                      return (
+                        <tr key={item.itemId}>
+                          <td>
+                            <div style={{ fontWeight: 600, color: 'var(--text-main, #0f172a)' }}>
+                              {item.name}
+                            </div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>
+                              {item.unit}
+                              {item.isAdaptiveOverride && (
+                                <span className="ai-pill ai-pill-adaptive" style={{ marginLeft: '6px', fontSize: '10.5px' }}>
+                                  Doctor Adaptive
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          <td>
+                            <div style={{ fontWeight: 600, fontSize: '14px' }}>
+                              {item.suggestedQty} <span style={{ fontSize: '12px', fontWeight: 400 }}>{item.unit}</span>
+                            </div>
+                            {item.isAdaptiveOverride && (
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)' }}>
+                                Clinic std: {item.standardQty}
+                              </div>
+                            )}
+                          </td>
+
+                          <td>
+                            <div className="ai-stepper">
+                              <button
+                                type="button"
+                                className="ai-stepper-btn"
+                                onClick={() => handleTerminalQty(idx, -1)}
+                                disabled={item.confirmedQty <= 0}
+                              >
+                                -
+                              </button>
+                              <input
+                                type="number"
+                                min={0}
+                                className="ai-stepper-input"
+                                value={item.confirmedQty}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value, 10)
+                                  setTerminalItems((prev) => {
+                                    const next = [...prev]
+                                    next[idx] = { ...next[idx], confirmedQty: isNaN(val) ? 0 : Math.max(0, val) }
+                                    return next
+                                  })
+                                }}
+                              />
+                              <button
+                                type="button"
+                                className="ai-stepper-btn"
+                                onClick={() => handleTerminalQty(idx, 1)}
+                              >
+                                +
+                              </button>
+                            </div>
+                          </td>
+
+                          <td>
+                            <div className="ai-stepper">
+                              <button
+                                type="button"
+                                className="ai-stepper-btn"
+                                onClick={() => handleTerminalWastage(idx, -1)}
+                                disabled={item.wastageQty <= 0}
+                              >
+                                -
+                              </button>
+                              <input
+                                type="number"
+                                min={0}
+                                className="ai-stepper-input"
+                                style={{ width: '40px', color: item.wastageQty > 0 ? '#dc2626' : undefined }}
+                                value={item.wastageQty}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value, 10)
+                                  setTerminalItems((prev) => {
+                                    const next = [...prev]
+                                    next[idx] = { ...next[idx], wastageQty: isNaN(val) ? 0 : Math.max(0, val) }
+                                    return next
+                                  })
+                                }}
+                              />
+                              <button
+                                type="button"
+                                className="ai-stepper-btn"
+                                onClick={() => handleTerminalWastage(idx, 1)}
+                              >
+                                +
+                              </button>
+                            </div>
+                          </td>
+
+                          <td>
+                            <select
+                              className="ai-batch-select"
+                              value={item.batchNumber}
+                              onChange={(e) => {
+                                const batchNumber = e.target.value
+                                setTerminalItems((prev) => {
+                                  const next = [...prev]
+                                  next[idx] = { ...next[idx], batchNumber }
+                                  return next
+                                })
+                              }}
+                            >
+                              {batches.map((b) => (
+                                <option key={b.batchNumber} value={b.batchNumber}>
+                                  {b.batchNumber} ({b.quantity} avail)
+                                </option>
+                              ))}
+                            </select>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>
+                              Total in clinic: {stockItem?.totalStock || item.availableStock} {item.unit}
+                            </div>
+                          </td>
+
+                          <td style={{ textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleTerminalRemove(idx)}
+                              style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+                              title="Remove unused material"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Add Another Material Bar */}
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '280px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main, #0f172a)', whiteSpace: 'nowrap' }}>
+                    Add another material:
+                  </span>
+                  <select
+                    value={termAddId}
+                    onChange={(e) => setTermAddId(e.target.value)}
+                    className="consumption-select"
+                    style={{ flex: 1, minWidth: '200px' }}
+                  >
+                    <option value="">Select material from inventory...</option>
+                    {inventory.items.map((stock) => (
+                      <option key={stock.id} value={stock.id}>
+                        {stock.name} ({stock.totalStock} {stock.unit} available)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '12.5px', color: 'var(--text-muted, #64748b)', fontWeight: 500 }}>Quantity:</span>
                     <input
                       type="number"
-                      min={0}
-                      className="chatgpt-qty-input"
-                      value={item.confirmedQty}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value, 10)
-                        setTerminalItems((prev) => {
-                          const next = [...prev]
-                          next[idx] = { ...next[idx], confirmedQty: isNaN(val) ? 0 : Math.max(0, val) }
-                          return next
-                        })
-                      }}
+                      min={1}
+                      value={termAddQty}
+                      onChange={(e) => setTermAddQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                      className="consumption-select"
+                      style={{ width: '64px', textAlign: 'center', padding: '6px 8px' }}
                     />
-                    <button
-                      type="button"
-                      className="chatgpt-delete-btn"
-                      onClick={() => handleTerminalRemove(idx)}
-                      title="Remove material"
-                      aria-label="Remove material"
-                    >
-                      <X size={13} />
-                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    className="ai-btn-add"
+                    onClick={handleTerminalAdd}
+                    disabled={!termAddId}
+                  >
+                    <Plus size={15} /> Add
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirmation Success Callout */}
+              {recentDeductionId && (
+                <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '12px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <CheckCircle2 size={22} style={{ color: '#059669', flexShrink: 0 }} />
+                  <div>
+                    <div style={{ color: '#065f46', fontSize: '13.5px', fontWeight: 600 }}>
+                      Actual Consumption Confirmed & Stock Deducted
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#047857', marginTop: '2px' }}>
+                      Audit Ref: <strong>{recentDeductionId}</strong> &bull; Quantities deducted from FEFO batch lots. Doctor adaptive profile updated.
+                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
+              )}
 
-            {/* Add Another Material */}
-            <div className="chatgpt-add-section">
-              <div className="chatgpt-add-label">Add another material</div>
-              <div className="chatgpt-add-row">
-                <input
-                  type="text"
-                  className="chatgpt-add-input"
-                  placeholder="Material name"
-                  value={customAddName}
-                  onChange={(e) => setCustomAddName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      handleAddCustomMaterial()
-                    }
-                  }}
-                />
+              {/* Footer Actions */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', borderTop: '1px solid var(--line, #f1f5f9)', paddingTop: '18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
+                    Confirmed Items: <strong style={{ color: 'var(--text-main, #0f172a)' }}>{terminalItems.reduce((s, i) => s + i.confirmedQty, 0)}</strong>
+                    {' '}&bull; Wastage: <strong style={{ color: terminalItems.reduce((s, i) => s + i.wastageQty, 0) > 0 ? '#dc2626' : 'var(--text-main, #0f172a)' }}>{terminalItems.reduce((s, i) => s + i.wastageQty, 0)}</strong>
+                  </div>
+
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', color: 'var(--text-muted, #64748b)', cursor: 'pointer', userSelect: 'none' }}>
+                    <input
+                      type="checkbox"
+                      checked={isSandboxOnly}
+                      onChange={(e) => setIsSandboxOnly(e.target.checked)}
+                      style={{ cursor: 'pointer', accentColor: 'var(--teal-primary, #008891)' }}
+                    />
+                    <span>Simulation mode (do not deduct stock)</span>
+                  </label>
+                </div>
+
                 <button
                   type="button"
-                  className="chatgpt-add-btn"
-                  onClick={handleAddCustomMaterial}
+                  className="pat-btn pat-btn-primary"
+                  onClick={handleTerminalConfirm}
+                  style={{ padding: '10px 26px', fontSize: '14px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '8px', borderRadius: '12px' }}
                 >
-                  Add
+                  <CheckCircle2 size={17} />
+                  <span>Confirm Actual Consumption & Deduct Stock</span>
                 </button>
               </div>
             </div>
-
-            {/* Notice text */}
-            <div className="chatgpt-notice-text">
-              Interactive example only. No real inventory is changed.
-            </div>
-
-            {/* Confirmation CTA Button */}
-            <button
-              type="button"
-              className={`chatgpt-action-btn ${recentDeductionId ? 'is-confirmed' : ''}`}
-              onClick={handleTerminalConfirm}
-            >
-              {recentDeductionId ? (
-                <>
-                  <CheckCircle2 size={16} />
-                  <span>Deduction Confirmed (Ref: {recentDeductionId})</span>
-                </>
-              ) : (
-                <span>Use this example for implementation</span>
-              )}
-            </button>
           </div>
         </div>
       )}
