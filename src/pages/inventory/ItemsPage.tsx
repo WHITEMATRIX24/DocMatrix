@@ -460,9 +460,6 @@ export const ItemsPage: React.FC = () => {
 
             {/* Right Action: Receive Stock */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '12.5px', color: '#64748b' }}>
-                Showing <strong>{filteredStock.length}</strong> items
-              </span>
               {filteredStock[0] && (
                 <button
                   type="button"
