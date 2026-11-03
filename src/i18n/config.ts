@@ -4,7 +4,9 @@ import en from './locales/en.json'
 import ml from './locales/ml.json'
 
 const STORAGE_KEY = 'docmatrix-language'
-const savedLanguage = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
+const savedLanguage = typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
+  ? window.localStorage.getItem(STORAGE_KEY)
+  : null
 
 i18n
   .use(initReactI18next)

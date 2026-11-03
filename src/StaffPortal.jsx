@@ -56,6 +56,9 @@ const AREA_ICONS = {
   Settings: Settings
 }
 
+// Areas that open as one tabbed workspace, so the sidebar shows a single link with no sub-page list
+const SINGLE_LINK_AREAS = new Set(['Billing'])
+
 export default function StaffPortal({
   user = { id: 'usr-104', name: 'Dr. Arun Kumar', role: 'DOCTOR', clinicName: 'DocMatrix Dental Care' },
   onUserChange,
@@ -283,6 +286,25 @@ export default function StaffPortal({
             // Filter features allowed for current user role
             const visibleFeatures = features.filter((feat) => !feat.roles || feat.roles.includes(currentUser.role))
             if (visibleFeatures.length === 0) return null
+
+            // Billing is a single tabbed workspace: one link, no sub-page list
+            if (SINGLE_LINK_AREAS.has(areaName)) {
+              return (
+                <div key={areaName} className="dmx-module">
+                  <button
+                    type="button"
+                    data-testid={`sidebar-link-area-${areaName.toLowerCase()}`}
+                    onClick={() => navigateTo(`/${areaName.toLowerCase()}`)}
+                    className={`dmx-nav-item ${isAreaActive ? 'is-active' : ''}`}
+                    aria-current={isAreaActive ? 'page' : undefined}
+                    title={areaName}
+                  >
+                    <span className="dmx-nav-icon"><IconComp size={18} /></span>
+                    <span className="dmx-nav-text">{areaName}</span>
+                  </button>
+                </div>
+              )
+            }
 
             return (
               <div
