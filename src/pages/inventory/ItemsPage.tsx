@@ -820,7 +820,7 @@ export const ItemsPage: React.FC = () => {
                     className={`ai-mode-btn ${inventory.suggestionMode === 'doctor-specific' ? 'is-active' : ''}`}
                     onClick={() => handleModeChange('doctor-specific')}
                   >
-                    <Sparkles size={12} /> Doctor-specific
+                    Doctor-specific
                   </button>
                   <button
                     type="button"

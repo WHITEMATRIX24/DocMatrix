@@ -304,7 +304,7 @@ export const TreatmentMaterialUsageModal: React.FC<TreatmentMaterialUsageModalPr
                 className={`ai-mode-btn ${selectedMode === 'doctor-specific' ? 'is-active' : ''}`}
                 onClick={() => setSelectedMode('doctor-specific')}
               >
-                <Sparkles size={12} /> Doctor-specific
+                Doctor-specific
               </button>
               <button
                 type="button"
