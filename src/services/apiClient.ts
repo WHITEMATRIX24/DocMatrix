@@ -119,6 +119,10 @@ class ApiClient {
     return this.request<T>(endpoint, 'POST', body, options);
   }
 
+  put<T = any>(endpoint: string, body?: any, options?: RequestOptions): Promise<T> {
+    return this.request<T>(endpoint, 'PUT', body, options);
+  }
+
   patch<T = any>(endpoint: string, body?: any, options?: RequestOptions): Promise<T> {
     return this.request<T>(endpoint, 'PATCH', body, options);
   }

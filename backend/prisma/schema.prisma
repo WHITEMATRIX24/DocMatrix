@@ -162,6 +162,8 @@ model Clinic {
   documents       PatientDocument[]
   consents        PatientConsent[]
   enquiries       Enquiry[]
+  prescriptions   Prescription[]
+  clinicSequences ClinicSequence[]
 
   @@index([status])
   @@index([email])
@@ -187,6 +189,9 @@ model User {
 
   clinic       Clinic?       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
   appointments Appointment[] @relation("DoctorAppointments")
+  prescriptions Prescription[] @relation("DoctorPrescriptions")
+  finalizedPrescriptions Prescription[] @relation("FinalizedPrescriptions")
+  cancelledPrescriptions Prescription[] @relation("CancelledPrescriptions")
 
   // Compound unique key enabling engine-level compound foreign key references
   @@unique([id, clinicId])
@@ -226,6 +231,7 @@ model Patient {
   toothConditions ToothCondition[]
   documents       PatientDocument[]
   consents        PatientConsent[]
+  prescriptions   Prescription[]
 
   // Deterministic identifier unique per clinic
   @@unique([clinicId, patientCode])
@@ -366,4 +372,85 @@ model Enquiry {
   @@unique([id, clinicId])
   @@index([clinicId, status])
   @@index([clinicId, createdAt])
+}
+
+// ------------------------------------------
+// Digital Prescription & Medication Orders
+// ------------------------------------------
+
+enum PrescriptionStatus {
+  DRAFT
+  FINALIZED
+  CANCELLED
+}
+
+model Prescription {
+  id                 String             @id @default(uuid())
+  clinicId           String
+  patientId          String
+  doctorId           String
+  prescriptionNumber String             // e.g. 'RX-1001', strictly unique per clinic
+  diagnosis          String
+  clinicalNotes      String?
+  status             PrescriptionStatus @default(DRAFT)
+  prescribedAt       DateTime           @default(now())
+  finalizedAt        DateTime?
+  finalizedById      String?
+  cancelledAt        DateTime?
+  cancelledById      String?
+  cancellationReason String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  // Tenant & relational constraints
+  clinic      Clinic  @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient     Patient @relation(fields: [patientId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  doctor      User    @relation("DoctorPrescriptions", fields: [doctorId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  finalizedBy User?   @relation("FinalizedPrescriptions", fields: [finalizedById, clinicId], references: [id, clinicId], onDelete: Restrict)
+  cancelledBy User?   @relation("CancelledPrescriptions", fields: [cancelledById, clinicId], references: [id, clinicId], onDelete: Restrict)
+
+  items PrescriptionItem[]
+
+  @@unique([id, clinicId])
+  @@unique([clinicId, prescriptionNumber])
+  @@index([clinicId, patientId])
+  @@index([clinicId, doctorId])
+  @@index([clinicId, status])
+  @@index([clinicId, prescribedAt])
+}
+
+model PrescriptionItem {
+  id             String   @id @default(uuid())
+  prescriptionId String
+  medicineName   String
+  strength       String?  // e.g. '500 mg', '0.2% w/v'
+  dosage         String   // e.g. '1 tablet', '5 ml'
+  route          String   @default("Oral") // 'Oral', 'Topical', 'Sublingual', etc.
+  frequency      String   // e.g. '1-0-1', 'TID', 'PRN'
+  duration       String   // e.g. '5 days', '1 week'
+  quantity       Int?     // e.g. 10
+  instructions   String?  // e.g. 'Take after food with warm water'
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  @@index([prescriptionId])
+}
+
+// ------------------------------------------
+// Concurrency-Safe Clinic Numbering Sequence
+// ------------------------------------------
+
+model ClinicSequence {
+  id           String   @id @default(uuid())
+  clinicId     String
+  sequenceType String   // e.g. 'PRESCRIPTION'
+  currentValue Int      @default(1000)
+  updatedAt    DateTime @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+
+  @@unique([clinicId, sequenceType])
+  @@index([clinicId])
 }

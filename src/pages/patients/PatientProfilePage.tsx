@@ -21,7 +21,9 @@ import {
   X,
   ExternalLink,
   Activity,
-  Layers
+  Layers,
+  Pill,
+  Printer
 } from 'lucide-react'
 import {
   useClinicData,
@@ -31,11 +33,15 @@ import {
   type PatientRecord,
   type TreatmentPlanRecord,
   type PatientDocumentRecord,
-  type PatientConsentRecord
+  type PatientConsentRecord,
+  type PrescriptionRecord
 } from '@/services/clinicStore'
+import { PrescriptionModal } from '@/components/clinical/PrescriptionModal'
+import { PrescriptionDetailsModal } from '@/components/clinical/PrescriptionDetailsModal'
+import { PrescriptionPrintModal } from '@/components/clinical/PrescriptionPrintModal'
 import './patientProfile.css'
 
-type TabKey = 'overview' | 'medical' | 'timeline' | 'documents' | 'consents'
+type TabKey = 'overview' | 'medical' | 'timeline' | 'documents' | 'consents' | 'prescriptions'
 
 export const PatientProfilePage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
@@ -50,7 +56,8 @@ export const PatientProfilePage: React.FC = () => {
     invoices,
     treatmentPlans = [],
     patientDocuments = [],
-    patientConsents = []
+    patientConsents = [],
+    prescriptions = []
   } = useClinicData()
 
   // Match patient by id (case-insensitive for safety)
@@ -64,10 +71,11 @@ export const PatientProfilePage: React.FC = () => {
     if (path.endsWith('/timeline')) return 'timeline'
     if (path.endsWith('/documents')) return 'documents'
     if (path.endsWith('/consents')) return 'consents'
+    if (path.endsWith('/prescriptions')) return 'prescriptions'
     if (path.endsWith('/pending-treatments')) return 'overview'
 
     const queryTab = searchParams.get('tab') as TabKey
-    if (queryTab && ['overview', 'medical', 'timeline', 'documents', 'consents'].includes(queryTab)) {
+    if (queryTab && ['overview', 'medical', 'timeline', 'documents', 'consents', 'prescriptions'].includes(queryTab)) {
       return queryTab
     }
     return 'overview'
@@ -76,6 +84,12 @@ export const PatientProfilePage: React.FC = () => {
   const setTab = (tab: TabKey) => {
     setSearchParams({ tab }, { replace: true })
   }
+
+  // Prescription modal state
+  const [rxModalOpen, setRxModalOpen] = useState(false)
+  const [editingRx, setEditingRx] = useState<PrescriptionRecord | null>(null)
+  const [viewingRx, setViewingRx] = useState<PrescriptionRecord | null>(null)
+  const [printingRx, setPrintingRx] = useState<PrescriptionRecord | null>(null)
 
   // Filter linked records for this patient
   const patientAppointments = useMemo(() => {
@@ -110,6 +124,15 @@ export const PatientProfilePage: React.FC = () => {
     return (patientConsents as PatientConsentRecord[])
       .filter((c) => c.patientId.toLowerCase() === (id || '').toLowerCase())
   }, [patientConsents, id])
+
+  const patientPrescriptions = useMemo(() => {
+    return (prescriptions as PrescriptionRecord[]).filter(
+      (p) =>
+        p.patientId?.toLowerCase() === (id || '').toLowerCase() ||
+        p.patient?.patientCode?.toLowerCase() === (id || '').toLowerCase() ||
+        (patient?.backendId && p.patientId?.toLowerCase() === patient.backendId.toLowerCase())
+    )
+  }, [prescriptions, id, patient?.backendId])
 
   // Pending treatments for overview card
   const pendingTreatments = useMemo(() => {
@@ -413,6 +436,18 @@ export const PatientProfilePage: React.FC = () => {
           <span>Consent Records</span>
           {patientConsentList.length > 0 && (
             <span className="pat-tab-badge">{patientConsentList.length}</span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          className={`pat-tab-btn ${activeTab === 'prescriptions' ? 'is-active' : ''}`}
+          onClick={() => setTab('prescriptions')}
+        >
+          <Pill size={15} />
+          <span>Prescriptions</span>
+          {patientPrescriptions.length > 0 && (
+            <span className="pat-tab-badge">{patientPrescriptions.length}</span>
           )}
         </button>
       </nav>
@@ -1051,6 +1086,165 @@ export const PatientProfilePage: React.FC = () => {
             )}
           </div>
         )}
+
+        {/* TAB 6: PRESCRIPTIONS */}
+        {activeTab === 'prescriptions' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
+                  Clinical Prescriptions History
+                </h3>
+                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
+                  Digital drug regimens and medications authored for this patient.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setRxModalOpen(true)}
+                  className="pat-btn pat-btn-primary"
+                  style={{ padding: '6px 14px', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Pill size={14} /> Issue Prescription
+                </button>
+              </div>
+            </div>
+
+            {patientPrescriptions.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {patientPrescriptions.map((rx) => {
+                  const isFinal = rx.status === 'FINALIZED';
+                  const isCanc = rx.status === 'CANCELLED';
+                  return (
+                    <div
+                      key={rx.id}
+                      style={{
+                        background: 'var(--bg-card, #ffffff)',
+                        border: '1px solid var(--border-light, #e2e8f0)',
+                        borderRadius: '12px',
+                        padding: '16px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '16px',
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                          <span
+                            style={{
+                              fontFamily: 'monospace',
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              background: '#f1f5f9',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              color: '#0f172a',
+                            }}
+                          >
+                            {rx.prescriptionNumber}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              background: isFinal ? '#ecfdf5' : isCanc ? '#fff1f2' : '#fef3c7',
+                              color: isFinal ? '#047857' : isCanc ? '#be123c' : '#b45309',
+                              border: `1px solid ${isFinal ? '#a7f3d0' : isCanc ? '#fecdd3' : '#fde68a'}`,
+                            }}
+                          >
+                            {rx.status}
+                          </span>
+                          <span style={{ fontSize: '12px', color: '#64748b' }}>
+                            {new Date(rx.prescribedAt).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </span>
+                        </div>
+
+                        <p style={{ margin: '0 0 6px 0', fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>
+                          {rx.diagnosis}
+                        </p>
+
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                          {rx.items.map((it, idx) => (
+                            <span
+                              key={it.id || idx}
+                              style={{
+                                fontSize: '11.5px',
+                                background: '#f8fafc',
+                                border: '1px solid #e2e8f0',
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                color: '#334155',
+                              }}
+                            >
+                              💊 {it.medicineName} {it.strength ? `(${it.strength})` : ''} · {it.frequency}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setViewingRx(rx)}
+                          className="pat-btn pat-btn-secondary"
+                          style={{ padding: '6px 12px', fontSize: '12px' }}
+                        >
+                          View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPrintingRx(rx)}
+                          className="pat-btn pat-btn-secondary"
+                          style={{ padding: '6px 12px', fontSize: '12px' }}
+                          title="Print / Save PDF"
+                        >
+                          <Printer size={13} /> Print
+                        </button>
+                        {rx.status === 'DRAFT' && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingRx(rx)}
+                            className="pat-btn pat-btn-primary"
+                            style={{ padding: '6px 12px', fontSize: '12px' }}
+                          >
+                            Edit Draft
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="pat-empty-card" style={{ textAlign: 'center', padding: '36px 20px', background: 'var(--surface-subtle, #f8fafc)', borderRadius: '10px', border: '1px solid var(--line, #e2e8f0)' }}>
+                <Pill size={32} color="var(--text-muted, #94a3b8)" style={{ margin: '0 auto 8px auto' }} />
+                <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', color: 'var(--text-main, #1e293b)' }}>
+                  No Prescriptions on Record
+                </h4>
+                <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
+                  No medications have been prescribed to this patient yet.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setRxModalOpen(true)}
+                  className="pat-btn pat-btn-secondary"
+                  style={{ padding: '6px 14px', fontSize: '12.5px', marginTop: '12px' }}
+                >
+                  <Pill size={13} /> Issue First Prescription
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── EDIT PATIENT MODAL DIALOG ── */}
@@ -1338,6 +1532,55 @@ export const PatientProfilePage: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* ── PRESCRIPTION MODALS ── */}
+      {rxModalOpen && (
+        <PrescriptionModal
+          defaultPatientId={patient?.backendId || patient?.id}
+          onClose={() => setRxModalOpen(false)}
+          onSaved={(saved) => {
+            setRxModalOpen(false);
+            setViewingRx(saved);
+          }}
+        />
+      )}
+
+      {editingRx && (
+        <PrescriptionModal
+          initialPrescription={editingRx}
+          defaultPatientId={patient?.backendId || patient?.id}
+          onClose={() => setEditingRx(null)}
+          onSaved={(saved) => {
+            setEditingRx(null);
+            setViewingRx(saved);
+          }}
+        />
+      )}
+
+      {viewingRx && (
+        <PrescriptionDetailsModal
+          prescription={viewingRx}
+          onClose={() => setViewingRx(null)}
+          onPrint={(rx) => {
+            setViewingRx(null);
+            setPrintingRx(rx);
+          }}
+          onEditDraft={(rx) => {
+            setViewingRx(null);
+            setEditingRx(rx);
+          }}
+          onUpdated={() => {
+            setViewingRx(null);
+          }}
+        />
+      )}
+
+      {printingRx && (
+        <PrescriptionPrintModal
+          prescription={printingRx}
+          onClose={() => setPrintingRx(null)}
+        />
       )}
     </section>
   )
