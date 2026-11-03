@@ -1625,3 +1625,10 @@ html.dm-theme-transition *::after {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* The AI and WhatsApp shortcuts sit outside the isolated .dmx-shell, so no popup inside the
+   shell can layer above them. Hide them while any popup or drawer is open. */
+body:has(.bill-overlay, .pat-modal-overlay, .calendar-modal-overlay) :is(.ai-agent-shortcut, .whatsapp-shortcut) {
+  display: none;
+}

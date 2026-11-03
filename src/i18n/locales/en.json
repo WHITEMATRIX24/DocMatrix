@@ -109,5 +109,12 @@
     "draftNotice": "DRAFT: final text to be supplied after legal review",
     "termsContent": "Terms of service terms and conditions placeholder for DocMatrix dental clinic management platform.",
     "privacyContent": "Privacy notice and data protection guidelines placeholder for DocMatrix platform."
+  },
+  "patients": {
+    "medical": {
+      "safetyScreening": "Safety screening",
+      "emergencyContact": "Emergency contact",
+      "call": "Call"
+    }
   }
 }

@@ -102,8 +102,10 @@ describe('Global Sidebar Selection & Navigation Engine', () => {
       { url: '/patients/pt-1001', expectedId: null, expectedArea: 'Patients' },
       { url: '/clinical/prescriptions', expectedId: 'clin.prescriptions' },
       { url: '/clinical/notes', expectedId: 'clin.notes' },
-      { url: '/billing/invoices', expectedId: 'bill.invoices' },
-      { url: '/billing/dues', expectedId: 'bill.dues' },
+      // Billing is one tabbed workspace: its single area link is the active item
+      { url: '/billing', expectedId: 'area-billing' },
+      { url: '/billing/invoices', expectedId: 'area-billing' },
+      { url: '/billing/dues', expectedId: 'area-billing' },
       { url: '/accounts/ledgers', expectedId: 'acc.ledgers' },
       { url: '/inventory/items', expectedId: 'inv.items' },
       { url: '/whatsapp/automation', expectedId: 'wa.automation' },
@@ -164,8 +166,9 @@ describe('Global Sidebar Selection & Navigation Engine', () => {
       expect(apptBtn).not.toHaveAttribute('aria-current', 'page')
     })
 
-    // 4. Click Billing -> Invoices
-    const billingBtn = screen.getByTestId('sidebar-link-bill.invoices')
+    // 4. Click Billing (single link into the billing workspace)
+    expect(screen.queryByTestId('sidebar-link-bill.invoices')).not.toBeInTheDocument()
+    const billingBtn = screen.getByTestId('sidebar-link-area-billing')
     fireEvent.click(billingBtn)
     await waitFor(() => {
       expect(billingBtn).toHaveAttribute('aria-current', 'page')

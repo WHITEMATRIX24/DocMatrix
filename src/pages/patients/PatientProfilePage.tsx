@@ -7,6 +7,8 @@ import {
   Receipt,
   UserRound,
   AlertTriangle,
+  TriangleAlert,
+  Pill,
   ShieldCheck,
   Phone,
   Mail,
@@ -19,17 +21,23 @@ import {
   Edit3,
   Stethoscope,
   X,
-  ExternalLink,
   Activity,
   Layers,
-  Pill,
-  Printer
+  Printer,
+  MessageCircle,
+  Plus,
+  Eye,
+  StickyNote
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import '@/i18n/config'
 import {
   useClinicData,
   updatePatient,
   addPatientDocument,
   addPatientConsent,
+  invoiceBalance,
+  invoicePaidAmount,
   type PatientRecord,
   type TreatmentPlanRecord,
   type PatientDocumentRecord,
@@ -39,15 +47,92 @@ import {
 import { PrescriptionModal } from '@/components/clinical/PrescriptionModal'
 import { PrescriptionDetailsModal } from '@/components/clinical/PrescriptionDetailsModal'
 import { PrescriptionPrintModal } from '@/components/clinical/PrescriptionPrintModal'
+import { InvoiceDrawer, PaymentDialog, StatusPill, inr, localDate, prettyDate } from '@/pages/billing/BillingShared'
 import './patientProfile.css'
 
-type TabKey = 'overview' | 'medical' | 'timeline' | 'documents' | 'consents' | 'prescriptions'
+type TabKey = 'overview' | 'medical' | 'timeline' | 'billing' | 'documents' | 'consents' | 'prescriptions'
+const TAB_KEYS: TabKey[] = ['overview', 'medical', 'timeline', 'billing', 'documents', 'consents', 'prescriptions']
+
+type ActivityKind = 'visit' | 'note' | 'billing' | 'document' | 'consent'
+type ActivityItem = { id: string; kind: ActivityKind; date: string; title: string; detail?: string; link?: string; tone?: 'ok' | 'warn' | 'bad' }
+
+const ACTIVITY_FILTERS: { id: 'all' | ActivityKind; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'visit', label: 'Visits' },
+  { id: 'note', label: 'Clinical notes' },
+  { id: 'billing', label: 'Billing' },
+  { id: 'document', label: 'Documents' },
+  { id: 'consent', label: 'Consents' }
+]
+
+const ACTIVITY_ICONS: Record<ActivityKind, React.ComponentType<{ size?: number }>> = {
+  visit: Calendar,
+  note: StickyNote,
+  billing: Receipt,
+  document: FileText,
+  consent: CheckCircle2
+}
+
+/** Files up to this size are saved with the record; larger ones stay viewable until the page is reloaded. */
+const MAX_STORED_FILE_BYTES = 1.5 * 1024 * 1024
+
+const formatBytes = (bytes: number) =>
+  bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+
+const readAsDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+
+const digitsOnly = (value: string) => value.replace(/[^\d]/g, '')
+
+type MedicalRowProps = {
+  icon: React.ComponentType<{ size?: number; 'aria-hidden'?: boolean }>
+  title: string
+  description: string
+  status?: string
+  statusTone?: 'green' | 'gray' | 'amber'
+  phone?: string
+  dividerAbove?: boolean
+  hasAlert?: boolean
+}
+
+const MedicalRow: React.FC<MedicalRowProps> = ({
+  icon: Icon,
+  title,
+  description,
+  status,
+  statusTone = 'gray',
+  phone,
+  dividerAbove = false,
+  hasAlert = false
+}) => (
+  <li className={`pat-medical-row${dividerAbove ? ' pat-medical-row--divided' : ''}${hasAlert ? ' pat-medical-row--alert' : ''}`}>
+    <span className="pat-medical-row__icon">
+      <Icon size={17} aria-hidden />
+    </span>
+    <div className="pat-medical-row__content">
+      <h5 className="pat-medical-row__title">{title}</h5>
+      <p className="pat-medical-row__description">{description}</p>
+    </div>
+    {status && <span className={`pat-medical-status pat-medical-status--${statusTone}`}>{status}</span>}
+    {phone && phone !== '—' && (
+      <a className="pat-medical-row__phone" href={`tel:${phone.replace(/[^\d+]/g, '')}`}>
+        {phone}
+      </a>
+    )}
+  </li>
+)
 
 export const PatientProfilePage: React.FC = () => {
+  const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
 
   const {
     patients,
@@ -67,22 +152,22 @@ export const PatientProfilePage: React.FC = () => {
 
   // Resolve active tab based on pathname deep link (e.g. /patients/:id/timeline) or query param ?tab=...
   const activeTab: TabKey = useMemo(() => {
+    const queryTab = searchParams.get('tab') as TabKey
+    if (queryTab && TAB_KEYS.includes(queryTab)) return queryTab
+
     const path = location.pathname.toLowerCase()
     if (path.endsWith('/timeline')) return 'timeline'
     if (path.endsWith('/documents')) return 'documents'
     if (path.endsWith('/consents')) return 'consents'
     if (path.endsWith('/prescriptions')) return 'prescriptions'
+    if (path.endsWith('/billing')) return 'billing'
     if (path.endsWith('/pending-treatments')) return 'overview'
-
-    const queryTab = searchParams.get('tab') as TabKey
-    if (queryTab && ['overview', 'medical', 'timeline', 'documents', 'consents', 'prescriptions'].includes(queryTab)) {
-      return queryTab
-    }
     return 'overview'
   }, [location.pathname, searchParams])
 
+  // Switch tabs on the base profile URL so deep links like /patients/:id/timeline never pin the tab
   const setTab = (tab: TabKey) => {
-    setSearchParams({ tab }, { replace: true })
+    navigate(`/patients/${patient?.id || id}?tab=${tab}`, { replace: true })
   }
 
   // Prescription modal state
@@ -140,20 +225,102 @@ export const PatientProfilePage: React.FC = () => {
   }, [patientPlans])
 
   // Upcoming appointment
+  const today = localDate()
+
   const nextAppointment = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10)
     return patientAppointments
       .filter((a) => a.date >= today && a.status !== 'cancelled')
-      .sort((a, b) => a.date.localeCompare(b.date))[0]
-  }, [patientAppointments])
+      .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))[0]
+  }, [patientAppointments, today])
 
   // Last visit
   const lastAppointment = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10)
     return patientAppointments
-      .filter((a) => a.date < today || a.status === 'completed')
+      .filter((a) => (a.date < today && a.status !== 'cancelled') || a.status === 'completed')
       .sort((a, b) => b.date.localeCompare(a.date))[0]
-  }, [patientAppointments])
+  }, [patientAppointments, today])
+
+  const completedVisits = useMemo(() => patientAppointments.filter((a) => a.status === 'completed').length, [patientAppointments])
+
+  // Money at a glance
+  const billing = useMemo(() => {
+    const billed = patientInvoices.reduce((s, inv) => s + inv.amount, 0)
+    const paid = patientInvoices.reduce((s, inv) => s + invoicePaidAmount(inv), 0)
+    const due = patientInvoices.reduce((s, inv) => s + invoiceBalance(inv), 0)
+    const pendingPlanValue = pendingTreatments.reduce((s, p) => s + p.cost, 0)
+    return { billed, paid, due, pendingPlanValue }
+  }, [patientInvoices, pendingTreatments])
+
+  const [openInvoiceId, setOpenInvoiceId] = useState<string | null>(null)
+  const [payInvoiceId, setPayInvoiceId] = useState<string | null>(null)
+  const openInvoice = patientInvoices.find((inv) => inv.id === openInvoiceId)
+  const payInvoice = patientInvoices.find((inv) => inv.id === payInvoiceId)
+  const oldestDueInvoice = useMemo(
+    () => [...patientInvoices].filter((inv) => invoiceBalance(inv) > 0).sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0],
+    [patientInvoices]
+  )
+
+  // Everything that happened to this patient, newest first
+  const [activityFilter, setActivityFilter] = useState<'all' | ActivityKind>('all')
+  const activity = useMemo<ActivityItem[]>(() => {
+    const items: ActivityItem[] = []
+    patientAppointments.forEach((a) => {
+      const tone = a.status === 'completed' ? 'ok' : a.status === 'cancelled' || a.status === 'no-show' ? 'bad' : undefined
+      items.push({
+        id: `visit-${a.id}`,
+        kind: 'visit',
+        date: `${a.date}T${a.time || '00:00'}`,
+        title: `${a.treatmentType || a.visitType} · ${a.status.replace('-', ' ')}`,
+        detail: [a.doctor, a.chair, a.notes].filter(Boolean).join(' · '),
+        link: `/appointments/${a.id}`,
+        tone
+      })
+    })
+    patientNotes.forEach((n) => {
+      items.push({
+        id: `note-${n.id}`,
+        kind: 'note',
+        date: n.createdAt || n.visitDate,
+        title: `Clinical note: ${n.complaint}`,
+        detail: [n.findings && `Findings: ${n.findings}`, n.plan && `Plan: ${n.plan}`].filter(Boolean).join(' · ')
+      })
+    })
+    patientInvoices.forEach((inv) => {
+      items.push({
+        id: `inv-${inv.id}`,
+        kind: 'billing',
+        date: inv.createdAt,
+        title: `Invoice ${inv.id} · ${inr(inv.amount)}`,
+        detail: inv.description,
+        tone: inv.status === 'Paid' ? 'ok' : inv.status === 'Partial' ? 'warn' : 'bad'
+      })
+      ;(inv.payments || []).forEach((pay) => {
+        items.push({
+          id: `pay-${pay.id}`,
+          kind: 'billing',
+          date: pay.receivedAt,
+          title: `Payment received · ${inr(pay.amount)} by ${pay.mode}`,
+          detail: `Against ${inv.id}${pay.reference ? ` · Ref ${pay.reference}` : ''}`,
+          tone: 'ok'
+        })
+      })
+    })
+    patientDocs.forEach((d) => {
+      items.push({ id: `doc-${d.id}`, kind: 'document', date: d.uploadDate, title: `Document added: ${d.title}`, detail: `${d.category} · ${d.fileName}` })
+    })
+    patientConsentList.forEach((c) => {
+      items.push({
+        id: `cns-${c.id}`,
+        kind: 'consent',
+        date: c.dateRecorded,
+        title: `Consent ${c.status.toLowerCase()}: ${c.consentType}`,
+        detail: `Recorded by ${c.recordedBy}`,
+        tone: c.status === 'Signed' ? 'ok' : c.status === 'Declined' ? 'bad' : 'warn'
+      })
+    })
+    return items.sort((a, b) => b.date.localeCompare(a.date))
+  }, [patientAppointments, patientNotes, patientInvoices, patientDocs, patientConsentList])
+  const visibleActivity = activityFilter === 'all' ? activity : activity.filter((a) => a.kind === activityFilter)
 
   // Medical Alert Text
   const medicalAlerts = useMemo(() => {
@@ -164,6 +331,9 @@ export const PatientProfilePage: React.FC = () => {
     }
     if (patient.conditions === 'yes' && patient.conditionsDetails) {
       parts.push(`Conditions: ${patient.conditionsDetails}`)
+    }
+    if (patient.medications === 'yes' && patient.medicationsDetails) {
+      parts.push(`On medication: ${patient.medicationsDetails}`)
     }
     return parts.length > 0 ? parts.join(' • ') : null
   }, [patient])
@@ -176,6 +346,10 @@ export const PatientProfilePage: React.FC = () => {
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
   const [docTitle, setDocTitle] = useState('')
   const [docCategory, setDocCategory] = useState<PatientDocumentRecord['category']>('Radiology')
+  const [docFile, setDocFile] = useState<File | null>(null)
+  const [docSaving, setDocSaving] = useState(false)
+  const [docNotice, setDocNotice] = useState('')
+  const [previewDoc, setPreviewDoc] = useState<PatientDocumentRecord | null>(null)
 
   // Consent Modal State
   const [consentModalOpen, setConsentModalOpen] = useState(false)
@@ -190,8 +364,14 @@ export const PatientProfilePage: React.FC = () => {
       lastName: patient.lastName,
       mobile: patient.mobile,
       email: patient.email,
+      dateOfBirth: patient.dateOfBirth,
+      age: patient.age,
+      gender: patient.gender,
+      language: patient.language,
       address: patient.address,
       city: patient.city,
+      state: patient.state,
+      postalCode: patient.postalCode,
       emergencyName: patient.emergencyName,
       emergencyPhone: patient.emergencyPhone,
       relationship: patient.relationship,
@@ -212,21 +392,70 @@ export const PatientProfilePage: React.FC = () => {
     setEditModalOpen(false)
   }
 
-  const handleUploadDoc = (e: React.FormEvent) => {
+  const closeUpload = () => {
+    setUploadModalOpen(false)
+    setDocFile(null)
+    setDocTitle('')
+  }
+
+  const pickDocFile = (file: File | null) => {
+    setDocFile(file)
+    if (file && !docTitle.trim()) setDocTitle(file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '))
+    if (file && /^image\//.test(file.type) && docCategory === 'Radiology' && /photo|img|intraoral/i.test(file.name)) setDocCategory('Intraoral Photo')
+  }
+
+  const handleUploadDoc = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!patient || !docTitle.trim()) return
+    if (!patient || !docTitle.trim() || !docFile) return
+    setDocSaving(true)
+    let url: string
+    let kept = true
+    try {
+      if (docFile.size <= MAX_STORED_FILE_BYTES) {
+        url = await readAsDataUrl(docFile)
+      } else {
+        url = URL.createObjectURL(docFile)
+        kept = false
+      }
+    } catch {
+      setDocSaving(false)
+      setDocNotice('Could not read that file. Try again or choose another file.')
+      return
+    }
     addPatientDocument({
       patientId: patient.id,
       title: docTitle.trim(),
       category: docCategory,
-      fileName: `${docTitle.trim().toLowerCase().replace(/\s+/g, '_')}.dcm`,
-      fileSize: '3.6 MB',
-      doctor: 'Dr. Arun Kumar'
+      fileName: docFile.name,
+      fileSize: formatBytes(docFile.size),
+      url
     })
-    setDocTitle('')
-    setUploadModalOpen(false)
+    setDocSaving(false)
+    setDocNotice(kept ? '' : `"${docFile.name}" is larger than ${formatBytes(MAX_STORED_FILE_BYTES)}, so it can be viewed now but will not be kept after a page reload.`)
+    closeUpload()
     setTab('documents')
   }
+
+  const downloadDoc = (doc: PatientDocumentRecord) => {
+    if (!doc.url) return
+    const a = document.createElement('a')
+    a.href = doc.url
+    a.download = doc.fileName
+    a.click()
+  }
+
+  // Escape closes whichever dialog is open
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      setEditModalOpen(false)
+      setUploadModalOpen(false)
+      setConsentModalOpen(false)
+      setPreviewDoc(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const handleAddConsent = (e: React.FormEvent) => {
     e.preventDefault()
@@ -268,6 +497,9 @@ export const PatientProfilePage: React.FC = () => {
   }
 
   const initials = `${(patient.firstName || '').charAt(0)}${(patient.lastName || '').charAt(0)}`.toUpperCase() || 'PT'
+  const phoneDigits = digitsOnly(`${patient.countryCode || ''}${patient.mobile || ''}`)
+  const whatsappDigits = digitsOnly(`${patient.countryCode || '+91'}${patient.mobile || ''}`)
+  const location_ = [patient.city, patient.state].filter(Boolean).join(', ')
 
   return (
     <section className="clinic-record-page pat-profile-page" data-testid="feature-page-pat.profile">
@@ -301,26 +533,33 @@ export const PatientProfilePage: React.FC = () => {
                 <span className="pat-badge" style={{ textTransform: 'capitalize' }}>
                   {patient.gender || 'Patient'}
                 </span>
-                <span className="pat-badge" style={{ color: '#059669', background: 'rgba(16, 185, 129, 0.1)', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
-                  Active Record
-                </span>
               </div>
 
               <div className="pat-hero-meta">
-                <span className="pat-meta-item">
-                  <Phone size={13} />
-                  <span>{patient.countryCode} {patient.mobile}</span>
-                </span>
+                {patient.mobile && (
+                  <a className="pat-meta-item pat-meta-link" href={`tel:+${phoneDigits}`} title="Call patient">
+                    <Phone size={13} />
+                    <span>{patient.countryCode} {patient.mobile}</span>
+                  </a>
+                )}
+                {patient.mobile && (
+                  <a className="pat-meta-item pat-meta-link pat-meta-whatsapp" href={`https://wa.me/${whatsappDigits}`} target="_blank" rel="noopener noreferrer" title="Message on WhatsApp">
+                    <MessageCircle size={13} />
+                    <span>WhatsApp</span>
+                  </a>
+                )}
                 {patient.email && (
-                  <span className="pat-meta-item">
+                  <a className="pat-meta-item pat-meta-link" href={`mailto:${patient.email}`} title="Email patient">
                     <Mail size={13} />
                     <span>{patient.email}</span>
+                  </a>
+                )}
+                {location_ && (
+                  <span className="pat-meta-item">
+                    <MapPin size={13} />
+                    <span>{location_}</span>
                   </span>
                 )}
-                <span className="pat-meta-item">
-                  <MapPin size={13} />
-                  <span>{patient.city || 'Kochi, Kerala'}</span>
-                </span>
               </div>
             </div>
           </div>
@@ -363,6 +602,15 @@ export const PatientProfilePage: React.FC = () => {
               <FileText size={14} />
               <span>Start Consultation</span>
             </Link>
+
+            <Link
+              className="pat-btn pat-btn-secondary"
+              to={`/billing/invoices/new?patientId=${patient.id}`}
+              title="Bill this patient"
+            >
+              <Receipt size={14} />
+              <span>New Invoice</span>
+            </Link>
           </div>
         </div>
 
@@ -381,6 +629,29 @@ export const PatientProfilePage: React.FC = () => {
             <span>No critical medical alerts or drug contraindications recorded.</span>
           </div>
         )}
+
+        <div className="pat-stats" aria-label="Patient summary">
+          <button type="button" className="pat-stat" onClick={() => setTab('timeline')}>
+            <span>Visits completed</span>
+            <strong>{completedVisits}</strong>
+          </button>
+          <button type="button" className="pat-stat" onClick={() => setTab('timeline')}>
+            <span>Last visit</span>
+            <strong>{lastAppointment ? prettyDate(lastAppointment.date) : '—'}</strong>
+          </button>
+          <Link className="pat-stat" to={nextAppointment ? `/appointments/${nextAppointment.id}` : `/appointments/new?patientId=${patient.id}`}>
+            <span>Next visit</span>
+            <strong>{nextAppointment ? `${prettyDate(nextAppointment.date)} · ${nextAppointment.time}` : 'Not booked'}</strong>
+          </Link>
+          <button type="button" className="pat-stat" onClick={() => setTab('overview')}>
+            <span>Treatment pending</span>
+            <strong>{pendingTreatments.length ? inr(billing.pendingPlanValue) : '—'}</strong>
+          </button>
+          <button type="button" className={`pat-stat${billing.due > 0 ? ' is-due' : ''}`} onClick={() => setTab('billing')}>
+            <span>Balance due</span>
+            <strong>{inr(billing.due)}</strong>
+          </button>
+        </div>
       </header>
 
       {/* 2. Unified 5 Profile Navigation Tabs */}
@@ -409,10 +680,19 @@ export const PatientProfilePage: React.FC = () => {
           onClick={() => setTab('timeline')}
         >
           <Clock size={15} />
-          <span>Visit Timeline</span>
-          {patientAppointments.length > 0 && (
-            <span className="pat-tab-badge">{patientAppointments.length}</span>
+          <span>Activity</span>
+          {activity.length > 0 && (
+            <span className="pat-tab-badge">{activity.length}</span>
           )}
+        </button>
+
+        <button
+          type="button"
+          className={`pat-tab-btn ${activeTab === 'billing' ? 'is-active' : ''}`}
+          onClick={() => setTab('billing')}
+        >
+          <Receipt size={15} />
+          <span>Billing</span>
         </button>
 
         <button
@@ -575,7 +855,7 @@ export const PatientProfilePage: React.FC = () => {
                       </span>
                     </div>
                     <div style={{ fontSize: '13px', color: 'var(--teal-primary, #0b8185)', fontWeight: 600 }}>
-                      {nextAppointment.date} at {nextAppointment.time} ({nextAppointment.chair || 'Chair 1'})
+                      {prettyDate(nextAppointment.date)} at {nextAppointment.time}{nextAppointment.chair ? ` · ${nextAppointment.chair}` : ''}
                     </div>
                     <div style={{ fontSize: '12.5px', color: 'var(--text-muted, #64748b)' }}>
                       Assigned: {nextAppointment.doctor}
@@ -617,16 +897,17 @@ export const PatientProfilePage: React.FC = () => {
                       <strong style={{ fontSize: '15px', color: 'var(--text-main, #0f172a)' }}>
                         {lastAppointment.treatmentType || lastAppointment.visitType}
                       </strong>
-                      <span className="pat-badge" style={{ color: '#059669', background: 'rgba(16, 185, 129, 0.1)' }}>
-                        Completed
+                      <span className={`pat-badge${lastAppointment.status === 'completed' ? ' pat-badge-ok' : ''}`} style={{ textTransform: 'capitalize' }}>
+                        {lastAppointment.status.replace('-', ' ')}
                       </span>
                     </div>
                     <div style={{ fontSize: '13px', color: 'var(--text-muted, #475569)' }}>
-                      Date: {lastAppointment.date} · {lastAppointment.doctor}
+                      {prettyDate(lastAppointment.date)} · {lastAppointment.doctor}
                     </div>
                     {patientNotes.length > 0 && (
                       <div style={{ fontSize: '12.5px', background: 'var(--surface, #fff)', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--line, #e2e8f0)', marginTop: '4px' }}>
                         <strong>Findings: </strong>{patientNotes[0].findings}
+                        {patientNotes[0].plan && <><br /><strong>Plan: </strong>{patientNotes[0].plan}</>}
                       </div>
                     )}
                   </div>
@@ -650,9 +931,16 @@ export const PatientProfilePage: React.FC = () => {
                     </span>
                   )}
                 </h3>
-                <Link to="/clinical/treatment-plans" className="pat-card-action">
-                  Open Clinical Treatment Plans →
-                </Link>
+                <span style={{ display: 'inline-flex', gap: '14px', alignItems: 'center' }}>
+                  {pendingTreatments.length > 0 && (
+                    <Link to={`/billing/invoices/new?patientId=${patient.id}`} className="pat-card-action" title="Plan items appear as one-click lines in the invoice">
+                      Bill treatment →
+                    </Link>
+                  )}
+                  <Link to="/clinical/treatment-plans" className="pat-card-action">
+                    Treatment plans →
+                  </Link>
+                </span>
               </div>
 
               {pendingTreatments.length > 0 ? (
@@ -706,30 +994,24 @@ export const PatientProfilePage: React.FC = () => {
               )}
             </article>
 
-            {/* Invoices & Billing Quick View */}
+            {/* Billing summary — full detail lives on the Billing tab */}
             {patientInvoices.length > 0 && (
               <article className="pat-card">
                 <div className="pat-card-head">
-                  <h3><Receipt size={16} /> Recent Invoices</h3>
-                  <Link to={`/billing/invoices/new?patientId=${patient.id}`} className="pat-card-action">
-                    New Invoice →
-                  </Link>
+                  <h3><Receipt size={16} /> Billing</h3>
+                  <button type="button" onClick={() => setTab('billing')} className="pat-card-action" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                    All invoices →
+                  </button>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {patientInvoices.map((inv) => (
-                    <div key={inv.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', padding: '8px 10px', background: 'var(--surface, #fff)', borderRadius: '6px', border: '1px solid var(--line, #e2e8f0)' }}>
-                      <div>
-                        <strong>{inv.description}</strong>
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>{inv.id} · {inv.createdAt.slice(0, 10)}</div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontWeight: 700 }}>₹{inv.amount.toLocaleString('en-IN')}</div>
-                        <span style={{ fontSize: '11px', fontWeight: 600, color: inv.status === 'Paid' ? '#059669' : '#dc2626' }}>
-                          {inv.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                <div className="pat-money-row">
+                  <div><span>Billed</span><strong>{inr(billing.billed)}</strong></div>
+                  <div><span>Paid</span><strong className="pat-ok">{inr(billing.paid)}</strong></div>
+                  <div><span>Balance</span><strong className={billing.due > 0 ? 'pat-bad' : ''}>{inr(billing.due)}</strong></div>
+                  {oldestDueInvoice && (
+                    <button type="button" className="pat-btn pat-btn-primary" onClick={() => setPayInvoiceId(oldestDueInvoice.id)}>
+                      Collect {inr(invoiceBalance(oldestDueInvoice))}
+                    </button>
+                  )}
                 </div>
               </article>
             )}
@@ -738,123 +1020,93 @@ export const PatientProfilePage: React.FC = () => {
 
         {/* TAB 2: MEDICAL HISTORY */}
         {activeTab === 'medical' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <section
+            className="pat-card pat-medical-card"
+            aria-labelledby="medical-history-heading"
+          >
+            <header className="pat-medical-card__header">
               <div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
+                <h3 id="medical-history-heading">
                   Patient Medical Screening & Dental Safety
                 </h3>
-                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
+                <p>
                   Screening data recorded during intake and verified by treating clinician.
                 </p>
               </div>
               <button type="button" onClick={openEditModal} className="pat-btn pat-btn-secondary">
-                <Edit3 size={13} /> Edit Medical Details
+                <Edit3 size={13} aria-hidden="true" /> Edit Medical Details
               </button>
+            </header>
+
+            <div className="pat-medical-section">
+              <h4 className="pat-medical-section__label">
+                {t('patients.medical.safetyScreening', { defaultValue: 'Safety screening' })}
+              </h4>
+              <ul className="pat-medical-list">
+                <MedicalRow
+                  key={`${patient.id}-allergies`}
+                  icon={TriangleAlert}
+                  title="Allergies & Sensitivities"
+                  description={patient.allergies === 'yes'
+                    ? patient.allergiesDetails || 'Allergies present'
+                    : 'Patient declared no known allergies to local anesthetics, antibiotics (penicillin), latex, or analgesics.'}
+                  status={patient.allergies === 'yes' ? 'Allergy reported' : 'No Allergies'}
+                  statusTone={patient.allergies === 'yes' ? 'amber' : 'green'}
+                  hasAlert={patient.allergies === 'yes'}
+                />
+                <MedicalRow
+                  key={`${patient.id}-medications`}
+                  icon={Pill}
+                  title="Current Medications"
+                  description={patient.medications === 'yes'
+                    ? patient.medicationsDetails || 'Active medications reported.'
+                    : 'Patient is not currently taking systemic long-term medications or blood thinners.'}
+                  status={patient.medications === 'yes' ? 'Medication reported' : 'None'}
+                  statusTone={patient.medications === 'yes' ? 'amber' : 'gray'}
+                  dividerAbove
+                  hasAlert={patient.medications === 'yes'}
+                />
+                <MedicalRow
+                  key={`${patient.id}-conditions`}
+                  icon={Activity}
+                  title="Systemic Medical Conditions"
+                  description={patient.conditions === 'yes'
+                    ? patient.conditionsDetails || 'Medical conditions reported'
+                    : 'No recorded chronic conditions (Hypertension, Diabetes, Cardiac disease, Asthma, Bleeding disorders).'}
+                  status={patient.conditions === 'yes' ? 'Condition reported' : 'Clear'}
+                  statusTone={patient.conditions === 'yes' ? 'amber' : 'green'}
+                  dividerAbove
+                  hasAlert={patient.conditions === 'yes'}
+                />
+              </ul>
             </div>
 
-            <div className="pat-grid-2">
-              <article className="pat-card" style={{ borderColor: patient.allergies === 'yes' ? 'rgba(220, 38, 38, 0.3)' : undefined }}>
-                <div className="pat-card-head">
-                  <h3 style={{ color: patient.allergies === 'yes' ? '#dc2626' : undefined }}>
-                    <AlertTriangle size={16} /> Allergies & Sensitivities
-                  </h3>
-                  <span className="pat-badge" style={{ background: patient.allergies === 'yes' ? '#fee2e2' : '#ecfdf5', color: patient.allergies === 'yes' ? '#dc2626' : '#059669' }}>
-                    {patient.allergies === 'yes' ? 'Allergies Present' : 'No Allergies'}
-                  </span>
-                </div>
-                {patient.allergies === 'yes' ? (
-                  <div style={{ padding: '8px 0', color: 'var(--text-main, #0f172a)', fontSize: '14px', fontWeight: 500 }}>
-                    {patient.allergiesDetails}
-                    <div style={{ fontSize: '12px', color: '#dc2626', marginTop: '6px' }}>
-                      ⚠️ Clinicians must verify non-allergenic anesthesia and prescribed analgesics/antibiotics.
-                    </div>
-                  </div>
-                ) : (
-                  <p style={{ color: 'var(--text-muted, #64748b)', fontSize: '13.5px', margin: 0 }}>
-                    Patient declared no known allergies to local anesthetics, antibiotics (penicillin), latex, or analgesics.
-                  </p>
-                )}
-              </article>
-
-              <article className="pat-card">
-                <div className="pat-card-head">
-                  <h3><ShieldCheck size={16} /> Current Medications</h3>
-                  <span className="pat-badge">
-                    {patient.medications === 'yes' ? 'Active Prescriptions' : 'None'}
-                  </span>
-                </div>
-                {patient.medications === 'yes' ? (
-                  <div style={{ padding: '8px 0', color: 'var(--text-main, #0f172a)', fontSize: '14px' }}>
-                    {patient.medicationsDetails}
-                  </div>
-                ) : (
-                  <p style={{ color: 'var(--text-muted, #64748b)', fontSize: '13.5px', margin: 0 }}>
-                    Patient is not currently taking systemic long-term medications or blood thinners.
-                  </p>
-                )}
-              </article>
-
-              <article className="pat-card" style={{ borderColor: patient.conditions === 'yes' ? 'rgba(245, 158, 11, 0.3)' : undefined }}>
-                <div className="pat-card-head">
-                  <h3 style={{ color: patient.conditions === 'yes' ? '#d97706' : undefined }}>
-                    <Activity size={16} /> Systemic Medical Conditions
-                  </h3>
-                  <span className="pat-badge" style={{ background: patient.conditions === 'yes' ? '#fef3c7' : '#ecfdf5', color: patient.conditions === 'yes' ? '#d97706' : '#059669' }}>
-                    {patient.conditions === 'yes' ? 'Pre-existing Condition' : 'Clear'}
-                  </span>
-                </div>
-                {patient.conditions === 'yes' ? (
-                  <div style={{ padding: '8px 0', color: 'var(--text-main, #0f172a)', fontSize: '14px' }}>
-                    {patient.conditionsDetails}
-                    <div style={{ fontSize: '12px', color: '#b45309', marginTop: '6px' }}>
-                      ℹ️ Monitor vitals (BP / Blood Glucose) prior to invasive dental surgical procedures.
-                    </div>
-                  </div>
-                ) : (
-                  <p style={{ color: 'var(--text-muted, #64748b)', fontSize: '13.5px', margin: 0 }}>
-                    No recorded chronic conditions (Hypertension, Diabetes, Cardiac disease, Asthma, Bleeding disorders).
-                  </p>
-                )}
-              </article>
-
-              <article className="pat-card">
-                <div className="pat-card-head">
-                  <h3><Phone size={16} /> Emergency Safety Contact</h3>
-                </div>
-                <dl className="pat-dl">
-                  <div className="pat-dl-row">
-                    <dt>Contact Person</dt>
-                    <dd>{patient.emergencyName || 'Not specified'}</dd>
-                  </div>
-                  <div className="pat-dl-row">
-                    <dt>Phone</dt>
-                    <dd>{patient.emergencyPhone || '—'}</dd>
-                  </div>
-                  <div className="pat-dl-row">
-                    <dt>Relationship</dt>
-                    <dd>{patient.relationship || 'Spouse / Next of Kin'}</dd>
-                  </div>
-                </dl>
-              </article>
+            <div className="pat-medical-section pat-medical-section--emergency">
+              <h4 className="pat-medical-section__label">
+                {t('patients.medical.emergencyContact', { defaultValue: 'Emergency contact' })}
+              </h4>
+              <ul className="pat-medical-list">
+                <MedicalRow
+                  key={`${patient.id}-emergency-contact`}
+                  icon={Phone}
+                  title={patient.emergencyName || 'Not specified'}
+                  description={patient.relationship || 'Spouse / Next of Kin'}
+                  phone={patient.emergencyPhone || '—'}
+                />
+              </ul>
             </div>
-          </div>
+          </section>
         )}
 
-        {/* TAB 3: VISIT TIMELINE */}
+        {/* TAB 3: ACTIVITY — every visit, note, bill, payment, document and consent in one feed */}
         {activeTab === 'timeline' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="pat-section-head">
               <div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
-                  Chronological Visit Timeline
-                </h3>
-                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
-                  All recorded appointments, clinical encounters, procedures, and findings.
-                </p>
+                <h3>Patient activity</h3>
+                <p>Visits, clinical notes, invoices, payments, documents and consents, newest first.</p>
               </div>
-
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <Link to={`/clinical/notes?patientId=${patient.id}`} className="pat-btn pat-btn-secondary">
                   <FileText size={13} /> New Clinical Note
                 </Link>
@@ -864,68 +1116,115 @@ export const PatientProfilePage: React.FC = () => {
               </div>
             </div>
 
-            {patientAppointments.length > 0 ? (
-              <div className="pat-timeline">
-                {patientAppointments.map((appt) => {
-                  const linkedNote = patientNotes.find((n) => n.visitDate === appt.date)
+            <div className="pat-filter-chips" role="group" aria-label="Filter activity">
+              {ACTIVITY_FILTERS.map((f) => {
+                const count = f.id === 'all' ? activity.length : activity.filter((a) => a.kind === f.id).length
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    className={`pat-chip${activityFilter === f.id ? ' is-active' : ''}`}
+                    onClick={() => setActivityFilter(f.id)}
+                    aria-pressed={activityFilter === f.id}
+                  >
+                    {f.label} <span className="pat-chip-count">{count}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {visibleActivity.length > 0 ? (
+              <ol className="pat-activity">
+                {visibleActivity.map((item) => {
+                  const Icon = ACTIVITY_ICONS[item.kind]
                   return (
-                    <div key={appt.id} className="pat-timeline-item">
-                      <div className="pat-timeline-dot">
-                        <Calendar size={11} style={{ color: 'var(--teal-primary, #0b8185)' }} />
-                      </div>
-
-                      <div className="pat-timeline-card">
-                        <div className="pat-timeline-head">
-                          <div>
-                            <div className="pat-timeline-date">{appt.date} · {appt.time}</div>
-                            <div className="pat-timeline-title">
-                              {appt.treatmentType || appt.visitType}
-                            </div>
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span className="pat-badge is-primary" style={{ textTransform: 'capitalize' }}>
-                              {appt.status}
-                            </span>
-                            <Link
-                              to={`/appointments/${appt.id}`}
-                              style={{ fontSize: '12px', color: 'var(--teal-primary, #0b8185)', textDecoration: 'none', fontWeight: 500 }}
-                            >
-                              View Appointment →
-                            </Link>
-                          </div>
+                    <li key={item.id} className={`pat-activity-item pat-activity-${item.kind}`}>
+                      <span className={`pat-activity-icon${item.tone ? ` is-${item.tone}` : ''}`}><Icon size={14} /></span>
+                      <div className="pat-activity-body">
+                        <div className="pat-activity-top">
+                          <strong>{item.title}</strong>
+                          <time dateTime={item.date}>{prettyDate(item.date.slice(0, 10))}</time>
                         </div>
-
-                        <div style={{ fontSize: '13px', color: 'var(--text-muted, #475569)' }}>
-                          <strong>Doctor:</strong> {appt.doctor} {appt.chair && `• ${appt.chair}`}
-                        </div>
-
-                        {appt.notes && (
-                          <div style={{ fontSize: '12.5px', color: 'var(--text-main, #0f172a)', background: 'var(--surface, #ffffff)', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--line, #e2e8f0)' }}>
-                            <strong>Appointment Notes: </strong>{appt.notes}
-                          </div>
-                        )}
-
-                        {linkedNote && (
-                          <div style={{ fontSize: '12.5px', background: 'rgba(11, 129, 133, 0.04)', padding: '10px 12px', borderRadius: '6px', border: '1px solid rgba(11, 129, 133, 0.15)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <div style={{ fontWeight: 600, color: 'var(--teal-primary, #0b8185)' }}>Clinical Note Record</div>
-                            <div><strong>Complaint:</strong> {linkedNote.complaint}</div>
-                            <div><strong>Findings:</strong> {linkedNote.findings}</div>
-                            <div><strong>Plan:</strong> {linkedNote.plan}</div>
-                          </div>
+                        {item.detail && <p>{item.detail}</p>}
+                        {item.link && <Link to={item.link} className="pat-card-action">Open →</Link>}
+                        {item.kind === 'billing' && item.id.startsWith('inv-') && (
+                          <button type="button" className="pat-card-action pat-linklike" onClick={() => setOpenInvoiceId(item.id.slice(4))}>
+                            View invoice →
+                          </button>
                         )}
                       </div>
-                    </div>
+                    </li>
                   )
                 })}
+              </ol>
+            ) : (
+              <div className="pat-empty">
+                <Clock size={28} />
+                <h4>{activity.length ? 'Nothing in this category yet' : 'No activity recorded yet'}</h4>
+                <p>Appointments, notes, bills and documents for this patient will appear here as they happen.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB: BILLING */}
+        {activeTab === 'billing' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="pat-section-head">
+              <div>
+                <h3>Billing</h3>
+                <p>Invoices, part payments and what this patient still owes.</p>
+              </div>
+              <Link to={`/billing/invoices/new?patientId=${patient.id}`} className="pat-btn pat-btn-primary">
+                <Plus size={13} /> New Invoice
+              </Link>
+            </div>
+
+            <div className="pat-money-cards">
+              <div className="pat-card"><span>Total billed</span><strong>{inr(billing.billed)}</strong></div>
+              <div className="pat-card"><span>Paid</span><strong className="pat-ok">{inr(billing.paid)}</strong></div>
+              <div className="pat-card"><span>Balance due</span><strong className={billing.due > 0 ? 'pat-bad' : ''}>{inr(billing.due)}</strong></div>
+              <div className="pat-card"><span>Planned, not billed</span><strong>{inr(billing.pendingPlanValue)}</strong></div>
+            </div>
+
+            {patientInvoices.length > 0 ? (
+              <div className="pat-table-container">
+                <table className="pat-table pat-bill-table">
+                  <thead>
+                    <tr><th>Invoice</th><th>Services</th><th style={{ textAlign: 'right' }}>Total</th><th style={{ textAlign: 'right' }}>Balance</th><th>Status</th><th /></tr>
+                  </thead>
+                  <tbody>
+                    {patientInvoices.map((inv) => {
+                      const due = invoiceBalance(inv)
+                      return (
+                        <tr key={inv.id}>
+                          <td>
+                            <button type="button" className="pat-linklike" onClick={() => setOpenInvoiceId(inv.id)}>{inv.id}</button>
+                            <div className="pat-muted-sm">{prettyDate(inv.createdAt)}</div>
+                          </td>
+                          <td className="pat-ellipsis">{inv.description}</td>
+                          <td style={{ textAlign: 'right' }}>{inr(inv.amount)}</td>
+                          <td style={{ textAlign: 'right' }} className={due > 0 ? 'pat-bad' : ''}>{inr(due)}</td>
+                          <td><StatusPill status={inv.status} /></td>
+                          <td style={{ textAlign: 'right' }}>
+                            {due > 0 ? (
+                              <button type="button" className="pat-btn pat-btn-primary pat-btn-sm" onClick={() => setPayInvoiceId(inv.id)}>Collect</button>
+                            ) : (
+                              <button type="button" className="pat-btn pat-btn-secondary pat-btn-sm" onClick={() => setOpenInvoiceId(inv.id)}>View</button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             ) : (
-              <div style={{ padding: '40px 20px', textAlign: 'center', background: 'var(--surface-subtle, #f8fafc)', borderRadius: '10px', border: '1px solid var(--line, #e2e8f0)' }}>
-                <Clock size={28} style={{ color: 'var(--text-muted, #94a3b8)', marginBottom: '8px' }} />
-                <h4 style={{ margin: '0 0 4px 0', fontSize: '15px' }}>No visits recorded yet</h4>
-                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
-                  When this patient checks in for appointments or consultations, their timeline will populate chronologically.
-                </p>
+              <div className="pat-empty">
+                <Receipt size={28} />
+                <h4>No invoices yet</h4>
+                <p>Bills for this patient's treatments will show here, with payments and balance.</p>
+                <Link to={`/billing/invoices/new?patientId=${patient.id}`} className="pat-btn pat-btn-secondary"><Plus size={13} /> Create first invoice</Link>
               </div>
             )}
           </div>
@@ -953,14 +1252,25 @@ export const PatientProfilePage: React.FC = () => {
               </button>
             </div>
 
+            {docNotice && (
+              <p className="pat-notice" role="status">
+                {docNotice}
+                <button type="button" onClick={() => setDocNotice('')} aria-label="Dismiss"><X size={13} /></button>
+              </p>
+            )}
+
             {patientDocs.length > 0 ? (
               <div className="pat-docs-grid">
                 {patientDocs.map((doc) => (
                   <div key={doc.id} className="pat-doc-card">
                     <div className="pat-doc-info">
-                      <span className="pat-doc-icon">
-                        <FileText size={20} />
-                      </span>
+                      {doc.url && doc.url.startsWith('data:image') ? (
+                        <img className="pat-doc-thumb" src={doc.url} alt="" />
+                      ) : (
+                        <span className="pat-doc-icon">
+                          <FileText size={20} />
+                        </span>
+                      )}
                       <div className="pat-doc-text">
                         <h4>{doc.title}</h4>
                         <p>{doc.category} · {doc.uploadDate}</p>
@@ -971,23 +1281,28 @@ export const PatientProfilePage: React.FC = () => {
                     </div>
 
                     <div className="pat-doc-actions">
-                      <button
-                        type="button"
-                        onClick={() => alert(`Opening preview for ${doc.fileName} (Digital DICOM Viewer)`)}
-                        className="pat-action-btn"
-                        style={{ padding: '4px 10px', fontSize: '12px' }}
-                      >
-                        <ExternalLink size={12} /> Preview Scan
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => alert(`Downloading record: ${doc.fileName}`)}
-                        className="pat-action-btn"
-                        style={{ padding: '4px 10px', fontSize: '12px' }}
-                      >
-                        <FileDown size={12} /> Download
-                      </button>
+                      {doc.url ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDoc(doc)}
+                            className="pat-action-btn"
+                            style={{ padding: '4px 10px', fontSize: '12px' }}
+                          >
+                            <Eye size={12} /> View
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => downloadDoc(doc)}
+                            className="pat-action-btn"
+                            style={{ padding: '4px 10px', fontSize: '12px' }}
+                          >
+                            <FileDown size={12} /> Download
+                          </button>
+                        </>
+                      ) : (
+                        <span className="pat-muted-sm" title="This record was logged without an attached file">No file attached</span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1306,6 +1621,46 @@ export const PatientProfilePage: React.FC = () => {
                   </div>
                 </div>
 
+                <div className="pat-form-row">
+                  <div className="pat-form-group">
+                    <label>Date of Birth</label>
+                    <input
+                      className="pat-form-input"
+                      type="date"
+                      max={today}
+                      value={editForm.dateOfBirth || ''}
+                      onChange={(e) => {
+                        const dob = e.target.value
+                        const years = dob ? Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 86400000)) : NaN
+                        setEditForm({ ...editForm, dateOfBirth: dob, age: Number.isFinite(years) && years >= 0 ? String(years) : editForm.age })
+                      }}
+                    />
+                  </div>
+                  <div className="pat-form-group">
+                    <label>Gender</label>
+                    <select
+                      className="pat-form-select"
+                      value={editForm.gender || ''}
+                      onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
+                    >
+                      <option value="">Not specified</option>
+                      <option value="female">Female</option>
+                      <option value="male">Male</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pat-form-group">
+                  <label>Preferred Language</label>
+                  <input
+                    className="pat-form-input"
+                    placeholder="e.g. Malayalam, English"
+                    value={editForm.language || ''}
+                    onChange={(e) => setEditForm({ ...editForm, language: e.target.value })}
+                  />
+                </div>
+
                 <div className="pat-form-group">
                   <label>Residential Address</label>
                   <input
@@ -1313,6 +1668,21 @@ export const PatientProfilePage: React.FC = () => {
                     value={editForm.address || ''}
                     onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
                   />
+                </div>
+
+                <div className="pat-form-row pat-form-row-3">
+                  <div className="pat-form-group">
+                    <label>City</label>
+                    <input className="pat-form-input" value={editForm.city || ''} onChange={(e) => setEditForm({ ...editForm, city: e.target.value })} />
+                  </div>
+                  <div className="pat-form-group">
+                    <label>State</label>
+                    <input className="pat-form-input" value={editForm.state || ''} onChange={(e) => setEditForm({ ...editForm, state: e.target.value })} />
+                  </div>
+                  <div className="pat-form-group">
+                    <label>PIN Code</label>
+                    <input className="pat-form-input" inputMode="numeric" value={editForm.postalCode || ''} onChange={(e) => setEditForm({ ...editForm, postalCode: e.target.value })} />
+                  </div>
                 </div>
 
                 <div className="pat-form-row">
@@ -1332,6 +1702,16 @@ export const PatientProfilePage: React.FC = () => {
                       onChange={(e) => setEditForm({ ...editForm, emergencyPhone: e.target.value })}
                     />
                   </div>
+                </div>
+
+                <div className="pat-form-group">
+                  <label>Relationship to Patient</label>
+                  <input
+                    className="pat-form-input"
+                    placeholder="e.g. Spouse, Parent"
+                    value={editForm.relationship || ''}
+                    onChange={(e) => setEditForm({ ...editForm, relationship: e.target.value })}
+                  />
                 </div>
 
                 <div className="pat-form-group">
@@ -1396,13 +1776,13 @@ export const PatientProfilePage: React.FC = () => {
 
       {/* ── UPLOAD DOCUMENT MODAL ── */}
       {uploadModalOpen && (
-        <div className="pat-modal-overlay" onClick={() => setUploadModalOpen(false)}>
+        <div className="pat-modal-overlay" onClick={closeUpload}>
           <div className="pat-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="pat-modal-header">
-              <h3>Upload Diagnostic Document</h3>
+              <h3>Upload Document</h3>
               <button
                 type="button"
-                onClick={() => setUploadModalOpen(false)}
+                onClick={closeUpload}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #64748b)' }}
               >
                 <X size={18} />
@@ -1438,25 +1818,41 @@ export const PatientProfilePage: React.FC = () => {
                   </select>
                 </div>
 
-                <div style={{ border: '2px dashed var(--line, #cbd5e1)', padding: '24px', borderRadius: '10px', textAlign: 'center', background: 'var(--surface-subtle, #f8fafc)' }}>
-                  <Upload size={24} style={{ color: 'var(--teal-primary, #0b8185)', marginBottom: '6px' }} />
-                  <div style={{ fontSize: '13px', fontWeight: 600 }}>Select DICOM or image file from local device</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>
-                    Supports DICOM, JPG, PNG, PDF up to 25MB
-                  </div>
-                </div>
+                <label
+                  className={`pat-dropzone${docFile ? ' has-file' : ''}`}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => { e.preventDefault(); pickDocFile(e.dataTransfer.files?.[0] || null) }}
+                >
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf,.dcm,application/dicom"
+                    onChange={(e) => pickDocFile(e.target.files?.[0] || null)}
+                  />
+                  <Upload size={22} />
+                  {docFile ? (
+                    <>
+                      <strong>{docFile.name}</strong>
+                      <span>{formatBytes(docFile.size)} · click to choose a different file</span>
+                    </>
+                  ) : (
+                    <>
+                      <strong>Choose a file or drop it here</strong>
+                      <span>X-ray, photo, PDF or DICOM</span>
+                    </>
+                  )}
+                </label>
               </div>
 
               <div className="pat-modal-footer">
                 <button
                   type="button"
                   className="pat-btn pat-btn-secondary"
-                  onClick={() => setUploadModalOpen(false)}
+                  onClick={closeUpload}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="pat-btn pat-btn-primary">
-                  Upload Record
+                <button type="submit" className="pat-btn pat-btn-primary" disabled={!docFile || !docTitle.trim() || docSaving}>
+                  {docSaving ? 'Saving…' : 'Upload'}
                 </button>
               </div>
             </form>
@@ -1580,6 +1976,49 @@ export const PatientProfilePage: React.FC = () => {
         <PrescriptionPrintModal
           prescription={printingRx}
           onClose={() => setPrintingRx(null)}
+        />
+      )}
+
+      {/* ── DOCUMENT PREVIEW ── */}
+      {previewDoc && previewDoc.url && (
+        <div className="pat-modal-overlay" onClick={() => setPreviewDoc(null)}>
+          <div className="pat-modal-content pat-preview" role="dialog" aria-modal="true" aria-label={previewDoc.title} onClick={(e) => e.stopPropagation()}>
+            <div className="pat-modal-header">
+              <h3>{previewDoc.title}</h3>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button type="button" className="pat-btn pat-btn-secondary pat-btn-sm" onClick={() => downloadDoc(previewDoc)}>
+                  <FileDown size={13} /> Download
+                </button>
+                <button type="button" className="pat-btn pat-btn-secondary pat-btn-sm" onClick={() => setPreviewDoc(null)} aria-label="Close">
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+            <div className="pat-preview-body">
+              {/^data:image|\.(png|jpe?g|gif|webp|bmp)$/i.test(previewDoc.url) || /\.(png|jpe?g|gif|webp|bmp)$/i.test(previewDoc.fileName) ? (
+                <img src={previewDoc.url} alt={previewDoc.title} />
+              ) : /^data:application\/pdf|\.pdf$/i.test(previewDoc.url) || /\.pdf$/i.test(previewDoc.fileName) ? (
+                <iframe src={previewDoc.url} title={previewDoc.title} />
+              ) : (
+                <div className="pat-empty">
+                  <FileText size={28} />
+                  <h4>No preview for this file type</h4>
+                  <p>{previewDoc.fileName} · use Download to open it in your imaging software.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {openInvoice && <InvoiceDrawer invoice={openInvoice} patient={patient} onClose={() => setOpenInvoiceId(null)} />}
+      {payInvoice && (
+        <PaymentDialog
+          invoice={payInvoice}
+          patientName={`${patient.firstName} ${patient.lastName}`}
+          onClose={() => setPayInvoiceId(null)}
+        />
+      )}
         />
       )}
     </section>

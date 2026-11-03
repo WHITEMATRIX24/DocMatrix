@@ -98,13 +98,57 @@ export interface ClinicalNoteRecord {
   createdAt: string
 }
 
+export type PaymentMode = 'Cash' | 'Card' | 'UPI'
+
+export interface InvoiceLineItem {
+  id: string
+  serviceId?: string
+  name: string
+  toothNumber?: string
+  qty: number
+  unitPrice: number
+  discount: number // flat ₹ discount on this line
+  gstRate: number // percent, 0 for treatment, 18 for cosmetic
+}
+
+export interface InvoicePayment {
+  id: string
+  amount: number
+  mode: PaymentMode
+  reference?: string
+  receivedAt: string
+}
+
 export interface InvoiceRecord {
   id: string
   patientId: string
   description: string
-  amount: number
-  status: 'Unpaid' | 'Paid'
+  amount: number // grand total including GST
+  status: 'Unpaid' | 'Partial' | 'Paid'
   createdAt: string
+  items?: InvoiceLineItem[]
+  subtotal?: number
+  discountTotal?: number
+  taxTotal?: number
+  payments?: InvoicePayment[]
+  appointmentId?: string
+  notes?: string
+}
+
+/** Amount received against an invoice. Older invoices without a payment log count as fully paid when marked Paid. */
+export const invoicePaidAmount = (invoice: InvoiceRecord): number => {
+  if (Array.isArray(invoice.payments)) return invoice.payments.reduce((sum, p) => sum + p.amount, 0)
+  return invoice.status === 'Paid' ? invoice.amount : 0
+}
+
+export const invoiceBalance = (invoice: InvoiceRecord): number =>
+  Math.max(0, Math.round((invoice.amount - invoicePaidAmount(invoice)) * 100) / 100)
+
+export const lineItemTotals = (item: InvoiceLineItem) => {
+  const gross = item.qty * item.unitPrice
+  const taxable = Math.max(0, gross - item.discount)
+  const tax = Math.round(taxable * item.gstRate) / 100
+  return { gross, taxable, tax, total: taxable + tax }
 }
 
 export interface TreatmentPlanRecord {
@@ -575,7 +619,8 @@ const initialInvoices: InvoiceRecord[] = [
     description: 'Root Canal Treatment (#46) - Sitting 1 & 2',
     amount: 3500,
     status: 'Paid',
-    createdAt: '2026-10-24T15:15:00.000Z'
+    createdAt: '2026-10-24T15:15:00.000Z',
+    payments: [{ id: 'PAY-1001', amount: 3500, mode: 'UPI', reference: 'UPI-448210', receivedAt: '2026-10-24T15:20:00.000Z' }]
   },
   {
     id: 'INV-1002',
@@ -1834,6 +1879,80 @@ export function createInvoice(details: Omit<InvoiceRecord, 'id' | 'status' | 'cr
   invoicesState = [record, ...invoicesState]
   emitChange()
   return record
+}
+
+const deriveInvoiceStatus = (invoice: InvoiceRecord): InvoiceRecord['status'] => {
+  const paid = invoicePaidAmount(invoice)
+  if (paid <= 0) return 'Unpaid'
+  return invoiceBalance(invoice) <= 0 ? 'Paid' : 'Partial'
+}
+
+/** Create an itemised invoice; totals are computed from the line items. An optional upfront payment can be recorded. */
+export function createItemisedInvoice(details: {
+  patientId: string
+  items: InvoiceLineItem[]
+  appointmentId?: string
+  notes?: string
+  upfrontPayment?: Omit<InvoicePayment, 'id' | 'receivedAt'>
+}) {
+  const totals = details.items.reduce(
+    (acc, item) => {
+      const t = lineItemTotals(item)
+      acc.subtotal += t.gross
+      acc.discount += Math.min(item.discount, t.gross)
+      acc.tax += t.tax
+      return acc
+    },
+    { subtotal: 0, discount: 0, tax: 0 }
+  )
+  const amount = Math.round((totals.subtotal - totals.discount + totals.tax) * 100) / 100
+  const now = new Date().toISOString()
+  const stamp = Date.now().toString()
+  const payments: InvoicePayment[] = []
+  if (details.upfrontPayment && details.upfrontPayment.amount > 0) {
+    payments.push({ ...details.upfrontPayment, amount: Math.min(details.upfrontPayment.amount, amount), id: `PAY-${stamp.slice(-8)}`, receivedAt: now })
+  }
+  const record: InvoiceRecord = {
+    id: `INV-${stamp.slice(-8)}`,
+    patientId: details.patientId,
+    description: details.items.map((i) => i.name).join(', '),
+    amount,
+    status: 'Unpaid',
+    createdAt: now,
+    items: details.items,
+    subtotal: totals.subtotal,
+    discountTotal: totals.discount,
+    taxTotal: Math.round(totals.tax * 100) / 100,
+    payments,
+    appointmentId: details.appointmentId,
+    notes: details.notes
+  }
+  record.status = deriveInvoiceStatus(record)
+  invoicesState = [record, ...invoicesState]
+  emitChange()
+  return record
+}
+
+/** Record a part or full payment against an invoice. The amount is capped at the remaining balance. */
+export function recordInvoicePayment(invoiceId: string, payment: Omit<InvoicePayment, 'id' | 'receivedAt'> & { receivedAt?: string }) {
+  const index = invoicesState.findIndex((inv) => inv.id === invoiceId)
+  if (index === -1) return null
+  const invoice = invoicesState[index]
+  const amount = Math.min(payment.amount, invoiceBalance(invoice))
+  if (amount <= 0) return invoice
+  const existing = Array.isArray(invoice.payments)
+    ? invoice.payments
+    : invoice.status === 'Paid'
+      ? [{ id: `PAY-${invoice.id}`, amount: invoice.amount, mode: 'Cash' as PaymentMode, receivedAt: invoice.createdAt }]
+      : []
+  const updated: InvoiceRecord = {
+    ...invoice,
+    payments: [...existing, { ...payment, amount, id: `PAY-${Date.now().toString().slice(-8)}`, receivedAt: payment.receivedAt || new Date().toISOString() }]
+  }
+  updated.status = deriveInvoiceStatus(updated)
+  invoicesState = invoicesState.map((inv, i) => (i === index ? updated : inv))
+  emitChange()
+  return updated
 }
 
 export const updatePatient = (

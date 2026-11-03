@@ -109,5 +109,12 @@
     "draftNotice": "",
     "termsContent": "",
     "privacyContent": ""
+  },
+  "patients": {
+    "medical": {
+      "safetyScreening": "സുരക്ഷാ പരിശോധന",
+      "emergencyContact": "അടിയന്തര ബന്ധപ്പെടൽ",
+      "call": "വിളിക്കുക"
+    }
   }
 }
