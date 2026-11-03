@@ -2,7 +2,7 @@ import React, { useMemo } from 'react'
 import {
   ArrowUpRight, ArrowRight, Plus, UserPlus, ChevronRight, Armchair, Clock, CircleAlert, CheckCircle2
 } from 'lucide-react'
-import { useClinicData } from '@/services/clinicStore'
+import { invoiceBalance, useClinicData } from '@/services/clinicStore'
 
 const HOURS = ['9 AM', '10 AM', '11 AM', '12 PM', '1 PM', '2 PM', '3 PM', '4 PM', '5 PM']
 const NOW_INDEX = 5
@@ -79,7 +79,7 @@ export default function ClinicDashboard({ currentUser, navigateTo }) {
     const totalToday = todayAppts.length
     const compCount = completedToday.length
     const compPct = totalToday > 0 ? Math.round((compCount / totalToday) * 100) : 0
-    const totalDues = invoices.filter((i) => i.status === 'Unpaid').reduce((sum, i) => sum + (i.amount || 0), 0)
+    const totalDues = invoices.reduce((sum, i) => sum + invoiceBalance(i), 0)
 
     return [
       {

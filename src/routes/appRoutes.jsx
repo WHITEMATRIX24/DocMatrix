@@ -4,6 +4,7 @@ import { FEATURE_REGISTRY } from '@/features/registry'
 import { LAUNCH_PAGE_MAP } from '@/features/pageMap'
 import AreaPage from '@/pages/areas/AreaPage'
 import AppointmentsWorkspace from '@/pages/appointments/AppointmentsWorkspace'
+import BillingWorkspace from '@/pages/billing/BillingWorkspace'
 import CalendarPage from '@/pages/appointments/CalendarPage'
 import NotBuiltYetPage from '@/pages/common/NotBuiltYetPage'
 import NotFoundPage from '@/pages/error/NotFoundPage'
@@ -17,6 +18,8 @@ import Hero38 from '@/components/originkit/hero-38'
 
 // Lazy-load all launch feature components
 const AppointmentDetailsPage = lazy(() => import('@/pages/appointments/AppointmentDetailsPage'))
+const BillingOverviewPage = lazy(() => import('@/pages/billing/BillingOverviewPage'))
+const REMOVED_BILLING_PAGES = new Set(['bill.price-list', 'bill.expenses'])
 const lazyComponents = {}
 for (const page of LAUNCH_PAGE_MAP) {
   lazyComponents[page.id] = lazy(page.importFn)
@@ -114,7 +117,13 @@ export function AppRoutes({
         />
         <Route
           path="/billing"
-          element={<AreaPage areaKey="billing" />}
+          element={
+            <BillingWorkspace activeFeatureId="bill.overview">
+              <Suspense fallback={<PageFallback />}>
+                <BillingOverviewPage />
+              </Suspense>
+            </BillingWorkspace>
+          }
         />
         <Route
           path="/accounts"
@@ -155,6 +164,10 @@ export function AppRoutes({
 
         {/* 6. Protected 55 Launch Feature Sub-Pages */}
         {FEATURE_REGISTRY.filter((f) => f.phase === 'launch').map((feature) => {
+          // Price list and Expenses were removed from Billing; old links land on the Billing overview
+          if (REMOVED_BILLING_PAGES.has(feature.id)) {
+            return <Route key={feature.id} path={feature.route} element={<Navigate to="/billing" replace />} />
+          }
           const Component = lazyComponents[feature.id]
           if (!Component) return null
 
@@ -172,6 +185,8 @@ export function AppRoutes({
                 <ProtectedRoute currentUser={currentUser} allowedRoles={feature.roles}>
                   {feature.area.toLowerCase() === 'appointments' ? (
                     <AppointmentsWorkspace activeFeatureId={feature.id}>{featurePage}</AppointmentsWorkspace>
+                  ) : feature.area.toLowerCase() === 'billing' ? (
+                    <BillingWorkspace activeFeatureId={feature.id}>{featurePage}</BillingWorkspace>
                   ) : featurePage}
                 </ProtectedRoute>
               }
