@@ -78,7 +78,7 @@ export const ItemsPage: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState('All')
 
   // Stock UI Controls
-  const [stockViewMode, setStockViewMode] = useState<'grid' | 'table'>('grid')
+  const [stockViewMode, setStockViewMode] = useState<'grid' | 'table'>('table')
   const [statusQuickFilter, setStatusQuickFilter] = useState<'all' | 'low' | 'expiring' | 'optimal'>('all')
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null)
 
@@ -416,124 +416,129 @@ export const ItemsPage: React.FC = () => {
         </button>
       </div>
 
-      {/* TAB 1: STOCK LEVELS & BATCHES (CAREPLUS CLEAN MEDICAL AESTHETIC) */}
+      {/* TAB 1: STOCK LEVELS & BATCHES (MINIMAL & CONVENIENT) */}
       {activeTab === 'stock' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-          {/* Clinical Departments Selector - Careplus Department Cards */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: 'var(--text-main, #0f172a)' }}>
-                Our Clinical Departments
-              </h3>
-              <span style={{ fontSize: '12.5px', color: 'var(--text-muted, #64748b)' }}>
-                Select a department to filter stock
-              </span>
-            </div>
-
-            <div className="careplus-dept-bar">
-              {clinicalDepartments.map((dept) => {
-                const DeptIcon = dept.icon
-                const isActive = categoryFilter === dept.id
-                const count = getDeptCount(dept.id)
-
-                return (
-                  <button
-                    key={dept.id}
-                    type="button"
-                    className={`careplus-dept-card ${isActive ? 'is-active' : ''}`}
-                    onClick={() => setCategoryFilter(dept.id)}
-                  >
-                    <div className="careplus-dept-icon" style={{ background: dept.bg, color: dept.color }}>
-                      <DeptIcon size={22} />
-                    </div>
-                    <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-main, #0f172a)' }}>
-                      {dept.label}
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)' }}>
-                      {count} {count === 1 ? 'item' : 'items'}
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Simple Search & Filter Bar - Exactly as in screenshot */}
-          <div className="careplus-filter-island">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* 1. Unified Minimal Control Toolbar */}
+          <div className="min-filter-bar">
+            {/* Search Input */}
+            <div className="min-search-wrapper">
+              <Search size={15} className="min-search-icon" />
               <input
-                className="simple-pill-search"
-                placeholder="Search items..."
+                className="min-search-input"
+                placeholder="Search items by name, SKU, or batch..."
                 value={searchStock}
                 onChange={(e) => setSearchStock(e.target.value)}
               />
+            </div>
 
-              {/* Enhanced Good-Looking Status Filter Pills */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {/* Quick Status Filter Pills */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className={`status-filter-pill ${statusQuickFilter === 'all' ? 'is-active' : ''}`}
+                onClick={() => setStatusQuickFilter('all')}
+              >
+                <span>All</span>
+                <span className="status-count-badge">{inventory.items.length}</span>
+              </button>
+              <button
+                type="button"
+                className={`status-filter-pill ${statusQuickFilter === 'low' ? 'is-active' : ''} ${lowStockCount > 0 ? 'is-alert' : ''}`}
+                onClick={() => setStatusQuickFilter('low')}
+              >
+                <span>Low Stock</span>
+                <span className="status-count-badge">{lowStockCount}</span>
+              </button>
+              <button
+                type="button"
+                className={`status-filter-pill is-warning ${statusQuickFilter === 'expiring' ? 'is-active' : ''}`}
+                onClick={() => setStatusQuickFilter('expiring')}
+              >
+                <span>Near Expiry</span>
+                <span className="status-count-badge">{nearExpiryCount}</span>
+              </button>
+            </div>
+
+            {/* View Mode Switcher: Table / Cards */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', background: '#f1f5f9', padding: '3px', borderRadius: '9999px', border: '1px solid #e2e8f0' }}>
                 <button
                   type="button"
-                  className={`status-filter-pill ${statusQuickFilter === 'all' ? 'is-active' : ''}`}
-                  onClick={() => setStatusQuickFilter('all')}
+                  className={`ai-mode-btn ${stockViewMode === 'table' ? 'is-active' : ''}`}
+                  onClick={() => setStockViewMode('table')}
+                  style={{
+                    padding: '5px 14px',
+                    fontSize: '12.5px',
+                    borderRadius: '9999px',
+                    background: stockViewMode === 'table' ? '#ffffff' : 'transparent',
+                    color: stockViewMode === 'table' ? 'var(--teal-primary, #008891)' : '#64748b',
+                    fontWeight: stockViewMode === 'table' ? 700 : 500,
+                    boxShadow: stockViewMode === 'table' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none'
+                  }}
+                  title="Compact Table Sheet View"
                 >
-                  <span>All</span>
-                  <span className="status-count-badge">{inventory.items.length}</span>
+                  <List size={14} /> Table
                 </button>
                 <button
                   type="button"
-                  className={`status-filter-pill ${statusQuickFilter === 'low' ? 'is-active' : ''} ${lowStockCount > 0 ? 'is-alert' : ''}`}
-                  onClick={() => setStatusQuickFilter('low')}
+                  className={`ai-mode-btn ${stockViewMode === 'grid' ? 'is-active' : ''}`}
+                  onClick={() => setStockViewMode('grid')}
+                  style={{
+                    padding: '5px 14px',
+                    fontSize: '12.5px',
+                    borderRadius: '9999px',
+                    background: stockViewMode === 'grid' ? '#ffffff' : 'transparent',
+                    color: stockViewMode === 'grid' ? 'var(--teal-primary, #008891)' : '#64748b',
+                    fontWeight: stockViewMode === 'grid' ? 700 : 500,
+                    boxShadow: stockViewMode === 'grid' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none'
+                  }}
+                  title="Card Grid View"
                 >
-                  <span>Low Stock</span>
-                  <span className="status-count-badge">{lowStockCount}</span>
-                </button>
-                <button
-                  type="button"
-                  className={`status-filter-pill is-warning ${statusQuickFilter === 'expiring' ? 'is-active' : ''}`}
-                  onClick={() => setStatusQuickFilter('expiring')}
-                >
-                  <span>Near Expiry</span>
-                  <span className="status-count-badge">{nearExpiryCount}</span>
+                  <LayoutGrid size={14} /> Cards
                 </button>
               </div>
-            </div>
 
-            {/* View Mode Toggle: Grid Cards vs Table */}
-            <div style={{ display: 'flex', alignItems: 'center', background: '#f1f5f9', padding: '3px', borderRadius: '9999px', border: '1px solid #e2e8f0' }}>
-              <button
-                type="button"
-                className={`ai-mode-btn ${stockViewMode === 'grid' ? 'is-active' : ''}`}
-                onClick={() => setStockViewMode('grid')}
-                style={{
-                  padding: '5px 14px',
-                  fontSize: '12.5px',
-                  borderRadius: '9999px',
-                  background: stockViewMode === 'grid' ? '#ffffff' : 'transparent',
-                  color: stockViewMode === 'grid' ? 'var(--teal-primary, #008891)' : '#64748b',
-                  fontWeight: stockViewMode === 'grid' ? 700 : 500,
-                  boxShadow: stockViewMode === 'grid' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none'
-                }}
-                title="Careplus Rounded Cards View"
-              >
-                <LayoutGrid size={14} style={{ color: stockViewMode === 'grid' ? 'var(--teal-primary, #008891)' : '#64748b' }} /> Cards
-              </button>
-              <button
-                type="button"
-                className={`ai-mode-btn ${stockViewMode === 'table' ? 'is-active' : ''}`}
-                onClick={() => setStockViewMode('table')}
-                style={{
-                  padding: '5px 14px',
-                  fontSize: '12.5px',
-                  borderRadius: '9999px',
-                  background: stockViewMode === 'table' ? '#ffffff' : 'transparent',
-                  color: stockViewMode === 'table' ? 'var(--teal-primary, #008891)' : '#64748b',
-                  fontWeight: stockViewMode === 'table' ? 700 : 500,
-                  boxShadow: stockViewMode === 'table' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none'
-                }}
-                title="Compact Table View"
-              >
-                <List size={14} style={{ color: stockViewMode === 'table' ? 'var(--teal-primary, #008891)' : '#64748b' }} /> Table
-              </button>
+              {filteredStock[0] && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const first = filteredStock[0]
+                    setBatchModalItem(first)
+                    setNewBatchNumber(`${first.sku.split('-')[0]}-${new Date().getFullYear()}-01`)
+                    setNewBatchExpiry('2028-12-31')
+                    setNewBatchQty(first.reorderLevel * 2)
+                  }}
+                  className="careplus-pill-btn"
+                  style={{ padding: '6px 14px', fontSize: '12px' }}
+                >
+                  <Plus size={13} />
+                  <span>Receive Stock</span>
+                </button>
+              )}
             </div>
+          </div>
+
+          {/* 2. Compact Department Filter Pills Strip (Minimal 34px Profile) */}
+          <div className="min-dept-bar">
+            {clinicalDepartments.map((dept) => {
+              const DeptIcon = dept.icon
+              const isActive = categoryFilter === dept.id
+              const count = getDeptCount(dept.id)
+
+              return (
+                <button
+                  key={dept.id}
+                  type="button"
+                  className={`min-dept-pill ${isActive ? 'is-active' : ''}`}
+                  onClick={() => setCategoryFilter(dept.id)}
+                >
+                  <DeptIcon size={14} />
+                  <span>{dept.label}</span>
+                  <span className="min-dept-badge">{count}</span>
+                </button>
+              )
+            })}
           </div>
 
           {/* VIEW 1: CAREPLUS ROUNDED CARD GRID VIEW */}
@@ -744,20 +749,37 @@ export const ItemsPage: React.FC = () => {
 
                         {/* 7. Actions */}
                         <td style={{ textAlign: 'right' }}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setBatchModalItem(stock)
-                              setNewBatchNumber(`${stock.sku.split('-')[0]}-${new Date().getFullYear()}-01`)
-                              setNewBatchExpiry('2028-12-31')
-                              setNewBatchQty(stock.reorderLevel * 2)
-                            }}
-                            className="careplus-pill-btn"
-                            style={{ padding: '5px 14px', fontSize: '12px' }}
-                          >
-                            <Plus size={12} />
-                            <span>Lot</span>
-                          </button>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBatchModalItem(stock)
+                                setNewBatchNumber(`${stock.sku.split('-')[0]}-${new Date().getFullYear()}-01`)
+                                setNewBatchExpiry('2028-12-31')
+                                setNewBatchQty(stock.reorderLevel * 2)
+                              }}
+                              className="careplus-pill-btn"
+                              style={{ padding: '4px 12px', fontSize: '11.5px' }}
+                              title="Receive new batch lot"
+                            >
+                              <Plus size={12} />
+                              <span>Lot</span>
+                            </button>
+                            {stock.activeBatches[0] && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAdjustModalData({ item: stock, batch: stock.activeBatches[0] })
+                                  setAdjustAmount(0)
+                                }}
+                                className="careplus-pill-btn secondary"
+                                style={{ padding: '4px 10px', fontSize: '11.5px' }}
+                                title="Quick adjust stock level"
+                              >
+                                <span>Adjust</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )
