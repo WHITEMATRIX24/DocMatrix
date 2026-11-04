@@ -10,6 +10,10 @@ import { PlansModule } from './plans/plans.module.js';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module.js';
 import { ClinicalModule } from './clinical/clinical.module.js';
 import { InventoryModule } from './inventory/inventory.module.js';
+import { EnquiriesModule } from './enquiries/enquiries.module.js';
+import { PrescriptionsModule } from './prescriptions/prescriptions.module.js';
+import { ClinicalNotesModule } from './clinical-notes/clinical-notes.module.js';
+import { TreatmentPlansModule } from './treatment-plans/treatment-plans.module.js';
 
 @Module({
   imports: [
@@ -22,6 +26,10 @@ import { InventoryModule } from './inventory/inventory.module.js';
     SubscriptionsModule,
     ClinicalModule,
     InventoryModule,
+    EnquiriesModule,
+    PrescriptionsModule,
+    ClinicalNotesModule,
+    TreatmentPlansModule,
   ],
   controllers: [AppController],
   providers: [AppService],

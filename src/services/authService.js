@@ -5,7 +5,7 @@
  * Connects to NestJS Backend with resilient offline fallback for local tests.
  */
 import { apiClient } from './apiClient';
-import { clearClinicStore } from './clinicStore';
+import { clearClinicStore, initClinicSession } from './clinicStore';
 
 // Primary demo account credentials
 export const DEMO_CREDENTIALS = {
@@ -75,6 +75,10 @@ export async function login(email, password, rememberMe = false) {
         localStorage.removeItem(STORAGE_KEYS.REMEMBER_EMAIL);
       }
 
+      try {
+        initClinicSession(res.user.clinicId);
+      } catch {}
+
       return { user: res.user, token: res.token };
     }
   } catch (apiErr) {
@@ -124,6 +128,10 @@ export async function login(email, password, rememberMe = false) {
     sessionStorage.setItem(STORAGE_KEYS.LEGACY_SESSION, user.id);
   } catch {}
 
+  try {
+    initClinicSession(user.clinicId);
+  } catch {}
+
   return { user, token };
 }
 
@@ -155,6 +163,9 @@ export async function registerClinic(formData) {
       sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.user));
       try {
         sessionStorage.setItem(STORAGE_KEYS.LEGACY_SESSION, res.user.id);
+      } catch {}
+      try {
+        initClinicSession(res.user.clinicId);
       } catch {}
       return { user: res.user, token: res.token };
     }
@@ -228,6 +239,10 @@ export async function loginWithGoogle() {
 
   try {
     sessionStorage.setItem(STORAGE_KEYS.LEGACY_SESSION, user.id);
+  } catch {}
+
+  try {
+    initClinicSession(user.clinicId);
   } catch {}
 
   return { user, token };

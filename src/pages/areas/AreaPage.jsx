@@ -23,7 +23,7 @@ const AREA_META = {
   clinical: {
     title: 'Clinical Workflows & Prescriptions',
     icon: Stethoscope,
-    desc: 'Letterhead digital prescriptions, clinical notes, master lists, and diagnostic orders.'
+    desc: 'Letterhead digital prescriptions, treatment plans, and structured clinical notes.'
   },
   billing: {
     title: 'Billing, Invoices & Daily Collection',

@@ -7,8 +7,96 @@ import ThemeToggle from '@/components/ThemeToggle'
 import {
   Calendar, Users, Stethoscope, Receipt, BookOpen, Package, MessageSquare, Globe,
   BarChart3, Settings, LayoutDashboard, LogOut, Menu, X, ChevronRight, ChevronDown,
-  Check, ShieldAlert, Search, Bell, CircleAlert, PackageOpen, FlaskConical
+  Check, ShieldAlert, Search, Bell, CircleAlert, PackageOpen, FlaskConical,
+  RefreshCw, AlertCircle
 } from 'lucide-react'
+import { useClinicData, retrySync, isDemoSession } from '@/services/clinicStore'
+
+function SyncStatusIndicator() {
+  const { syncStatus, syncError } = useClinicData()
+  const [retrying, setRetrying] = useState(false)
+  const isDemo = isDemoSession()
+
+  const handleRetry = async () => {
+    setRetrying(true)
+    try {
+      await retrySync()
+    } finally {
+      setRetrying(false)
+    }
+  }
+
+  if (isDemo) {
+    return (
+      <div
+        data-testid="sync-status-indicator"
+        className="dmx-sync-badge dmx-sync-demo"
+        title="Running in local Demo mode"
+      >
+        <span className="dmx-sync-dot dmx-sync-dot-demo" />
+        <span>Demo Mode</span>
+      </div>
+    )
+  }
+
+  if (syncStatus === 'LOADING' || retrying) {
+    return (
+      <div
+        data-testid="sync-status-indicator"
+        className="dmx-sync-badge dmx-sync-loading"
+        title="Syncing clinic data with Neon PostgreSQL..."
+      >
+        <RefreshCw size={12} className="dmx-spin" />
+        <span>Syncing…</span>
+      </div>
+    )
+  }
+
+  if (syncStatus === 'FAILED') {
+    return (
+      <div
+        data-testid="sync-status-indicator"
+        className="dmx-sync-badge dmx-sync-failed"
+        title={syncError || 'Data synchronization failed'}
+      >
+        <AlertCircle size={12} />
+        <span>Sync Failed</span>
+        <button
+          type="button"
+          onClick={handleRetry}
+          className="dmx-sync-retry-btn"
+          aria-label="Retry data sync"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
+
+  if (syncStatus === 'AUTH_EXPIRED') {
+    return (
+      <div
+        data-testid="sync-status-indicator"
+        className="dmx-sync-badge dmx-sync-expired"
+        title="Session expired. Please log in again."
+      >
+        <AlertCircle size={12} />
+        <span>Session Expired</span>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      data-testid="sync-status-indicator"
+      className="dmx-sync-badge dmx-sync-ok"
+      title="Authoritative Neon PostgreSQL connected and in sync"
+    >
+      <span className="dmx-sync-dot dmx-sync-dot-ok" />
+      <span>Synced</span>
+    </div>
+  )
+}
 
 // Authentic DocMatrix Medical Cross Mark
 function MedicalCrossMark({ light = false }) {
@@ -102,7 +190,7 @@ export default function StaffPortal({
       try {
         const d = new Date()
         setCurrentTime(d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }))
-      } catch {}
+      } catch { }
     }
     updateTime()
     const interval = setInterval(updateTime, 30000)
@@ -191,6 +279,17 @@ export default function StaffPortal({
       map['Patients'] = map['Patients'].filter((f) => f.id === 'pat.list')
     }
 
+    // Clinical module: exactly these three entries in this order:
+    // 1. Digital Prescriptions
+    // 2. Treatment Plans
+    // 3. Clinical Notes
+    if (map['Clinical']) {
+      const clinicalOrder = ['clin.prescriptions', 'clin.plans', 'clin.notes']
+      map['Clinical'] = clinicalOrder
+        .map((id) => map['Clinical'].find((feat) => feat.id === id))
+        .filter(Boolean)
+    }
+
     if (map['Appointments']) {
       const hasCalendar = map['Appointments'].some((f) => f.id === 'appt.calendar')
       if (!hasCalendar) {
@@ -234,7 +333,7 @@ export default function StaffPortal({
     setCurrentUser(updated)
     try {
       sessionStorage.setItem('docmatrix-demo-session', roleObj.id)
-    } catch {}
+    } catch { }
     setRoleDropdownOpen(false)
     if (onUserChange) onUserChange(updated)
   }
@@ -424,6 +523,8 @@ export default function StaffPortal({
               <span>{currentTime}</span>
               <small>IST</small>
             </div>
+
+            <SyncStatusIndicator />
 
             <ThemeToggle />
 

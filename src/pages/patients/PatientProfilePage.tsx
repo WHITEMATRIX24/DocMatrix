@@ -23,6 +23,7 @@ import {
   X,
   Activity,
   Layers,
+  Printer,
   MessageCircle,
   Plus,
   Eye,
@@ -40,21 +41,38 @@ import {
   type PatientRecord,
   type TreatmentPlanRecord,
   type PatientDocumentRecord,
-  type PatientConsentRecord
+  type PatientConsentRecord,
+  type PrescriptionRecord,
+  type ClinicalNoteRecord,
+  finalizeClinicalNote
 } from '@/services/clinicStore'
+import { PrescriptionModal } from '@/components/clinical/PrescriptionModal'
+import { PrescriptionDetailsModal } from '@/components/clinical/PrescriptionDetailsModal'
+import { PrescriptionPrintModal } from '@/components/clinical/PrescriptionPrintModal'
+import { ClinicalNoteModal } from '@/components/clinical/ClinicalNoteModal'
+import { ClinicalNoteDetailsModal } from '@/components/clinical/ClinicalNoteDetailsModal'
+import { ClinicalNotePrintModal } from '@/components/clinical/ClinicalNotePrintModal'
+import { TreatmentPlanModal } from '@/components/clinical/TreatmentPlanModal'
+import { TreatmentPlanDetailsModal } from '@/components/clinical/TreatmentPlanDetailsModal'
+import { TreatmentPlanPrintModal } from '@/components/clinical/TreatmentPlanPrintModal'
 import { InvoiceDrawer, PaymentDialog, StatusPill, inr, localDate, prettyDate } from '@/pages/billing/BillingShared'
 import './patientProfile.css'
+import '@/pages/clinical/prescriptions.css'
+import '@/pages/clinical/clinicalNotes.css'
+import '@/pages/clinical/treatmentPlans.css'
 
-type TabKey = 'overview' | 'medical' | 'timeline' | 'billing' | 'documents' | 'consents'
-const TAB_KEYS: TabKey[] = ['overview', 'medical', 'timeline', 'billing', 'documents', 'consents']
+type TabKey = 'overview' | 'medical' | 'timeline' | 'billing' | 'documents' | 'consents' | 'prescriptions' | 'notes' | 'plans'
+const TAB_KEYS: TabKey[] = ['overview', 'medical', 'timeline', 'billing', 'documents', 'consents', 'prescriptions', 'notes', 'plans']
 
-type ActivityKind = 'visit' | 'note' | 'billing' | 'document' | 'consent'
+type ActivityKind = 'visit' | 'note' | 'billing' | 'document' | 'consent' | 'prescription' | 'plan'
 type ActivityItem = { id: string; kind: ActivityKind; date: string; title: string; detail?: string; link?: string; tone?: 'ok' | 'warn' | 'bad' }
 
 const ACTIVITY_FILTERS: { id: 'all' | ActivityKind; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'visit', label: 'Visits' },
   { id: 'note', label: 'Clinical notes' },
+  { id: 'prescription', label: 'Prescriptions' },
+  { id: 'plan', label: 'Treatment plans' },
   { id: 'billing', label: 'Billing' },
   { id: 'document', label: 'Documents' },
   { id: 'consent', label: 'Consents' }
@@ -63,6 +81,8 @@ const ACTIVITY_FILTERS: { id: 'all' | ActivityKind; label: string }[] = [
 const ACTIVITY_ICONS: Record<ActivityKind, React.ComponentType<{ size?: number }>> = {
   visit: Calendar,
   note: StickyNote,
+  prescription: Pill,
+  plan: Stethoscope,
   billing: Receipt,
   document: FileText,
   consent: CheckCircle2
@@ -136,7 +156,8 @@ export const PatientProfilePage: React.FC = () => {
     invoices,
     treatmentPlans = [],
     patientDocuments = [],
-    patientConsents = []
+    patientConsents = [],
+    prescriptions = []
   } = useClinicData()
 
   // Match patient by id (case-insensitive for safety)
@@ -146,13 +167,19 @@ export const PatientProfilePage: React.FC = () => {
 
   // Resolve active tab based on pathname deep link (e.g. /patients/:id/timeline) or query param ?tab=...
   const activeTab: TabKey = useMemo(() => {
-    const queryTab = searchParams.get('tab') as TabKey
-    if (queryTab && TAB_KEYS.includes(queryTab)) return queryTab
+    const rawQuery = searchParams.get('tab')?.toLowerCase()
+    if (rawQuery && TAB_KEYS.includes(rawQuery as TabKey)) return rawQuery as TabKey
+    if (rawQuery === 'x-rays' || rawQuery === 'xrays' || rawQuery === 'radiographs') return 'documents'
 
     const path = location.pathname.toLowerCase()
     if (path.endsWith('/timeline')) return 'timeline'
-    if (path.endsWith('/documents')) return 'documents'
+    if (path.endsWith('/documents') || path.endsWith('/x-rays') || path.endsWith('/xrays')) return 'documents'
     if (path.endsWith('/consents')) return 'consents'
+    if (path.endsWith('/prescriptions')) return 'prescriptions'
+    if (path.endsWith('/notes')) return 'notes'
+    if (path.endsWith('/plans') || path.endsWith('/treatment-plans')) return 'plans'
+    if (path.endsWith('/billing')) return 'billing'
+    if (path.endsWith('/pending-treatments')) return 'plans'
     return 'overview'
   }, [location.pathname, searchParams])
 
@@ -160,6 +187,23 @@ export const PatientProfilePage: React.FC = () => {
   const setTab = (tab: TabKey) => {
     navigate(`/patients/${patient?.id || id}?tab=${tab}`, { replace: true })
   }
+
+  // Prescription modal state
+  const [rxModalOpen, setRxModalOpen] = useState(false)
+  const [editingRx, setEditingRx] = useState<PrescriptionRecord | null>(null)
+  const [viewingRx, setViewingRx] = useState<PrescriptionRecord | null>(null)
+  const [printingRx, setPrintingRx] = useState<PrescriptionRecord | null>(null)
+
+  // Clinical note modal state
+  const [noteModalOpen, setNoteModalOpen] = useState(false)
+  const [editingNote, setEditingNote] = useState<ClinicalNoteRecord | null>(null)
+  const [viewingNote, setViewingNote] = useState<ClinicalNoteRecord | null>(null)
+  const [printingNote, setPrintingNote] = useState<ClinicalNoteRecord | null>(null)
+
+  // Treatment plan modal state
+  const [tpModalOpen, setTpModalOpen] = useState(false)
+  const [viewingPlan, setViewingPlan] = useState<TreatmentPlanRecord | null>(null)
+  const [printingPlan, setPrintingPlan] = useState<TreatmentPlanRecord | null>(null)
 
   // Filter linked records for this patient
   const patientAppointments = useMemo(() => {
@@ -169,10 +213,19 @@ export const PatientProfilePage: React.FC = () => {
   }, [appointments, id])
 
   const patientNotes = useMemo(() => {
-    return clinicalNotes
-      .filter((n) => n.patientId.toLowerCase() === (id || '').toLowerCase())
-      .sort((a, b) => b.visitDate.localeCompare(a.visitDate))
-  }, [clinicalNotes, id])
+    return (clinicalNotes as ClinicalNoteRecord[])
+      .filter(
+        (n) =>
+          n.patientId?.toLowerCase() === (id || '').toLowerCase() ||
+          n.patient?.patientCode?.toLowerCase() === (id || '').toLowerCase() ||
+          (patient?.backendId && n.patientId?.toLowerCase() === patient.backendId.toLowerCase())
+      )
+      .sort((a, b) => {
+        const dateA = a.consultationDate || a.visitDate || a.createdAt || ''
+        const dateB = b.consultationDate || b.visitDate || b.createdAt || ''
+        return dateB.localeCompare(dateA)
+      })
+  }, [clinicalNotes, id, patient?.backendId])
 
   const patientInvoices = useMemo(() => {
     return invoices
@@ -182,8 +235,12 @@ export const PatientProfilePage: React.FC = () => {
 
   const patientPlans = useMemo(() => {
     return (treatmentPlans as TreatmentPlanRecord[])
-      .filter((plan) => plan.patientId.toLowerCase() === (id || '').toLowerCase())
-  }, [treatmentPlans, id])
+      .filter((plan) =>
+        plan.patientId?.toLowerCase() === (id || '').toLowerCase() ||
+        (patient?.backendId && plan.patientId?.toLowerCase() === patient.backendId.toLowerCase()) ||
+        (plan.patient?.patientCode && plan.patient.patientCode.toLowerCase() === (id || '').toLowerCase())
+      )
+  }, [treatmentPlans, id, patient?.backendId])
 
   const patientDocs = useMemo(() => {
     return (patientDocuments as PatientDocumentRecord[])
@@ -194,6 +251,15 @@ export const PatientProfilePage: React.FC = () => {
     return (patientConsents as PatientConsentRecord[])
       .filter((c) => c.patientId.toLowerCase() === (id || '').toLowerCase())
   }, [patientConsents, id])
+
+  const patientPrescriptions = useMemo(() => {
+    return (prescriptions as PrescriptionRecord[]).filter(
+      (p) =>
+        p.patientId?.toLowerCase() === (id || '').toLowerCase() ||
+        p.patient?.patientCode?.toLowerCase() === (id || '').toLowerCase() ||
+        (patient?.backendId && p.patientId?.toLowerCase() === patient.backendId.toLowerCase())
+    )
+  }, [prescriptions, id, patient?.backendId])
 
   // Pending treatments for overview card
   const pendingTreatments = useMemo(() => {
@@ -253,13 +319,45 @@ export const PatientProfilePage: React.FC = () => {
       })
     })
     patientNotes.forEach((n) => {
+      const creationDate = n.consultationDate || n.createdAt || n.visitDate || new Date().toISOString()
+      const isFinal = n.status === 'FINALIZED'
+      // 1. Consultation Note Created event
       items.push({
-        id: `note-${n.id}`,
+        id: `cn-create-${n.id}`,
         kind: 'note',
-        date: n.createdAt || n.visitDate,
-        title: `Clinical note: ${n.complaint}`,
-        detail: [n.findings && `Findings: ${n.findings}`, n.plan && `Plan: ${n.plan}`].filter(Boolean).join(' · ')
+        date: creationDate,
+        title: `Clinical Note ${n.noteNumber || n.id} (${isFinal ? 'Finalized' : 'Draft'})`,
+        detail: [
+          n.chiefComplaint || n.complaint,
+          n.primaryDiagnosis && `Diagnosis: ${n.primaryDiagnosis}`,
+          (n.doctor?.fullName || n.doctorName) && `Clinician: ${n.doctor?.fullName || n.doctorName}`
+        ].filter(Boolean).join(' · '),
+        tone: isFinal ? 'ok' : 'warn'
       })
+      // 2. Finalization event (if finalized)
+      if (n.finalizedAt) {
+        items.push({
+          id: `cn-final-${n.id}`,
+          kind: 'note',
+          date: n.finalizedAt,
+          title: `Clinical Note ${n.noteNumber || n.id} Finalized`,
+          detail: `Approved and signed by ${n.finalizedByName || n.doctor?.fullName || n.doctorName || 'Attending Doctor'}`,
+          tone: 'ok'
+        })
+      }
+      // 3. Addenda events (if any)
+      if (Array.isArray(n.addenda)) {
+        n.addenda.forEach((ad, idx) => {
+          items.push({
+            id: `cn-add-${ad.id || `${n.id}-${idx}`}`,
+            kind: 'note',
+            date: ad.createdAt,
+            title: `Addendum to Note ${n.noteNumber || n.id}`,
+            detail: `${ad.doctorName ? `${ad.doctorName}: ` : ''}${ad.content}`,
+            tone: 'ok'
+          })
+        })
+      }
     })
     patientInvoices.forEach((inv) => {
       items.push({
@@ -294,8 +392,94 @@ export const PatientProfilePage: React.FC = () => {
         tone: c.status === 'Signed' ? 'ok' : c.status === 'Declined' ? 'bad' : 'warn'
       })
     })
+    patientPrescriptions.forEach((rx) => {
+      const creationDate = rx.createdAt || rx.prescribedAt || new Date().toISOString()
+      const meds = rx.items.map((it) => it.medicineName).join(', ')
+      // 1. Creation event
+      items.push({
+        id: `rx-create-${rx.id}`,
+        kind: 'prescription',
+        date: creationDate,
+        title: `Prescription ${rx.prescriptionNumber} created (${rx.status === 'DRAFT' ? 'Draft' : 'Issued'})`,
+        detail: [rx.diagnosis, meds && `Meds: ${meds}`, rx.doctor?.fullName && `By ${rx.doctor.fullName}`].filter(Boolean).join(' · '),
+        tone: rx.status === 'DRAFT' ? 'warn' : 'ok'
+      })
+      // 2. Finalization event (if persisted)
+      if (rx.finalizedAt) {
+        items.push({
+          id: `rx-final-${rx.id}`,
+          kind: 'prescription',
+          date: rx.finalizedAt,
+          title: `Prescription ${rx.prescriptionNumber} finalized`,
+          detail: `Approved & finalized for dispensing · Diagnosis: ${rx.diagnosis}`,
+          tone: 'ok'
+        })
+      }
+      // 3. Cancellation event (if persisted)
+      if (rx.cancelledAt) {
+        items.push({
+          id: `rx-canc-${rx.id}`,
+          kind: 'prescription',
+          date: rx.cancelledAt,
+          title: `Prescription ${rx.prescriptionNumber} cancelled`,
+          detail: `Reason: ${rx.cancellationReason || 'Prescription voided'}`,
+          tone: 'bad'
+        })
+      }
+    })
+    patientPlans.forEach((tp) => {
+      const planNum = tp.planNumber || tp.id
+      const creationDate = tp.date || new Date().toISOString()
+      const title = tp.title || tp.procedure || 'Treatment Plan'
+      const cost = tp.totalEstimatedCost || tp.cost || 0
+
+      items.push({
+        id: `tp-prop-${tp.id}`,
+        kind: 'plan',
+        date: creationDate,
+        title: `Treatment Plan ${planNum} Proposed: ${title}`,
+        detail: `Estimated Cost: ${inr(cost)} · ${tp.doctor}`,
+        link: `/patients/${patient?.id || id}?tab=plans`,
+      })
+
+      if (tp.patientAcceptedAt || tp.status === 'Accepted') {
+        items.push({
+          id: `tp-acc-${tp.id}`,
+          kind: 'plan',
+          date: tp.patientAcceptedAt || creationDate,
+          title: `Treatment Plan ${planNum} Accepted by Patient`,
+          detail: `Agreed by ${tp.patientAcceptedByName || 'Patient'} · Estimate v${tp.acceptedVersion || tp.currentVersion || 1} (${inr(cost)})`,
+          link: `/patients/${patient?.id || id}?tab=plans`,
+          tone: 'ok',
+        })
+      }
+
+      if (tp.status === 'Completed') {
+        items.push({
+          id: `tp-comp-${tp.id}`,
+          kind: 'plan',
+          date: tp.date || creationDate,
+          title: `Treatment Plan ${planNum} Completed`,
+          detail: `All planned procedures delivered · Total: ${inr(cost)}`,
+          link: `/patients/${patient?.id || id}?tab=plans`,
+          tone: 'ok',
+        })
+      }
+
+      if (tp.status === 'Rejected') {
+        items.push({
+          id: `tp-rej-${tp.id}`,
+          kind: 'plan',
+          date: tp.date || creationDate,
+          title: `Treatment Plan ${planNum} Declined`,
+          detail: tp.rejectionReason ? `Reason: ${tp.rejectionReason}` : 'Patient declined proposed treatment',
+          link: `/patients/${patient?.id || id}?tab=plans`,
+          tone: 'bad',
+        })
+      }
+    })
     return items.sort((a, b) => b.date.localeCompare(a.date))
-  }, [patientAppointments, patientNotes, patientInvoices, patientDocs, patientConsentList])
+  }, [patientAppointments, patientNotes, patientInvoices, patientDocs, patientConsentList, patientPrescriptions, patientPlans])
   const visibleActivity = activityFilter === 'all' ? activity : activity.filter((a) => a.kind === activityFilter)
 
   // Medical Alert Text
@@ -570,14 +754,35 @@ export const PatientProfilePage: React.FC = () => {
               <span>Book Appointment</span>
             </Link>
 
-            <Link
+            <button
+              type="button"
               className="pat-btn pat-btn-secondary"
-              to={`/clinical/notes?patientId=${patient.id}`}
-              title="Start or review clinical consultation note"
+              onClick={() => setNoteModalOpen(true)}
+              title="Record or review clinical consultation note"
             >
               <FileText size={14} />
-              <span>Start Consultation</span>
-            </Link>
+              <span>Record Consultation</span>
+            </button>
+
+            <button
+              type="button"
+              className="pat-btn pat-btn-secondary"
+              onClick={() => setRxModalOpen(true)}
+              title="Author and issue digital prescription for this patient"
+            >
+              <Pill size={14} />
+              <span>Issue Prescription</span>
+            </button>
+
+            <button
+              type="button"
+              className="pat-btn pat-btn-secondary"
+              onClick={() => setTpModalOpen(true)}
+              title="Create a multi-stage dental treatment plan and cost estimate"
+            >
+              <Stethoscope size={14} />
+              <span>Plan Treatment</span>
+            </button>
 
             <Link
               className="pat-btn pat-btn-secondary"
@@ -677,7 +882,7 @@ export const PatientProfilePage: React.FC = () => {
           onClick={() => setTab('documents')}
         >
           <FileText size={15} />
-          <span>Documents</span>
+          <span>X-rays & Documents</span>
           {patientDocs.length > 0 && (
             <span className="pat-tab-badge">{patientDocs.length}</span>
           )}
@@ -692,6 +897,44 @@ export const PatientProfilePage: React.FC = () => {
           <span>Consent Records</span>
           {patientConsentList.length > 0 && (
             <span className="pat-tab-badge">{patientConsentList.length}</span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          className={`pat-tab-btn ${activeTab === 'prescriptions' ? 'is-active' : ''}`}
+          onClick={() => setTab('prescriptions')}
+        >
+          <Pill size={15} />
+          <span>Prescriptions</span>
+          {patientPrescriptions.length > 0 && (
+            <span className="pat-tab-badge">{patientPrescriptions.length}</span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          className={`pat-tab-btn ${activeTab === 'notes' ? 'is-active' : ''}`}
+          onClick={() => setTab('notes')}
+          data-testid="tab-clinical-notes"
+        >
+          <FileText size={15} />
+          <span>Clinical Notes</span>
+          {patientNotes.length > 0 && (
+            <span className="pat-tab-badge">{patientNotes.length}</span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          className={`pat-tab-btn ${activeTab === 'plans' ? 'is-active' : ''}`}
+          onClick={() => setTab('plans')}
+          data-testid="tab-treatment-plans"
+        >
+          <Stethoscope size={15} />
+          <span>Treatment Plans</span>
+          {patientPlans.length > 0 && (
+            <span className="pat-tab-badge">{patientPlans.length}</span>
           )}
         </button>
       </nav>
@@ -979,6 +1222,200 @@ export const PatientProfilePage: React.FC = () => {
                 </div>
               </article>
             )}
+
+            {/* Compact Digital Prescriptions summary card */}
+            <article className="pat-card">
+              <div className="pat-card-head">
+                <h3><Pill size={16} /> Digital Prescriptions</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setRxModalOpen(true)}
+                    className="pat-btn pat-btn-secondary pat-btn-sm"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <Plus size={13} /> Issue Rx
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTab('prescriptions')}
+                    className="pat-card-action"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    All prescriptions ({patientPrescriptions.length}) →
+                  </button>
+                </div>
+              </div>
+              {patientPrescriptions.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {patientPrescriptions.slice(0, 3).map((rx) => {
+                    const isFinal = rx.status === 'FINALIZED'
+                    const isCanc = rx.status === 'CANCELLED'
+                    return (
+                      <div
+                        key={rx.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 14px',
+                          background: 'var(--paper, #f8fafc)',
+                          borderRadius: 'var(--rx-radius-sm, 8px)',
+                          border: '1px solid var(--line, #e2e8f0)',
+                          gap: '12px'
+                        }}
+                      >
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px', flexWrap: 'wrap' }}>
+                            <span className="rx-code-pill" style={{ fontSize: '11px', padding: '2px 6px' }}>{rx.prescriptionNumber}</span>
+                            <span
+                              className={`rx-badge ${isFinal ? 'rx-badge-finalized' : isCanc ? 'rx-badge-cancelled' : 'rx-badge-draft'}`}
+                              style={{ fontSize: '10px', padding: '1px 6px' }}
+                            >
+                              <span className="rx-badge-dot" />{rx.status}
+                            </span>
+                            <span style={{ fontSize: '11.5px', color: 'var(--text-muted, #64748b)' }}>
+                              {prettyDate((rx.prescribedAt || rx.createdAt || '').slice(0, 10))}
+                            </span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #0f172a)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {rx.diagnosis}
+                          </p>
+                          <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: 'var(--text-muted, #64748b)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {rx.items.map((i) => i.medicineName).join(', ') || 'No medications'}
+                          </p>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <button
+                            type="button"
+                            onClick={() => setViewingRx(rx)}
+                            className="rx-btn-icon"
+                            title="View details"
+                          >
+                            <Eye size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPrintingRx(rx)}
+                            className="rx-btn-icon"
+                            title="Print / Save PDF"
+                          >
+                            <Printer size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
+                  No digital prescriptions on record for this patient.
+                </p>
+              )}
+            </article>
+
+            {/* Compact Clinical Notes summary card */}
+            <article className="pat-card">
+              <div className="pat-card-head">
+                <h3><FileText size={16} /> Recent Clinical Notes</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setNoteModalOpen(true)}
+                    className="pat-btn pat-btn-secondary pat-btn-sm"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <Plus size={13} /> New Note
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTab('notes')}
+                    className="pat-card-action"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    All notes ({patientNotes.length}) →
+                  </button>
+                </div>
+              </div>
+
+              {patientNotes.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {patientNotes.slice(0, 3).map((note) => {
+                    const isFinal = note.status === 'FINALIZED'
+                    const dateStr = note.consultationDate ? note.consultationDate.slice(0, 10) : note.visitDate
+                    return (
+                      <div
+                        key={note.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 14px',
+                          borderRadius: '8px',
+                          border: '1px solid var(--line, #e2e8f0)',
+                          background: 'var(--surface-subtle, #f8fafc)',
+                          gap: '12px'
+                        }}
+                      >
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-strong, #0f172a)' }}>
+                              {note.noteNumber || note.id}
+                            </span>
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)' }}>
+                              {dateStr}
+                            </span>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '1px 6px',
+                                borderRadius: '999px',
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                textTransform: 'uppercase',
+                                background: isFinal ? 'rgba(5, 150, 105, 0.1)' : 'rgba(217, 119, 6, 0.1)',
+                                color: isFinal ? '#059669' : '#d97706',
+                              }}
+                            >
+                              {isFinal ? 'Finalized' : 'Draft'}
+                            </span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #0f172a)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {note.chiefComplaint || note.complaint}
+                          </p>
+                          <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: 'var(--text-muted, #64748b)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {note.primaryDiagnosis ? `Diagnosis: ${note.primaryDiagnosis}` : note.findings || 'Consultation findings'}
+                          </p>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <button
+                            type="button"
+                            onClick={() => setViewingNote(note)}
+                            className="rx-btn-icon"
+                            title="View details"
+                          >
+                            <Eye size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPrintingNote(note)}
+                            className="rx-btn-icon"
+                            title="Print / Save PDF"
+                          >
+                            <Printer size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
+                  No clinical consultation notes recorded for this patient yet.
+                </p>
+              )}
+            </article>
           </div>
         )}
 
@@ -1021,14 +1458,30 @@ export const PatientProfilePage: React.FC = () => {
                 <MedicalRow
                   key={`${patient.id}-medications`}
                   icon={Pill}
-                  title="Current Medications"
+                  title="Current Medications (Patient-Reported)"
                   description={patient.medications === 'yes'
                     ? patient.medicationsDetails || 'Active medications reported.'
-                    : 'Patient is not currently taking systemic long-term medications or blood thinners.'}
+                    : 'Patient declared no routine systemic medications or blood thinners during intake screening.'}
                   status={patient.medications === 'yes' ? 'Medication reported' : 'None'}
                   statusTone={patient.medications === 'yes' ? 'amber' : 'gray'}
                   dividerAbove
                   hasAlert={patient.medications === 'yes'}
+                />
+                <MedicalRow
+                  key={`${patient.id}-prescribed-medications`}
+                  icon={Pill}
+                  title="Previously Prescribed Medications"
+                  description={
+                    patientPrescriptions.length > 0
+                      ? patientPrescriptions
+                          .map((p) => `${p.prescriptionNumber} (${p.status}): ` + p.items.map((it) => `${it.medicineName} ${it.dosage}`).join(', '))
+                          .slice(0, 4)
+                          .join(' · ')
+                      : 'No previously prescribed medications on record for this patient in DocMatrix.'
+                  }
+                  status={patientPrescriptions.length > 0 ? `${patientPrescriptions.length} Prescriptions on record` : 'None'}
+                  statusTone="gray"
+                  dividerAbove
                 />
                 <MedicalRow
                   key={`${patient.id}-conditions`}
@@ -1114,6 +1567,33 @@ export const PatientProfilePage: React.FC = () => {
                         {item.kind === 'billing' && item.id.startsWith('inv-') && (
                           <button type="button" className="pat-card-action pat-linklike" onClick={() => setOpenInvoiceId(item.id.slice(4))}>
                             View invoice →
+                          </button>
+                        )}
+                        {item.kind === 'prescription' && (
+                          <button
+                            type="button"
+                            className="pat-card-action pat-linklike"
+                            onClick={() => {
+                              const rxId = item.id.replace(/^rx-(create|final|canc)-/, '')
+                              const rx = patientPrescriptions.find((p) => p.id === rxId)
+                              if (rx) setViewingRx(rx)
+                            }}
+                          >
+                            View prescription →
+                          </button>
+                        )}
+                        {item.kind === 'note' && (
+                          <button
+                            type="button"
+                            className="pat-card-action pat-linklike"
+                            onClick={() => {
+                              const noteId = item.id.replace(/^cn-(create|final|add)-/, '').split('-')[0]
+                              const note = patientNotes.find((n) => n.id === noteId || item.id.includes(n.id))
+                              if (note) setViewingNote(note)
+                              else setTab('notes')
+                            }}
+                          >
+                            View consultation note →
                           </button>
                         )}
                       </div>
@@ -1360,6 +1840,448 @@ export const PatientProfilePage: React.FC = () => {
                   style={{ padding: '6px 14px', fontSize: '12.5px', marginTop: '12px' }}
                 >
                   <FileText size={13} /> Add First Consent
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 6: PRESCRIPTIONS */}
+        {activeTab === 'prescriptions' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="pat-section-head">
+              <div>
+                <h3>Clinical Prescriptions History</h3>
+                <p>Digital drug regimens, dosage instructions, and official letterhead prescriptions authored for this patient.</p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setRxModalOpen(true)}
+                  className="pat-btn pat-btn-primary"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Plus size={14} /> Issue Prescription
+                </button>
+              </div>
+            </div>
+
+            {patientPrescriptions.length > 0 ? (
+              <div className="rx-table-container">
+                <div className="rx-table-scroll">
+                  <table className="rx-table">
+                    <thead>
+                      <tr>
+                        <th>Rx Number</th>
+                        <th>Prescribed Date</th>
+                        <th>Prescriber Clinician</th>
+                        <th>Diagnosis & Medication Summary</th>
+                        <th>Status</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {patientPrescriptions.map((rx) => {
+                        const isFinal = rx.status === 'FINALIZED'
+                        const isDraft = rx.status === 'DRAFT'
+                        const isCanc = rx.status === 'CANCELLED'
+
+                        return (
+                          <tr key={rx.id}>
+                            <td>
+                              <span className="rx-code-pill">{rx.prescriptionNumber}</span>
+                            </td>
+                            <td>
+                              {new Date(rx.prescribedAt).toLocaleDateString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric'
+                              })}
+                            </td>
+                            <td>
+                              <div className="rx-doctor-name">{rx.doctor?.fullName || 'Dr. Arun Kumar'}</div>
+                              <div className="rx-doctor-role">Dental Surgeon</div>
+                            </td>
+                            <td className="rx-diagnosis-cell">
+                              <div className="rx-diagnosis-title">{rx.diagnosis}</div>
+                              <div className="rx-meds-summary">
+                                {rx.items.map((it) => it.medicineName).join(', ') || 'No medications'}
+                              </div>
+                            </td>
+                            <td>
+                              <span
+                                className={`rx-badge ${
+                                  isFinal
+                                    ? 'rx-badge-finalized'
+                                    : isCanc
+                                    ? 'rx-badge-cancelled'
+                                    : 'rx-badge-draft'
+                                }`}
+                              >
+                                <span className="rx-badge-dot" />
+                                {rx.status}
+                              </span>
+                            </td>
+                            <td className="rx-actions-cell">
+                              <div className="rx-actions-wrapper">
+                                <button
+                                  type="button"
+                                  onClick={() => setViewingRx(rx)}
+                                  className="rx-btn-icon"
+                                  title="View details"
+                                >
+                                  <Eye size={15} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setPrintingRx(rx)}
+                                  className="rx-btn-icon"
+                                  title="Print / Save PDF"
+                                >
+                                  <Printer size={15} />
+                                </button>
+                                {isDraft && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingRx(rx)}
+                                    className="rx-btn-icon"
+                                    title="Edit draft"
+                                  >
+                                    <Edit3 size={15} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="rx-empty" style={{ background: 'var(--surface, #ffffff)', border: '1px solid var(--line, #e2e8f0)', borderRadius: 'var(--rx-radius-lg, 16px)' }}>
+                <div className="rx-empty-icon">
+                  <Pill />
+                </div>
+                <h3>No Prescriptions on Record</h3>
+                <p>No digital prescriptions or medication regimens have been authored for this patient yet.</p>
+                <button
+                  type="button"
+                  onClick={() => setRxModalOpen(true)}
+                  className="rx-btn rx-btn-primary rx-btn-sm"
+                >
+                  <Plus size={13} /> Issue First Prescription
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 7: CLINICAL NOTES */}
+        {activeTab === 'notes' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div className="pat-section-head">
+              <div>
+                <h3>Clinical Consultation Notes</h3>
+                <p>Structured clinical examination records, diagnoses, and procedures documented for this patient.</p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setNoteModalOpen(true)}
+                  className="pat-btn pat-btn-primary"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Plus size={14} /> Add Clinical Note
+                </button>
+              </div>
+            </div>
+
+            {patientNotes.length > 0 ? (
+              <div className="cn-table-container">
+                <div className="cn-table-scroll">
+                  <table className="cn-table">
+                    <thead>
+                      <tr>
+                        <th>Note # & Date</th>
+                        <th>Clinician</th>
+                        <th>Chief Complaint & Diagnosis</th>
+                        <th>Procedure Performed</th>
+                        <th>Status</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {patientNotes.map((note) => {
+                        const isFinal = note.status === 'FINALIZED'
+                        const isDraft = !isFinal
+                        const dateStr = note.consultationDate ? note.consultationDate.slice(0, 10) : note.visitDate
+                        const docName = note.doctor?.fullName || note.finalizedByName || note.doctorName || 'Attending Doctor'
+
+                        return (
+                          <tr key={note.id}>
+                            <td>
+                              <strong>{note.noteNumber || note.id}</strong>
+                              <small style={{ display: 'block', color: 'var(--text-muted, #64748b)' }}>{dateStr}</small>
+                            </td>
+
+                            <td>
+                              <span style={{ fontSize: '13px', fontWeight: 500 }}>{docName}</span>
+                            </td>
+
+                            <td className="cn-cell-complaint">
+                              <strong>{note.chiefComplaint || note.complaint}</strong>
+                              <small>{note.primaryDiagnosis || 'Clinical Review'}</small>
+                            </td>
+
+                            <td style={{ maxWidth: '220px' }}>
+                              <span style={{ fontSize: '12px', color: 'var(--text, #334155)' }}>
+                                {note.treatmentPerformed || 'Consultation & evaluation'}
+                              </span>
+                            </td>
+
+                            <td>
+                              {isFinal ? (
+                                <span className="cn-badge cn-badge-finalized">
+                                  <CheckCircle2 size={12} /> Finalized
+                                </span>
+                              ) : (
+                                <span className="cn-badge cn-badge-draft">
+                                  <Clock size={12} /> Draft
+                                </span>
+                              )}
+                            </td>
+
+                            <td>
+                              <div className="cn-actions-cell">
+                                <button
+                                  type="button"
+                                  className="cn-btn cn-btn-secondary cn-btn-sm"
+                                  onClick={() => setViewingNote(note)}
+                                  title="View details"
+                                >
+                                  <Eye size={13} /> View
+                                </button>
+                                {isDraft && (
+                                  <button
+                                    type="button"
+                                    className="cn-btn cn-btn-secondary cn-btn-sm"
+                                    onClick={() => setEditingNote(note)}
+                                    title="Edit draft"
+                                  >
+                                    <Edit3 size={13} /> Edit
+                                  </button>
+                                )}
+                                {isDraft && (
+                                  <button
+                                    type="button"
+                                    className="cn-btn cn-btn-success cn-btn-sm"
+                                    onClick={async () => {
+                                      await finalizeClinicalNote(note.id)
+                                    }}
+                                    title="Finalize note"
+                                  >
+                                    <CheckCircle2 size={13} /> Finalize
+                                  </button>
+                                )}
+                                {isFinal && (
+                                  <button
+                                    type="button"
+                                    className="cn-btn cn-btn-secondary cn-btn-sm"
+                                    onClick={() => setPrintingNote(note)}
+                                    title="Print note"
+                                  >
+                                    <Printer size={13} /> Print
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="cn-table-container cn-empty-state">
+                <div className="cn-empty-icon">
+                  <FileText />
+                </div>
+                <h3>No Clinical Notes on Record</h3>
+                <p>No structured clinical consultation notes have been recorded for this patient yet.</p>
+                <button
+                  type="button"
+                  onClick={() => setNoteModalOpen(true)}
+                  className="cn-btn cn-btn-primary cn-btn-sm"
+                >
+                  <Plus size={13} /> Add First Clinical Note
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 9: TREATMENT PLANS & INTEGRATED COST ESTIMATES */}
+        {activeTab === 'plans' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} data-testid="patient-treatment-plans-section">
+            <div className="pat-section-head">
+              <div>
+                <h3>Treatment Plans & Integrated Cost Estimates</h3>
+                <p>Comprehensive multi-stage dental procedures, tooth chart associations, and chairside financial estimates.</p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setTpModalOpen(true)}
+                  className="pat-btn pat-btn-primary"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Plus size={14} /> New Treatment Plan
+                </button>
+              </div>
+            </div>
+
+            {patientPlans.length > 0 ? (
+              <div className="pat-table-container">
+                <table className="pat-table" aria-label="Patient treatment plans table">
+                  <thead>
+                    <tr>
+                      <th>Plan # & Date</th>
+                      <th>Care Plan & Procedures</th>
+                      <th>Category</th>
+                      <th>Treating Doctor</th>
+                      <th>Total Estimate</th>
+                      <th>Status</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {patientPlans.map((plan) => {
+                      const cost = plan.totalEstimatedCost || plan.cost || 0
+                      const stageCount = plan.stages?.length || 1
+
+                      return (
+                        <tr key={plan.id} className="pat-row">
+                          <td>
+                            <strong style={{ fontFamily: 'monospace', color: 'var(--teal-primary, #008891)' }}>
+                              {plan.planNumber || plan.id}
+                            </strong>
+                            <small style={{ display: 'block', color: 'var(--text-muted, #64748b)', fontSize: '11.5px' }}>
+                              {plan.date} • v{plan.currentVersion || 1}
+                            </small>
+                          </td>
+
+                          <td>
+                            <div
+                              onClick={() => setViewingPlan(plan)}
+                              style={{ cursor: 'pointer' }}
+                              title="Click to view stages and progress"
+                            >
+                              <strong style={{ display: 'block', color: 'var(--text-main, #0f172a)' }}>
+                                {plan.title || plan.procedure}
+                              </strong>
+                              {plan.toothNumber && (
+                                <span style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>
+                                  Tooth #{plan.toothNumber}
+                                </span>
+                              )}
+                              <small style={{ display: 'block', color: 'var(--teal-primary, #008891)', marginTop: '2px' }}>
+                                {stageCount} stage{stageCount > 1 ? 's' : ''} planned
+                              </small>
+                            </div>
+                          </td>
+
+                          <td>
+                            <span className="pat-badge">{plan.category}</span>
+                          </td>
+
+                          <td>
+                            <span style={{ fontSize: '13px' }}>{plan.doctor}</span>
+                          </td>
+
+                          <td>
+                            <strong style={{ fontSize: '14px', color: 'var(--teal-primary, #008891)' }}>
+                              ₹{cost.toLocaleString('en-IN')}
+                            </strong>
+                          </td>
+
+                          <td>
+                            <span
+                              className="pat-badge"
+                              style={{
+                                background:
+                                  plan.status === 'Accepted'
+                                    ? 'rgba(37, 99, 235, 0.1)'
+                                    : plan.status === 'Completed'
+                                    ? 'rgba(16, 185, 129, 0.1)'
+                                    : plan.status === 'In Progress'
+                                    ? 'rgba(14, 165, 233, 0.1)'
+                                    : plan.status === 'Pending'
+                                    ? 'rgba(245, 158, 11, 0.1)'
+                                    : 'rgba(100, 116, 139, 0.1)',
+                                color:
+                                  plan.status === 'Accepted'
+                                    ? '#2563eb'
+                                    : plan.status === 'Completed'
+                                    ? '#059669'
+                                    : plan.status === 'In Progress'
+                                    ? '#0ea5e9'
+                                    : plan.status === 'Pending'
+                                    ? '#d97706'
+                                    : '#475569',
+                                fontWeight: 600,
+                              }}
+                            >
+                              {plan.status}
+                            </span>
+                          </td>
+
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              <button
+                                type="button"
+                                className="pat-action-btn"
+                                onClick={() => setViewingPlan(plan)}
+                                style={{ padding: '4px 8px', fontSize: '12px' }}
+                              >
+                                <Eye size={12} />
+                                <span>Details</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="pat-action-btn"
+                                onClick={() => setPrintingPlan(plan)}
+                                style={{ padding: '4px 8px', fontSize: '12px' }}
+                              >
+                                <Printer size={12} />
+                                <span>Print</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="cn-table-container cn-empty-state">
+                <div className="cn-empty-icon">
+                  <Stethoscope />
+                </div>
+                <h3>No Treatment Plans on Record</h3>
+                <p>No multi-stage dental treatment plans or cost estimates have been authored for this patient yet.</p>
+                <button
+                  type="button"
+                  onClick={() => setTpModalOpen(true)}
+                  className="cn-btn cn-btn-primary cn-btn-sm"
+                >
+                  <Plus size={13} /> Create First Treatment Plan
                 </button>
               </div>
             )}
@@ -1733,6 +2655,139 @@ export const PatientProfilePage: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* ── PRESCRIPTION MODALS ── */}
+      {rxModalOpen && (
+        <PrescriptionModal
+          defaultPatientId={patient?.backendId || patient?.id}
+          onClose={() => setRxModalOpen(false)}
+          onSaved={(saved) => {
+            setRxModalOpen(false);
+            setViewingRx(saved);
+          }}
+        />
+      )}
+
+      {editingRx && (
+        <PrescriptionModal
+          initialPrescription={editingRx}
+          defaultPatientId={patient?.backendId || patient?.id}
+          onClose={() => setEditingRx(null)}
+          onSaved={(saved) => {
+            setEditingRx(null);
+            setViewingRx(saved);
+          }}
+        />
+      )}
+
+      {viewingRx && (
+        <PrescriptionDetailsModal
+          prescription={viewingRx}
+          onClose={() => setViewingRx(null)}
+          onPrint={(rx) => {
+            setViewingRx(null);
+            setPrintingRx(rx);
+          }}
+          onEditDraft={(rx) => {
+            setViewingRx(null);
+            setEditingRx(rx);
+          }}
+          onUpdated={() => {
+            setViewingRx(null);
+          }}
+        />
+      )}
+
+      {printingRx && (
+        <PrescriptionPrintModal
+          prescription={printingRx}
+          onClose={() => setPrintingRx(null)}
+        />
+      )}
+
+      {/* ── CLINICAL NOTE MODALS ── */}
+      {noteModalOpen && (
+        <ClinicalNoteModal
+          defaultPatientId={patient?.backendId || patient?.id}
+          onClose={() => setNoteModalOpen(false)}
+          onSaved={(saved) => {
+            setNoteModalOpen(false);
+            setViewingNote(saved);
+          }}
+        />
+      )}
+
+      {editingNote && (
+        <ClinicalNoteModal
+          initialNote={editingNote}
+          defaultPatientId={patient?.backendId || patient?.id}
+          onClose={() => setEditingNote(null)}
+          onSaved={(saved) => {
+            setEditingNote(null);
+            setViewingNote(saved);
+          }}
+        />
+      )}
+
+      {viewingNote && (
+        <ClinicalNoteDetailsModal
+          note={viewingNote}
+          onClose={() => setViewingNote(null)}
+          onPrint={(n) => {
+            setViewingNote(null);
+            setPrintingNote(n);
+          }}
+          onEdit={(n) => {
+            setViewingNote(null);
+            setEditingNote(n);
+          }}
+          onFinalize={async (n) => {
+            try {
+              const fin = await finalizeClinicalNote(n.id);
+              setViewingNote(fin);
+            } catch (err) {
+              console.error('Failed to finalize:', err);
+            }
+          }}
+        />
+      )}
+
+      {printingNote && (
+        <ClinicalNotePrintModal
+          note={printingNote}
+          onClose={() => setPrintingNote(null)}
+        />
+      )}
+
+      {/* ── TREATMENT PLAN MODALS ── */}
+      {tpModalOpen && (
+        <TreatmentPlanModal
+          isOpen={tpModalOpen}
+          onClose={() => setTpModalOpen(false)}
+          lockedPatientId={patient.id}
+          onSuccess={() => setTab('plans')}
+        />
+      )}
+
+      {viewingPlan && (
+        <TreatmentPlanDetailsModal
+          plan={viewingPlan}
+          isOpen={Boolean(viewingPlan)}
+          onClose={() => setViewingPlan(null)}
+          onPrint={() => {
+            const current = viewingPlan
+            setViewingPlan(null)
+            setPrintingPlan(current)
+          }}
+        />
+      )}
+
+      {printingPlan && (
+        <TreatmentPlanPrintModal
+          plan={printingPlan}
+          onClose={() => setPrintingPlan(null)}
+        />
       )}
 
       {/* ── DOCUMENT PREVIEW ── */}

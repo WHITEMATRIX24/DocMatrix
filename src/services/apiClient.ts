@@ -101,7 +101,10 @@ class ApiClient {
       } catch {
         // Fall back to status text
       }
-      throw new Error(errorMsg);
+      const err: any = new Error(errorMsg);
+      err.status = response.status;
+      err.response = { status: response.status };
+      throw err;
     }
 
     if (response.status === 204) {

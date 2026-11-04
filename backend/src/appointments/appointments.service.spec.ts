@@ -1,4 +1,3 @@
-import { describe, it, expect, vi } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service.js';
 

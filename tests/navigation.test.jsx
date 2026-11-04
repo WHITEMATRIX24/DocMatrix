@@ -177,7 +177,7 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
         // Register Patient reached in 3 clicks via Dashboard Add Patient
         const path = `/ -> Sign In (/login) -> 1-Click Demo Login (/dashboard) -> Dashboard "Add patient" (/patients/new)`
         clickPaths.push({ id: feat.id, area: feat.area, name: feat.name, route: feat.route, path, clicks: 3 })
-      } else if (['pat.profile', 'pat.timeline', 'pat.documents', 'pat.consents'].includes(feat.id)) {
+      } else if (['pat.profile', 'pat.timeline', 'pat.documents', 'pat.consents', 'pat.toothchart', 'appt.detail'].includes(feat.id)) {
         // Patient sub-features reached in 3 clicks via Patient Profile tabs
         const path = `/ -> Sign In (/login) -> 1-Click Demo Login (/dashboard) -> Patient Profile (${feat.name} Tab)`
         clickPaths.push({ id: feat.id, area: feat.area, name: feat.name, route: feat.route, path, clicks: 3 })

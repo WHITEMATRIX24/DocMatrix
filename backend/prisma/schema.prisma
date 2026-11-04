@@ -164,6 +164,13 @@ model Clinic {
   inventoryItems  InventoryItem[]
   inventoryBatches InventoryBatch[]
   inventoryAudits InventoryAudit[]
+  enquiries       Enquiry[]
+  prescriptions   Prescription[]
+  clinicalNotes   ClinicalNote[]
+  clinicalNoteAddenda ClinicalNoteAddendum[]
+  treatmentPlans  TreatmentPlan[]
+  treatmentPlanHistories TreatmentPlanHistory[]
+  clinicSequences ClinicSequence[]
 
   @@index([status])
   @@index([email])
@@ -189,6 +196,13 @@ model User {
 
   clinic       Clinic?       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
   appointments Appointment[] @relation("DoctorAppointments")
+  prescriptions Prescription[] @relation("DoctorPrescriptions")
+  finalizedPrescriptions Prescription[] @relation("FinalizedPrescriptions")
+  cancelledPrescriptions Prescription[] @relation("CancelledPrescriptions")
+  clinicalNotes ClinicalNote[] @relation("DoctorClinicalNotes")
+  finalizedClinicalNotes ClinicalNote[] @relation("FinalizedClinicalNotes")
+  clinicalNoteAddenda ClinicalNoteAddendum[]
+  treatmentPlans TreatmentPlan[] @relation("DoctorTreatmentPlans")
 
   // Compound unique key enabling engine-level compound foreign key references
   @@unique([id, clinicId])
@@ -228,6 +242,9 @@ model Patient {
   toothConditions ToothCondition[]
   documents       PatientDocument[]
   consents        PatientConsent[]
+  prescriptions   Prescription[]
+  clinicalNotes   ClinicalNote[]
+  treatmentPlans  TreatmentPlan[]
 
   // Deterministic identifier unique per clinic
   @@unique([clinicId, patientCode])
@@ -265,6 +282,8 @@ model Appointment {
   // Compound foreign keys guaranteeing cross-clinic data integrity at the database engine level
   patient Patient @relation(fields: [patientId, clinicId], references: [id, clinicId], onDelete: Restrict)
   doctor  User?   @relation("DoctorAppointments", fields: [doctorId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  clinicalNotes ClinicalNote[]
+  treatmentPlans TreatmentPlan[]
 
   @@index([clinicId, startTime, endTime])
   @@index([doctorId, startTime])
@@ -347,7 +366,6 @@ model PatientConsent {
   @@index([clinicId, status])
 }
 
-
 // ------------------------------------------
 // Clinical Inventory Item Model
 // ------------------------------------------
@@ -421,4 +439,382 @@ model InventoryAudit {
 
   @@index([clinicId, timestamp])
   @@index([clinicId, doctorName])
+}
+
+// ------------------------------------------
+// Online / Web Enquiries & Leads Model
+// ------------------------------------------
+
+model Enquiry {
+  id        String   @id @default(uuid())
+  clinicId  String
+  name      String
+  phone     String?
+  email     String?
+  request   String   // e.g. 'New patient · Cleaning', 'Tooth pain'
+  status    String   @default("PENDING") // 'PENDING' | 'CONTACTED' | 'CONVERTED' | 'DISMISSED'
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+
+  @@unique([id, clinicId])
+  @@index([clinicId, status])
+  @@index([clinicId, createdAt])
+}
+
+// ------------------------------------------
+// Digital Prescription & Medication Orders
+// ------------------------------------------
+
+enum PrescriptionStatus {
+  DRAFT
+  FINALIZED
+  CANCELLED
+}
+
+model Prescription {
+  id                 String             @id @default(uuid())
+  clinicId           String
+  patientId          String
+  doctorId           String
+  prescriptionNumber String             // e.g. 'RX-1001', strictly unique per clinic
+  diagnosis          String
+  clinicalNotes      String?
+  status             PrescriptionStatus @default(DRAFT)
+  prescribedAt       DateTime           @default(now())
+  finalizedAt        DateTime?
+  finalizedById      String?
+  cancelledAt        DateTime?
+  cancelledById      String?
+  cancellationReason String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  // Tenant & relational constraints
+  clinic      Clinic  @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient     Patient @relation(fields: [patientId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  doctor      User    @relation("DoctorPrescriptions", fields: [doctorId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  finalizedBy User?   @relation("FinalizedPrescriptions", fields: [finalizedById, clinicId], references: [id, clinicId], onDelete: Restrict)
+  cancelledBy User?   @relation("CancelledPrescriptions", fields: [cancelledById, clinicId], references: [id, clinicId], onDelete: Restrict)
+
+  items PrescriptionItem[]
+
+  @@unique([id, clinicId])
+  @@unique([clinicId, prescriptionNumber])
+  @@index([clinicId, patientId])
+  @@index([clinicId, doctorId])
+  @@index([clinicId, status])
+  @@index([clinicId, prescribedAt])
+}
+
+model PrescriptionItem {
+  id             String   @id @default(uuid())
+  prescriptionId String
+  medicineName   String
+  strength       String?  // e.g. '500 mg', '0.2% w/v'
+  dosage         String   // e.g. '1 tablet', '5 ml'
+  route          String   @default("Oral") // 'Oral', 'Topical', 'Sublingual', etc.
+  frequency      String   // e.g. '1-0-1', 'TID', 'PRN'
+  duration       String   // e.g. '5 days', '1 week'
+  quantity       Int?     // e.g. 10
+  instructions   String?  // e.g. 'Take after food with warm water'
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  @@index([prescriptionId])
+}
+
+// ------------------------------------------
+// Concurrency-Safe Clinic Numbering Sequence
+// ------------------------------------------
+
+model ClinicSequence {
+  id           String   @id @default(uuid())
+  clinicId     String
+  sequenceType String   // e.g. 'PRESCRIPTION'
+  currentValue Int      @default(1000)
+  updatedAt    DateTime @updatedAt
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+
+  @@unique([clinicId, sequenceType])
+  @@index([clinicId])
+}
+
+// ------------------------------------------
+// Structured Clinical Notes Model
+// ------------------------------------------
+
+enum ClinicalNoteStatus {
+  DRAFT
+  FINALIZED
+}
+
+model ClinicalNote {
+  id                     String             @id @default(uuid())
+  clinicId               String
+  noteNumber             String             // e.g. 'CN-1001'
+  patientId              String
+  doctorId               String             // Authenticated treating dentist
+  appointmentId          String?            // Optional linked appointment
+  consultationDate       DateTime           @default(now()) @db.Timestamptz(6)
+  consultationType       String             @default("ROUTINE_CHECKUP") // 'INITIAL_VISIT', 'FOLLOW_UP', 'EMERGENCY', 'ROUTINE_CHECKUP', 'OTHER'
+  status                 ClinicalNoteStatus @default(DRAFT)
+
+  // 1. Chief Complaint
+  chiefComplaint         String
+
+  // 2. Symptoms and History
+  symptoms               String?
+  symptomDuration        String?
+  painSeverity           Int?               // 0 to 10 scale
+  historyNotes           String?
+
+  // 3. Clinical Examination
+  extraoralFindings      String?
+  intraoralFindings      String?
+  toothSpecificFindings  String?            // e.g. tooth numbers + findings
+  periodontalFindings    String?
+  examinationNotes       String?
+
+  // 4. Diagnosis
+  primaryDiagnosis       String
+  additionalDiagnoses    Json?              // String[] or { code, title }[]
+  diagnosisNotes         String?
+
+  // 5. Treatment Performed
+  treatmentPerformed     String?
+  treatmentToothNumber   String?
+  treatmentDescription   String?
+  materialsUsed          String?
+  treatmentOutcome       String?
+
+  // 6. Treatment Recommendations
+  treatmentRecommendations String?
+  referralNotes          String?
+
+  // 7. Follow-up Instructions
+  followUpRequired       Boolean            @default(false)
+  followUpDate           DateTime?          @db.Date
+  followUpInstructions   String?
+  patientAdvice          String?
+
+  // 8. Lifecycle & Finalization Audit
+  finalizedAt            DateTime?          @db.Timestamptz(6)
+  finalizedById          String?
+  finalizedByName        String?
+
+  createdAt              DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt              DateTime           @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  clinic       Clinic                 @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient      Patient                @relation(fields: [patientId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  doctor       User                   @relation("DoctorClinicalNotes", fields: [doctorId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  finalizedBy  User?                  @relation("FinalizedClinicalNotes", fields: [finalizedById, clinicId], references: [id, clinicId], onDelete: Restrict)
+  appointment  Appointment?           @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  addenda      ClinicalNoteAddendum[]
+
+  @@unique([clinicId, noteNumber])
+  @@unique([id, clinicId])
+  @@index([clinicId, patientId])
+  @@index([clinicId, doctorId])
+  @@index([clinicId, status])
+  @@index([clinicId, consultationDate])
+}
+
+model ClinicalNoteAddendum {
+  id             String       @id @default(uuid())
+  clinicalNoteId String
+  clinicId       String
+  authorId       String
+  authorName     String
+  content        String
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+
+  clinicalNote ClinicalNote @relation(fields: [clinicalNoteId], references: [id], onDelete: Cascade)
+  clinic       Clinic       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  author       User         @relation(fields: [authorId, clinicId], references: [id, clinicId], onDelete: Restrict)
+
+  @@index([clinicalNoteId])
+  @@index([clinicId])
+}
+
+// ------------------------------------------
+// Treatment Plans & Cost Estimates Models
+// ------------------------------------------
+
+enum TreatmentPlanStatus {
+  PROPOSED
+  ACCEPTED
+  REJECTED
+  IN_PROGRESS
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum TreatmentStageStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum TreatmentPlanItemStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  DEFERRED
+  CANCELLED
+}
+
+enum AcceptanceMethod {
+  STAFF_RECORDED
+  WRITTEN_CONSENT
+  DIGITAL_SIGNATURE
+  PATIENT_PORTAL
+}
+
+model TreatmentPlan {
+  id                       String               @id @default(uuid())
+  clinicId                 String
+  planNumber               String               // e.g. 'TP-1001'
+  patientId                String
+  doctorId                 String
+  doctorName               String
+  appointmentId            String?
+  clinicalNoteId           String?
+  title                    String               // e.g. "Comprehensive Dental Rehabilitation"
+  status                   TreatmentPlanStatus  @default(PROPOSED)
+  notes                    String?
+
+  // Financial calculations using exact Decimals (10, 2)
+  subtotal                 Decimal              @default(0.00) @db.Decimal(10, 2)
+  discount                 Decimal              @default(0.00) @db.Decimal(10, 2)
+  tax                      Decimal              @default(0.00) @db.Decimal(10, 2)
+  totalEstimatedCost       Decimal              @default(0.00) @db.Decimal(10, 2)
+
+  // Versioning & Historical Revisions
+  currentVersion           Int                  @default(1)
+  acceptedVersion          Int?
+
+  // Patient Acceptance & Decisions (Audit Trail)
+  patientAcceptedAt        DateTime?            @db.Timestamptz(6)
+  patientAcceptedByName    String?
+  acceptanceMethod         AcceptanceMethod?
+  isStaffRecorded          Boolean              @default(false)
+  acceptanceRecordedById   String?
+  acceptanceRecordedByName String?
+  rejectionReason          String?
+  rejectedAt               DateTime?            @db.Timestamptz(6)
+  rejectedById             String?
+
+  // Origin / Legacy preservation
+  origin                   String               @default("CLINICAL") // 'CLINICAL' | 'IMPORTED_LEGACY'
+
+  createdAt                DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt                DateTime             @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  clinic                   Clinic               @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient                  Patient              @relation(fields: [patientId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  doctor                   User                 @relation("DoctorTreatmentPlans", fields: [doctorId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  appointment              Appointment?         @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  stages                   TreatmentPlanStage[]
+  estimateRevisions        TreatmentEstimateRevision[]
+  histories                TreatmentPlanHistory[]
+
+  @@unique([clinicId, planNumber])
+  @@unique([id, clinicId])
+  @@index([clinicId, patientId])
+  @@index([clinicId, doctorId])
+  @@index([clinicId, status])
+  @@index([clinicId, createdAt])
+}
+
+model TreatmentPlanStage {
+  id              String               @id @default(uuid())
+  treatmentPlanId String
+  stageNumber     Int
+  name            String               // e.g. "Stage 1: Urgent Care & Pain Relief"
+  status          TreatmentStageStatus @default(PLANNED)
+  targetDate      DateTime?            @db.Date
+  estimatedCost   Decimal              @default(0.00) @db.Decimal(10, 2)
+  createdAt       DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime             @updatedAt @db.Timestamptz(6)
+
+  treatmentPlan   TreatmentPlan        @relation(fields: [treatmentPlanId], references: [id], onDelete: Cascade)
+  items           TreatmentPlanItem[]
+
+  @@index([treatmentPlanId])
+}
+
+model TreatmentPlanItem {
+  id            String                  @id @default(uuid())
+  stageId       String
+  procedureCode String?                 // e.g. "D3330"
+  procedureName String                  // e.g. "Root Canal Therapy - Molar"
+  category      String                  // e.g. "Endodontics"
+  toothNumber   String?                 // FDI number e.g. "16", "24, 25"
+  surface       String?                 // e.g. "MOD", "O"
+  quantity      Int                     @default(1)
+  unitFee       Decimal                 @default(0.00) @db.Decimal(10, 2)
+  discount      Decimal                 @default(0.00) @db.Decimal(10, 2)
+  netFee        Decimal                 @default(0.00) @db.Decimal(10, 2)
+  status        TreatmentPlanItemStatus @default(PENDING)
+  notes         String?
+  createdAt     DateTime                @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime                @updatedAt @db.Timestamptz(6)
+
+  stage         TreatmentPlanStage      @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@index([stageId])
+}
+
+model TreatmentEstimateRevision {
+  id                 String            @id @default(uuid())
+  treatmentPlanId    String
+  versionNumber      Int
+  revisionReason     String?
+  subtotal           Decimal           @default(0.00) @db.Decimal(10, 2)
+  discount           Decimal           @default(0.00) @db.Decimal(10, 2)
+  tax                Decimal           @default(0.00) @db.Decimal(10, 2)
+  totalEstimatedCost Decimal           @default(0.00) @db.Decimal(10, 2)
+  itemsSnapshot      Json              // Complete immutable snapshot of stages and items at this version
+  status             String            @default("PROPOSED") // PROPOSED, ACCEPTED, REJECTED, SUPERSEDED
+  acceptedAt         DateTime?         @db.Timestamptz(6)
+  acceptedByName     String?
+  acceptanceMethod   AcceptanceMethod?
+  isStaffRecorded    Boolean           @default(false)
+  createdById        String
+  createdByName      String
+  createdAt          DateTime          @default(now()) @db.Timestamptz(6)
+
+  treatmentPlan      TreatmentPlan     @relation(fields: [treatmentPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([treatmentPlanId, versionNumber])
+  @@index([treatmentPlanId])
+}
+
+model TreatmentPlanHistory {
+  id              String        @id @default(uuid())
+  treatmentPlanId String
+  clinicId        String
+  userId          String
+  userName        String
+  userRole        String
+  action          String        // 'CREATED', 'STAGE_ADDED', 'ITEM_UPDATED', 'ESTIMATE_REVISED', 'ACCEPTED', 'REJECTED', 'STATUS_CHANGED'
+  details         Json?
+  createdAt       DateTime      @default(now()) @db.Timestamptz(6)
+
+  treatmentPlan   TreatmentPlan @relation(fields: [treatmentPlanId], references: [id], onDelete: Cascade)
+  clinic          Clinic        @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+
+  @@index([treatmentPlanId])
+  @@index([clinicId])
 }
