@@ -262,48 +262,27 @@ export const AlertsPage: React.FC = () => {
                       {/* Condition & Details */}
                       <td>
                         <div style={{ display: 'grid', gridTemplateColumns: '110px auto', alignItems: 'center', gap: '8px', width: 'fit-content' }}>
-                          <span style={{
-                            fontWeight: 700,
-                            fontSize: '13.5px',
-                            color: alert.tab === 'low'
-                              ? 'var(--tone-red, #dc2626)'
-                              : 'var(--teal-primary, #008891)',
-                            whiteSpace: 'nowrap'
-                          }}>
+                          <span className={alert.tab === 'low' ? 'alert-metric-low' : 'alert-metric-teal'}>
                             {alert.primaryValue}
                           </span>
                           {alert.badge && (
-                            <span style={{
-                              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              color: 'var(--text-strong, #0f172a)',
-                              background: 'var(--inv-badge-bg, #f1f5f9)',
-                              border: '1px solid var(--inv-border, #e2e8f0)',
-                              padding: '1.5px 7px',
-                              borderRadius: '4px',
-                              whiteSpace: 'nowrap'
-                            }}>
+                            <span className="alert-lot-badge">
                               {alert.badge}
                             </span>
                           )}
                         </div>
-                        <div style={{
-                          fontSize: '12px',
-                          color: 'var(--text-muted, #64748b)',
-                          marginTop: '3px'
-                        }}>
+                        <div className="alert-secondary-text">
                           {alert.secondaryValue}
                         </div>
                       </td>
 
                       {/* Context / Source */}
                       <td>
-                        <div style={{ fontSize: '12.5px', color: 'var(--text, #334155)', fontWeight: 500 }}>
+                        <div className="alert-context-primary">
                           {alert.contextPrimary}
                         </div>
                         {alert.contextSecondary && (
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>
+                          <div className="alert-context-secondary">
                             {alert.contextSecondary}
                           </div>
                         )}
@@ -318,32 +297,12 @@ export const AlertsPage: React.FC = () => {
                             </span>
                           )}
                           {alert.statusType === 'danger' && (
-                            <span style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              padding: '3px 9px',
-                              borderRadius: '9999px',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              background: 'rgba(220, 38, 38, 0.12)',
-                              color: 'var(--tone-red, #dc2626)',
-                              whiteSpace: 'nowrap'
-                            }}>
+                            <span className="alert-status-danger">
                               {alert.statusText}
                             </span>
                           )}
                           {alert.statusType === 'shift' && (
-                            <span style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              padding: '3px 9px',
-                              borderRadius: '9999px',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              background: 'rgba(44, 189, 183, 0.12)',
-                              color: 'var(--teal-primary, #008891)',
-                              whiteSpace: 'nowrap'
-                            }}>
+                            <span className="alert-status-shift">
                               {alert.statusText}
                             </span>
                           )}

@@ -1603,6 +1603,76 @@
   margin-top: 3px;
 }
 
+.alert-lot-badge {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 1.5px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.alert-status-danger {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fee2e2;
+  white-space: nowrap;
+}
+
+.alert-status-shift {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(0, 136, 145, 0.1);
+  color: #008891;
+  border: 1px solid rgba(0, 136, 145, 0.2);
+  white-space: nowrap;
+}
+
+.alert-metric-low {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: #dc2626;
+  white-space: nowrap;
+}
+
+.alert-metric-teal {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--teal-primary, #008891);
+  white-space: nowrap;
+}
+
+.alert-secondary-text {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 3px;
+}
+
+.alert-context-primary {
+  font-size: 12.5px;
+  color: #334155;
+  font-weight: 500;
+}
+
+.alert-context-secondary {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
 /* ==========================================================================
    DARK MODE SPECIFIC RULES (:root[data-theme="dark"])
    ========================================================================== */
@@ -1834,4 +1904,42 @@
   background: rgba(44, 189, 183, 0.12) !important;
   color: #2cbdb7 !important;
   border-color: rgba(44, 189, 183, 0.28) !important;
+}
+
+:root[data-theme="dark"] .alert-lot-badge {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #c0cfcc !important;
+  border-color: rgba(220, 245, 240, 0.12) !important;
+}
+
+:root[data-theme="dark"] .alert-status-danger {
+  background: rgba(255, 128, 119, 0.14) !important;
+  color: #ff8077 !important;
+  border-color: rgba(255, 128, 119, 0.25) !important;
+}
+
+:root[data-theme="dark"] .alert-status-shift {
+  background: rgba(44, 189, 183, 0.12) !important;
+  color: #2cbdb7 !important;
+  border-color: rgba(44, 189, 183, 0.28) !important;
+}
+
+:root[data-theme="dark"] .alert-metric-low {
+  color: #ff8077 !important;
+}
+
+:root[data-theme="dark"] .alert-metric-teal {
+  color: #2cbdb7 !important;
+}
+
+:root[data-theme="dark"] .alert-secondary-text {
+  color: #879a97 !important;
+}
+
+:root[data-theme="dark"] .alert-context-primary {
+  color: #c0cfcc !important;
+}
+
+:root[data-theme="dark"] .alert-context-secondary {
+  color: #879a97 !important;
 }
