@@ -50,10 +50,10 @@ export const MovementsPage: React.FC = () => {
     <section className="clinic-record-page adaptive-inventory-container" data-testid="feature-page-inv.movements">
       {/* Page Header */}
       <div style={{ margin: '0 0 16px 0' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 700, margin: 0, color: 'var(--text-main, #0f172a)' }}>
+        <h1 className="inv-page-title">
           Stock Movements & Audit
         </h1>
-        <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
+        <p className="inv-page-subtitle">
           Audit trail of confirmed treatment consumption, batch deductions, and recorded wastage.
         </p>
       </div>
@@ -64,7 +64,7 @@ export const MovementsPage: React.FC = () => {
         <div className="unified-table-toolbar">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '280px', flexWrap: 'wrap' }}>
             <div className="unified-search-wrap">
-              <Search size={15} style={{ position: 'absolute', left: '12px', color: '#94a3b8', pointerEvents: 'none' }} />
+              <Search size={15} style={{ position: 'absolute', left: '12px', color: 'var(--text-faint, #94a3b8)', pointerEvents: 'none' }} />
               <input
                 className="unified-search-input"
                 placeholder="Search audit ID, procedure, doctor, patient..."
@@ -83,7 +83,7 @@ export const MovementsPage: React.FC = () => {
                     border: 'none',
                     padding: 0,
                     cursor: 'pointer',
-                    color: '#94a3b8',
+                    color: 'var(--text-muted, #94a3b8)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center'
@@ -130,54 +130,32 @@ export const MovementsPage: React.FC = () => {
                   return (
                     <tr key={log.id} className="inv-sheet-row">
                       <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
-                        <div style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                          fontSize: '11.5px',
-                          fontWeight: 600,
-                          color: '#334155',
-                          background: '#f1f5f9',
-                          padding: '2px 7px',
-                          borderRadius: '6px',
-                          letterSpacing: '0.01em'
-                        }}>
+                        <div className="audit-ref-badge">
                           {log.id}
                         </div>
-                        <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '5px' }}>
+                        <div className="audit-ref-date">
                           {formatDate(log.timestamp)}
                         </div>
                       </td>
 
                       <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
-                        <div style={{ fontWeight: 600, fontSize: '13.5px', color: '#0f172a' }}>
+                        <div className="audit-proc-name">
                           {log.procedureName}
                         </div>
-                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ color: '#94a3b8' }}>Patient:</span>
-                          <span style={{ color: '#475569', fontWeight: 500 }}>{log.patientName}</span>
+                        <div className="audit-patient-sub">
+                          <span className="audit-patient-label">Patient:</span>
+                          <span className="audit-patient-name">{log.patientName}</span>
                         </div>
                       </td>
 
                       <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
+                        <span className="audit-doc-name">
                           {log.doctorName}
                         </span>
                       </td>
 
                       <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          padding: '3px 10px',
-                          borderRadius: '9999px',
-                          fontSize: '11.5px',
-                          fontWeight: 600,
-                          whiteSpace: 'nowrap',
-                          background: log.modeUsed === 'doctor-specific' ? '#ecfeff' : '#f8fafc',
-                          color: log.modeUsed === 'doctor-specific' ? '#0891b2' : '#64748b',
-                          border: log.modeUsed === 'doctor-specific' ? '1px solid #a5f3fc' : '1px solid #e2e8f0'
-                        }}>
+                        <span className={`audit-mode-badge ${log.modeUsed === 'doctor-specific' ? 'mode-doctor' : 'mode-standard'}`}>
                           {log.modeUsed === 'doctor-specific' ? 'Doctor Specific' : 'Standard'}
                         </span>
                       </td>
@@ -187,53 +165,18 @@ export const MovementsPage: React.FC = () => {
                           {log.materials.map((m) => (
                             <div
                               key={m.itemId}
-                              style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'minmax(140px, 1fr) 75px 85px',
-                                alignItems: 'center',
-                                gap: '8px',
-                                background: '#f8fafc',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '6px',
-                                padding: '3px 8px',
-                                fontSize: '11.5px'
-                              }}
+                              className="audit-mat-row"
                             >
                               <span
-                                style={{
-                                  fontWeight: 600,
-                                  color: '#0f172a',
-                                  whiteSpace: 'nowrap',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis'
-                                }}
+                                className="audit-mat-name"
                                 title={m.name}
                               >
                                 {m.name}
                               </span>
-                              <span
-                                style={{
-                                  color: 'var(--teal-primary, #008891)',
-                                  fontWeight: 700,
-                                  whiteSpace: 'nowrap',
-                                  textAlign: 'right'
-                                }}
-                              >
+                              <span className="audit-mat-qty">
                                 {m.confirmedQty} {m.unit}
                               </span>
-                              <span
-                                style={{
-                                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                                  fontSize: '10.5px',
-                                  color: '#64748b',
-                                  background: '#ffffff',
-                                  border: '1px solid #e2e8f0',
-                                  borderRadius: '4px',
-                                  padding: '1px 5px',
-                                  whiteSpace: 'nowrap',
-                                  textAlign: 'center'
-                                }}
-                              >
+                              <span className="audit-mat-batch">
                                 {m.batchNumber}
                               </span>
                             </div>
@@ -243,40 +186,20 @@ export const MovementsPage: React.FC = () => {
 
                       <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
                         {logWastage > 0 ? (
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            padding: '3px 9px',
-                            borderRadius: '9999px',
-                            fontSize: '11.5px',
-                            fontWeight: 600,
-                            background: '#fef2f2',
-                            color: '#dc2626',
-                            border: '1px solid #fee2e2'
-                          }}>
+                          <span className="audit-wastage-badge">
                             {logWastage} {logWastage === 1 ? 'unit' : 'units'}
                           </span>
                         ) : (
-                          <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 500 }}>None</span>
+                          <span className="audit-wastage-none">None</span>
                         )}
                       </td>
 
                       <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <div style={{
-                            width: '18px',
-                            height: '18px',
-                            borderRadius: '50%',
-                            background: '#ecfdf5',
-                            border: '1px solid #a7f3d0',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0
-                          }}>
-                            <CheckCircle2 size={12} style={{ color: '#059669' }} />
+                          <div className="audit-confirm-check">
+                            <CheckCircle2 size={12} />
                           </div>
-                          <span style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>{log.confirmedBy}</span>
+                          <span className="audit-confirm-name">{log.confirmedBy}</span>
                         </div>
                       </td>
                     </tr>
@@ -286,23 +209,14 @@ export const MovementsPage: React.FC = () => {
             </table>
           </div>
         ) : (
-          <div style={{ padding: '60px 20px', textAlign: 'center' }}>
-            <div style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '50%',
-              background: '#f1f5f9',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 12px auto'
-            }}>
-              <History size={22} style={{ color: '#94a3b8' }} />
+          <div className="audit-empty-box">
+            <div className="audit-empty-icon-wrap">
+              <History size={22} />
             </div>
-            <h3 style={{ margin: '0 0 6px 0', fontSize: '15px', fontWeight: 600, color: '#0f172a' }}>
+            <h3 className="audit-empty-title">
               No audit records found
             </h3>
-            <p style={{ margin: 0, color: '#64748b', fontSize: '13px', maxWidth: '380px', marginInline: 'auto' }}>
+            <p className="audit-empty-desc">
               No consumption records matched your search criteria. Try adjusting filters or confirm a treatment from the Items page.
             </p>
           </div>

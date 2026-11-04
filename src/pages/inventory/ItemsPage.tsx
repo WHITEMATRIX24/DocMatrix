@@ -502,34 +502,34 @@ export const ItemsPage: React.FC = () => {
                     <tr key={stock.id} className="inv-sheet-row">
                       {/* Item & SKU */}
                       <td>
-                        <div style={{ fontWeight: 600, fontSize: '13.5px', color: '#0f172a', lineHeight: 1.35 }}>
+                        <div style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--text-strong, #0f172a)', lineHeight: 1.35 }}>
                           {stock.name}
                         </div>
-                        <div style={{ fontSize: '11px', color: '#64748b', fontFamily: 'monospace', marginTop: '3px' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', fontFamily: 'monospace', marginTop: '3px' }}>
                           SKU: {stock.sku}
                         </div>
                       </td>
 
                       {/* Department */}
                       <td>
-                        <span style={{ fontSize: '12.5px', color: '#475569', fontWeight: 500 }}>
+                        <span style={{ fontSize: '12.5px', color: 'var(--text, #475569)', fontWeight: 500 }}>
                           {stock.category}
                         </span>
                       </td>
 
                       {/* Current Stock */}
                       <td>
-                        <span style={{ fontSize: '14px', fontWeight: 700, color: isLow ? '#dc2626' : '#0f172a' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 700, color: isLow ? 'var(--tone-red, #dc2626)' : 'var(--text-strong, #0f172a)' }}>
                           {stock.totalStock}
                         </span>
-                        <span style={{ fontSize: '12px', fontWeight: 500, color: '#64748b', marginLeft: '4px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted, #64748b)', marginLeft: '4px' }}>
                           {stock.unit}
                         </span>
                       </td>
 
                       {/* Reorder Level */}
                       <td>
-                        <span style={{ fontSize: '13px', color: '#64748b' }}>
+                        <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
                           {stock.reorderLevel} {stock.unit}
                         </span>
                       </td>
@@ -553,13 +553,13 @@ export const ItemsPage: React.FC = () => {
                       {/* Status */}
                       <td>
                         {isLow ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '9999px', fontSize: '11.5px', fontWeight: 600, background: '#fef2f2', color: '#dc2626', whiteSpace: 'nowrap' }}>
-                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#dc2626' }} />
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '9999px', fontSize: '11.5px', fontWeight: 600, background: 'rgba(220, 38, 38, 0.12)', color: 'var(--tone-red, #dc2626)', whiteSpace: 'nowrap' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor' }} />
                             Low Stock
                           </span>
                         ) : (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '9999px', fontSize: '11.5px', fontWeight: 600, background: '#ecfdf5', color: '#059669', whiteSpace: 'nowrap' }}>
-                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#059669' }} />
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '9999px', fontSize: '11.5px', fontWeight: 600, background: 'rgba(5, 150, 105, 0.12)', color: 'var(--tone-green, #059669)', whiteSpace: 'nowrap' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor' }} />
                             In Stock
                           </span>
                         )}
@@ -576,20 +576,7 @@ export const ItemsPage: React.FC = () => {
                               setNewBatchExpiry('2028-12-31')
                               setNewBatchQty(stock.reorderLevel * 2)
                             }}
-                            className="pat-btn"
-                            style={{
-                              padding: '5px 12px',
-                              fontSize: '12px',
-                              fontWeight: 600,
-                              borderRadius: '8px',
-                              border: '1px solid rgba(0, 136, 145, 0.3)',
-                              background: '#f0fdfa',
-                              color: '#008891',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}
+                            className="inv-btn-lot"
                             title="Receive new batch lot"
                           >
                             <Plus size={12} /> Lot
@@ -601,17 +588,7 @@ export const ItemsPage: React.FC = () => {
                                 setAdjustModalData({ item: stock, batch: stock.activeBatches[0] })
                                 setAdjustAmount(0)
                               }}
-                              className="pat-btn"
-                              style={{
-                                padding: '5px 10px',
-                                fontSize: '12px',
-                                fontWeight: 500,
-                                borderRadius: '8px',
-                                border: '1px solid #cbd5e1',
-                                background: '#ffffff',
-                                color: '#475569',
-                                cursor: 'pointer'
-                              }}
+                              className="inv-btn-adjust"
                               title="Adjust stock quantity"
                             >
                               Adjust
