@@ -444,41 +444,57 @@ export const ItemsPage: React.FC = () => {
       {/* TAB 1: STOCK LEVELS & BATCHES (SIMPLE, CLEAN & UNIFIED) */}
       {activeTab === 'stock' && (
         <div className="unified-inventory-card">
-          {/* Low Stock & Expiry Integrated Alert Banner */}
+          {/* Integrated Proactive Alert Notice Strip */}
           {(lowStockCount > 0 || nearExpiryCount > 0) && (
             <div style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '10px 16px',
-              background: 'rgba(234, 88, 12, 0.06)',
-              border: '1px solid rgba(234, 88, 12, 0.2)',
-              borderRadius: '10px',
-              marginBottom: '14px',
-              fontSize: '12.5px',
-              color: 'var(--charcoal-dark, #1e293b)',
+              padding: '9px 18px',
+              background: 'linear-gradient(90deg, rgba(234, 88, 12, 0.06) 0%, rgba(254, 243, 199, 0.25) 100%)',
+              borderBottom: '1px solid rgba(234, 88, 12, 0.15)',
+              fontSize: '12px',
+              color: '#9a3412',
               flexWrap: 'wrap',
-              gap: '10px'
+              gap: '8px'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <AlertTriangle size={15} style={{ color: '#ea580c', flexShrink: 0 }} />
+                <AlertTriangle size={14} style={{ color: '#ea580c', flexShrink: 0 }} />
                 <span>
-                  <strong>Stock & Expiry Alerts:</strong>{' '}
-                  {lowStockCount > 0 && <span>{lowStockCount} {lowStockCount === 1 ? 'item' : 'items'} below reorder threshold</span>}
+                  <strong>Stock & Expiry:</strong>{' '}
+                  {lowStockCount > 0 && <span>{lowStockCount} {lowStockCount === 1 ? 'item' : 'items'} below reorder</span>}
                   {lowStockCount > 0 && nearExpiryCount > 0 && <span> &bull; </span>}
                   {nearExpiryCount > 0 && <span>{nearExpiryCount} {nearExpiryCount === 1 ? 'batch' : 'batches'} near expiry (2027)</span>}
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {nearExpiryCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setStatusQuickFilter(statusQuickFilter === 'expiring' ? 'all' : 'expiring')}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(217, 119, 6, 0.3)',
+                      background: statusQuickFilter === 'expiring' ? '#d97706' : '#ffffff',
+                      color: statusQuickFilter === 'expiring' ? '#ffffff' : '#b45309',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {statusQuickFilter === 'expiring' ? 'Showing Expiring' : 'Filter Expiring'}
+                  </button>
+                )}
                 {lowStockCount > 0 && (
                   <button
                     type="button"
                     onClick={() => setStatusQuickFilter(statusQuickFilter === 'low' ? 'all' : 'low')}
                     style={{
-                      padding: '3px 9px',
+                      padding: '3px 8px',
                       borderRadius: '6px',
-                      border: '1px solid rgba(220, 38, 38, 0.25)',
-                      background: statusQuickFilter === 'low' ? '#dc2626' : 'rgba(220, 38, 38, 0.08)',
+                      border: '1px solid rgba(220, 38, 38, 0.3)',
+                      background: statusQuickFilter === 'low' ? '#dc2626' : '#ffffff',
                       color: statusQuickFilter === 'low' ? '#ffffff' : '#dc2626',
                       fontSize: '11px',
                       fontWeight: 600,
@@ -488,24 +504,6 @@ export const ItemsPage: React.FC = () => {
                     {statusQuickFilter === 'low' ? 'Showing Low Stock' : 'Filter Low Stock'}
                   </button>
                 )}
-                {nearExpiryCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setStatusQuickFilter(statusQuickFilter === 'expiring' ? 'all' : 'expiring')}
-                    style={{
-                      padding: '3px 9px',
-                      borderRadius: '6px',
-                      border: '1px solid rgba(217, 119, 6, 0.25)',
-                      background: statusQuickFilter === 'expiring' ? '#d97706' : 'rgba(217, 119, 6, 0.08)',
-                      color: statusQuickFilter === 'expiring' ? '#ffffff' : '#d97706',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {statusQuickFilter === 'expiring' ? 'Showing Expiring' : 'Filter Expiring'}
-                  </button>
-                )}
                 {statusQuickFilter !== 'all' && (
                   <button
                     type="button"
@@ -513,8 +511,8 @@ export const ItemsPage: React.FC = () => {
                     style={{
                       padding: '3px 8px',
                       borderRadius: '6px',
-                      border: '1px solid var(--line, #e2e8f0)',
-                      background: 'var(--surface, #ffffff)',
+                      border: '1px solid var(--line, #cbd5e1)',
+                      background: '#ffffff',
                       color: 'var(--text-muted, #64748b)',
                       fontSize: '11px',
                       fontWeight: 600,
@@ -527,18 +525,28 @@ export const ItemsPage: React.FC = () => {
               </div>
             </div>
           )}
+
           {/* Unified Card Header Toolbar */}
           <div className="unified-table-toolbar">
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '280px', flexWrap: 'wrap' }}>
               {/* Search Box */}
               <div className="unified-search-wrap">
-                <Search size={15} style={{ position: 'absolute', left: '12px', color: '#94a3b8', pointerEvents: 'none' }} />
+                <Search size={14} style={{ position: 'absolute', left: '12px', color: '#94a3b8', pointerEvents: 'none' }} />
                 <input
                   className="unified-search-input"
                   placeholder="Search item, SKU, or batch..."
                   value={searchStock}
                   onChange={(e) => setSearchStock(e.target.value)}
                 />
+                {searchStock && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchStock('')}
+                    style={{ position: 'absolute', right: '10px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#94a3b8' }}
+                  >
+                    <X size={13} />
+                  </button>
+                )}
               </div>
 
               {/* Department Dropdown */}
@@ -561,13 +569,13 @@ export const ItemsPage: React.FC = () => {
                 className="unified-select"
               >
                 <option value="all">All Status</option>
-                <option value="low">Low Stock</option>
-                <option value="expiring">Near Expiry</option>
+                <option value="low">Low Stock ({lowStockCount})</option>
+                <option value="expiring">Near Expiry ({nearExpiryCount})</option>
               </select>
             </div>
 
             {/* Right Action: Receive Stock */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div>
               {filteredStock[0] && (
                 <button
                   type="button"
@@ -578,8 +586,21 @@ export const ItemsPage: React.FC = () => {
                     setNewBatchExpiry('2028-12-31')
                     setNewBatchQty(first.reorderLevel * 2)
                   }}
-                  className="pat-btn pat-btn-primary"
-                  style={{ padding: '8px 18px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '10px', fontWeight: 600 }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    background: 'var(--teal-primary, #008891)',
+                    color: '#ffffff',
+                    fontSize: '12.5px',
+                    fontWeight: 600,
+                    border: 'none',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(0, 136, 145, 0.2)',
+                    transition: 'all 0.15s ease'
+                  }}
                 >
                   <Plus size={14} /> Receive Stock
                 </button>
@@ -589,14 +610,13 @@ export const ItemsPage: React.FC = () => {
 
           {/* Clean, Non-Cramped Inventory Table */}
           <div style={{ overflowX: 'auto', width: '100%' }}>
-            <table className="inv-sheet-table" style={{ width: '100%', minWidth: '720px' }}>
+            <table className="inv-sheet-table" style={{ width: '100%', minWidth: '740px' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '35%' }}>Item & SKU</th>
-                  <th style={{ width: '16%' }}>Stock Level</th>
-                  <th style={{ width: '26%' }}>Active Batches</th>
-                  <th style={{ width: '11%' }}>Status</th>
-                  <th style={{ width: '12%', textAlign: 'right', paddingRight: '16px' }}>Action</th>
+                  <th style={{ width: '38%' }}>Item & SKU</th>
+                  <th style={{ width: '22%' }}>Stock Level</th>
+                  <th style={{ width: '28%' }}>Active Batches</th>
+                  <th style={{ width: '12%', textAlign: 'right', paddingRight: '18px' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -618,52 +638,63 @@ export const ItemsPage: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Stock Level (Current & Reorder Combined) */}
+                      {/* Stock Level (Integrated Status & Reorder Threshold) */}
                       <td>
-                        <div style={{ fontSize: '14px', fontWeight: 700, color: isLow ? 'var(--tone-red, #dc2626)' : 'var(--text-strong, #0f172a)' }}>
-                          {stock.totalStock} <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted, #64748b)' }}>{stock.unit}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '14px', fontWeight: 700, color: isLow ? '#dc2626' : 'var(--text-strong, #0f172a)' }}>
+                            {stock.totalStock} <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted, #64748b)' }}>{stock.unit}</span>
+                          </span>
+                          {isLow ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '1px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700, background: 'rgba(220, 38, 38, 0.1)', color: '#dc2626' }}>
+                              <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'currentColor' }} />
+                              Low Stock
+                            </span>
+                          ) : (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '1px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 600, background: 'rgba(5, 150, 105, 0.08)', color: '#059669' }}>
+                              <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'currentColor' }} />
+                              In Stock
+                            </span>
+                          )}
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', marginTop: '1px' }}>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>
                           Min: {stock.reorderLevel} {stock.unit}
                         </div>
                       </td>
 
                       {/* Active Batches - Simple & Streamlined with Expiry Alert highlight */}
                       <td>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           {sortedBatches.slice(0, 2).map((b) => {
                             const isExpiring = parseInt(b.expiryDate.split('-')[0], 10) <= 2027
                             return (
-                              <div key={b.batchNumber} style={{ fontSize: '11.5px', color: 'var(--text, #334155)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <div key={b.batchNumber} style={{ fontSize: '11.5px', color: 'var(--text, #334155)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <span style={{ fontWeight: 600, fontFamily: 'monospace', color: 'var(--text-strong, #0f172a)' }}>{b.batchNumber}</span>
                                 <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '11px' }}>({b.quantity} {stock.unit})</span>
-                                <span style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '10px' }}>&bull;</span>
-                                <span style={{ color: isExpiring ? '#d97706' : 'var(--text-muted, #64748b)', fontWeight: isExpiring ? 600 : 400, fontSize: '11px' }}>
-                                  Exp {b.expiryDate} {isExpiring && '(Expiring)'}
-                                </span>
+                                <span style={{ color: 'var(--text-muted, #cbd5e1)', fontSize: '10px' }}>&bull;</span>
+                                {isExpiring ? (
+                                  <span style={{
+                                    fontSize: '10.5px',
+                                    fontWeight: 600,
+                                    color: '#b45309',
+                                    background: 'rgba(245, 158, 11, 0.12)',
+                                    padding: '1px 5px',
+                                    borderRadius: '4px'
+                                  }}>
+                                    Exp {b.expiryDate} (Expiring)
+                                  </span>
+                                ) : (
+                                  <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '11px' }}>
+                                    Exp {b.expiryDate}
+                                  </span>
+                                )}
                               </div>
                             )
                           })}
                         </div>
                       </td>
 
-                      {/* Status */}
-                      <td>
-                        {isLow ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 600, background: 'rgba(220, 38, 38, 0.1)', color: 'var(--tone-red, #dc2626)', whiteSpace: 'nowrap' }}>
-                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'currentColor' }} />
-                            Low
-                          </span>
-                        ) : (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 600, background: 'rgba(5, 150, 105, 0.1)', color: 'var(--tone-green, #059669)', whiteSpace: 'nowrap' }}>
-                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'currentColor' }} />
-                            In Stock
-                          </span>
-                        )}
-                      </td>
-
                       {/* Actions */}
-                      <td style={{ textAlign: 'right', paddingRight: '16px' }}>
+                      <td style={{ textAlign: 'right', paddingRight: '18px' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', whiteSpace: 'nowrap' }}>
                           <button
                             type="button"
@@ -673,9 +704,20 @@ export const ItemsPage: React.FC = () => {
                               setNewBatchExpiry('2028-12-31')
                               setNewBatchQty(stock.reorderLevel * 2)
                             }}
-                            className="inv-btn-lot"
                             title="Receive new batch lot"
-                            style={{ padding: '3px 8px', fontSize: '11.5px' }}
+                            style={{
+                              padding: '4px 10px',
+                              fontSize: '11.5px',
+                              fontWeight: 600,
+                              background: 'rgba(0, 136, 145, 0.08)',
+                              color: 'var(--teal-primary, #008891)',
+                              border: '1px solid rgba(0, 136, 145, 0.25)',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
                           >
                             <Plus size={11} /> Lot
                           </button>
@@ -686,9 +728,17 @@ export const ItemsPage: React.FC = () => {
                                 setAdjustModalData({ item: stock, batch: stock.activeBatches[0] })
                                 setAdjustAmount(0)
                               }}
-                              className="inv-btn-adjust"
                               title="Adjust stock quantity"
-                              style={{ padding: '3px 8px', fontSize: '11.5px' }}
+                              style={{
+                                padding: '4px 10px',
+                                fontSize: '11.5px',
+                                fontWeight: 600,
+                                background: '#f8fafc',
+                                color: '#475569',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '6px',
+                                cursor: 'pointer'
+                              }}
                             >
                               Adjust
                             </button>
