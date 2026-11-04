@@ -114,7 +114,7 @@ describe('Patients Module Refactoring & Clinical Centralization', () => {
     // Permitted Clinical Actions
     expect(screen.getByRole('button', { name: /Edit Patient/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Book Appointment/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Start Consultation/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Record Consultation/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Tooth Chart/i })).toBeInTheDocument()
 
     // 6 Tabs Presence

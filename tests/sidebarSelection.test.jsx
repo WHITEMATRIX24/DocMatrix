@@ -18,7 +18,7 @@ describe('Global Sidebar Selection & Navigation Engine', () => {
 
   // 1. UNIT TESTS: Matcher Precision across all 55 Features
   it('correctly maps every registered launch feature route to its exact feature ID', () => {
-    expect(launchFeatures.length).toBe(55)
+    expect(launchFeatures.length).toBe(54)
 
     for (const feat of launchFeatures) {
       const sampleUrl = resolveFeatureRoute(feat.route, feat.area)

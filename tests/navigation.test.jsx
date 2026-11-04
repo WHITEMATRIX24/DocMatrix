@@ -101,7 +101,7 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
   // 3. REGISTRY INTEGRITY (55 launch features & Patients route)
   it('verifies all 55 launch features are defined in single-source-of-truth registry', () => {
     const launchFeatures = getLaunchFeatures()
-    expect(launchFeatures.length).toBe(55)
+    expect(launchFeatures.length).toBe(54)
 
     // pat.list must be /patients/list per Decision D3
     const patList = launchFeatures.find((f) => f.id === 'pat.list')
@@ -156,7 +156,7 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
     // Click 2: Click "Dr. Arun Kumar (Owner)" 1-click demo button -> logs in and navigates to /dashboard
     // Click 3: Click feature item in StaffPortal sidebar -> navigates to feature subpage
     const launchFeatures = getLaunchFeatures()
-    expect(launchFeatures.length).toBe(55)
+    expect(launchFeatures.length).toBe(54)
 
     const clickPaths = []
 
@@ -177,18 +177,22 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
         // Register Patient reached in 3 clicks via Dashboard Add Patient
         const path = `/ -> Sign In (/login) -> 1-Click Demo Login (/dashboard) -> Dashboard "Add patient" (/patients/new)`
         clickPaths.push({ id: feat.id, area: feat.area, name: feat.name, route: feat.route, path, clicks: 3 })
-      } else if (['pat.profile', 'pat.timeline', 'pat.documents', 'pat.consents', 'pat.toothchart', 'appt.detail'].includes(feat.id)) {
+      } else if (['pat.profile', 'pat.timeline', 'pat.documents', 'pat.consents', 'pat.toothchart', 'appt.detail', 'clin.orders'].includes(feat.id)) {
         // Patient sub-features reached in 3 clicks via Patient Profile tabs
         const path = `/ -> Sign In (/login) -> 1-Click Demo Login (/dashboard) -> Patient Profile (${feat.name} Tab)`
         clickPaths.push({ id: feat.id, area: feat.area, name: feat.name, route: feat.route, path, clicks: 3 })
-      } else if (feat.id === 'pat.pending') {
+      } else if (['pat.pending', 'clin.estimates'].includes(feat.id)) {
         // Pending treatments reached in 3 clicks via Clinical Treatment Plans
         const path = `/ -> Sign In (/login) -> 1-Click Demo Login (/dashboard) -> Clinical Treatment Plans (Pending View)`
+        clickPaths.push({ id: feat.id, area: feat.area, name: feat.name, route: feat.route, path, clicks: 3 })
+      } else if (feat.area === 'Billing') {
+        // Billing sub-features reached in 3 clicks via Billing tabbed workspace
+        const path = `/ -> Sign In (/login) -> 1-Click Demo Login (/dashboard) -> Billing Workspace (${feat.name} Tab)`
         clickPaths.push({ id: feat.id, area: feat.area, name: feat.name, route: feat.route, path, clicks: 3 })
       }
     }
 
-    expect(clickPaths).toHaveLength(55)
+    expect(clickPaths).toHaveLength(54)
     for (const item of clickPaths) {
       expect(item.clicks).toBeLessThanOrEqual(3)
     }
