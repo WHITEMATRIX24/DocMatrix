@@ -481,16 +481,15 @@ export const ItemsPage: React.FC = () => {
 
           {/* Clean, Non-Cramped Inventory Table */}
           <div style={{ overflowX: 'auto', width: '100%' }}>
-            <table className="inv-sheet-table" style={{ width: '100%', minWidth: '960px' }}>
+            <table className="inv-sheet-table" style={{ width: '100%', minWidth: '780px' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '25%' }}>Item & SKU</th>
-                  <th style={{ width: '13%' }}>Department</th>
-                  <th style={{ width: '11%' }}>Current Stock</th>
-                  <th style={{ width: '11%' }}>Reorder Level</th>
-                  <th style={{ width: '27%' }}>Active Batches (FEFO)</th>
-                  <th style={{ width: '9%' }}>Status</th>
-                  <th style={{ width: '14%', textAlign: 'right', paddingRight: '22px' }}>Action</th>
+                  <th style={{ width: '30%' }}>Item & SKU</th>
+                  <th style={{ width: '13%' }}>Current Stock</th>
+                  <th style={{ width: '13%' }}>Reorder Level</th>
+                  <th style={{ width: '28%' }}>Active Batches (FEFO)</th>
+                  <th style={{ width: '10%' }}>Status</th>
+                  <th style={{ width: '6%', textAlign: 'right', paddingRight: '22px' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -505,16 +504,11 @@ export const ItemsPage: React.FC = () => {
                         <div style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--text-strong, #0f172a)', lineHeight: 1.35 }}>
                           {stock.name}
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', fontFamily: 'monospace', marginTop: '3px' }}>
-                          SKU: {stock.sku}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--text-muted, #64748b)', marginTop: '3px' }}>
+                          <span style={{ fontFamily: 'monospace' }}>SKU: {stock.sku}</span>
+                          <span>&bull;</span>
+                          <span>{stock.category}</span>
                         </div>
-                      </td>
-
-                      {/* Department */}
-                      <td>
-                        <span style={{ fontSize: '12.5px', color: 'var(--text, #475569)', fontWeight: 500 }}>
-                          {stock.category}
-                        </span>
                       </td>
 
                       {/* Current Stock */}

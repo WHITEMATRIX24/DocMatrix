@@ -230,7 +230,7 @@ export const AlertsPage: React.FC = () => {
               <thead>
                 <tr>
                   <th style={{ width: '15%' }}>Alert Type</th>
-                  <th style={{ width: '25%' }}>Item & Department</th>
+                  <th style={{ width: '25%' }}>Item</th>
                   <th style={{ width: '32%' }}>Condition & Details</th>
                   <th style={{ width: '16%' }}>Context / Source</th>
                   <th style={{ width: '12%', textAlign: 'right', paddingRight: '20px' }}>Status</th>
