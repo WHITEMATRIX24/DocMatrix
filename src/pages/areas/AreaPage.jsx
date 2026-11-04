@@ -70,18 +70,15 @@ const AREA_META = {
 const FEATURE_CUSTOM_DETAILS = {
   'inv.items': {
     title: 'Items & Stock Catalog',
-    desc: 'Real-time stock quantities, batch lot tracking, unit pricing, and adaptive procedure consumption.',
-    tags: ['Stock Levels', 'Batches & Lots', 'Adaptive Consumption']
+    desc: 'Real-time stock quantities, batch lot tracking, unit pricing, and adaptive procedure consumption.'
   },
   'inv.movements': {
     title: 'Stock Movements & Audit',
-    desc: 'Log stock receipts, clinic issuances, batch transfers, and automatic procedure deduction history.',
-    tags: ['Stock In & Out', 'Procedure Deductions', 'Audit Trail']
+    desc: 'Log stock receipts, clinic issuances, batch transfers, and automatic procedure deduction history.'
   },
   'inv.alerts': {
     title: 'Low-Stock & Expiry Alerts',
-    desc: 'Real-time proactive notifications for material replenishment, lot expiry risk, and doctor consumption shifts.',
-    tags: ['Low Stock Warning', 'Expiring Batches', 'Consumption Shifts']
+    desc: 'Real-time proactive notifications for material replenishment, lot expiry risk, and doctor consumption shifts.'
   }
 }
 
@@ -113,8 +110,7 @@ export function AreaPage({ areaKey }) {
       const custom = FEATURE_CUSTOM_DETAILS[f.id]
       const name = (custom?.title || f.name).toLowerCase()
       const desc = (custom?.desc || f.desc || f.description || '').toLowerCase()
-      const tags = (custom?.tags || []).join(' ').toLowerCase()
-      return name.includes(q) || desc.includes(q) || tags.includes(q) || (f.route && f.route.toLowerCase().includes(q))
+      return name.includes(q) || desc.includes(q) || (f.route && f.route.toLowerCase().includes(q))
     })
   }, [allFeatures, filterQuery])
 
@@ -334,7 +330,7 @@ export function AreaPage({ areaKey }) {
                     borderRadius: '16px',
                     border: '1px solid var(--line, #e9e9e5)',
                     background: 'var(--surface)',
-                    minHeight: '190px'
+                    minHeight: '165px'
                   }}
                 >
                   <div>
@@ -357,27 +353,6 @@ export function AreaPage({ areaKey }) {
                     }}>
                       {description}
                     </p>
-
-                    {custom?.tags && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '14px' }}>
-                        {custom.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            style={{
-                              fontSize: '11px',
-                              fontWeight: '600',
-                              padding: '2px 8px',
-                              borderRadius: '6px',
-                              background: 'var(--teal-tint, rgba(0, 136, 145, 0.06))',
-                              color: 'var(--charcoal-muted, #556968)',
-                              border: '1px solid var(--line, rgba(0, 0, 0, 0.05))'
-                            }}
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </div>
 
                   <div style={{
@@ -478,7 +453,7 @@ export function AreaPage({ areaKey }) {
                       borderRadius: '16px',
                       border: '1px solid var(--line, #e9e9e5)',
                       background: 'var(--surface)',
-                      minHeight: '190px',
+                      minHeight: '165px',
                       opacity: isRestricted ? 0.82 : 1
                     }}
                   >
