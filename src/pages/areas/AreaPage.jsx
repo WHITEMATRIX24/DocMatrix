@@ -69,17 +69,13 @@ const AREA_META = {
 
 const FEATURE_CUSTOM_DETAILS = {
   'inv.items': {
-    title: 'Items & Stock Catalog',
-    desc: 'Real-time stock quantities, batch lot tracking, unit pricing, and adaptive procedure consumption.'
+    title: 'Items, Stock & Alerts Catalog',
+    desc: 'Real-time stock quantities, batch lots, adaptive consumption, and proactive replenishment alerts.'
   },
   'inv.movements': {
     title: 'Stock Movements & Audit',
     desc: 'Log stock receipts, clinic issuances, batch transfers, and automatic procedure deduction history.'
   },
-  'inv.alerts': {
-    title: 'Low-Stock & Expiry Alerts',
-    desc: 'Real-time proactive notifications for material replenishment, lot expiry risk, and doctor consumption shifts.'
-  }
 }
 
 export function AreaPage({ areaKey }) {
@@ -100,7 +96,7 @@ export function AreaPage({ areaKey }) {
   // Features belonging to this area
   const allFeatures = isRoadmap
     ? getRoadmapFeatures()
-    : FEATURE_REGISTRY.filter((f) => f.area.toLowerCase() === areaKey.toLowerCase() && f.phase === 'launch' && f.inNav)
+    : FEATURE_REGISTRY.filter((f) => f.area.toLowerCase() === areaKey.toLowerCase() && f.phase === 'launch' && f.inNav && f.id !== 'inv.alerts')
 
   // Filtered by search query if any
   const filteredFeatures = useMemo(() => {

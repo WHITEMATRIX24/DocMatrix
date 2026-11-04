@@ -429,7 +429,7 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
     "phase": "launch",
     "area": "Inventory",
     "route": "/inventory/alerts",
-    "inNav": true
+    "inNav": false
   },
   {
     "id": "wa.automation",
