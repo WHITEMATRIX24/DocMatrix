@@ -1632,3 +1632,24 @@ html.dm-theme-transition *::after {
 body:has(.bill-overlay, .pat-modal-overlay, .calendar-modal-overlay) :is(.ai-agent-shortcut, .whatsapp-shortcut) {
   display: none;
 }
+
+
+/* Area Module Card Hover Interactions */
+.area-module-card {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.area-module-card:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 12px 28px rgba(0, 136, 145, 0.09) !important;
+  border-color: rgba(0, 136, 145, 0.35) !important;
+}
+
+.area-module-card:hover .module-action-pill {
+  background: var(--teal-primary, #008891) !important;
+  color: #ffffff !important;
+}
+
+.area-module-card:hover .action-arrow {
+  transform: translateX(3px);
+}
