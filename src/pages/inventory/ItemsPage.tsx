@@ -399,20 +399,20 @@ export const ItemsPage: React.FC = () => {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="ai-tabs">
-        <button
-          type="button"
-          className={`ai-tab ${activeTab === 'stock' ? 'is-active' : ''}`}
-          onClick={() => setActiveTab('stock')}
-        >
-          Stock Levels & Batches ({inventory.items.length})
-        </button>
+      <div className="ai-tabs ai-tabs-full">
         <button
           type="button"
           className={`ai-tab ${activeTab === 'consumption' ? 'is-active' : ''}`}
           onClick={() => setActiveTab('consumption')}
         >
           Adaptive Material Consumption
+        </button>
+        <button
+          type="button"
+          className={`ai-tab ${activeTab === 'stock' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('stock')}
+        >
+          Stock Levels & Batches
         </button>
       </div>
 

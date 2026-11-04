@@ -465,6 +465,20 @@
   margin-bottom: 12px;
 }
 
+.ai-tabs.ai-tabs-full {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ai-tabs.ai-tabs-full .ai-tab {
+  flex: 1;
+  text-align: center;
+  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+}
+
 .ai-tab {
   background: transparent;
   border: none;
