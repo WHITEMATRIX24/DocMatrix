@@ -105,7 +105,7 @@ export const ItemsPage: React.FC = () => {
     }
   }, [location.search])
 
-  
+
 
   // Selected doctor & procedure for the interactive simulator / consumption engine
   const [selectedDoctorId, setSelectedDoctorId] = useState('doc-2') // Default to Dr. Priya Nair (Doctor B)
@@ -180,9 +180,6 @@ export const ItemsPage: React.FC = () => {
 
   // Real clinic staff / doctors loaded from clinicStaffStore & API
   const [clinicStaffDoctors, setClinicStaffDoctors] = useState<{ id: string; name: string; label: string }[]>([])
-  const [showAddDoctorModal, setShowAddDoctorModal] = useState(false)
-  const [newDoctorName, setNewDoctorName] = useState('')
-  const [isAddingDoctor, setIsAddingDoctor] = useState(false)
 
   useEffect(() => {
     const updateDocs = () => {
@@ -203,21 +200,6 @@ export const ItemsPage: React.FC = () => {
     const unsub = subscribeStaff(updateDocs)
     return () => unsub()
   }, [])
-
-  const handleCreateDoctor = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newDoctorName.trim()) return
-
-    try {
-      setIsAddingDoctor(true)
-      const created = await addClinicDoctor(newDoctorName.trim())
-      setSelectedDoctorId(created.id)
-      setShowAddDoctorModal(false)
-      setNewDoctorName('')
-    } finally {
-      setIsAddingDoctor(false)
-    }
-  }
 
   const doctorsList = clinicStaffDoctors.length > 0
     ? clinicStaffDoctors
@@ -264,6 +246,20 @@ export const ItemsPage: React.FC = () => {
     } finally {
       setIsSubmittingItem(false)
     }
+  }
+
+  const openAddItemModal = () => {
+    setNewItemSku(`SKU-${Date.now().toString(36).slice(-5).toUpperCase()}`)
+    setNewItemName('')
+    setNewItemCategory('PPE & General')
+    setNewItemUnit('pieces')
+    setNewItemReorder(20)
+    setNewItemCost(0)
+    setNewInitialBatchNum(`LOT-${new Date().getFullYear()}-01`)
+    setNewInitialExpiry('2028-12-31')
+    setNewInitialQty(100)
+    setNewInitialLocation('Central Storage')
+    setShowAddItemModal(true)
   }
 
   // Reload terminal suggestions when doctor, procedure, or suggestion mode changes
@@ -506,13 +502,37 @@ export const ItemsPage: React.FC = () => {
   return (
     <section className="clinic-record-page adaptive-inventory-container" data-testid="feature-page-inv.items">
       {/* Page Header */}
-      <div style={{ margin: '0 0 16px 0' }}>
-        <h1 className="inv-page-title" style={{ fontSize: '22px', fontWeight: 700, margin: 0, letterSpacing: '-0.02em', fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
-          Treatment-Based Inventory
-        </h1>
-        <p className="inv-page-subtitle" style={{ margin: '3px 0 0 0', fontSize: '13px', fontWeight: 400 }}>
-          Real-time clinical stock tracking, batch lot monitoring, and proactive alerts
-        </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 16px 0', flexWrap: 'wrap', gap: '12px' }}>
+        <div>
+          <h1 className="inv-page-title" style={{ fontSize: '22px', fontWeight: 700, margin: 0, letterSpacing: '-0.02em', fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+            Treatment-Based Inventory
+          </h1>
+          <p className="inv-page-subtitle" style={{ margin: '3px 0 0 0', fontSize: '13px', fontWeight: 400 }}>
+            Real-time clinical stock tracking, batch lot monitoring, and proactive alerts
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={openAddItemModal}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: '#0d9488',
+            color: '#ffffff',
+            padding: '10px 18px',
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontWeight: 600,
+            border: 'none',
+            cursor: 'pointer',
+            boxShadow: '0 2px 4px rgba(13, 148, 136, 0.2)'
+          }}
+        >
+          <Plus size={16} />
+          <span>Add Inventory</span>
+        </button>
       </div>
 
       {/* Navigation Tabs */}
@@ -590,20 +610,7 @@ export const ItemsPage: React.FC = () => {
             <div>
               <button
                 type="button"
-                onClick={() => {
-                  setNewItemSku(`SKU-${Date.now().toString(36).slice(-5).toUpperCase()}`)
-                  setNewItemName('')
-                  setNewItemCategory('PPE & General')
-                  setNewItemUnit('pieces')
-                  setNewItemReorder(20)
-                  setNewItemCost(0)
-                  setNewInitialBatchNum(`LOT-${new Date().getFullYear()}-01`)
-                  setNewInitialExpiry('2028-12-31')
-                  setNewInitialQty(100)
-                  setNewInitialLocation('Central Storage')
-                  setShowAddItemModal(true)
-                }}
-                className="pat-btn pat-btn-primary"
+                onClick={openAddItemModal}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -611,10 +618,14 @@ export const ItemsPage: React.FC = () => {
                   height: '38px',
                   padding: '0 16px',
                   borderRadius: '8px',
+                  background: '#0d9488',
+                  color: '#ffffff',
                   fontSize: '13px',
                   fontWeight: 600,
+                  border: 'none',
                   cursor: 'pointer',
-                  fontFamily: 'inherit'
+                  fontFamily: 'inherit',
+                  boxShadow: '0 2px 4px rgba(13, 148, 136, 0.2)'
                 }}
               >
                 <Plus size={14} /> Add Inventory Item
@@ -754,23 +765,23 @@ export const ItemsPage: React.FC = () => {
                           </p>
                           <button
                             type="button"
-                            onClick={() => {
-                              setNewItemSku(`SKU-${Date.now().toString(36).slice(-5).toUpperCase()}`)
-                              setNewItemName('')
-                              setNewItemCategory('PPE & General')
-                              setNewItemUnit('pieces')
-                              setNewItemReorder(20)
-                              setNewItemCost(0)
-                              setNewInitialBatchNum(`LOT-${new Date().getFullYear()}-01`)
-                              setNewInitialExpiry('2028-12-31')
-                              setNewInitialQty(100)
-                              setNewInitialLocation('Central Storage')
-                              setShowAddItemModal(true)
+                            onClick={openAddItemModal}
+                            style={{
+                              padding: '10px 22px',
+                              borderRadius: '8px',
+                              fontSize: '13.5px',
+                              fontWeight: 600,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              background: '#0d9488',
+                              color: '#ffffff',
+                              border: 'none',
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 4px rgba(13, 148, 136, 0.2)'
                             }}
-                            className="pat-btn pat-btn-primary"
-                            style={{ padding: '8px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                           >
-                            <Plus size={14} /> Add First Item
+                            <Plus size={15} /> Add First Item
                           </button>
                         </div>
                       ) : (
@@ -830,33 +841,10 @@ export const ItemsPage: React.FC = () => {
               </div>
 
               <div className="consumption-ctrl-group">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
-                  <label className="consumption-ctrl-label">Doctor</label>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddDoctorModal(true)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--teal-primary, #008891)',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      padding: 0
-                    }}
-                  >
-                    + Add Doctor
-                  </button>
-                </div>
+                <label className="consumption-ctrl-label">Doctor</label>
                 <select
                   value={selectedDoctorId}
-                  onChange={(e) => {
-                    if (e.target.value === '__ADD_NEW__') {
-                      setShowAddDoctorModal(true)
-                    } else {
-                      handleDoctorSwitch(e.target.value)
-                    }
-                  }}
+                  onChange={(e) => handleDoctorSwitch(e.target.value)}
                   className="consumption-select"
                 >
                   {doctorsList.map((doc) => (
@@ -864,7 +852,6 @@ export const ItemsPage: React.FC = () => {
                       {doc.label}
                     </option>
                   ))}
-                  <option value="__ADD_NEW__">+ Add New Doctor...</option>
                 </select>
               </div>
 
@@ -1188,70 +1175,6 @@ export const ItemsPage: React.FC = () => {
       )}
 
 
-
-      {/* MODAL: QUICK ADD DOCTOR */}
-      {showAddDoctorModal && (
-        <div className="ai-modal-overlay" onClick={() => setShowAddDoctorModal(false)} role="dialog" aria-modal="true">
-          <div className="ai-modal-content" style={{ maxWidth: '440px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="ai-modal-header">
-              <div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 700, color: 'var(--text-strong, #0f172a)' }}>
-                  Add Doctor to Clinic
-                </h3>
-                <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
-                  Register a practitioner for treatment tracking and consumption audits
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAddDoctorModal(false)}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px', color: 'var(--text-muted, #64748b)' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateDoctor}>
-              <div className="ai-modal-body" style={{ gap: '14px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
-                    Doctor Full Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    autoFocus
-                    value={newDoctorName}
-                    onChange={(e) => setNewDoctorName(e.target.value)}
-                    placeholder="e.g. Dr. Jane Smith"
-                    className="pat-input"
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
-                  />
-                </div>
-              </div>
-
-              <div className="ai-modal-footer">
-                <button
-                  type="button"
-                  onClick={() => setShowAddDoctorModal(false)}
-                  className="pat-btn"
-                  style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--line, #cbd5e1)', borderRadius: '8px' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isAddingDoctor}
-                  className="pat-btn pat-btn-primary"
-                  style={{ padding: '8px 20px', borderRadius: '8px' }}
-                >
-                  <PlusCircle size={15} /> {isAddingDoctor ? 'Adding...' : 'Add Doctor'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* MODAL 0: ADD NEW INVENTORY ITEM */}
       {showAddItemModal && (

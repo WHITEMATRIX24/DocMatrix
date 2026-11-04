@@ -12,27 +12,59 @@ const STAFF_STORAGE_KEY = 'docmatrix_clinic_staff'
 const listeners = new Set<() => void>()
 
 export function getStoredStaff(): ClinicStaffDoctor[] {
+  const doctors: ClinicStaffDoctor[] = []
   try {
     const raw = localStorage.getItem(STAFF_STORAGE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed)) {
-        return parsed.map((p: any) => ({
-          id: String(p.id || 'doc-' + Math.random().toString(36).slice(2)),
-          name: String(p.fullName || p.name || 'Practitioner'),
-          role: p.role || 'DOCTOR',
-          email: p.email || ''
-        }))
+        parsed.forEach((p: any) => {
+          doctors.push({
+            id: String(p.id || 'doc-' + Math.random().toString(36).slice(2)),
+            name: String(p.fullName || p.name || 'Practitioner'),
+            role: p.role || 'DOCTOR',
+            email: p.email || ''
+          })
+        })
       }
     }
   } catch {}
-  return []
+
+  // Also include current logged-in practitioner/admin if not already present
+  try {
+    const authRaw =
+      (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('docmatrix_auth_user') : null) ||
+      (typeof localStorage !== 'undefined' ? localStorage.getItem('docmatrix_auth_user') : null)
+    if (authRaw) {
+      const authUser = JSON.parse(authRaw)
+      if (authUser && authUser.fullName) {
+        const alreadyInList = doctors.some(
+          (d) => d.name.trim().toLowerCase() === authUser.fullName.trim().toLowerCase()
+        )
+        if (!alreadyInList) {
+          doctors.unshift({
+            id: String(authUser.id || 'admin-owner'),
+            name: String(authUser.fullName).trim(),
+            role: authUser.role || 'DOCTOR',
+            email: authUser.email || ''
+          })
+        }
+      }
+    }
+  } catch {}
+
+  return doctors
 }
 
 let staffCache: ClinicStaffDoctor[] = typeof window !== 'undefined' ? getStoredStaff() : []
 
 function notify() {
   listeners.forEach((fn) => fn())
+}
+
+export function notifyStaffUpdated() {
+  staffCache = getStoredStaff()
+  notify()
 }
 
 export function subscribeStaff(listener: () => void) {
@@ -43,8 +75,9 @@ export function subscribeStaff(listener: () => void) {
 }
 
 export function getClinicStaffDoctors(): ClinicStaffDoctor[] {
-  if (staffCache.length === 0 && typeof window !== 'undefined') {
-    staffCache = getStoredStaff()
+  const fresh = getStoredStaff()
+  if (fresh.length > 0) {
+    staffCache = fresh
   }
   return staffCache
 }
@@ -131,3 +164,4 @@ if (typeof window !== 'undefined') {
     fetchAndSyncClinicStaff()
   }, 50)
 }
+

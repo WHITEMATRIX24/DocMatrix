@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Users, UserPlus, Shield, Mail, Phone, CheckCircle2, AlertCircle } from 'lucide-react'
 import { apiClient } from '@/services/apiClient'
+import { notifyStaffUpdated } from '@/services/clinicStaffStore'
 
 interface StaffMember {
   id: string
@@ -31,30 +32,60 @@ export const StaffManagementPage: React.FC = () => {
     try {
       setLoading(true)
       const res = await apiClient.get<StaffMember[]>('/clinics/my-clinic/staff')
-      if (Array.isArray(res)) {
+      if (Array.isArray(res) && res.length > 0) {
         setStaff(res)
         try {
           localStorage.setItem('docmatrix_clinic_staff', JSON.stringify(res))
         } catch {}
-      } else {
-        setStaff([])
+        notifyStaffUpdated()
+        return
       }
     } catch {
-      // Graceful offline fallback: read from local cache
-      try {
-        const cached = localStorage.getItem('docmatrix_clinic_staff')
-        if (cached) {
-          const parsed = JSON.parse(cached)
-          if (Array.isArray(parsed)) {
-            setStaff(parsed)
-            return
-          }
-        }
-      } catch {}
-      setStaff([])
+      // Backend is offline, gracefully read from cache
     } finally {
       setLoading(false)
     }
+
+    try {
+      const cached = localStorage.getItem('docmatrix_clinic_staff')
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setStaff(parsed)
+          return
+        }
+      }
+    } catch {}
+
+    // Check logged-in user from session/local storage to display clinic owner
+    try {
+      const authRaw =
+        (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('docmatrix_auth_user') : null) ||
+        (typeof localStorage !== 'undefined' ? localStorage.getItem('docmatrix_auth_user') : null)
+      if (authRaw) {
+        const user = JSON.parse(authRaw)
+        if (user && user.fullName) {
+          const ownerMember: StaffMember = {
+            id: user.id || 'owner-admin',
+            fullName: user.fullName,
+            email: user.email || 'owner@docmatrix.local',
+            phone: user.phone || '',
+            role: user.role || 'ORGANIZATION_ADMIN',
+            isActive: true,
+            isPrimaryContact: true,
+            createdAt: new Date().toISOString()
+          }
+          setStaff([ownerMember])
+          try {
+            localStorage.setItem('docmatrix_clinic_staff', JSON.stringify([ownerMember]))
+          } catch {}
+          notifyStaffUpdated()
+          return
+        }
+      }
+    } catch {}
+
+    setStaff([])
   }
 
   useEffect(() => {
@@ -88,23 +119,25 @@ export const StaffManagementPage: React.FC = () => {
         try {
           localStorage.setItem('docmatrix_clinic_staff', JSON.stringify(next))
         } catch {}
+        notifyStaffUpdated()
         return next
       })
       setFeedback({ type: 'success', message: `${formData.fullName} added successfully.` })
       setShowAddModal(false)
       setFormData({ fullName: '', email: '', password: '', phone: '', role: 'DOCTOR' })
     } catch {
-      // Offline fallback: save locally so practitioner can be used immediately
+      // Offline fallback: save locally so practitioner is usable across the entire app
       setStaff((prev) => {
         const next = [localMember, ...prev]
         try {
           localStorage.setItem('docmatrix_clinic_staff', JSON.stringify(next))
         } catch {}
+        notifyStaffUpdated()
         return next
       })
       setFeedback({
         type: 'success',
-        message: `${formData.fullName} added successfully (Saved to clinic staff).`
+        message: `${formData.fullName} registered successfully.`
       })
       setShowAddModal(false)
       setFormData({ fullName: '', email: '', password: '', phone: '', role: 'DOCTOR' })
