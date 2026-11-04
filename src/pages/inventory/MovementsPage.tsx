@@ -2,7 +2,8 @@ import React, { useState } from 'react'
 import {
   History,
   Search,
-  CheckCircle2
+  CheckCircle2,
+  X
 } from 'lucide-react'
 import { useAdaptiveInventory } from '@/services/adaptiveInventoryStore'
 import './adaptiveInventory.css'
@@ -48,11 +49,11 @@ export const MovementsPage: React.FC = () => {
   return (
     <section className="clinic-record-page adaptive-inventory-container" data-testid="feature-page-inv.movements">
       {/* Page Header */}
-      <div style={{ margin: '2px 0 6px 0' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, margin: 0, color: 'var(--text-main, #0f172a)' }}>
+      <div style={{ margin: '0 0 16px 0' }}>
+        <h1 style={{ fontSize: '22px', fontWeight: 700, margin: 0, color: 'var(--text-main, #0f172a)' }}>
           Stock Movements & Audit
         </h1>
-        <p style={{ margin: '3px 0 0 0', color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
+        <p style={{ margin: '4px 0 0 0', color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
           Audit trail of confirmed treatment consumption, batch deductions, and recorded wastage.
         </p>
       </div>
@@ -69,7 +70,29 @@ export const MovementsPage: React.FC = () => {
                 placeholder="Search audit ID, procedure, doctor, patient..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ paddingRight: searchQuery ? '32px' : '14px' }}
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    color: '#94a3b8',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  title="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
 
             <select
@@ -91,13 +114,13 @@ export const MovementsPage: React.FC = () => {
             <table className="inv-sheet-table" style={{ width: '100%', minWidth: '960px' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '15%' }}>Audit Ref & Date</th>
-                  <th style={{ width: '18%' }}>Procedure & Patient</th>
-                  <th style={{ width: '13%' }}>Doctor</th>
+                  <th style={{ width: '12%' }}>Audit Ref & Date</th>
+                  <th style={{ width: '16%' }}>Procedure & Patient</th>
+                  <th style={{ width: '12%' }}>Doctor</th>
                   <th style={{ width: '10%' }}>Mode</th>
-                  <th style={{ width: '28%' }}>Materials Deducted</th>
+                  <th style={{ width: '32%' }}>Materials Deducted</th>
                   <th style={{ width: '6%' }}>Wastage</th>
-                  <th style={{ width: '10%' }}>Confirmed By</th>
+                  <th style={{ width: '12%' }}>Confirmed By</th>
                 </tr>
               </thead>
               <tbody>
@@ -106,46 +129,61 @@ export const MovementsPage: React.FC = () => {
 
                   return (
                     <tr key={log.id} className="inv-sheet-row">
-                      <td>
-                        <div style={{ fontWeight: 700, fontSize: '13px', color: '#0f172a' }}>{log.id}</div>
-                        <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                      <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                          fontSize: '11.5px',
+                          fontWeight: 600,
+                          color: '#334155',
+                          background: '#f1f5f9',
+                          padding: '2px 7px',
+                          borderRadius: '6px',
+                          letterSpacing: '0.01em'
+                        }}>
+                          {log.id}
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '5px' }}>
                           {formatDate(log.timestamp)}
                         </div>
                       </td>
 
-                      <td>
-                        <div style={{ fontWeight: 600, fontSize: '13px', color: '#0f172a' }}>
+                      <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
+                        <div style={{ fontWeight: 600, fontSize: '13.5px', color: '#0f172a' }}>
                           {log.procedureName}
                         </div>
-                        <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
-                          Patient: {log.patientName}
+                        <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ color: '#94a3b8' }}>Patient:</span>
+                          <span style={{ color: '#475569', fontWeight: 500 }}>{log.patientName}</span>
                         </div>
                       </td>
 
-                      <td>
-                        <span style={{ fontSize: '12.5px', fontWeight: 500, color: '#334155' }}>{log.doctorName}</span>
+                      <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: '#334155' }}>
+                          {log.doctorName}
+                        </span>
                       </td>
 
-                      <td>
+                      <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
                         <span style={{
                           display: 'inline-flex',
                           alignItems: 'center',
                           padding: '3px 10px',
                           borderRadius: '9999px',
-                          fontSize: '11px',
+                          fontSize: '11.5px',
                           fontWeight: 600,
-                          textTransform: 'capitalize',
                           whiteSpace: 'nowrap',
-                          background: log.modeUsed === 'doctor-specific' ? 'rgba(14, 165, 233, 0.08)' : '#f1f5f9',
-                          color: log.modeUsed === 'doctor-specific' ? '#0284c7' : '#475569',
-                          border: log.modeUsed === 'doctor-specific' ? '1px solid rgba(14, 165, 233, 0.2)' : '1px solid #e2e8f0'
+                          background: log.modeUsed === 'doctor-specific' ? '#ecfeff' : '#f8fafc',
+                          color: log.modeUsed === 'doctor-specific' ? '#0891b2' : '#64748b',
+                          border: log.modeUsed === 'doctor-specific' ? '1px solid #a5f3fc' : '1px solid #e2e8f0'
                         }}>
-                          {log.modeUsed}
+                          {log.modeUsed === 'doctor-specific' ? 'Doctor Specific' : 'Standard'}
                         </span>
                       </td>
 
-                      <td>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                           {log.materials.map((m) => (
                             <div
                               key={m.itemId}
@@ -153,37 +191,64 @@ export const MovementsPage: React.FC = () => {
                                 display: 'inline-flex',
                                 alignItems: 'center',
                                 gap: '6px',
-                                background: '#f8fafc',
+                                background: '#ffffff',
                                 border: '1px solid #e2e8f0',
                                 borderRadius: '6px',
-                                padding: '2px 8px',
+                                padding: '3px 9px',
                                 fontSize: '11.5px',
                                 width: 'fit-content',
-                                whiteSpace: 'nowrap'
+                                whiteSpace: 'nowrap',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
                               }}
                             >
-                              <span style={{ fontWeight: 600, color: '#0f172a' }}>{m.name}</span>
-                              <span style={{ color: '#008891', fontWeight: 600 }}>{m.confirmedQty} {m.unit}</span>
-                              <span style={{ color: '#64748b', fontSize: '10.5px' }}>({m.batchNumber})</span>
+                              <span style={{ fontWeight: 600, color: '#1e293b' }}>{m.name}</span>
+                              <span style={{ color: 'var(--teal-primary, #008891)', fontWeight: 700 }}>
+                                {m.confirmedQty} {m.unit}
+                              </span>
+                              <span style={{ color: '#94a3b8', fontSize: '11px', borderLeft: '1px solid #e2e8f0', paddingLeft: '6px' }}>
+                                {m.batchNumber}
+                              </span>
                             </div>
                           ))}
                         </div>
                       </td>
 
-                      <td>
+                      <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
                         {logWastage > 0 ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: '9999px', fontSize: '11px', fontWeight: 600, background: '#fef2f2', color: '#dc2626' }}>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            padding: '3px 9px',
+                            borderRadius: '9999px',
+                            fontSize: '11.5px',
+                            fontWeight: 600,
+                            background: '#fef2f2',
+                            color: '#dc2626',
+                            border: '1px solid #fee2e2'
+                          }}>
                             {logWastage} {logWastage === 1 ? 'unit' : 'units'}
                           </span>
                         ) : (
-                          <span style={{ fontSize: '12px', color: '#94a3b8' }}>—</span>
+                          <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 500 }}>None</span>
                         )}
                       </td>
 
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <CheckCircle2 size={13} style={{ color: '#059669', flexShrink: 0 }} />
-                          <span style={{ fontSize: '12.5px', fontWeight: 500, color: '#0f172a' }}>{log.confirmedBy}</span>
+                      <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div style={{
+                            width: '18px',
+                            height: '18px',
+                            borderRadius: '50%',
+                            background: '#ecfdf5',
+                            border: '1px solid #a7f3d0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            <CheckCircle2 size={12} style={{ color: '#059669' }} />
+                          </div>
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>{log.confirmedBy}</span>
                         </div>
                       </td>
                     </tr>
@@ -193,11 +258,24 @@ export const MovementsPage: React.FC = () => {
             </table>
           </div>
         ) : (
-          <div style={{ padding: '48px 20px', textAlign: 'center' }}>
-            <History size={32} style={{ color: '#94a3b8', marginBottom: '8px' }} />
-            <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', color: '#0f172a' }}>No stock deduction records found</h3>
-            <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>
-              Try adjusting your search criteria or confirm a treatment consumption from the Items page.
+          <div style={{ padding: '60px 20px', textAlign: 'center' }}>
+            <div style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '50%',
+              background: '#f1f5f9',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 12px auto'
+            }}>
+              <History size={22} style={{ color: '#94a3b8' }} />
+            </div>
+            <h3 style={{ margin: '0 0 6px 0', fontSize: '15px', fontWeight: 600, color: '#0f172a' }}>
+              No audit records found
+            </h3>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '13px', maxWidth: '380px', marginInline: 'auto' }}>
+              No consumption records matched your search criteria. Try adjusting filters or confirm a treatment from the Items page.
             </p>
           </div>
         )}
