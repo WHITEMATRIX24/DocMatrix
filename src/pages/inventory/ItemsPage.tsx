@@ -502,37 +502,13 @@ export const ItemsPage: React.FC = () => {
   return (
     <section className="clinic-record-page adaptive-inventory-container" data-testid="feature-page-inv.items">
       {/* Page Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 16px 0', flexWrap: 'wrap', gap: '12px' }}>
-        <div>
-          <h1 className="inv-page-title" style={{ fontSize: '22px', fontWeight: 700, margin: 0, letterSpacing: '-0.02em', fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
-            Treatment-Based Inventory
-          </h1>
-          <p className="inv-page-subtitle" style={{ margin: '3px 0 0 0', fontSize: '13px', fontWeight: 400 }}>
-            Real-time clinical stock tracking, batch lot monitoring, and proactive alerts
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={openAddItemModal}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: '#0d9488',
-            color: '#ffffff',
-            padding: '10px 18px',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontWeight: 600,
-            border: 'none',
-            cursor: 'pointer',
-            boxShadow: '0 2px 4px rgba(13, 148, 136, 0.2)'
-          }}
-        >
-          <Plus size={16} />
-          <span>Add Inventory</span>
-        </button>
+      <div style={{ margin: '0 0 16px 0' }}>
+        <h1 className="inv-page-title" style={{ fontSize: '22px', fontWeight: 700, margin: 0, letterSpacing: '-0.02em', fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+          Treatment-Based Inventory
+        </h1>
+        <p className="inv-page-subtitle" style={{ margin: '3px 0 0 0', fontSize: '13px', fontWeight: 400 }}>
+          Real-time clinical stock tracking, batch lot monitoring, and proactive alerts
+        </p>
       </div>
 
       {/* Navigation Tabs */}
