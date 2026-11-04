@@ -483,7 +483,77 @@ export const ItemsPage: React.FC = () => {
                 ))}
               </select>
 
-              {/* Status Filter Dropdown */}
+              {/* Quick 1-Click Expiry Alert Filter */}
+              {nearExpiryCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setStatusQuickFilter(statusQuickFilter === 'expiring' ? 'all' : 'expiring')}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    height: '38px',
+                    padding: '0 13px',
+                    borderRadius: '8px',
+                    fontSize: '12.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    transition: 'all 0.15s ease',
+                    border: statusQuickFilter === 'expiring'
+                      ? '1px solid #d97706'
+                      : '1px solid rgba(217, 119, 6, 0.3)',
+                    background: statusQuickFilter === 'expiring'
+                      ? '#d97706'
+                      : 'rgba(217, 119, 6, 0.08)',
+                    color: statusQuickFilter === 'expiring'
+                      ? '#ffffff'
+                      : '#b45309'
+                  }}
+                  title={statusQuickFilter === 'expiring' ? 'Clear expiry filter (showing all)' : 'Filter items with expiring batches'}
+                >
+                  <AlertTriangle size={13} style={{ color: statusQuickFilter === 'expiring' ? '#ffffff' : '#d97706' }} />
+                  <span>{nearExpiryCount} Near Expiry</span>
+                  {statusQuickFilter === 'expiring' && <X size={12} style={{ marginLeft: '2px' }} />}
+                </button>
+              )}
+
+              {/* Quick 1-Click Low Stock Filter */}
+              {lowStockCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setStatusQuickFilter(statusQuickFilter === 'low' ? 'all' : 'low')}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    height: '38px',
+                    padding: '0 13px',
+                    borderRadius: '8px',
+                    fontSize: '12.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    transition: 'all 0.15s ease',
+                    border: statusQuickFilter === 'low'
+                      ? '1px solid #dc2626'
+                      : '1px solid rgba(220, 38, 38, 0.3)',
+                    background: statusQuickFilter === 'low'
+                      ? '#dc2626'
+                      : 'rgba(220, 38, 38, 0.08)',
+                    color: statusQuickFilter === 'low'
+                      ? '#ffffff'
+                      : '#dc2626'
+                  }}
+                  title={statusQuickFilter === 'low' ? 'Clear low stock filter (showing all)' : 'Filter items below reorder threshold'}
+                >
+                  <AlertTriangle size={13} style={{ color: statusQuickFilter === 'low' ? '#ffffff' : '#dc2626' }} />
+                  <span>{lowStockCount} Low Stock</span>
+                  {statusQuickFilter === 'low' && <X size={12} style={{ marginLeft: '2px' }} />}
+                </button>
+              )}
+
+              {/* Status Filter Dropdown for Additional Filtering */}
               <select
                 value={statusQuickFilter}
                 onChange={(e) => setStatusQuickFilter(e.target.value as any)}
@@ -513,14 +583,16 @@ export const ItemsPage: React.FC = () => {
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '6px',
-                    padding: '8px 16px',
+                    height: '38px',
+                    padding: '0 16px',
                     borderRadius: '8px',
                     background: 'var(--teal-primary, #008891)',
                     color: '#ffffff',
-                    fontSize: '12.5px',
+                    fontSize: '13px',
                     fontWeight: 600,
                     border: 'none',
                     cursor: 'pointer',
+                    fontFamily: 'inherit',
                     boxShadow: '0 2px 6px rgba(0, 136, 145, 0.2)',
                     transition: 'all 0.15s ease'
                   }}
@@ -551,11 +623,11 @@ export const ItemsPage: React.FC = () => {
                     <tr key={stock.id} className="inv-sheet-row">
                       {/* Item & SKU */}
                       <td>
-                        <div style={{ fontWeight: 600, fontSize: '13.5px', color: '#0f172a', lineHeight: 1.4, letterSpacing: '-0.01em' }}>
+                        <div style={{ fontWeight: 600, fontSize: '13.5px', color: '#0f172a', lineHeight: 1.35, letterSpacing: '-0.01em' }}>
                           {stock.name}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: '#64748b', marginTop: '3px' }}>
-                          <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', fontSize: '11px', background: '#f1f5f9', color: '#475569', padding: '1px 5px', borderRadius: '4px' }}>SKU: {stock.sku}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: '#64748b', marginTop: '2.5px' }}>
+                          <span style={{ fontWeight: 600, color: '#475569' }}>SKU: {stock.sku}</span>
                           <span>&bull;</span>
                           <span style={{ fontWeight: 500 }}>{stock.category}</span>
                         </div>
@@ -564,7 +636,7 @@ export const ItemsPage: React.FC = () => {
                       {/* Stock Level (Integrated Status & Reorder Threshold) */}
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '14.5px', fontWeight: 650, color: isLow ? '#dc2626' : '#0f172a', letterSpacing: '-0.01em' }}>
+                          <span style={{ fontSize: '14px', fontWeight: 700, color: isLow ? '#dc2626' : '#0f172a', letterSpacing: '-0.01em' }}>
                             {stock.totalStock} <span style={{ fontSize: '12px', fontWeight: 400, color: '#64748b' }}>{stock.unit}</span>
                           </span>
                           {isLow ? (
@@ -579,21 +651,25 @@ export const ItemsPage: React.FC = () => {
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '3px' }}>
-                          Min threshold: {stock.reorderLevel} {stock.unit}
+                        <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2.5px' }}>
+                          Min: {stock.reorderLevel} {stock.unit}
                         </div>
                       </td>
 
-                      {/* Active Batches - Simple & Streamlined with Expiry Alert highlight */}
+                      {/* Active Batches - Official Clean Typography */}
                       <td>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           {sortedBatches.slice(0, 2).map((b) => {
                             const isExpiring = parseInt(b.expiryDate.split('-')[0], 10) <= 2027
                             return (
-                              <div key={b.batchNumber} style={{ fontSize: '11.5px', color: 'var(--text, #334155)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', fontSize: '11px', fontWeight: 600, color: '#1e293b', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>{b.batchNumber}</span>
-                                <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '11px' }}>({b.quantity} {stock.unit})</span>
-                                <span style={{ color: 'var(--text-muted, #cbd5e1)', fontSize: '10px' }}>&bull;</span>
+                              <div key={b.batchNumber} style={{ fontSize: '12px', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontWeight: 600, fontSize: '11.5px', color: '#1e293b', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '1.5px 6px', borderRadius: '4px' }}>
+                                  {b.batchNumber}
+                                </span>
+                                <span style={{ color: '#64748b', fontSize: '11.5px' }}>
+                                  ({b.quantity} {stock.unit})
+                                </span>
+                                <span style={{ color: '#cbd5e1', fontSize: '10px' }}>&bull;</span>
                                 {isExpiring ? (
                                   <span style={{
                                     fontSize: '11px',
@@ -607,7 +683,7 @@ export const ItemsPage: React.FC = () => {
                                     Exp {b.expiryDate} (Expiring)
                                   </span>
                                 ) : (
-                                  <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '11px' }}>
+                                  <span style={{ color: '#64748b', fontSize: '11.5px' }}>
                                     Exp {b.expiryDate}
                                   </span>
                                 )}
@@ -618,7 +694,7 @@ export const ItemsPage: React.FC = () => {
                       </td>
 
                       {/* Actions */}
-                      <td style={{ textAlign: 'right', paddingRight: '18px' }}>
+                      <td style={{ textAlign: 'right', paddingRight: '20px' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', whiteSpace: 'nowrap' }}>
                           <button
                             type="button"
@@ -630,20 +706,21 @@ export const ItemsPage: React.FC = () => {
                             }}
                             title="Receive new batch lot"
                             style={{
-                              padding: '4px 10px',
-                              fontSize: '11.5px',
+                              padding: '5px 11px',
+                              fontSize: '12px',
                               fontWeight: 600,
-                              background: 'rgba(0, 136, 145, 0.08)',
+                              background: '#f0fdfa',
                               color: 'var(--teal-primary, #008891)',
                               border: '1px solid rgba(0, 136, 145, 0.25)',
                               borderRadius: '6px',
                               cursor: 'pointer',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '4px'
+                              gap: '4px',
+                              transition: 'all 0.15s ease'
                             }}
                           >
-                            <Plus size={11} /> Lot
+                            <Plus size={12} /> Lot
                           </button>
                           {stock.activeBatches[0] && (
                             <button
@@ -654,14 +731,15 @@ export const ItemsPage: React.FC = () => {
                               }}
                               title="Adjust stock quantity"
                               style={{
-                                padding: '4px 10px',
-                                fontSize: '11.5px',
+                                padding: '5px 11px',
+                                fontSize: '12px',
                                 fontWeight: 600,
-                                background: '#f8fafc',
+                                background: '#ffffff',
                                 color: '#475569',
                                 border: '1px solid #cbd5e1',
                                 borderRadius: '6px',
-                                cursor: 'pointer'
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
                               }}
                             >
                               Adjust
