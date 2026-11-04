@@ -1,17 +1,21 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   History,
   Search,
   CheckCircle2,
   X
 } from 'lucide-react'
-import { useAdaptiveInventory } from '@/services/adaptiveInventoryStore'
+import { useAdaptiveInventory, syncInventoryWithBackend } from '@/services/adaptiveInventoryStore'
 import './adaptiveInventory.css'
 
 export const MovementsPage: React.FC = () => {
   const inventory = useAdaptiveInventory()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState('All')
+
+  useEffect(() => {
+    syncInventoryWithBackend()
+  }, [])
 
   const auditLogs = inventory.deductionAuditLog
 
@@ -114,13 +118,12 @@ export const MovementsPage: React.FC = () => {
             <table className="inv-sheet-table" style={{ width: '100%', minWidth: '960px' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '13%' }}>Audit Ref & Date</th>
-                  <th style={{ width: '15%' }}>Procedure & Patient</th>
-                  <th style={{ width: '12%' }}>Doctor</th>
-                  <th style={{ width: '9%' }}>Mode</th>
-                  <th style={{ width: '36%' }}>Materials Deducted</th>
-                  <th style={{ width: '5%' }}>Wastage</th>
-                  <th style={{ width: '10%' }}>Confirmed By</th>
+                  <th style={{ width: '14%' }}>Audit Ref & Date</th>
+                  <th style={{ width: '18%' }}>Procedure & Patient</th>
+                  <th style={{ width: '13%' }}>Doctor</th>
+                  <th style={{ width: '44%' }}>Items Used</th>
+                  <th style={{ width: '6%' }}>Wastage</th>
+                  <th style={{ width: '11%' }}>Confirmed By</th>
                 </tr>
               </thead>
               <tbody>
@@ -151,12 +154,6 @@ export const MovementsPage: React.FC = () => {
                       <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
                         <span className="audit-doc-name">
                           {log.doctorName}
-                        </span>
-                      </td>
-
-                      <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
-                        <span className={`audit-mode-badge ${log.modeUsed === 'doctor-specific' ? 'mode-doctor' : 'mode-standard'}`}>
-                          {log.modeUsed === 'doctor-specific' ? 'Doctor Specific' : 'Standard'}
                         </span>
                       </td>
 

@@ -48,6 +48,7 @@ import {
   resetAdaptiveInventory,
   addBatchToItem,
   adjustBatchQuantity,
+  syncInventoryWithBackend,
   type SuggestionMode,
   type InventoryStockItem,
   type InventoryBatch
@@ -82,6 +83,7 @@ export const ItemsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'consumption' | 'stock'>(initialTab)
 
   useEffect(() => {
+    syncInventoryWithBackend()
     const params = new URLSearchParams(location.search)
     const t = params.get('tab')
     if (t === 'consumption') {
@@ -169,9 +171,9 @@ export const ItemsPage: React.FC = () => {
 
   // Doctors metadata for quick switching
   const doctorsList = [
-    { id: 'doc-1', name: 'Dr. Arun Kumar', label: 'Doctor A (General / Ortho)', filePref: '1 set' },
-    { id: 'doc-2', name: 'Dr. Priya Nair', label: 'Doctor B (Endodontics Specialist)', filePref: '2 sets' },
-    { id: 'doc-3', name: 'Dr. Tariq Antoun', label: 'Doctor C (Oral Surgeon)', filePref: '1 set' }
+    { id: 'doc-1', name: 'Dr. Arun Kumar', label: 'Dr. Arun Kumar (General / Ortho)', filePref: '1 set' },
+    { id: 'doc-2', name: 'Dr. Priya Nair', label: 'Dr. Priya Nair (Endodontics Specialist)', filePref: '2 sets' },
+    { id: 'doc-3', name: 'Dr. Tariq Antoun', label: 'Dr. Tariq Antoun (Oral Surgeon)', filePref: '1 set' }
   ]
 
   const activeDoctor = doctorsList.find((d) => d.id === selectedDoctorId) || doctorsList[1]
@@ -418,10 +420,10 @@ export const ItemsPage: React.FC = () => {
     <section className="clinic-record-page adaptive-inventory-container" data-testid="feature-page-inv.items">
       {/* Page Header */}
       <div style={{ margin: '0 0 16px 0' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 700, margin: 0, color: '#0f172a', letterSpacing: '-0.02em', fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
+        <h1 className="inv-page-title" style={{ fontSize: '22px', fontWeight: 700, margin: 0, letterSpacing: '-0.02em', fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
           Treatment-Based Inventory
         </h1>
-        <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#64748b', fontWeight: 400 }}>
+        <p className="inv-page-subtitle" style={{ margin: '3px 0 0 0', fontSize: '13px', fontWeight: 400 }}>
           Real-time clinical stock tracking, batch lot monitoring, and proactive alerts
         </p>
       </div>
@@ -538,10 +540,10 @@ export const ItemsPage: React.FC = () => {
             <table className="inv-sheet-table" style={{ width: '100%', minWidth: '740px' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '28%' }}>Item</th>
-                  <th style={{ width: '18%' }}>Stock Level</th>
-                  <th style={{ width: '40%' }}>Active Batches</th>
-                  <th style={{ width: '14%', textAlign: 'right', paddingRight: '20px' }}>Actions</th>
+                  <th style={{ width: '32%' }}>Item</th>
+                  <th style={{ width: '22%' }}>Stock Level</th>
+                  <th style={{ width: '30%', textAlign: 'center' }}>Active Batches</th>
+                  <th style={{ width: '16%', textAlign: 'right', paddingRight: '20px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -553,7 +555,7 @@ export const ItemsPage: React.FC = () => {
                     <tr key={stock.id} className="inv-sheet-row">
                       {/* Item */}
                       <td>
-                        <div style={{ fontWeight: 600, fontSize: '13.5px', color: '#0f172a', lineHeight: 1.35, letterSpacing: '-0.01em' }}>
+                        <div className="inv-sheet-item-name">
                           {stock.name}
                         </div>
                       </td>
@@ -561,54 +563,53 @@ export const ItemsPage: React.FC = () => {
                       {/* Stock Level (Integrated Status & Reorder Threshold) */}
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '14px', fontWeight: 700, color: isLow ? '#dc2626' : '#0f172a', letterSpacing: '-0.01em' }}>
-                            {stock.totalStock} <span style={{ fontSize: '12px', fontWeight: 400, color: '#64748b' }}>{stock.unit}</span>
+                          <span className={`inv-stock-qty ${isLow ? 'is-low' : ''}`}>
+                            {stock.totalStock} <span className="inv-stock-unit">{stock.unit}</span>
                           </span>
                           {isLow ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '1.5px 7px', borderRadius: '999px', fontSize: '11px', fontWeight: 600, background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }}>
-                              <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'currentColor' }} />
+                            <span className="inv-status-pill pill-low">
+                              <span className="inv-status-dot dot-low" />
                               Low Stock
                             </span>
                           ) : (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '1.5px 7px', borderRadius: '999px', fontSize: '11px', fontWeight: 500, background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}>
-                              <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'currentColor' }} />
+                            <span className="inv-status-pill pill-ok">
+                              <span className="inv-status-dot dot-ok" />
                               In Stock
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2.5px' }}>
+                        <div className="inv-stock-reorder">
                           Min: {stock.reorderLevel} {stock.unit}
                         </div>
                       </td>
 
-                      {/* Active Batches - Official Clean Typography */}
-                      <td>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {/* Active Batches - Centered in column */}
+                      <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                        <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: '5px' }}>
                           {sortedBatches.slice(0, 2).map((b) => {
                             const isExpiring = parseInt(b.expiryDate.split('-')[0], 10) <= 2027
+                            const showExpiryAlert = (statusQuickFilter === 'expiring' || searchStock.toLowerCase().includes('expir')) && isExpiring
                             return (
-                              <div key={b.batchNumber} style={{ fontSize: '12px', color: '#334155', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ fontWeight: 600, fontSize: '11.5px', color: '#1e293b', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '1.5px 6px', borderRadius: '4px' }}>
+                              <div
+                                key={b.batchNumber}
+                                title={`${b.batchNumber}: ${b.quantity} ${stock.unit} • Expires ${b.expiryDate}`}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '12px',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                <span className="inv-sheet-batch-code">
                                   {b.batchNumber}
                                 </span>
-                                <span style={{ color: '#64748b', fontSize: '11.5px' }}>
-                                  ({b.quantity} {stock.unit})
-                                </span>
-                                <span style={{ color: '#cbd5e1', fontSize: '10px' }}>&bull;</span>
-                                {isExpiring ? (
-                                  <span style={{
-                                    fontSize: '11px',
-                                    fontWeight: 600,
-                                    color: '#92400e',
-                                    background: '#fef3c7',
-                                    border: '1px solid #fde68a',
-                                    padding: '1.5px 6px',
-                                    borderRadius: '4px'
-                                  }}>
+
+                                {showExpiryAlert ? (
+                                  <span className="inv-sheet-exp-alert">
                                     Exp {b.expiryDate} (Expiring)
                                   </span>
                                 ) : (
-                                  <span style={{ color: '#64748b', fontSize: '11.5px' }}>
+                                  <span className="inv-sheet-exp-date">
                                     Exp {b.expiryDate}
                                   </span>
                                 )}
@@ -620,7 +621,7 @@ export const ItemsPage: React.FC = () => {
 
                       {/* Actions */}
                       <td style={{ textAlign: 'right', paddingRight: '20px' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', whiteSpace: 'nowrap' }}>
                           <button
                             type="button"
                             onClick={() => {
@@ -630,20 +631,7 @@ export const ItemsPage: React.FC = () => {
                               setNewBatchQty(stock.reorderLevel * 2)
                             }}
                             title="Receive new batch lot"
-                            style={{
-                              padding: '5px 11px',
-                              fontSize: '12px',
-                              fontWeight: 600,
-                              background: '#f0fdfa',
-                              color: 'var(--teal-primary, #008891)',
-                              border: '1px solid rgba(0, 136, 145, 0.25)',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              transition: 'all 0.15s ease'
-                            }}
+                            className="inv-action-btn btn-lot"
                           >
                             <Plus size={12} /> Lot
                           </button>
@@ -655,17 +643,7 @@ export const ItemsPage: React.FC = () => {
                                 setAdjustAmount(0)
                               }}
                               title="Adjust stock quantity"
-                              style={{
-                                padding: '5px 11px',
-                                fontSize: '12px',
-                                fontWeight: 600,
-                                background: '#ffffff',
-                                color: '#475569',
-                                border: '1px solid #cbd5e1',
-                                borderRadius: '6px',
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease'
-                              }}
+                              className="inv-action-btn btn-adjust"
                             >
                               Adjust
                             </button>
@@ -724,14 +702,14 @@ export const ItemsPage: React.FC = () => {
                 >
                   {inventory.templates.map((tmpl) => (
                     <option key={tmpl.procedureId} value={tmpl.procedureId}>
-                      {tmpl.procedureName} ({tmpl.category})
+                      {tmpl.procedureName}
                     </option>
                   ))}
                 </select>
               </div>
 
               <div className="consumption-ctrl-group">
-                <label className="consumption-ctrl-label">Doctor (Adaptive Target)</label>
+                <label className="consumption-ctrl-label">Doctor</label>
                 <select
                   value={selectedDoctorId}
                   onChange={(e) => handleDoctorSwitch(e.target.value)}
@@ -739,7 +717,7 @@ export const ItemsPage: React.FC = () => {
                 >
                   {doctorsList.map((doc) => (
                     <option key={doc.id} value={doc.id}>
-                      {doc.label} &bull; Files: {doc.filePref}
+                      {doc.label}
                     </option>
                   ))}
                 </select>
@@ -786,20 +764,20 @@ export const ItemsPage: React.FC = () => {
           </div>
 
           {/* Interactive Screen Container */}
-          <div style={{ background: 'var(--surface, #ffffff)', border: '1px solid var(--line, #e2e8f0)', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 2px 10px rgba(0,0,0,0.03)' }}>
+          <div className="unified-inventory-card">
             {/* Screen Header */}
-            <div style={{ padding: '20px 24px', background: '#ffffff', borderBottom: '1px solid var(--line, #f1f5f9)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+            <div className="ai-terminal-card-header">
               <div>
-                <h2 style={{ fontSize: '20px', fontWeight: 700, margin: '0 0 6px 0', color: 'var(--text-main, #0f172a)' }}>
+                <h2 className="ai-terminal-title">
                   {activeTemplate.procedureName} – Material Usage
                 </h2>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
+                  <span className="ai-terminal-subtitle">
                     {inventory.suggestionMode === 'manual'
                       ? 'Manual consumption entry · Record actual materials used'
                       : 'Suggested quantities · Editable before confirmation'}
                   </span>
-                  <span style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #dbeafe', fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '9999px' }}>
+                  <span className="ai-mode-pill-editable">
                     {inventory.suggestionMode === 'manual' ? 'Manual entry' : 'Editable suggestions'}
                   </span>
                 </div>
@@ -807,7 +785,7 @@ export const ItemsPage: React.FC = () => {
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="ai-pill ai-pill-adaptive" style={{ fontSize: '12px', padding: '5px 12px' }}>
-                  {activeDoctor.name} ({activeDoctor.filePref} file avg)
+                  {activeDoctor.name}
                 </span>
                 <span className="ai-pill ai-pill-standard" style={{ fontSize: '12px', padding: '5px 12px', textTransform: 'capitalize' }}>
                   {inventory.suggestionMode} Mode
@@ -972,9 +950,9 @@ export const ItemsPage: React.FC = () => {
               </div>
 
               {/* Add Another Material Bar */}
-              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+              <div className="ai-terminal-add-bar">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '280px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main, #0f172a)', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #0f172a)', whiteSpace: 'nowrap' }}>
                     Add another material:
                   </span>
                   <select
@@ -1017,13 +995,13 @@ export const ItemsPage: React.FC = () => {
 
               {/* Confirmation Success Callout */}
               {recentDeductionId && (
-                <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '12px', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <CheckCircle2 size={22} style={{ color: '#059669', flexShrink: 0 }} />
+                <div className="ai-terminal-success-box">
+                  <CheckCircle2 size={22} className="ai-success-icon" />
                   <div>
-                    <div style={{ color: '#065f46', fontSize: '13.5px', fontWeight: 600 }}>
+                    <div className="ai-success-title">
                       Actual Consumption Confirmed & Stock Deducted
                     </div>
-                    <div style={{ fontSize: '12px', color: '#047857', marginTop: '2px' }}>
+                    <div className="ai-success-desc">
                       Audit Ref: <strong>{recentDeductionId}</strong> &bull; Quantities deducted from FEFO batch lots. Doctor adaptive profile updated.
                     </div>
                   </div>
@@ -1034,8 +1012,8 @@ export const ItemsPage: React.FC = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', borderTop: '1px solid var(--line, #f1f5f9)', paddingTop: '18px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexWrap: 'wrap' }}>
                   <div style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
-                    Confirmed Items: <strong style={{ color: 'var(--text-main, #0f172a)' }}>{terminalItems.reduce((s, i) => s + i.confirmedQty, 0)}</strong>
-                    {' '}&bull; Wastage: <strong style={{ color: terminalItems.reduce((s, i) => s + i.wastageQty, 0) > 0 ? '#dc2626' : 'var(--text-main, #0f172a)' }}>{terminalItems.reduce((s, i) => s + i.wastageQty, 0)}</strong>
+                    Confirmed Items: <strong className="ai-footer-strong">{terminalItems.reduce((s, i) => s + i.confirmedQty, 0)}</strong>
+                    {' '}&bull; Wastage: <strong className={terminalItems.reduce((s, i) => s + i.wastageQty, 0) > 0 ? 'ai-footer-wastage' : 'ai-footer-strong'}>{terminalItems.reduce((s, i) => s + i.wastageQty, 0)}</strong>
                   </div>
 
                   <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', color: 'var(--text-muted, #64748b)', cursor: 'pointer', userSelect: 'none' }}>
@@ -1101,12 +1079,12 @@ export const ItemsPage: React.FC = () => {
                     </label>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       {batchModalItem.activeBatches.map((b) => (
-                        <div key={b.batchNumber} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '12.5px' }}>
+                        <div key={b.batchNumber} className="ai-modal-batch-item">
                           <div>
-                            <strong>{b.batchNumber}</strong> &bull; <span style={{ color: '#64748b' }}>Exp: {b.expiryDate}</span>
+                            <strong>{b.batchNumber}</strong> &bull; <span style={{ color: 'var(--text-muted, #64748b)' }}>Exp: {b.expiryDate}</span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontWeight: 700, color: '#0f172a' }}>{b.quantity} {batchModalItem.unit}</span>
+                            <span style={{ fontWeight: 700, color: 'var(--text-strong, #0f172a)' }}>{b.quantity} {batchModalItem.unit}</span>
                             <button
                               type="button"
                               onClick={() => {

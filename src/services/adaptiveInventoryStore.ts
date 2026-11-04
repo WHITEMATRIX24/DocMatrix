@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { loadFromStorage, saveToStorage } from './storageService'
+import { apiClient } from './apiClient'
 
 export type SuggestionMode = 'standard' | 'doctor-specific' | 'manual'
 
@@ -999,6 +1000,44 @@ export function useAdaptiveInventory(): AdaptiveInventoryState {
 }
 
 /**
+ * Synchronize inventory items & movements with backend database
+ */
+export async function syncInventoryWithBackend() {
+  try {
+    const backendItems = await apiClient.get<InventoryStockItem[]>('/inventory/items')
+    if (Array.isArray(backendItems) && backendItems.length > 0) {
+      state = {
+        ...state,
+        items: backendItems
+      }
+      emitChange()
+    }
+  } catch (err) {
+    // Graceful offline fallback - persistent cache remains intact
+  }
+
+  try {
+    const backendAudits = await apiClient.get<ConfirmedMaterialDeduction[]>('/inventory/movements')
+    if (Array.isArray(backendAudits) && backendAudits.length > 0) {
+      state = {
+        ...state,
+        deductionAuditLog: backendAudits
+      }
+      emitChange()
+    }
+  } catch (err) {
+    // Graceful offline fallback
+  }
+}
+
+// Initial background sync with backend on boot
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    syncInventoryWithBackend()
+  }, 100)
+}
+
+/**
  * Configure global suggestion mode: 'standard' | 'doctor-specific' | 'manual'
  */
 export function setSuggestionMode(mode: SuggestionMode) {
@@ -1212,6 +1251,27 @@ export function confirmConsumptionAndDeductStock(payload: {
   }
 
   emitChange()
+
+  // Asynchronously synchronize confirmed deduction with backend database
+  apiClient
+    .post('/inventory/deduct', {
+      treatmentId: payload.treatmentId,
+      appointmentId: payload.appointmentId,
+      patientId: payload.patientId,
+      patientName: payload.patientName,
+      doctorId: payload.doctorId,
+      doctorName: payload.doctorName,
+      procedureId: payload.procedureId,
+      procedureName: payload.procedureName,
+      modeUsed: payload.modeUsed,
+      materials: payload.items,
+      confirmedBy: payload.confirmedBy,
+      notes: payload.notes
+    })
+    .catch(() => {
+      // Offline fallback
+    })
+
   return auditRecord
 }
 
@@ -1233,12 +1293,35 @@ export function addBatchToItem(itemId: string, batch: InventoryBatch) {
     })
   }
   emitChange()
+
+  // Asynchronously synchronize new batch with backend database
+  apiClient
+    .post('/inventory/batches', {
+      itemId,
+      batchNumber: batch.batchNumber,
+      expiryDate: batch.expiryDate,
+      quantity: batch.quantity,
+      location: batch.location
+    })
+    .catch(() => {
+      // Offline fallback
+    })
 }
 
 /**
  * Adjust stock quantity for a specific batch
  */
 export function adjustBatchQuantity(itemId: string, batchNumber: string, deltaOrExact: { delta?: number; exact?: number }) {
+  let calculatedDelta = 0
+  const item = state.items.find((i) => i.id === itemId)
+  const existingBatch = item?.activeBatches.find((b) => b.batchNumber === batchNumber)
+
+  if (deltaOrExact.delta !== undefined) {
+    calculatedDelta = deltaOrExact.delta
+  } else if (deltaOrExact.exact !== undefined && existingBatch) {
+    calculatedDelta = deltaOrExact.exact - existingBatch.quantity
+  }
+
   state = {
     ...state,
     items: state.items.map((item) => {
@@ -1259,6 +1342,19 @@ export function adjustBatchQuantity(itemId: string, batchNumber: string, deltaOr
     })
   }
   emitChange()
+
+  // Asynchronously synchronize stock adjustment with backend database
+  if (calculatedDelta !== 0) {
+    apiClient
+      .post('/inventory/adjust', {
+        itemId,
+        batchNumber,
+        adjustmentAmount: calculatedDelta
+      })
+      .catch(() => {
+        // Offline fallback
+      })
+  }
 }
 
 /**

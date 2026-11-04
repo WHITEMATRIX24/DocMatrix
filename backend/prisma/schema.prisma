@@ -161,6 +161,9 @@ model Clinic {
   toothConditions ToothCondition[]
   documents       PatientDocument[]
   consents        PatientConsent[]
+  inventoryItems  InventoryItem[]
+  inventoryBatches InventoryBatch[]
+  inventoryAudits InventoryAudit[]
 
   @@index([status])
   @@index([email])
@@ -342,4 +345,80 @@ model PatientConsent {
   @@unique([id, clinicId])
   @@index([clinicId, patientId])
   @@index([clinicId, status])
+}
+
+
+// ------------------------------------------
+// Clinical Inventory Item Model
+// ------------------------------------------
+
+model InventoryItem {
+  id           String   @id @default(uuid())
+  clinicId     String
+  sku          String
+  name         String
+  category     String
+  unit         String
+  totalStock   Int      @default(0)
+  reorderLevel Int      @default(10)
+  costPerUnit  Float    @default(0.0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  clinic  Clinic           @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  batches InventoryBatch[]
+
+  @@unique([id, clinicId])
+  @@index([clinicId, category])
+  @@index([clinicId, sku])
+}
+
+// ------------------------------------------
+// Batch / Lot Tracking Model
+// ------------------------------------------
+
+model InventoryBatch {
+  id          String   @id @default(uuid())
+  clinicId    String
+  itemId      String
+  batchNumber String
+  expiryDate  String
+  quantity    Int      @default(0)
+  location    String?  @default("Central Dispensary")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  clinic Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  item   InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([id, clinicId])
+  @@index([clinicId, itemId])
+  @@index([clinicId, expiryDate])
+}
+
+// ------------------------------------------
+// Confirmed Material Deduction / Movement Audit
+// ------------------------------------------
+
+model InventoryAudit {
+  id            String   @id @default(uuid())
+  clinicId      String
+  treatmentId   String?
+  appointmentId String?
+  patientId     String?
+  patientName   String
+  doctorId      String?
+  doctorName    String
+  procedureId   String?
+  procedureName String
+  modeUsed      String   @default("standard")
+  materials     Json
+  confirmedBy   String
+  timestamp     DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, timestamp])
+  @@index([clinicId, doctorName])
 }
