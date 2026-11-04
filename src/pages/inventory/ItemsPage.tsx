@@ -416,11 +416,14 @@ export const ItemsPage: React.FC = () => {
 
   return (
     <section className="clinic-record-page adaptive-inventory-container" data-testid="feature-page-inv.items">
-      {/* Page Header: Only the Heading */}
-      <div style={{ margin: '2px 0 6px 0' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, margin: 0, color: 'var(--text-main, #0f172a)' }}>
+      {/* Page Header */}
+      <div style={{ margin: '0 0 16px 0' }}>
+        <h1 style={{ fontSize: '22px', fontWeight: 700, margin: 0, color: '#0f172a', letterSpacing: '-0.02em', fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif" }}>
           Treatment-Based Inventory
         </h1>
+        <p style={{ margin: '3px 0 0 0', fontSize: '13px', color: '#64748b', fontWeight: 400 }}>
+          Real-time clinical stock tracking, batch lot monitoring, and proactive alerts
+        </p>
       </div>
 
       {/* Navigation Tabs */}
@@ -599,10 +602,10 @@ export const ItemsPage: React.FC = () => {
             <table className="inv-sheet-table" style={{ width: '100%', minWidth: '740px' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '27%' }}>Item & SKU</th>
+                  <th style={{ width: '28%' }}>Item & SKU</th>
                   <th style={{ width: '18%' }}>Stock Level</th>
-                  <th style={{ width: '41%' }}>Active Batches</th>
-                  <th style={{ width: '14%', textAlign: 'right', paddingRight: '18px' }}>Action</th>
+                  <th style={{ width: '40%' }}>Active Batches</th>
+                  <th style={{ width: '14%', textAlign: 'right', paddingRight: '20px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -614,36 +617,36 @@ export const ItemsPage: React.FC = () => {
                     <tr key={stock.id} className="inv-sheet-row">
                       {/* Item & SKU */}
                       <td>
-                        <div style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--text-strong, #0f172a)', lineHeight: 1.35 }}>
+                        <div style={{ fontWeight: 600, fontSize: '13.5px', color: '#0f172a', lineHeight: 1.4, letterSpacing: '-0.01em' }}>
                           {stock.name}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>
-                          <span style={{ fontFamily: 'monospace' }}>SKU: {stock.sku}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: '#64748b', marginTop: '3px' }}>
+                          <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', fontSize: '11px', background: '#f1f5f9', color: '#475569', padding: '1px 5px', borderRadius: '4px' }}>SKU: {stock.sku}</span>
                           <span>&bull;</span>
-                          <span>{stock.category}</span>
+                          <span style={{ fontWeight: 500 }}>{stock.category}</span>
                         </div>
                       </td>
 
                       {/* Stock Level (Integrated Status & Reorder Threshold) */}
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '14px', fontWeight: 700, color: isLow ? '#dc2626' : 'var(--text-strong, #0f172a)' }}>
-                            {stock.totalStock} <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted, #64748b)' }}>{stock.unit}</span>
+                          <span style={{ fontSize: '14.5px', fontWeight: 650, color: isLow ? '#dc2626' : '#0f172a', letterSpacing: '-0.01em' }}>
+                            {stock.totalStock} <span style={{ fontSize: '12px', fontWeight: 400, color: '#64748b' }}>{stock.unit}</span>
                           </span>
                           {isLow ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '1px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700, background: 'rgba(220, 38, 38, 0.1)', color: '#dc2626' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '1.5px 7px', borderRadius: '999px', fontSize: '11px', fontWeight: 600, background: '#fef2f2', color: '#b91c1c', border: '1px solid #fecaca' }}>
                               <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'currentColor' }} />
                               Low Stock
                             </span>
                           ) : (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '1px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 600, background: 'rgba(5, 150, 105, 0.08)', color: '#059669' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '1.5px 7px', borderRadius: '999px', fontSize: '11px', fontWeight: 500, background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}>
                               <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: 'currentColor' }} />
                               In Stock
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>
-                          Min: {stock.reorderLevel} {stock.unit}
+                        <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '3px' }}>
+                          Min threshold: {stock.reorderLevel} {stock.unit}
                         </div>
                       </td>
 
@@ -654,16 +657,17 @@ export const ItemsPage: React.FC = () => {
                             const isExpiring = parseInt(b.expiryDate.split('-')[0], 10) <= 2027
                             return (
                               <div key={b.batchNumber} style={{ fontSize: '11.5px', color: 'var(--text, #334155)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{ fontWeight: 600, fontFamily: 'monospace', color: 'var(--text-strong, #0f172a)' }}>{b.batchNumber}</span>
+                                <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', fontSize: '11px', fontWeight: 600, color: '#1e293b', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>{b.batchNumber}</span>
                                 <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '11px' }}>({b.quantity} {stock.unit})</span>
                                 <span style={{ color: 'var(--text-muted, #cbd5e1)', fontSize: '10px' }}>&bull;</span>
                                 {isExpiring ? (
                                   <span style={{
-                                    fontSize: '10.5px',
+                                    fontSize: '11px',
                                     fontWeight: 600,
-                                    color: '#b45309',
-                                    background: 'rgba(245, 158, 11, 0.12)',
-                                    padding: '1px 5px',
+                                    color: '#92400e',
+                                    background: '#fef3c7',
+                                    border: '1px solid #fde68a',
+                                    padding: '1.5px 6px',
                                     borderRadius: '4px'
                                   }}>
                                     Exp {b.expiryDate} (Expiring)
