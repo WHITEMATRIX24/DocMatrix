@@ -114,13 +114,13 @@ export const MovementsPage: React.FC = () => {
             <table className="inv-sheet-table" style={{ width: '100%', minWidth: '960px' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '12%' }}>Audit Ref & Date</th>
-                  <th style={{ width: '16%' }}>Procedure & Patient</th>
+                  <th style={{ width: '13%' }}>Audit Ref & Date</th>
+                  <th style={{ width: '15%' }}>Procedure & Patient</th>
                   <th style={{ width: '12%' }}>Doctor</th>
-                  <th style={{ width: '10%' }}>Mode</th>
-                  <th style={{ width: '32%' }}>Materials Deducted</th>
-                  <th style={{ width: '6%' }}>Wastage</th>
-                  <th style={{ width: '12%' }}>Confirmed By</th>
+                  <th style={{ width: '9%' }}>Mode</th>
+                  <th style={{ width: '36%' }}>Materials Deducted</th>
+                  <th style={{ width: '5%' }}>Wastage</th>
+                  <th style={{ width: '10%' }}>Confirmed By</th>
                 </tr>
               </thead>
               <tbody>
@@ -182,30 +182,58 @@ export const MovementsPage: React.FC = () => {
                         </span>
                       </td>
 
-                      <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
+                      <td style={{ verticalAlign: 'top', paddingTop: '14px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                           {log.materials.map((m) => (
                             <div
                               key={m.itemId}
                               style={{
-                                display: 'inline-flex',
+                                display: 'grid',
+                                gridTemplateColumns: 'minmax(140px, 1fr) 75px 85px',
                                 alignItems: 'center',
-                                gap: '6px',
-                                background: '#ffffff',
+                                gap: '8px',
+                                background: '#f8fafc',
                                 border: '1px solid #e2e8f0',
                                 borderRadius: '6px',
-                                padding: '3px 9px',
-                                fontSize: '11.5px',
-                                width: 'fit-content',
-                                whiteSpace: 'nowrap',
-                                boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                                padding: '3px 8px',
+                                fontSize: '11.5px'
                               }}
                             >
-                              <span style={{ fontWeight: 600, color: '#1e293b' }}>{m.name}</span>
-                              <span style={{ color: 'var(--teal-primary, #008891)', fontWeight: 700 }}>
+                              <span
+                                style={{
+                                  fontWeight: 600,
+                                  color: '#0f172a',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis'
+                                }}
+                                title={m.name}
+                              >
+                                {m.name}
+                              </span>
+                              <span
+                                style={{
+                                  color: 'var(--teal-primary, #008891)',
+                                  fontWeight: 700,
+                                  whiteSpace: 'nowrap',
+                                  textAlign: 'right'
+                                }}
+                              >
                                 {m.confirmedQty} {m.unit}
                               </span>
-                              <span style={{ color: '#94a3b8', fontSize: '11px', borderLeft: '1px solid #e2e8f0', paddingLeft: '6px' }}>
+                              <span
+                                style={{
+                                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                  fontSize: '10.5px',
+                                  color: '#64748b',
+                                  background: '#ffffff',
+                                  border: '1px solid #e2e8f0',
+                                  borderRadius: '4px',
+                                  padding: '1px 5px',
+                                  whiteSpace: 'nowrap',
+                                  textAlign: 'center'
+                                }}
+                              >
                                 {m.batchNumber}
                               </span>
                             </div>
