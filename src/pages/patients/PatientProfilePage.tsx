@@ -52,15 +52,19 @@ import { PrescriptionPrintModal } from '@/components/clinical/PrescriptionPrintM
 import { ClinicalNoteModal } from '@/components/clinical/ClinicalNoteModal'
 import { ClinicalNoteDetailsModal } from '@/components/clinical/ClinicalNoteDetailsModal'
 import { ClinicalNotePrintModal } from '@/components/clinical/ClinicalNotePrintModal'
+import { TreatmentPlanModal } from '@/components/clinical/TreatmentPlanModal'
+import { TreatmentPlanDetailsModal } from '@/components/clinical/TreatmentPlanDetailsModal'
+import { TreatmentPlanPrintModal } from '@/components/clinical/TreatmentPlanPrintModal'
 import { InvoiceDrawer, PaymentDialog, StatusPill, inr, localDate, prettyDate } from '@/pages/billing/BillingShared'
 import './patientProfile.css'
 import '@/pages/clinical/prescriptions.css'
 import '@/pages/clinical/clinicalNotes.css'
+import '@/pages/clinical/treatmentPlans.css'
 
-type TabKey = 'overview' | 'medical' | 'timeline' | 'billing' | 'documents' | 'consents' | 'prescriptions' | 'notes'
-const TAB_KEYS: TabKey[] = ['overview', 'medical', 'timeline', 'billing', 'documents', 'consents', 'prescriptions', 'notes']
+type TabKey = 'overview' | 'medical' | 'timeline' | 'billing' | 'documents' | 'consents' | 'prescriptions' | 'notes' | 'plans'
+const TAB_KEYS: TabKey[] = ['overview', 'medical', 'timeline', 'billing', 'documents', 'consents', 'prescriptions', 'notes', 'plans']
 
-type ActivityKind = 'visit' | 'note' | 'billing' | 'document' | 'consent' | 'prescription'
+type ActivityKind = 'visit' | 'note' | 'billing' | 'document' | 'consent' | 'prescription' | 'plan'
 type ActivityItem = { id: string; kind: ActivityKind; date: string; title: string; detail?: string; link?: string; tone?: 'ok' | 'warn' | 'bad' }
 
 const ACTIVITY_FILTERS: { id: 'all' | ActivityKind; label: string }[] = [
@@ -68,6 +72,7 @@ const ACTIVITY_FILTERS: { id: 'all' | ActivityKind; label: string }[] = [
   { id: 'visit', label: 'Visits' },
   { id: 'note', label: 'Clinical notes' },
   { id: 'prescription', label: 'Prescriptions' },
+  { id: 'plan', label: 'Treatment plans' },
   { id: 'billing', label: 'Billing' },
   { id: 'document', label: 'Documents' },
   { id: 'consent', label: 'Consents' }
@@ -77,6 +82,7 @@ const ACTIVITY_ICONS: Record<ActivityKind, React.ComponentType<{ size?: number }
   visit: Calendar,
   note: StickyNote,
   prescription: Pill,
+  plan: Stethoscope,
   billing: Receipt,
   document: FileText,
   consent: CheckCircle2
@@ -171,8 +177,9 @@ export const PatientProfilePage: React.FC = () => {
     if (path.endsWith('/consents')) return 'consents'
     if (path.endsWith('/prescriptions')) return 'prescriptions'
     if (path.endsWith('/notes')) return 'notes'
+    if (path.endsWith('/plans') || path.endsWith('/treatment-plans')) return 'plans'
     if (path.endsWith('/billing')) return 'billing'
-    if (path.endsWith('/pending-treatments')) return 'overview'
+    if (path.endsWith('/pending-treatments')) return 'plans'
     return 'overview'
   }, [location.pathname, searchParams])
 
@@ -192,6 +199,11 @@ export const PatientProfilePage: React.FC = () => {
   const [editingNote, setEditingNote] = useState<ClinicalNoteRecord | null>(null)
   const [viewingNote, setViewingNote] = useState<ClinicalNoteRecord | null>(null)
   const [printingNote, setPrintingNote] = useState<ClinicalNoteRecord | null>(null)
+
+  // Treatment plan modal state
+  const [tpModalOpen, setTpModalOpen] = useState(false)
+  const [viewingPlan, setViewingPlan] = useState<TreatmentPlanRecord | null>(null)
+  const [printingPlan, setPrintingPlan] = useState<TreatmentPlanRecord | null>(null)
 
   // Filter linked records for this patient
   const patientAppointments = useMemo(() => {
@@ -223,8 +235,12 @@ export const PatientProfilePage: React.FC = () => {
 
   const patientPlans = useMemo(() => {
     return (treatmentPlans as TreatmentPlanRecord[])
-      .filter((plan) => plan.patientId.toLowerCase() === (id || '').toLowerCase())
-  }, [treatmentPlans, id])
+      .filter((plan) =>
+        plan.patientId?.toLowerCase() === (id || '').toLowerCase() ||
+        (patient?.backendId && plan.patientId?.toLowerCase() === patient.backendId.toLowerCase()) ||
+        (plan.patient?.patientCode && plan.patient.patientCode.toLowerCase() === (id || '').toLowerCase())
+      )
+  }, [treatmentPlans, id, patient?.backendId])
 
   const patientDocs = useMemo(() => {
     return (patientDocuments as PatientDocumentRecord[])
@@ -411,8 +427,59 @@ export const PatientProfilePage: React.FC = () => {
         })
       }
     })
+    patientPlans.forEach((tp) => {
+      const planNum = tp.planNumber || tp.id
+      const creationDate = tp.date || new Date().toISOString()
+      const title = tp.title || tp.procedure || 'Treatment Plan'
+      const cost = tp.totalEstimatedCost || tp.cost || 0
+
+      items.push({
+        id: `tp-prop-${tp.id}`,
+        kind: 'plan',
+        date: creationDate,
+        title: `Treatment Plan ${planNum} Proposed: ${title}`,
+        detail: `Estimated Cost: ${inr(cost)} · ${tp.doctor}`,
+        link: `/patients/${patient?.id || id}?tab=plans`,
+      })
+
+      if (tp.patientAcceptedAt || tp.status === 'Accepted') {
+        items.push({
+          id: `tp-acc-${tp.id}`,
+          kind: 'plan',
+          date: tp.patientAcceptedAt || creationDate,
+          title: `Treatment Plan ${planNum} Accepted by Patient`,
+          detail: `Agreed by ${tp.patientAcceptedByName || 'Patient'} · Estimate v${tp.acceptedVersion || tp.currentVersion || 1} (${inr(cost)})`,
+          link: `/patients/${patient?.id || id}?tab=plans`,
+          tone: 'ok',
+        })
+      }
+
+      if (tp.status === 'Completed') {
+        items.push({
+          id: `tp-comp-${tp.id}`,
+          kind: 'plan',
+          date: tp.date || creationDate,
+          title: `Treatment Plan ${planNum} Completed`,
+          detail: `All planned procedures delivered · Total: ${inr(cost)}`,
+          link: `/patients/${patient?.id || id}?tab=plans`,
+          tone: 'ok',
+        })
+      }
+
+      if (tp.status === 'Rejected') {
+        items.push({
+          id: `tp-rej-${tp.id}`,
+          kind: 'plan',
+          date: tp.date || creationDate,
+          title: `Treatment Plan ${planNum} Declined`,
+          detail: tp.rejectionReason ? `Reason: ${tp.rejectionReason}` : 'Patient declined proposed treatment',
+          link: `/patients/${patient?.id || id}?tab=plans`,
+          tone: 'bad',
+        })
+      }
+    })
     return items.sort((a, b) => b.date.localeCompare(a.date))
-  }, [patientAppointments, patientNotes, patientInvoices, patientDocs, patientConsentList, patientPrescriptions])
+  }, [patientAppointments, patientNotes, patientInvoices, patientDocs, patientConsentList, patientPrescriptions, patientPlans])
   const visibleActivity = activityFilter === 'all' ? activity : activity.filter((a) => a.kind === activityFilter)
 
   // Medical Alert Text
@@ -707,6 +774,16 @@ export const PatientProfilePage: React.FC = () => {
               <span>Issue Prescription</span>
             </button>
 
+            <button
+              type="button"
+              className="pat-btn pat-btn-secondary"
+              onClick={() => setTpModalOpen(true)}
+              title="Create a multi-stage dental treatment plan and cost estimate"
+            >
+              <Stethoscope size={14} />
+              <span>Plan Treatment</span>
+            </button>
+
             <Link
               className="pat-btn pat-btn-secondary"
               to={`/billing/invoices/new?patientId=${patient.id}`}
@@ -845,6 +922,19 @@ export const PatientProfilePage: React.FC = () => {
           <span>Clinical Notes</span>
           {patientNotes.length > 0 && (
             <span className="pat-tab-badge">{patientNotes.length}</span>
+          )}
+        </button>
+
+        <button
+          type="button"
+          className={`pat-tab-btn ${activeTab === 'plans' ? 'is-active' : ''}`}
+          onClick={() => setTab('plans')}
+          data-testid="tab-treatment-plans"
+        >
+          <Stethoscope size={15} />
+          <span>Treatment Plans</span>
+          {patientPlans.length > 0 && (
+            <span className="pat-tab-badge">{patientPlans.length}</span>
           )}
         </button>
       </nav>
@@ -2034,6 +2124,169 @@ export const PatientProfilePage: React.FC = () => {
             )}
           </div>
         )}
+
+        {/* TAB 9: TREATMENT PLANS & INTEGRATED COST ESTIMATES */}
+        {activeTab === 'plans' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} data-testid="patient-treatment-plans-section">
+            <div className="pat-section-head">
+              <div>
+                <h3>Treatment Plans & Integrated Cost Estimates</h3>
+                <p>Comprehensive multi-stage dental procedures, tooth chart associations, and chairside financial estimates.</p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setTpModalOpen(true)}
+                  className="pat-btn pat-btn-primary"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Plus size={14} /> New Treatment Plan
+                </button>
+              </div>
+            </div>
+
+            {patientPlans.length > 0 ? (
+              <div className="pat-table-container">
+                <table className="pat-table" aria-label="Patient treatment plans table">
+                  <thead>
+                    <tr>
+                      <th>Plan # & Date</th>
+                      <th>Care Plan & Procedures</th>
+                      <th>Category</th>
+                      <th>Treating Doctor</th>
+                      <th>Total Estimate</th>
+                      <th>Status</th>
+                      <th style={{ textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {patientPlans.map((plan) => {
+                      const cost = plan.totalEstimatedCost || plan.cost || 0
+                      const stageCount = plan.stages?.length || 1
+
+                      return (
+                        <tr key={plan.id} className="pat-row">
+                          <td>
+                            <strong style={{ fontFamily: 'monospace', color: 'var(--teal-primary, #008891)' }}>
+                              {plan.planNumber || plan.id}
+                            </strong>
+                            <small style={{ display: 'block', color: 'var(--text-muted, #64748b)', fontSize: '11.5px' }}>
+                              {plan.date} • v{plan.currentVersion || 1}
+                            </small>
+                          </td>
+
+                          <td>
+                            <div
+                              onClick={() => setViewingPlan(plan)}
+                              style={{ cursor: 'pointer' }}
+                              title="Click to view stages and progress"
+                            >
+                              <strong style={{ display: 'block', color: 'var(--text-main, #0f172a)' }}>
+                                {plan.title || plan.procedure}
+                              </strong>
+                              {plan.toothNumber && (
+                                <span style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>
+                                  Tooth #{plan.toothNumber}
+                                </span>
+                              )}
+                              <small style={{ display: 'block', color: 'var(--teal-primary, #008891)', marginTop: '2px' }}>
+                                {stageCount} stage{stageCount > 1 ? 's' : ''} planned
+                              </small>
+                            </div>
+                          </td>
+
+                          <td>
+                            <span className="pat-badge">{plan.category}</span>
+                          </td>
+
+                          <td>
+                            <span style={{ fontSize: '13px' }}>{plan.doctor}</span>
+                          </td>
+
+                          <td>
+                            <strong style={{ fontSize: '14px', color: 'var(--teal-primary, #008891)' }}>
+                              ₹{cost.toLocaleString('en-IN')}
+                            </strong>
+                          </td>
+
+                          <td>
+                            <span
+                              className="pat-badge"
+                              style={{
+                                background:
+                                  plan.status === 'Accepted'
+                                    ? 'rgba(37, 99, 235, 0.1)'
+                                    : plan.status === 'Completed'
+                                    ? 'rgba(16, 185, 129, 0.1)'
+                                    : plan.status === 'In Progress'
+                                    ? 'rgba(14, 165, 233, 0.1)'
+                                    : plan.status === 'Pending'
+                                    ? 'rgba(245, 158, 11, 0.1)'
+                                    : 'rgba(100, 116, 139, 0.1)',
+                                color:
+                                  plan.status === 'Accepted'
+                                    ? '#2563eb'
+                                    : plan.status === 'Completed'
+                                    ? '#059669'
+                                    : plan.status === 'In Progress'
+                                    ? '#0ea5e9'
+                                    : plan.status === 'Pending'
+                                    ? '#d97706'
+                                    : '#475569',
+                                fontWeight: 600,
+                              }}
+                            >
+                              {plan.status}
+                            </span>
+                          </td>
+
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              <button
+                                type="button"
+                                className="pat-action-btn"
+                                onClick={() => setViewingPlan(plan)}
+                                style={{ padding: '4px 8px', fontSize: '12px' }}
+                              >
+                                <Eye size={12} />
+                                <span>Details</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="pat-action-btn"
+                                onClick={() => setPrintingPlan(plan)}
+                                style={{ padding: '4px 8px', fontSize: '12px' }}
+                              >
+                                <Printer size={12} />
+                                <span>Print</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="cn-table-container cn-empty-state">
+                <div className="cn-empty-icon">
+                  <Stethoscope />
+                </div>
+                <h3>No Treatment Plans on Record</h3>
+                <p>No multi-stage dental treatment plans or cost estimates have been authored for this patient yet.</p>
+                <button
+                  type="button"
+                  onClick={() => setTpModalOpen(true)}
+                  className="cn-btn cn-btn-primary cn-btn-sm"
+                >
+                  <Plus size={13} /> Create First Treatment Plan
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── EDIT PATIENT MODAL DIALOG ── */}
@@ -2504,6 +2757,36 @@ export const PatientProfilePage: React.FC = () => {
         <ClinicalNotePrintModal
           note={printingNote}
           onClose={() => setPrintingNote(null)}
+        />
+      )}
+
+      {/* ── TREATMENT PLAN MODALS ── */}
+      {tpModalOpen && (
+        <TreatmentPlanModal
+          isOpen={tpModalOpen}
+          onClose={() => setTpModalOpen(false)}
+          lockedPatientId={patient.id}
+          onSuccess={() => setTab('plans')}
+        />
+      )}
+
+      {viewingPlan && (
+        <TreatmentPlanDetailsModal
+          plan={viewingPlan}
+          isOpen={Boolean(viewingPlan)}
+          onClose={() => setViewingPlan(null)}
+          onPrint={() => {
+            const current = viewingPlan
+            setViewingPlan(null)
+            setPrintingPlan(current)
+          }}
+        />
+      )}
+
+      {printingPlan && (
+        <TreatmentPlanPrintModal
+          plan={printingPlan}
+          onClose={() => setPrintingPlan(null)}
         />
       )}
 

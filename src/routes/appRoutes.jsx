@@ -132,6 +132,26 @@ export function AppRoutes({
           }
         />
         <Route
+          path="/patients/:id/plans"
+          element={
+            <ProtectedRoute currentUser={currentUser}>
+              <Suspense fallback={<PageFallback />}>
+                {React.createElement(lazyComponents['pat.profile'])}
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/patients/:id/treatment-plans"
+          element={
+            <ProtectedRoute currentUser={currentUser}>
+              <Suspense fallback={<PageFallback />}>
+                {React.createElement(lazyComponents['pat.profile'])}
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/patients/:id/x-rays"
           element={
             <ProtectedRoute currentUser={currentUser}>

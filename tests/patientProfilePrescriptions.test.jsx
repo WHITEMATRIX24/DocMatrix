@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from '@/App';
+import '@/pages/patients/PatientProfilePage';
 import { resetStoreForTesting } from '@/services/clinicStore';
 
 const renderAt = (url) =>
