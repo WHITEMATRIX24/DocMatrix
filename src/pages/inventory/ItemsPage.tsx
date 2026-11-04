@@ -176,17 +176,36 @@ export const ItemsPage: React.FC = () => {
   const [clinicStaffDoctors, setClinicStaffDoctors] = useState<{ id: string; name: string; label: string }[]>([])
 
   useEffect(() => {
-    apiClient.get<any[]>('/clinics/my-clinic/staff').then((res) => {
-      if (Array.isArray(res) && res.length > 0) {
-        const docs = res.map((s) => ({
-          id: s.id,
-          name: s.fullName || s.name || 'Practitioner',
-          label: `${s.fullName || s.name || 'Practitioner'}${s.role ? ` (${s.role})` : ''}`
-        }))
-        setClinicStaffDoctors(docs)
-        if (docs[0]) setSelectedDoctorId(docs[0].id)
-      }
-    }).catch(() => {})
+    apiClient
+      .get<any[]>('/clinics/my-clinic/staff')
+      .then((res) => {
+        if (Array.isArray(res) && res.length > 0) {
+          const docs = res.map((s) => ({
+            id: s.id,
+            name: s.fullName || s.name || 'Practitioner',
+            label: `${s.fullName || s.name || 'Practitioner'}${s.role ? ` (${s.role})` : ''}`
+          }))
+          setClinicStaffDoctors(docs)
+          if (docs[0]) setSelectedDoctorId(docs[0].id)
+        }
+      })
+      .catch(() => {
+        try {
+          const cached = localStorage.getItem('docmatrix_clinic_staff')
+          if (cached) {
+            const parsed = JSON.parse(cached)
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const docs = parsed.map((s: any) => ({
+                id: s.id,
+                name: s.fullName || s.name || 'Practitioner',
+                label: `${s.fullName || s.name || 'Practitioner'}${s.role ? ` (${s.role})` : ''}`
+              }))
+              setClinicStaffDoctors(docs)
+              if (docs[0]) setSelectedDoctorId(docs[0].id)
+            }
+          }
+        } catch {}
+      })
   }, [])
 
   const doctorsList = clinicStaffDoctors.length > 0
