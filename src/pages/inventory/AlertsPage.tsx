@@ -29,8 +29,9 @@ export const AlertsPage: React.FC = () => {
       Icon: AlertTriangle,
       title: item.name,
       category: item.category,
-      details: `${item.totalStock} ${item.unit} remaining`,
-      subDetails: `Threshold: ${item.reorderLevel} ${item.unit}`,
+      primaryValue: `${item.totalStock} ${item.unit} remaining`,
+      secondaryValue: `Reorder threshold: ${item.reorderLevel} ${item.unit}`,
+      badge: null,
       contextPrimary: 'Reorder Queue',
       contextSecondary: `SKU: ${item.sku}`,
       statusText: 'Reorder Needed',
@@ -51,9 +52,9 @@ export const AlertsPage: React.FC = () => {
           Icon: Clock,
           title: item.name,
           category: item.category,
-          lotNumber: batch.batchNumber,
-          lotQty: `${batch.quantity} ${item.unit}`,
-          expiryDate: batch.expiryDate,
+          primaryValue: `${batch.quantity} ${item.unit}`,
+          secondaryValue: `Expires: ${batch.expiryDate}`,
+          badge: `Lot: ${batch.batchNumber}`,
           contextPrimary: batch.location || 'Central Dispensary',
           contextSecondary: `SKU: ${item.sku}`,
           statusText: 'FEFO Priority',
@@ -76,8 +77,9 @@ export const AlertsPage: React.FC = () => {
           Icon: TrendingUp,
           title: m.name,
           category: log.procedureName,
-          confirmedText: `Used ${m.confirmedQty} ${m.unit}`,
-          baselineText: `Suggested: ${m.suggestedQty} ${m.unit}`,
+          primaryValue: `Used ${m.confirmedQty} ${m.unit}`,
+          secondaryValue: `Standard suggested: ${m.suggestedQty} ${m.unit}`,
+          badge: null,
           contextPrimary: log.doctorName,
           contextSecondary: `Patient: ${log.patientName}`,
           statusText: 'Shift Recorded',
@@ -114,6 +116,8 @@ export const AlertsPage: React.FC = () => {
       const q = searchQuery.toLowerCase().trim()
       return (
         alert.title.toLowerCase().includes(q) ||
+        alert.primaryValue.toLowerCase().includes(q) ||
+        alert.secondaryValue.toLowerCase().includes(q) ||
         alert.contextPrimary.toLowerCase().includes(q) ||
         (alert.contextSecondary && alert.contextSecondary.toLowerCase().includes(q)) ||
         alert.category.toLowerCase().includes(q)
@@ -255,80 +259,39 @@ export const AlertsPage: React.FC = () => {
 
                       {/* Condition & Details */}
                       <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
-                        {alert.tab === 'low' && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ color: 'var(--tone-red, #dc2626)', fontWeight: 700, fontSize: '13px' }}>
-                              {alert.details}
-                            </span>
-                            <span style={{ fontSize: '11.5px', color: 'var(--text-muted, #64748b)' }}>
-                              · {alert.subDetails}
-                            </span>
-                          </div>
-                        )}
-
-                        {alert.tab === 'expiry' && (
-                          <div style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            background: 'var(--inv-bg-subtle, #f8fafc)',
-                            border: '1px solid var(--inv-border, #e2e8f0)',
-                            padding: '3px 8px',
-                            borderRadius: '6px'
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{
+                            fontWeight: 700,
+                            fontSize: '13.5px',
+                            color: alert.tab === 'low'
+                              ? 'var(--tone-red, #dc2626)'
+                              : 'var(--teal-primary, #008891)'
                           }}>
+                            {alert.primaryValue}
+                          </span>
+                          {alert.badge && (
                             <span style={{
                               fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
                               fontSize: '11px',
                               fontWeight: 600,
-                              color: 'var(--text-strong, #0f172a)'
+                              color: 'var(--text-strong, #0f172a)',
+                              background: 'var(--inv-badge-bg, #f1f5f9)',
+                              border: '1px solid var(--inv-border, #e2e8f0)',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              whiteSpace: 'nowrap'
                             }}>
-                              {alert.lotNumber}
+                              {alert.badge}
                             </span>
-                            <span style={{
-                              color: 'var(--teal-primary, #008891)',
-                              fontWeight: 700,
-                              fontSize: '11.5px'
-                            }}>
-                              {alert.lotQty}
-                            </span>
-                            <span style={{
-                              color: 'var(--text-muted, #64748b)',
-                              fontSize: '11px',
-                              borderLeft: '1px solid var(--inv-border, #e2e8f0)',
-                              paddingLeft: '6px'
-                            }}>
-                              Expires: {alert.expiryDate}
-                            </span>
-                          </div>
-                        )}
-
-                        {alert.tab === 'shift' && (
-                          <div style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            background: 'var(--inv-bg-subtle, #f8fafc)',
-                            border: '1px solid var(--inv-border, #e2e8f0)',
-                            padding: '3px 8px',
-                            borderRadius: '6px'
-                          }}>
-                            <span style={{
-                              color: 'var(--teal-primary, #008891)',
-                              fontWeight: 700,
-                              fontSize: '11.5px'
-                            }}>
-                              {alert.confirmedText}
-                            </span>
-                            <span style={{
-                              color: 'var(--text-muted, #64748b)',
-                              fontSize: '11px',
-                              borderLeft: '1px solid var(--inv-border, #e2e8f0)',
-                              paddingLeft: '6px'
-                            }}>
-                              {alert.baselineText}
-                            </span>
-                          </div>
-                        )}
+                          )}
+                        </div>
+                        <div style={{
+                          fontSize: '12px',
+                          color: 'var(--text-muted, #64748b)',
+                          marginTop: '3px'
+                        }}>
+                          {alert.secondaryValue}
+                        </div>
                       </td>
 
                       {/* Context / Source */}
