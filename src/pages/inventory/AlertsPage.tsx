@@ -227,11 +227,11 @@ export const AlertsPage: React.FC = () => {
             <table className="inv-sheet-table" style={{ width: '100%', minWidth: '960px' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '14%' }}>Alert Type</th>
-                  <th style={{ width: '24%' }}>Item & Department</th>
-                  <th style={{ width: '34%' }}>Condition & Details</th>
+                  <th style={{ width: '15%' }}>Alert Type</th>
+                  <th style={{ width: '25%' }}>Item & Department</th>
+                  <th style={{ width: '32%' }}>Condition & Details</th>
                   <th style={{ width: '16%' }}>Context / Source</th>
-                  <th style={{ width: '12%', textAlign: 'right', paddingRight: '22px' }}>Status</th>
+                  <th style={{ width: '12%', textAlign: 'right', paddingRight: '20px' }}>Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -240,7 +240,7 @@ export const AlertsPage: React.FC = () => {
                   return (
                     <tr key={alert.id} className="inv-sheet-row">
                       {/* Alert Type */}
-                      <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
+                      <td>
                         <span className={`alert-pill ${alert.pillClass}`}>
                           <Icon size={12} />
                           {alert.type}
@@ -248,7 +248,7 @@ export const AlertsPage: React.FC = () => {
                       </td>
 
                       {/* Item & Department */}
-                      <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
+                      <td>
                         <div className="alert-item-title">
                           {alert.title}
                         </div>
@@ -258,7 +258,7 @@ export const AlertsPage: React.FC = () => {
                       </td>
 
                       {/* Condition & Details */}
-                      <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
+                      <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <span style={{
                             fontWeight: 700,
@@ -295,7 +295,7 @@ export const AlertsPage: React.FC = () => {
                       </td>
 
                       {/* Context / Source */}
-                      <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
+                      <td>
                         <div style={{ fontSize: '12.5px', color: 'var(--text, #334155)', fontWeight: 500 }}>
                           {alert.contextPrimary}
                         </div>
@@ -307,8 +307,8 @@ export const AlertsPage: React.FC = () => {
                       </td>
 
                       {/* Status */}
-                      <td style={{ verticalAlign: 'top', paddingTop: '16px', textAlign: 'right', paddingRight: '22px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <td style={{ textAlign: 'right', paddingRight: '20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
                           {alert.statusType === 'fefo' && (
                             <span className="fefo-pill">
                               {alert.statusText}
