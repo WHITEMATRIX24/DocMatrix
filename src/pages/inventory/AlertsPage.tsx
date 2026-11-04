@@ -29,9 +29,9 @@ export const AlertsPage: React.FC = () => {
       Icon: AlertTriangle,
       title: item.name,
       category: item.category,
-      primaryValue: `${item.totalStock} ${item.unit} remaining`,
+      primaryValue: `${item.totalStock} ${item.unit}`,
+      badge: 'Below Buffer',
       secondaryValue: `Reorder threshold: ${item.reorderLevel} ${item.unit}`,
-      badge: null,
       contextPrimary: 'Reorder Queue',
       contextSecondary: `SKU: ${item.sku}`,
       statusText: 'Reorder Needed',
@@ -53,8 +53,8 @@ export const AlertsPage: React.FC = () => {
           title: item.name,
           category: item.category,
           primaryValue: `${batch.quantity} ${item.unit}`,
-          secondaryValue: `Expires: ${batch.expiryDate}`,
           badge: `Lot: ${batch.batchNumber}`,
+          secondaryValue: `Expires: ${batch.expiryDate}`,
           contextPrimary: batch.location || 'Central Dispensary',
           contextSecondary: `SKU: ${item.sku}`,
           statusText: 'FEFO Priority',
@@ -69,6 +69,8 @@ export const AlertsPage: React.FC = () => {
   inventory.deductionAuditLog.forEach((log) => {
     log.materials.forEach((m) => {
       if (m.confirmedQty !== m.suggestedQty) {
+        const diff = m.confirmedQty - m.suggestedQty
+        const sign = diff > 0 ? `+${diff}` : `${diff}`
         shiftAlerts.push({
           id: `shift-${log.id}-${m.itemId}`,
           tab: 'shift' as const,
@@ -78,8 +80,8 @@ export const AlertsPage: React.FC = () => {
           title: m.name,
           category: log.procedureName,
           primaryValue: `Used ${m.confirmedQty} ${m.unit}`,
-          secondaryValue: `Standard suggested: ${m.suggestedQty} ${m.unit}`,
-          badge: null,
+          badge: `${sign} ${m.unit} shift`,
+          secondaryValue: `Standard baseline: ${m.suggestedQty} ${m.unit}`,
           contextPrimary: log.doctorName,
           contextSecondary: `Patient: ${log.patientName}`,
           statusText: 'Shift Recorded',
@@ -259,13 +261,14 @@ export const AlertsPage: React.FC = () => {
 
                       {/* Condition & Details */}
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '110px auto', alignItems: 'center', gap: '8px', width: 'fit-content' }}>
                           <span style={{
                             fontWeight: 700,
                             fontSize: '13.5px',
                             color: alert.tab === 'low'
                               ? 'var(--tone-red, #dc2626)'
-                              : 'var(--teal-primary, #008891)'
+                              : 'var(--teal-primary, #008891)',
+                            whiteSpace: 'nowrap'
                           }}>
                             {alert.primaryValue}
                           </span>
@@ -277,7 +280,7 @@ export const AlertsPage: React.FC = () => {
                               color: 'var(--text-strong, #0f172a)',
                               background: 'var(--inv-badge-bg, #f1f5f9)',
                               border: '1px solid var(--inv-border, #e2e8f0)',
-                              padding: '1px 6px',
+                              padding: '1.5px 7px',
                               borderRadius: '4px',
                               whiteSpace: 'nowrap'
                             }}>
