@@ -18,6 +18,7 @@ export const MovementsPage: React.FC = () => {
   }, [])
 
   const auditLogs = inventory.deductionAuditLog
+  const doctorsInAudit = Array.from(new Set(auditLogs.map((l) => l.doctorName).filter(Boolean)))
 
   const filteredLogs = auditLogs.filter((log) => {
     if (selectedDoctorFilter !== 'All' && log.doctorName !== selectedDoctorFilter) {
@@ -105,9 +106,9 @@ export const MovementsPage: React.FC = () => {
               className="unified-select"
             >
               <option value="All">All Doctors</option>
-              <option value="Dr. Arun Kumar">Dr. Arun Kumar</option>
-              <option value="Dr. Priya Nair">Dr. Priya Nair</option>
-              <option value="Dr. Tariq Antoun">Dr. Tariq Antoun</option>
+              {doctorsInAudit.map((doc) => (
+                <option key={doc} value={doc}>{doc}</option>
+              ))}
             </select>
           </div>
         </div>

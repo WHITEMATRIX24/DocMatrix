@@ -48,11 +48,14 @@ import {
   resetAdaptiveInventory,
   addBatchToItem,
   adjustBatchQuantity,
+  createNewInventoryItem,
   syncInventoryWithBackend,
   type SuggestionMode,
   type InventoryStockItem,
-  type InventoryBatch
+  type InventoryBatch,
+  type InventoryCategory
 } from '@/services/adaptiveInventoryStore'
+import { apiClient } from '@/services/apiClient'
 import { TreatmentMaterialUsageModal } from '@/components/inventory/TreatmentMaterialUsageModal'
 import './adaptiveInventory.css'
 
@@ -169,15 +172,69 @@ export const ItemsPage: React.FC = () => {
   // Full-screen Modal state
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Doctors metadata for quick switching
-  const doctorsList = [
-    { id: 'doc-1', name: 'Dr. Arun Kumar', label: 'Dr. Arun Kumar (General / Ortho)', filePref: '1 set' },
-    { id: 'doc-2', name: 'Dr. Priya Nair', label: 'Dr. Priya Nair (Endodontics Specialist)', filePref: '2 sets' },
-    { id: 'doc-3', name: 'Dr. Tariq Antoun', label: 'Dr. Tariq Antoun (Oral Surgeon)', filePref: '1 set' }
-  ]
+  // Real clinic staff / doctors loaded from API
+  const [clinicStaffDoctors, setClinicStaffDoctors] = useState<{ id: string; name: string; label: string }[]>([])
 
-  const activeDoctor = doctorsList.find((d) => d.id === selectedDoctorId) || doctorsList[1]
+  useEffect(() => {
+    apiClient.get<any[]>('/clinics/my-clinic/staff').then((res) => {
+      if (Array.isArray(res) && res.length > 0) {
+        const docs = res.map((s) => ({
+          id: s.id,
+          name: s.fullName || s.name || 'Practitioner',
+          label: `${s.fullName || s.name || 'Practitioner'}${s.role ? ` (${s.role})` : ''}`
+        }))
+        setClinicStaffDoctors(docs)
+        if (docs[0]) setSelectedDoctorId(docs[0].id)
+      }
+    }).catch(() => {})
+  }, [])
+
+  const doctorsList = clinicStaffDoctors.length > 0
+    ? clinicStaffDoctors
+    : [{ id: 'doc-primary', name: 'Primary Practitioner', label: 'Primary Practitioner' }]
+
+  const activeDoctor = doctorsList.find((d) => d.id === selectedDoctorId) || doctorsList[0]
   const activeTemplate = inventory.templates.find((t) => t.procedureId === selectedProcedureId) || inventory.templates[0]
+
+  // Add New Item Modal Form State
+  const [showAddItemModal, setShowAddItemModal] = useState(false)
+  const [newItemSku, setNewItemSku] = useState('')
+  const [newItemName, setNewItemName] = useState('')
+  const [newItemCategory, setNewItemCategory] = useState<InventoryCategory>('PPE & General')
+  const [newItemUnit, setNewItemUnit] = useState('pieces')
+  const [newItemReorder, setNewItemReorder] = useState(20)
+  const [newItemCost, setNewItemCost] = useState(0)
+  const [newInitialBatchNum, setNewInitialBatchNum] = useState('')
+  const [newInitialExpiry, setNewInitialExpiry] = useState('')
+  const [newInitialQty, setNewInitialQty] = useState(100)
+  const [newInitialLocation, setNewInitialLocation] = useState('Central Storage')
+  const [isSubmittingItem, setIsSubmittingItem] = useState(false)
+
+  const handleAddNewItemSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newItemName.trim() || !newItemSku.trim()) return
+
+    try {
+      setIsSubmittingItem(true)
+      await createNewInventoryItem({
+        sku: newItemSku.trim(),
+        name: newItemName.trim(),
+        category: newItemCategory,
+        unit: newItemUnit.trim() || 'pieces',
+        reorderLevel: Number(newItemReorder) || 10,
+        costPerUnit: Number(newItemCost) || 0,
+        initialBatch: newInitialBatchNum.trim() && newInitialQty > 0 ? {
+          batchNumber: newInitialBatchNum.trim(),
+          expiryDate: newInitialExpiry || '2028-12-31',
+          quantity: Number(newInitialQty) || 1,
+          location: newInitialLocation.trim() || 'Central Storage'
+        } : undefined
+      })
+      setShowAddItemModal(false)
+    } finally {
+      setIsSubmittingItem(false)
+    }
+  }
 
   // Reload terminal suggestions when doctor, procedure, or suggestion mode changes
   const reloadTerminal = (procId: string, docId: string, mode: SuggestionMode) => {
@@ -499,39 +556,39 @@ export const ItemsPage: React.FC = () => {
               </select>
             </div>
 
-            {/* Right Action: Receive Stock */}
+            {/* Right Action: Add Item */}
             <div>
-              {filteredStock[0] && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const first = filteredStock[0]
-                    setBatchModalItem(first)
-                    setNewBatchNumber(`${first.sku.split('-')[0]}-${new Date().getFullYear()}-01`)
-                    setNewBatchExpiry('2028-12-31')
-                    setNewBatchQty(first.reorderLevel * 2)
-                  }}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    height: '38px',
-                    padding: '0 16px',
-                    borderRadius: '8px',
-                    background: 'var(--teal-primary, #008891)',
-                    color: '#ffffff',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    boxShadow: '0 2px 6px rgba(0, 136, 145, 0.2)',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <Plus size={14} /> Receive Stock
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setNewItemSku(`SKU-${Date.now().toString(36).slice(-5).toUpperCase()}`)
+                  setNewItemName('')
+                  setNewItemCategory('PPE & General')
+                  setNewItemUnit('pieces')
+                  setNewItemReorder(20)
+                  setNewItemCost(0)
+                  setNewInitialBatchNum(`LOT-${new Date().getFullYear()}-01`)
+                  setNewInitialExpiry('2028-12-31')
+                  setNewInitialQty(100)
+                  setNewInitialLocation('Central Storage')
+                  setShowAddItemModal(true)
+                }}
+                className="pat-btn pat-btn-primary"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  height: '38px',
+                  padding: '0 16px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit'
+                }}
+              >
+                <Plus size={14} /> Add Inventory Item
+              </button>
             </div>
           </div>
 
@@ -655,29 +712,63 @@ export const ItemsPage: React.FC = () => {
                 })}
                 {filteredStock.length === 0 && (
                   <tr>
-                    <td colSpan={4} style={{ textAlign: 'center', padding: '36px 20px', color: '#64748b' }}>
-                      <p style={{ margin: '0 0 6px 0', fontSize: '13.5px', fontWeight: 600 }}>
-                        No inventory items match the current filter
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setStatusQuickFilter('all')
-                          setCategoryFilter('All')
-                          setSearchStock('')
-                        }}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--teal-primary, #008891)',
-                          fontWeight: 700,
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                          textDecoration: 'underline'
-                        }}
-                      >
-                        Reset all filters
-                      </button>
+                    <td colSpan={4} style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted, #64748b)' }}>
+                      {inventory.items.length === 0 ? (
+                        <div>
+                          <Package size={34} style={{ color: 'var(--teal-primary, #008891)', margin: '0 auto 10px', opacity: 0.8 }} />
+                          <p style={{ margin: '0 0 6px 0', fontSize: '15px', fontWeight: 600, color: 'var(--text-strong, #0f172a)' }}>
+                            No inventory items recorded yet
+                          </p>
+                          <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
+                            Your clinic inventory is clean. Add your clinic's items to start tracking stock, lots, and consumption.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewItemSku(`SKU-${Date.now().toString(36).slice(-5).toUpperCase()}`)
+                              setNewItemName('')
+                              setNewItemCategory('PPE & General')
+                              setNewItemUnit('pieces')
+                              setNewItemReorder(20)
+                              setNewItemCost(0)
+                              setNewInitialBatchNum(`LOT-${new Date().getFullYear()}-01`)
+                              setNewInitialExpiry('2028-12-31')
+                              setNewInitialQty(100)
+                              setNewInitialLocation('Central Storage')
+                              setShowAddItemModal(true)
+                            }}
+                            className="pat-btn pat-btn-primary"
+                            style={{ padding: '8px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                          >
+                            <Plus size={14} /> Add First Item
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          <p style={{ margin: '0 0 6px 0', fontSize: '13.5px', fontWeight: 600 }}>
+                            No inventory items match the current filter
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStatusQuickFilter('all')
+                              setCategoryFilter('All')
+                              setSearchStock('')
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--teal-primary, #008891)',
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                              textDecoration: 'underline'
+                            }}
+                          >
+                            Reset all filters
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 )}
@@ -754,11 +845,11 @@ export const ItemsPage: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <button
                 type="button"
-                onClick={() => resetAdaptiveInventory()}
+                onClick={() => syncInventoryWithBackend()}
                 className="consumption-subtle-btn"
-                title="Reset demo data to initial defaults"
+                title="Refresh stock and audit records from backend"
               >
-                <RotateCcw size={13} /> Reset Demo Data
+                <RotateCcw size={13} /> Refresh Data
               </button>
             </div>
           </div>
@@ -1043,6 +1134,204 @@ export const ItemsPage: React.FC = () => {
       )}
 
 
+
+      {/* MODAL 0: ADD NEW INVENTORY ITEM */}
+      {showAddItemModal && (
+        <div className="ai-modal-overlay" onClick={() => setShowAddItemModal(false)} role="dialog" aria-modal="true">
+          <div className="ai-modal-content" style={{ maxWidth: '560px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="ai-modal-header">
+              <div>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 700, color: 'var(--text-strong, #0f172a)' }}>
+                  Add New Inventory Item
+                </h3>
+                <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
+                  Create a new stock item and record its starting batch lot
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddItemModal(false)}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px', color: 'var(--text-muted, #64748b)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddNewItemSubmit}>
+              <div className="ai-modal-body" style={{ gap: '14px', maxHeight: '70vh', overflowY: 'auto' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                    Item Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newItemName}
+                    onChange={(e) => setNewItemName(e.target.value)}
+                    placeholder="e.g. Dental Examination Gloves (Nitrile)"
+                    className="pat-input"
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                      SKU / Catalog Code *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newItemSku}
+                      onChange={(e) => setNewItemSku(e.target.value)}
+                      placeholder="e.g. PPE-GLV-01"
+                      className="pat-input"
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                      Department / Category
+                    </label>
+                    <select
+                      value={newItemCategory}
+                      onChange={(e) => setNewItemCategory(e.target.value as any)}
+                      className="consumption-select"
+                      style={{ width: '100%' }}
+                    >
+                      <option value="PPE & General">PPE & General</option>
+                      <option value="Endodontics">Endodontics</option>
+                      <option value="Restorative">Restorative</option>
+                      <option value="Surgical">Surgical</option>
+                      <option value="Anesthetics">Anesthetics</option>
+                      <option value="Prosthodontics">Prosthodontics</option>
+                      <option value="Preventive">Preventive</option>
+                      <option value="Orthodontics">Orthodontics</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                      Unit of Measure *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newItemUnit}
+                      onChange={(e) => setNewItemUnit(e.target.value)}
+                      placeholder="e.g. pairs, pieces, ml, box"
+                      className="pat-input"
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                      Reorder Alert Level
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={newItemReorder}
+                      onChange={(e) => setNewItemReorder(parseInt(e.target.value, 10) || 0)}
+                      className="pat-input"
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Initial Batch Details */}
+                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px', marginTop: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '8px', color: 'var(--teal-primary, #008891)' }}>
+                    Initial Batch / Lot Details (Optional)
+                  </label>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                        Batch Number
+                      </label>
+                      <input
+                        type="text"
+                        value={newInitialBatchNum}
+                        onChange={(e) => setNewInitialBatchNum(e.target.value)}
+                        placeholder="e.g. LOT-2026-01"
+                        className="pat-input"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                        Expiry Date
+                      </label>
+                      <input
+                        type="date"
+                        value={newInitialExpiry}
+                        onChange={(e) => setNewInitialExpiry(e.target.value)}
+                        className="pat-input"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '10px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                        Initial Quantity
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={newInitialQty}
+                        onChange={(e) => setNewInitialQty(parseInt(e.target.value, 10) || 0)}
+                        className="pat-input"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                        Storage Location
+                      </label>
+                      <input
+                        type="text"
+                        value={newInitialLocation}
+                        onChange={(e) => setNewInitialLocation(e.target.value)}
+                        placeholder="e.g. Shelf A-1, Cold Storage"
+                        className="pat-input"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="ai-modal-footer">
+                <button
+                  type="button"
+                  onClick={() => setShowAddItemModal(false)}
+                  className="pat-btn"
+                  style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--line, #cbd5e1)', borderRadius: '8px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingItem}
+                  className="pat-btn pat-btn-primary"
+                  style={{ padding: '8px 20px', borderRadius: '8px' }}
+                >
+                  <PlusCircle size={15} /> {isSubmittingItem ? 'Saving...' : 'Save & Add Item'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL 1: ADD NEW BATCH LOT */}
       {batchModalItem && (
