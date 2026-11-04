@@ -185,11 +185,6 @@ export const MovementsPage: React.FC = () => {
                           <CheckCircle2 size={13} style={{ color: '#059669', flexShrink: 0 }} />
                           <span style={{ fontSize: '12.5px', fontWeight: 500, color: '#0f172a' }}>{log.confirmedBy}</span>
                         </div>
-                        {log.notes && (
-                          <div style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic', marginTop: '3px', lineHeight: 1.3 }}>
-                            "{log.notes}"
-                          </div>
-                        )}
                       </td>
                     </tr>
                   )
