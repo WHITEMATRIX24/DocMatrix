@@ -455,24 +455,24 @@
 
 /* Navigation Tabs */
 .ai-tabs {
-  display: flex;
-  gap: 10px;
+  display: inline-flex;
+  width: fit-content;
+  gap: 6px;
   padding: 4px;
   background: #f1f5f9;
-  border-radius: 16px;
+  border-radius: 9999px;
   border: 1px solid #e2e8f0;
-  margin-bottom: 8px;
-  overflow-x: auto;
+  margin-bottom: 12px;
 }
 
 .ai-tab {
   background: transparent;
   border: none;
-  padding: 9px 18px;
+  padding: 7px 18px;
   font-size: 13px;
   font-weight: 600;
   color: #64748b;
-  border-radius: 12px;
+  border-radius: 9999px;
   cursor: pointer;
   transition: all 0.18s ease;
   white-space: nowrap;
@@ -482,6 +482,101 @@
   background: #ffffff;
   color: var(--teal-primary, #008891);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* Unified Enterprise Inventory Card */
+.unified-inventory-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+  overflow: hidden;
+  width: 100%;
+}
+
+.unified-table-toolbar {
+  padding: 14px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.unified-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 240px;
+  flex: 1;
+  max-width: 320px;
+}
+
+.unified-search-input {
+  width: 100%;
+  padding: 8px 14px 8px 36px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  background: #f8fafc;
+  color: #0f172a;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.unified-search-input:focus {
+  background: #ffffff;
+  border-color: var(--teal-primary, #008891);
+  box-shadow: 0 0 0 3px rgba(0, 136, 145, 0.12);
+}
+
+.unified-select {
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  background: #f8fafc;
+  color: #0f172a;
+  cursor: pointer;
+  font-weight: 500;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.unified-select:focus,
+.unified-select:hover {
+  background: #ffffff;
+  border-color: var(--teal-primary, #008891);
+}
+
+/* Batch Lot Tag in Table */
+.batch-lot-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.batch-lot-pill strong {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.batch-lot-pill span.qty {
+  color: #475569;
+  font-weight: 500;
+}
+
+.batch-lot-pill span.exp {
+  color: #64748b;
+  font-size: 11px;
 }
 
 /* Badge helpers */
