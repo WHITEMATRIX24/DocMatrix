@@ -8,7 +8,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "backend": "npm --prefix backend run start:dev",
+    "backend:dev": "npm --prefix backend run start:dev",
+    "backend:build": "npm --prefix backend run build",
+    "backend:start": "npm --prefix backend run start:prod"
   },
   "dependencies": {
     "@fontsource/instrument-sans": "^5.3.0",
