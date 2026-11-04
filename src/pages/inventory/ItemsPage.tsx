@@ -441,7 +441,7 @@ export const ItemsPage: React.FC = () => {
               >
                 {clinicalDepartments.map((dept) => (
                   <option key={dept.id} value={dept.id}>
-                    {dept.label} ({getDeptCount(dept.id)})
+                    {dept.label}
                   </option>
                 ))}
               </select>
@@ -452,9 +452,9 @@ export const ItemsPage: React.FC = () => {
                 onChange={(e) => setStatusQuickFilter(e.target.value as any)}
                 className="unified-select"
               >
-                <option value="all">All Status ({inventory.items.length})</option>
-                <option value="low">Low Stock ({lowStockCount})</option>
-                <option value="expiring">Near Expiry ({nearExpiryCount})</option>
+                <option value="all">All Status</option>
+                <option value="low">Low Stock</option>
+                <option value="expiring">Near Expiry</option>
               </select>
             </div>
 
