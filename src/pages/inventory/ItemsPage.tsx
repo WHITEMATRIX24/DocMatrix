@@ -531,10 +531,10 @@ export const ItemsPage: React.FC = () => {
             <table className="inv-sheet-table" style={{ width: '100%', minWidth: '740px' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '38%' }}>Item & SKU</th>
-                  <th style={{ width: '22%' }}>Stock Level</th>
-                  <th style={{ width: '28%' }}>Active Batches</th>
-                  <th style={{ width: '12%', textAlign: 'right', paddingRight: '18px' }}>Action</th>
+                  <th style={{ width: '27%' }}>Item & SKU</th>
+                  <th style={{ width: '18%' }}>Stock Level</th>
+                  <th style={{ width: '41%' }}>Active Batches</th>
+                  <th style={{ width: '14%', textAlign: 'right', paddingRight: '18px' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
