@@ -483,77 +483,7 @@ export const ItemsPage: React.FC = () => {
                 ))}
               </select>
 
-              {/* Quick 1-Click Expiry Alert Filter */}
-              {nearExpiryCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setStatusQuickFilter(statusQuickFilter === 'expiring' ? 'all' : 'expiring')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    height: '38px',
-                    padding: '0 13px',
-                    borderRadius: '8px',
-                    fontSize: '12.5px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    transition: 'all 0.15s ease',
-                    border: statusQuickFilter === 'expiring'
-                      ? '1px solid #d97706'
-                      : '1px solid rgba(217, 119, 6, 0.3)',
-                    background: statusQuickFilter === 'expiring'
-                      ? '#d97706'
-                      : 'rgba(217, 119, 6, 0.08)',
-                    color: statusQuickFilter === 'expiring'
-                      ? '#ffffff'
-                      : '#b45309'
-                  }}
-                  title={statusQuickFilter === 'expiring' ? 'Clear expiry filter (showing all)' : 'Filter items with expiring batches'}
-                >
-                  <AlertTriangle size={13} style={{ color: statusQuickFilter === 'expiring' ? '#ffffff' : '#d97706' }} />
-                  <span>{nearExpiryCount} Near Expiry</span>
-                  {statusQuickFilter === 'expiring' && <X size={12} style={{ marginLeft: '2px' }} />}
-                </button>
-              )}
-
-              {/* Quick 1-Click Low Stock Filter */}
-              {lowStockCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setStatusQuickFilter(statusQuickFilter === 'low' ? 'all' : 'low')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    height: '38px',
-                    padding: '0 13px',
-                    borderRadius: '8px',
-                    fontSize: '12.5px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    transition: 'all 0.15s ease',
-                    border: statusQuickFilter === 'low'
-                      ? '1px solid #dc2626'
-                      : '1px solid rgba(220, 38, 38, 0.3)',
-                    background: statusQuickFilter === 'low'
-                      ? '#dc2626'
-                      : 'rgba(220, 38, 38, 0.08)',
-                    color: statusQuickFilter === 'low'
-                      ? '#ffffff'
-                      : '#dc2626'
-                  }}
-                  title={statusQuickFilter === 'low' ? 'Clear low stock filter (showing all)' : 'Filter items below reorder threshold'}
-                >
-                  <AlertTriangle size={13} style={{ color: statusQuickFilter === 'low' ? '#ffffff' : '#dc2626' }} />
-                  <span>{lowStockCount} Low Stock</span>
-                  {statusQuickFilter === 'low' && <X size={12} style={{ marginLeft: '2px' }} />}
-                </button>
-              )}
-
-              {/* Status Filter Dropdown for Additional Filtering */}
+              {/* Status Filter Dropdown */}
               <select
                 value={statusQuickFilter}
                 onChange={(e) => setStatusQuickFilter(e.target.value as any)}
@@ -608,7 +538,7 @@ export const ItemsPage: React.FC = () => {
             <table className="inv-sheet-table" style={{ width: '100%', minWidth: '740px' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '28%' }}>Item & SKU</th>
+                  <th style={{ width: '28%' }}>Item</th>
                   <th style={{ width: '18%' }}>Stock Level</th>
                   <th style={{ width: '40%' }}>Active Batches</th>
                   <th style={{ width: '14%', textAlign: 'right', paddingRight: '20px' }}>Actions</th>
@@ -621,15 +551,10 @@ export const ItemsPage: React.FC = () => {
 
                   return (
                     <tr key={stock.id} className="inv-sheet-row">
-                      {/* Item & SKU */}
+                      {/* Item */}
                       <td>
                         <div style={{ fontWeight: 600, fontSize: '13.5px', color: '#0f172a', lineHeight: 1.35, letterSpacing: '-0.01em' }}>
                           {stock.name}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: '#64748b', marginTop: '2.5px' }}>
-                          <span style={{ fontWeight: 600, color: '#475569' }}>SKU: {stock.sku}</span>
-                          <span>&bull;</span>
-                          <span style={{ fontWeight: 500 }}>{stock.category}</span>
                         </div>
                       </td>
 
