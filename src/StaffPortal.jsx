@@ -41,7 +41,7 @@ const DEMO_STAFF_ROLES = [
 ]
 
 // All 55 Launch Features directly from single-source-of-truth registry
-const ALL_LAUNCH_FEATURES = FEATURE_REGISTRY.filter((f) => f.phase === 'launch')
+const ALL_LAUNCH_FEATURES = FEATURE_REGISTRY.filter((f) => f.phase === 'launch' && f.id !== 'inv.alerts')
 
 const AREA_ICONS = {
   Appointments: Calendar,
@@ -181,7 +181,7 @@ export default function StaffPortal({
   const groupedAreas = useMemo(() => {
     const map = {}
     ALL_LAUNCH_FEATURES.forEach((f) => {
-      if (f.id === 'appt.detail') return
+      if (f.id === 'appt.detail' || f.inNav === false || f.id === 'inv.alerts') return
       if (!map[f.area]) map[f.area] = []
       map[f.area].push(f)
     })

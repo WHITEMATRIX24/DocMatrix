@@ -426,7 +426,7 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
     "name": "Low-Stock & Expiry Alerts",
     "description": "Proactive replenishment alerts, expiring batch lots, and doctor consumption shifts",
     "source": "#6",
-    "phase": "launch",
+    "phase": "v2",
     "area": "Inventory",
     "route": "/inventory/alerts",
     "inNav": false
