@@ -14,18 +14,22 @@ describe('ClinicalNotesService', () => {
     id: 'user-doc-1',
     clinicId: mockClinicId,
     email: 'doctor@docmatrix.in',
+    fullName: 'Dr. Arun Kumar',
     name: 'Dr. Arun Kumar',
     role: 'DOCTOR',
     isPlatformAdmin: false,
+    isPrimaryContact: false,
   };
 
   const mockAdminUser: AuthenticatedUser = {
     id: 'user-admin-1',
     clinicId: mockClinicId,
     email: 'admin@docmatrix.in',
+    fullName: 'Manoj Pillai',
     name: 'Manoj Pillai',
     role: 'ORGANIZATION_ADMIN',
     isPlatformAdmin: false,
+    isPrimaryContact: false,
   };
 
   const mockPatient = {

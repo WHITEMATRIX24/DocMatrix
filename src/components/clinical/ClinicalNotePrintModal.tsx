@@ -322,3 +322,4 @@ export const ClinicalNotePrintModal: React.FC<ClinicalNotePrintModalProps> = ({
     </div>
   );
 };
+

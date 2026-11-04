@@ -160,7 +160,7 @@ export class ClinicalNotesService {
           // Section 8: Finalization
           finalizedAt: shouldFinalize ? now : null,
           finalizedById: shouldFinalize ? currentUser.id : null,
-          finalizedByName: shouldFinalize ? currentUser.name : null,
+          finalizedByName: shouldFinalize ? (currentUser.fullName || (currentUser as any).name || 'Attending Doctor') : null,
         },
         include: {
           patient: {
@@ -497,7 +497,7 @@ export class ClinicalNotesService {
         status: 'FINALIZED',
         finalizedAt: new Date(),
         finalizedById: currentUser.id,
-        finalizedByName: currentUser.name,
+        finalizedByName: currentUser.fullName || (currentUser as any).name || 'Attending Doctor',
       },
       include: {
         patient: {
@@ -555,7 +555,7 @@ export class ClinicalNotesService {
         clinicalNoteId: id,
         clinicId,
         authorId: currentUser.id,
-        authorName: currentUser.name,
+        authorName: currentUser.fullName || (currentUser as any).name || 'Attending Doctor',
         content: dto.content.trim(),
       },
     });
