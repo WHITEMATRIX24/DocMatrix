@@ -2,170 +2,331 @@ import React, { useState } from 'react'
 import {
   AlertTriangle,
   Clock,
-  Package,
   TrendingUp,
-  ShieldAlert,
-  ArrowRight,
   CheckCircle2,
-  Filter
+  Search,
+  X
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
 import { useAdaptiveInventory } from '@/services/adaptiveInventoryStore'
 import './adaptiveInventory.css'
 
+type AlertTab = 'all' | 'low' | 'expiry' | 'shift'
+
 export const AlertsPage: React.FC = () => {
   const inventory = useAdaptiveInventory()
-  const [activeFilter, setActiveFilter] = useState<'All' | 'Low Stock' | 'Expiry' | 'Variance'>('All')
+  const [activeTab, setActiveTab] = useState<AlertTab>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('All')
 
-  // 1. Low stock items
-  const lowStockItems = inventory.items.filter((item) => item.totalStock <= item.reorderLevel)
+  // 1. Low stock alerts
+  const lowStockAlerts = inventory.items
+    .filter((item) => item.totalStock <= item.reorderLevel)
+    .map((item) => ({
+      id: `low-${item.id}`,
+      tab: 'low' as const,
+      type: 'Low Stock',
+      pillClass: 'pill-low',
+      Icon: AlertTriangle,
+      title: item.name,
+      category: item.category,
+      details: `${item.totalStock} ${item.unit} remaining`,
+      subDetails: `Reorder threshold: ${item.reorderLevel} ${item.unit}`,
+      context: `SKU: ${item.sku}`,
+      statusText: 'Reorder Needed',
+      statusType: 'danger' as const
+    }))
 
-  // 2. Batches near expiry (e.g. expiring before 2028-01-01)
-  const expiringBatches: { item: typeof inventory.items[0]; batch: typeof inventory.items[0]['activeBatches'][0] }[] = []
+  // 2. Near-expiry batch alerts (FEFO priority)
+  const expiringAlerts: any[] = []
   inventory.items.forEach((item) => {
     item.activeBatches.forEach((batch) => {
       const expYear = parseInt(batch.expiryDate.split('-')[0], 10)
       if (expYear <= 2027) {
-        expiringBatches.push({ item, batch })
-      }
-    })
-  })
-
-  // 3. Clinical usage variances from audit logs
-  const variances: {
-    logId: string
-    doctorName: string
-    procedureName: string
-    item: string
-    diffText: string
-  }[] = []
-
-  inventory.deductionAuditLog.forEach((log) => {
-    log.materials.forEach((m) => {
-      if (m.confirmedQty !== m.suggestedQty) {
-        variances.push({
-          logId: log.id,
-          doctorName: log.doctorName,
-          procedureName: log.procedureName,
-          item: m.name,
-          diffText: `Used ${m.confirmedQty} ${m.unit} (suggested ${m.suggestedQty} ${m.unit})`
+        expiringAlerts.push({
+          id: `exp-${item.id}-${batch.batchNumber}`,
+          tab: 'expiry' as const,
+          type: 'Near Expiry',
+          pillClass: 'pill-exp',
+          Icon: Clock,
+          title: item.name,
+          category: item.category,
+          details: `Batch ${batch.batchNumber} (${batch.quantity} ${item.unit})`,
+          subDetails: `Expires: ${batch.expiryDate}`,
+          context: batch.location || 'Central Dispensary',
+          statusText: 'FEFO Priority',
+          statusType: 'fefo' as const
         })
       }
     })
   })
 
+  // 3. Clinical consumption shift variances
+  const shiftAlerts: any[] = []
+  inventory.deductionAuditLog.forEach((log) => {
+    log.materials.forEach((m) => {
+      if (m.confirmedQty !== m.suggestedQty) {
+        shiftAlerts.push({
+          id: `shift-${log.id}-${m.itemId}`,
+          tab: 'shift' as const,
+          type: 'Consumption Shift',
+          pillClass: 'pill-var',
+          Icon: TrendingUp,
+          title: m.name,
+          category: log.procedureName,
+          details: `Used ${m.confirmedQty} ${m.unit}`,
+          subDetails: `Standard suggested: ${m.suggestedQty} ${m.unit}`,
+          context: `${log.doctorName} · Pt: ${log.patientName}`,
+          statusText: 'Shift Recorded',
+          statusType: 'shift' as const
+        })
+      }
+    })
+  })
+
+  // Combine all alerts
+  const allAlerts = [...lowStockAlerts, ...expiringAlerts, ...shiftAlerts]
+
+  // Clinical departments list
+  const clinicalDepartments = [
+    'All',
+    'PPE & General',
+    'Restorative',
+    'Endodontics',
+    'Anesthetics',
+    'Prosthodontics',
+    'Preventive',
+    'Orthodontics'
+  ]
+
+  // Filter alerts by tab, department, and search query
+  const filteredAlerts = allAlerts.filter((alert) => {
+    if (activeTab !== 'all' && alert.tab !== activeTab) {
+      return false
+    }
+    if (selectedCategory !== 'All' && alert.category !== selectedCategory) {
+      return false
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      return (
+        alert.title.toLowerCase().includes(q) ||
+        alert.details.toLowerCase().includes(q) ||
+        alert.context.toLowerCase().includes(q) ||
+        alert.category.toLowerCase().includes(q)
+      )
+    }
+    return true
+  })
+
   return (
     <section className="clinic-record-page adaptive-inventory-container" data-testid="feature-page-inv.alerts">
-      {/* Header */}
-      <div className="ai-header-card">
-        <div>
-          <span className="clinic-record-eyebrow">CLINICAL INVENTORY INTELLIGENCE</span>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, margin: '2px 0 4px 0', color: 'var(--text-main, #0f172a)' }}>
-            Low-Stock, Expiry & Consumption Variance Alerts
-          </h1>
-          <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '14px' }}>
-            Real-time proactive notifications for material replenishment, lot expiry risk, and doctor consumption shifts.
-          </p>
-        </div>
+      {/* Page Header */}
+      <div style={{ margin: '0 0 16px 0' }}>
+        <h1 className="inv-page-title">
+          Low-Stock & Expiry Alerts
+        </h1>
+        <p className="inv-page-subtitle">
+          Proactive monitoring for material replenishment, lot expiry risk, and doctor consumption shifts.
+        </p>
+      </div>
 
-        <Link
-          to="/inventory/items"
-          className="pat-btn pat-btn-primary"
-          style={{ padding: '8px 16px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+      {/* Navigation Tabs */}
+      <div className="ai-tabs">
+        <button
+          type="button"
+          className={`ai-tab ${activeTab === 'all' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('all')}
         >
-          <span>Open Adaptive Inventory</span>
-          <ArrowRight size={14} />
-        </Link>
+          All Alerts
+        </button>
+        <button
+          type="button"
+          className={`ai-tab ${activeTab === 'low' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('low')}
+        >
+          Low Stock
+        </button>
+        <button
+          type="button"
+          className={`ai-tab ${activeTab === 'expiry' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('expiry')}
+        >
+          Expiring Lots
+        </button>
+        <button
+          type="button"
+          className={`ai-tab ${activeTab === 'shift' ? 'is-active' : ''}`}
+          onClick={() => setActiveTab('shift')}
+        >
+          Consumption Shifts
+        </button>
       </div>
 
-      {/* Alert Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
-        <div style={{ background: 'var(--surface, #ffffff)', border: '1px solid var(--line, #e2e8f0)', borderRadius: '12px', padding: '18px 20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#d97706', textTransform: 'uppercase' }}>Low-Stock Items</span>
-            <AlertTriangle size={18} style={{ color: '#d97706' }} />
+      {/* Unified Table Card */}
+      <div className="unified-inventory-card">
+        {/* Unified Card Header Toolbar */}
+        <div className="unified-table-toolbar">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '280px', flexWrap: 'wrap' }}>
+            <div className="unified-search-wrap">
+              <Search size={15} style={{ position: 'absolute', left: '12px', color: 'var(--text-faint, #94a3b8)', pointerEvents: 'none' }} />
+              <input
+                className="unified-search-input"
+                placeholder="Search alert, item, batch, doctor..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ paddingRight: searchQuery ? '32px' : '14px' }}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    color: 'var(--text-muted, #94a3b8)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  title="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="unified-select"
+            >
+              {clinicalDepartments.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept === 'All' ? 'All Departments' : dept}
+                </option>
+              ))}
+            </select>
           </div>
-          <div style={{ fontSize: '28px', fontWeight: 800, margin: '8px 0 2px 0' }}>{lowStockItems.length}</div>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>Below defined clinical reorder threshold</div>
         </div>
 
-        <div style={{ background: 'var(--surface, #ffffff)', border: '1px solid var(--line, #e2e8f0)', borderRadius: '12px', padding: '18px 20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: '#2563eb', textTransform: 'uppercase' }}>Expiring Lots (2027)</span>
-            <Clock size={18} style={{ color: '#2563eb' }} />
-          </div>
-          <div style={{ fontSize: '28px', fontWeight: 800, margin: '8px 0 2px 0' }}>{expiringBatches.length}</div>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>Batches to prioritize in first-expire first-out</div>
-        </div>
+        {/* Alerts Table */}
+        {filteredAlerts.length > 0 ? (
+          <div className="inv-sheet-container" style={{ border: 'none', borderRadius: 0, boxShadow: 'none' }}>
+            <table className="inv-sheet-table" style={{ width: '100%', minWidth: '960px' }}>
+              <thead>
+                <tr>
+                  <th style={{ width: '15%' }}>Alert Type</th>
+                  <th style={{ width: '25%' }}>Item & Department</th>
+                  <th style={{ width: '32%' }}>Details & Threshold</th>
+                  <th style={{ width: '16%' }}>Context / Doctor</th>
+                  <th style={{ width: '12%', textAlign: 'right', paddingRight: '22px' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAlerts.map((alert) => {
+                  const { Icon } = alert
+                  return (
+                    <tr key={alert.id} className="inv-sheet-row">
+                      {/* Alert Type */}
+                      <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
+                        <span className={`alert-pill ${alert.pillClass}`}>
+                          <Icon size={12} />
+                          {alert.type}
+                        </span>
+                      </td>
 
-        <div style={{ background: 'var(--surface, #ffffff)', border: '1px solid var(--line, #e2e8f0)', borderRadius: '12px', padding: '18px 20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--teal-primary, #0b8185)', textTransform: 'uppercase' }}>Consumption Shifts</span>
-            <TrendingUp size={18} style={{ color: 'var(--teal-primary, #0b8185)' }} />
-          </div>
-          <div style={{ fontSize: '28px', fontWeight: 800, margin: '8px 0 2px 0' }}>{variances.length}</div>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>Adaptive overrides learned from confirmed procedures</div>
-        </div>
-      </div>
+                      {/* Item & Department */}
+                      <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
+                        <div className="alert-item-title">
+                          {alert.title}
+                        </div>
+                        <div className="alert-item-meta">
+                          {alert.category}
+                        </div>
+                      </td>
 
-      {/* Low Stock Items List */}
-      <div style={{ background: 'var(--surface, #ffffff)', borderRadius: '12px', border: '1px solid var(--line, #e2e8f0)', padding: '20px' }}>
-        <h3 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: 700 }}>
-          Low Stock Attention List
-        </h3>
-        {lowStockItems.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {lowStockItems.map((item) => (
-              <div
-                key={item.id}
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderRadius: '8px', background: 'var(--surface-sunken, #f8fafc)', border: '1px solid var(--line, #e2e8f0)' }}
-              >
-                <div>
-                  <strong style={{ color: 'var(--text-main, #0f172a)' }}>{item.name}</strong>
-                  <div style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>
-                    Category: {item.category} &bull; SKU: {item.sku}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span className="ai-pill ai-pill-lowstock">
-                    {item.totalStock} {item.unit} remaining
-                  </span>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>
-                    Reorder point: {item.reorderLevel} {item.unit}
-                  </div>
-                </div>
-              </div>
-            ))}
+                      {/* Details & Threshold */}
+                      <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
+                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-strong, #0f172a)' }}>
+                          {alert.details}
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>
+                          {alert.subDetails}
+                        </div>
+                      </td>
+
+                      {/* Context / Doctor */}
+                      <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
+                        <span style={{ fontSize: '12.5px', color: 'var(--text, #334155)', fontWeight: 500 }}>
+                          {alert.context}
+                        </span>
+                      </td>
+
+                      {/* Status */}
+                      <td style={{ verticalAlign: 'top', paddingTop: '16px', textAlign: 'right', paddingRight: '22px' }}>
+                        {alert.statusType === 'fefo' && (
+                          <span className="fefo-pill">
+                            {alert.statusText}
+                          </span>
+                        )}
+                        {alert.statusType === 'danger' && (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            padding: '3px 9px',
+                            borderRadius: '9999px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            background: 'rgba(220, 38, 38, 0.12)',
+                            color: 'var(--tone-red, #dc2626)',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {alert.statusText}
+                          </span>
+                        )}
+                        {alert.statusType === 'shift' && (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            padding: '3px 9px',
+                            borderRadius: '9999px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            background: 'rgba(44, 189, 183, 0.12)',
+                            color: 'var(--teal-primary, #008891)',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {alert.statusText}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#059669', fontSize: '13.5px' }}>
-            <CheckCircle2 size={16} /> All dental materials are currently above reorder levels.
+          <div className="audit-empty-box">
+            <div className="audit-empty-icon-wrap">
+              <CheckCircle2 size={24} style={{ color: 'var(--tone-green, #059669)' }} />
+            </div>
+            <h3 className="audit-empty-title">
+              {activeTab === 'low'
+                ? 'All materials are above reorder levels'
+                : 'No alerts matching criteria'}
+            </h3>
+            <p className="audit-empty-desc">
+              {activeTab === 'low'
+                ? 'All clinical inventory items currently maintain safe stock buffer levels.'
+                : 'No active stock alerts match your selected filter or search keyword.'}
+            </p>
           </div>
         )}
-      </div>
-
-      {/* Consumption Variance Shifts */}
-      <div style={{ background: 'var(--surface, #ffffff)', borderRadius: '12px', border: '1px solid var(--line, #e2e8f0)', padding: '20px' }}>
-        <h3 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: 700 }}>
-          Adaptive Consumption Insights & Learning Signals
-        </h3>
-        <p style={{ margin: '0 0 14px 0', fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
-          Whenever a clinician modifies suggested quantities and confirms usage, the adaptive algorithm records the signal to refine future suggestions.
-        </p>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {variances.map((v, idx) => (
-            <div
-              key={idx}
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: '8px', background: 'var(--surface-sunken, #f8fafc)', border: '1px solid var(--line, #e2e8f0)', fontSize: '13px' }}
-            >
-              <div>
-                <strong>{v.doctorName}</strong> in <em>{v.procedureName}</em> &bull; {v.item}
-              </div>
-              <span className="ai-pill ai-pill-adaptive">{v.diffText}</span>
-            </div>
-          ))}
-        </div>
       </div>
     </section>
   )
