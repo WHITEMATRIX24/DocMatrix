@@ -196,10 +196,7 @@ export function AreaPage({ areaKey }) {
           marginBottom: '24px',
           boxShadow: '0 2px 12px rgba(0, 0, 0, 0.02)'
         }}>
-          <div style={{ fontSize: '11px', fontWeight: '800', color: 'var(--teal-primary, #008891)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>
-            Clinical Practice Area
-          </div>
-          <h1 style={{ fontSize: '23px', fontWeight: '850', color: 'var(--charcoal-title, #1a2626)', margin: 0, letterSpacing: '-0.02em' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: '850', color: 'var(--charcoal-title, #1a2626)', margin: 0, letterSpacing: '-0.02em' }}>
             {meta.title}
           </h1>
 

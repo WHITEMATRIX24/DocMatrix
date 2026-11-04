@@ -75,125 +75,26 @@ export const ItemsPage: React.FC = () => {
   const initialTab = useMemo(() => {
     const params = new URLSearchParams(location.search)
     const t = params.get('tab')
-    if (t === 'alerts') return 'alerts'
     if (t === 'consumption') return 'consumption'
     return 'stock'
   }, [location.search])
 
-  const [activeTab, setActiveTab] = useState<'consumption' | 'stock' | 'alerts'>(initialTab)
+  const [activeTab, setActiveTab] = useState<'consumption' | 'stock'>(initialTab)
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const t = params.get('tab')
-    if (t === 'alerts') setActiveTab('alerts')
-    else if (t === 'consumption') setActiveTab('consumption')
-    else if (t === 'stock') setActiveTab('stock')
+    if (t === 'consumption') {
+      setActiveTab('consumption')
+    } else {
+      setActiveTab('stock')
+      if (t === 'alerts') {
+        setStatusQuickFilter('low')
+      }
+    }
   }, [location.search])
 
-  // Low-Stock & Expiry Alerts State & Computations
-  type AlertTab = 'all' | 'low' | 'expiry' | 'shift'
-  const [alertTab, setAlertTab] = useState<AlertTab>('all')
-  const [alertSearch, setAlertSearch] = useState('')
-  const [alertDepartment, setAlertDepartment] = useState('All')
-
-  const lowStockAlerts = useMemo(() => {
-    return inventory.items
-      .filter((item) => item.totalStock <= item.reorderLevel)
-      .map((item) => ({
-        id: `low-${item.id}`,
-        tab: 'low' as const,
-        type: 'Low Stock',
-        pillClass: 'pill-low',
-        Icon: AlertTriangle,
-        title: item.name,
-        category: item.category,
-        primaryValue: `${item.totalStock} ${item.unit}`,
-        badge: 'Below Buffer',
-        secondaryValue: `Reorder threshold: ${item.reorderLevel} ${item.unit}`,
-        contextPrimary: 'Reorder Queue',
-        contextSecondary: `SKU: ${item.sku}`,
-        statusText: 'Reorder Needed',
-        statusType: 'danger' as const
-      }))
-  }, [inventory.items])
-
-  const expiringAlerts = useMemo(() => {
-    const list: any[] = []
-    inventory.items.forEach((item) => {
-      item.activeBatches.forEach((batch) => {
-        const expYear = parseInt(batch.expiryDate.split('-')[0], 10)
-        if (expYear <= 2027) {
-          list.push({
-            id: `exp-${item.id}-${batch.batchNumber}`,
-            tab: 'expiry' as const,
-            type: 'Near Expiry',
-            pillClass: 'pill-exp',
-            Icon: Clock,
-            title: item.name,
-            category: item.category,
-            primaryValue: `${batch.quantity} ${item.unit}`,
-            badge: `Lot: ${batch.batchNumber}`,
-            secondaryValue: `Expires: ${batch.expiryDate}`,
-            contextPrimary: batch.location || 'Central Dispensary',
-            contextSecondary: `SKU: ${item.sku}`,
-            statusText: 'FEFO Priority',
-            statusType: 'fefo' as const
-          })
-        }
-      })
-    })
-    return list
-  }, [inventory.items])
-
-  const shiftAlerts = useMemo(() => {
-    const list: any[] = []
-    inventory.deductionAuditLog.forEach((log) => {
-      log.materials.forEach((m) => {
-        if (m.confirmedQty !== m.suggestedQty) {
-          const diff = m.confirmedQty - m.suggestedQty
-          const sign = diff > 0 ? `+${diff}` : `${diff}`
-          list.push({
-            id: `shift-${log.id}-${m.itemId}`,
-            tab: 'shift' as const,
-            type: 'Consumption Shift',
-            pillClass: 'pill-var',
-            Icon: TrendingUp,
-            title: m.name,
-            category: log.procedureName,
-            primaryValue: `Used ${m.confirmedQty} ${m.unit}`,
-            badge: `${sign} ${m.unit} shift`,
-            secondaryValue: `Standard baseline: ${m.suggestedQty} ${m.unit}`,
-            contextPrimary: log.doctorName,
-            contextSecondary: `Patient: ${log.patientName}`,
-            statusText: 'Shift Recorded',
-            statusType: 'shift' as const
-          })
-        }
-      })
-    })
-    return list
-  }, [inventory.deductionAuditLog])
-
-  const allAlerts = useMemo(() => [...lowStockAlerts, ...expiringAlerts, ...shiftAlerts], [lowStockAlerts, expiringAlerts, shiftAlerts])
-
-  const filteredAlerts = useMemo(() => {
-    return allAlerts.filter((alert) => {
-      if (alertTab !== 'all' && alert.tab !== alertTab) return false
-      if (alertDepartment !== 'All' && alert.category !== alertDepartment) return false
-      if (alertSearch.trim()) {
-        const q = alertSearch.toLowerCase().trim()
-        return (
-          alert.title.toLowerCase().includes(q) ||
-          alert.primaryValue.toLowerCase().includes(q) ||
-          alert.secondaryValue.toLowerCase().includes(q) ||
-          alert.contextPrimary.toLowerCase().includes(q) ||
-          (alert.contextSecondary && alert.contextSecondary.toLowerCase().includes(q)) ||
-          alert.category.toLowerCase().includes(q)
-        )
-      }
-      return true
-    })
-  }, [allAlerts, alertTab, alertDepartment, alertSearch])
+  
 
   // Selected doctor & procedure for the interactive simulator / consumption engine
   const [selectedDoctorId, setSelectedDoctorId] = useState('doc-2') // Default to Dr. Priya Nair (Doctor B)
@@ -538,18 +439,94 @@ export const ItemsPage: React.FC = () => {
         >
           Stock Levels & Batches
         </button>
-        <button
-          type="button"
-          className={`ai-tab ${activeTab === 'alerts' ? 'is-active' : ''}`}
-          onClick={() => setActiveTab('alerts')}
-        >
-          Low-Stock & Expiry Alerts {allAlerts.length > 0 && <span style={{ marginLeft: '6px', fontSize: '11px', background: 'rgba(220, 38, 38, 0.12)', color: 'var(--tone-red, #dc2626)', padding: '1px 7px', borderRadius: '999px', fontWeight: 700 }}>{allAlerts.length}</span>}
-        </button>
       </div>
 
       {/* TAB 1: STOCK LEVELS & BATCHES (SIMPLE, CLEAN & UNIFIED) */}
       {activeTab === 'stock' && (
         <div className="unified-inventory-card">
+          {/* Low Stock & Expiry Integrated Alert Banner */}
+          {(lowStockCount > 0 || nearExpiryCount > 0) && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 16px',
+              background: 'rgba(234, 88, 12, 0.06)',
+              border: '1px solid rgba(234, 88, 12, 0.2)',
+              borderRadius: '10px',
+              marginBottom: '14px',
+              fontSize: '12.5px',
+              color: 'var(--charcoal-dark, #1e293b)',
+              flexWrap: 'wrap',
+              gap: '10px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangle size={15} style={{ color: '#ea580c', flexShrink: 0 }} />
+                <span>
+                  <strong>Stock & Expiry Alerts:</strong>{' '}
+                  {lowStockCount > 0 && <span>{lowStockCount} {lowStockCount === 1 ? 'item' : 'items'} below reorder threshold</span>}
+                  {lowStockCount > 0 && nearExpiryCount > 0 && <span> &bull; </span>}
+                  {nearExpiryCount > 0 && <span>{nearExpiryCount} {nearExpiryCount === 1 ? 'batch' : 'batches'} near expiry (2027)</span>}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {lowStockCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setStatusQuickFilter(statusQuickFilter === 'low' ? 'all' : 'low')}
+                    style={{
+                      padding: '3px 9px',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(220, 38, 38, 0.25)',
+                      background: statusQuickFilter === 'low' ? '#dc2626' : 'rgba(220, 38, 38, 0.08)',
+                      color: statusQuickFilter === 'low' ? '#ffffff' : '#dc2626',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {statusQuickFilter === 'low' ? 'Showing Low Stock' : 'Filter Low Stock'}
+                  </button>
+                )}
+                {nearExpiryCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setStatusQuickFilter(statusQuickFilter === 'expiring' ? 'all' : 'expiring')}
+                    style={{
+                      padding: '3px 9px',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(217, 119, 6, 0.25)',
+                      background: statusQuickFilter === 'expiring' ? '#d97706' : 'rgba(217, 119, 6, 0.08)',
+                      color: statusQuickFilter === 'expiring' ? '#ffffff' : '#d97706',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {statusQuickFilter === 'expiring' ? 'Showing Expiring' : 'Filter Expiring'}
+                  </button>
+                )}
+                {statusQuickFilter !== 'all' && (
+                  <button
+                    type="button"
+                    onClick={() => setStatusQuickFilter('all')}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--line, #e2e8f0)',
+                      background: 'var(--surface, #ffffff)',
+                      color: 'var(--text-muted, #64748b)',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Show All
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
           {/* Unified Card Header Toolbar */}
           <div className="unified-table-toolbar">
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: '280px', flexWrap: 'wrap' }}>
@@ -651,17 +628,22 @@ export const ItemsPage: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Active Batches - Simple & Streamlined */}
+                      {/* Active Batches - Simple & Streamlined with Expiry Alert highlight */}
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                          {sortedBatches.slice(0, 2).map((b) => (
-                            <div key={b.batchNumber} style={{ fontSize: '11.5px', color: 'var(--text, #334155)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                              <span style={{ fontWeight: 600, fontFamily: 'monospace', color: 'var(--text-strong, #0f172a)' }}>{b.batchNumber}</span>
-                              <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '11px' }}>({b.quantity} {stock.unit})</span>
-                              <span style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '10px' }}>&bull;</span>
-                              <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '11px' }}>Exp {b.expiryDate}</span>
-                            </div>
-                          ))}
+                          {sortedBatches.slice(0, 2).map((b) => {
+                            const isExpiring = parseInt(b.expiryDate.split('-')[0], 10) <= 2027
+                            return (
+                              <div key={b.batchNumber} style={{ fontSize: '11.5px', color: 'var(--text, #334155)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <span style={{ fontWeight: 600, fontFamily: 'monospace', color: 'var(--text-strong, #0f172a)' }}>{b.batchNumber}</span>
+                                <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '11px' }}>({b.quantity} {stock.unit})</span>
+                                <span style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '10px' }}>&bull;</span>
+                                <span style={{ color: isExpiring ? '#d97706' : 'var(--text-muted, #64748b)', fontWeight: isExpiring ? 600 : 400, fontSize: '11px' }}>
+                                  Exp {b.expiryDate} {isExpiring && '(Expiring)'}
+                                </span>
+                              </div>
+                            )
+                          })}
                         </div>
                       </td>
 
@@ -719,222 +701,6 @@ export const ItemsPage: React.FC = () => {
               </tbody>
             </table>
           </div>
-        </div>
-      )}
-
-
-      {/* TAB 3: LOW-STOCK & EXPIRY ALERTS */}
-      {activeTab === 'alerts' && (
-        <div className="unified-inventory-card">
-          {/* Sub-Filters & Search Toolbar */}
-          <div className="unified-table-toolbar">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '280px', flexWrap: 'wrap' }}>
-              {/* Alert Category Sub-tabs */}
-              <div style={{ display: 'inline-flex', padding: '3px', background: 'var(--paper, #f1f5f9)', borderRadius: '10px', gap: '3px' }}>
-                <button
-                  type="button"
-                  onClick={() => setAlertTab('all')}
-                  style={{
-                    padding: '4px 11px',
-                    borderRadius: '7px',
-                    border: 'none',
-                    fontSize: '11.5px',
-                    fontWeight: alertTab === 'all' ? 700 : 500,
-                    background: alertTab === 'all' ? 'var(--surface, #ffffff)' : 'transparent',
-                    color: alertTab === 'all' ? 'var(--teal-primary, #008891)' : 'var(--text-muted, #64748b)',
-                    boxShadow: alertTab === 'all' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  All ({allAlerts.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAlertTab('low')}
-                  style={{
-                    padding: '4px 11px',
-                    borderRadius: '7px',
-                    border: 'none',
-                    fontSize: '11.5px',
-                    fontWeight: alertTab === 'low' ? 700 : 500,
-                    background: alertTab === 'low' ? 'var(--surface, #ffffff)' : 'transparent',
-                    color: alertTab === 'low' ? 'var(--tone-red, #dc2626)' : 'var(--text-muted, #64748b)',
-                    boxShadow: alertTab === 'low' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Low Stock ({lowStockAlerts.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAlertTab('expiry')}
-                  style={{
-                    padding: '4px 11px',
-                    borderRadius: '7px',
-                    border: 'none',
-                    fontSize: '11.5px',
-                    fontWeight: alertTab === 'expiry' ? 700 : 500,
-                    background: alertTab === 'expiry' ? 'var(--surface, #ffffff)' : 'transparent',
-                    color: alertTab === 'expiry' ? '#2563eb' : 'var(--text-muted, #64748b)',
-                    boxShadow: alertTab === 'expiry' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Expiring Lots ({expiringAlerts.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAlertTab('shift')}
-                  style={{
-                    padding: '4px 11px',
-                    borderRadius: '7px',
-                    border: 'none',
-                    fontSize: '11.5px',
-                    fontWeight: alertTab === 'shift' ? 700 : 500,
-                    background: alertTab === 'shift' ? 'var(--surface, #ffffff)' : 'transparent',
-                    color: alertTab === 'shift' ? '#7c3aed' : 'var(--text-muted, #64748b)',
-                    boxShadow: alertTab === 'shift' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Consumption Shifts ({shiftAlerts.length})
-                </button>
-              </div>
-
-              {/* Department Dropdown */}
-              <select
-                value={alertDepartment}
-                onChange={(e) => setAlertDepartment(e.target.value)}
-                className="unified-select"
-              >
-                {clinicalDepartments.map((dept) => (
-                  <option key={dept.id} value={dept.id}>
-                    {dept.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Search Box */}
-            <div className="unified-search-wrap">
-              <Search size={15} style={{ position: 'absolute', left: '12px', color: '#94a3b8', pointerEvents: 'none' }} />
-              <input
-                className="unified-search-input"
-                placeholder="Search alerts..."
-                value={alertSearch}
-                onChange={(e) => setAlertSearch(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Alerts Table */}
-          {filteredAlerts.length > 0 ? (
-            <div style={{ overflowX: 'auto', width: '100%' }}>
-              <table className="inv-sheet-table" style={{ width: '100%', minWidth: '700px' }}>
-                <thead>
-                  <tr>
-                    <th style={{ width: '16%' }}>Alert Type</th>
-                    <th style={{ width: '26%' }}>Item</th>
-                    <th style={{ width: '30%' }}>Condition & Details</th>
-                    <th style={{ width: '16%' }}>Context / Source</th>
-                    <th style={{ width: '12%', textAlign: 'right', paddingRight: '20px' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAlerts.map((alert: any) => {
-                    const { Icon } = alert
-                    return (
-                      <tr key={alert.id} className="inv-sheet-row">
-                        {/* Alert Type */}
-                        <td>
-                          <span className={`alert-pill ${alert.pillClass}`}>
-                            <Icon size={12} />
-                            {alert.type}
-                          </span>
-                        </td>
-
-                        {/* Item */}
-                        <td>
-                          <div className="alert-item-title">
-                            {alert.title}
-                          </div>
-                          <div className="alert-item-meta">
-                            {alert.category}
-                          </div>
-                        </td>
-
-                        {/* Condition & Details */}
-                        <td>
-                          <div style={{ display: 'grid', gridTemplateColumns: '110px auto', alignItems: 'center', gap: '8px', width: 'fit-content' }}>
-                            <span className={alert.tab === 'low' ? 'alert-metric-low' : 'alert-metric-teal'}>
-                              {alert.primaryValue}
-                            </span>
-                            {alert.badge && (
-                              <span className="alert-lot-badge">
-                                {alert.badge}
-                              </span>
-                            )}
-                          </div>
-                          <div className="alert-secondary-text">
-                            {alert.secondaryValue}
-                          </div>
-                        </td>
-
-                        {/* Context / Source */}
-                        <td>
-                          <div className="alert-context-primary">
-                            {alert.contextPrimary}
-                          </div>
-                          {alert.contextSecondary && (
-                            <div className="alert-context-secondary">
-                              {alert.contextSecondary}
-                            </div>
-                          )}
-                        </td>
-
-                        {/* Status */}
-                        <td style={{ textAlign: 'right', paddingRight: '20px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-                            {alert.statusType === 'fefo' && (
-                              <span className="fefo-pill">
-                                {alert.statusText}
-                              </span>
-                            )}
-                            {alert.statusType === 'danger' && (
-                              <span className="alert-status-danger">
-                                {alert.statusText}
-                              </span>
-                            )}
-                            {alert.statusType === 'shift' && (
-                              <span className="alert-status-shift">
-                                {alert.statusText}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="audit-empty-box">
-              <div className="audit-empty-icon-wrap">
-                <CheckCircle2 size={24} style={{ color: 'var(--tone-green, #059669)' }} />
-              </div>
-              <h3 className="audit-empty-title">
-                {alertTab === 'low'
-                  ? 'All materials are above reorder levels'
-                  : 'No alerts matching criteria'}
-              </h3>
-              <p className="audit-empty-desc">
-                {alertTab === 'low'
-                  ? 'All clinical inventory items currently maintain safe stock buffer levels.'
-                  : 'No active stock alerts match your selected filter or search keyword.'}
-              </p>
-            </div>
-          )}
         </div>
       )}
 
