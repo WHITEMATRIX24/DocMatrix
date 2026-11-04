@@ -360,6 +360,13 @@ export const LAUNCH_PAGE_MAP: PageMeta[] = [
     importFn: () => import('@/pages/settings/StaffManagementPage'),
   },
   {
+    id: 'set.clinical-config',
+    area: 'settings',
+    filename: 'ClinicalConfigPage.tsx',
+    componentName: 'ClinicalConfigPage',
+    importFn: () => import('@/pages/settings/ClinicalConfigPage'),
+  },
+  {
     id: 'set.security',
     area: 'settings',
     filename: 'SecurityPage.tsx',

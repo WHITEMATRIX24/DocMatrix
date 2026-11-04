@@ -170,36 +170,6 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
     "inNav": true
   },
   {
-    "id": "clin.masterlists",
-    "name": "Master lists",
-    "description": "Master lists: complaints, findings, diagnoses, medicines, advice",
-    "source": "Part 1",
-    "phase": "launch",
-    "area": "Clinical",
-    "route": "/clinical/master-lists",
-    "inNav": true
-  },
-  {
-    "id": "clin.notes",
-    "name": "Structured clinical notes",
-    "description": "Structured clinical notes",
-    "source": "Part 1",
-    "phase": "launch",
-    "area": "Clinical",
-    "route": "/clinical/notes",
-    "inNav": true
-  },
-  {
-    "id": "clin.orders",
-    "name": "Pathology & X-ray orders",
-    "description": "Pathology and X-ray orders",
-    "source": "Part 1",
-    "phase": "launch",
-    "area": "Clinical",
-    "route": "/clinical/orders",
-    "inNav": true
-  },
-  {
     "id": "clin.plans",
     "name": "Treatment plans",
     "description": "Treatment plans tracked to completion",
@@ -210,14 +180,34 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
     "inNav": true
   },
   {
+    "id": "clin.notes",
+    "name": "Clinical notes",
+    "description": "Structured clinical notes",
+    "source": "Part 1",
+    "phase": "launch",
+    "area": "Clinical",
+    "route": "/clinical/notes",
+    "inNav": true
+  },
+  {
+    "id": "clin.orders",
+    "name": "Pathology & X-ray orders",
+    "description": "Pathology and X-ray orders accessible via Patient Profile",
+    "source": "Part 1",
+    "phase": "launch",
+    "area": "Clinical",
+    "route": "/clinical/orders",
+    "inNav": false
+  },
+  {
     "id": "clin.estimates",
     "name": "Treatment cost estimate",
-    "description": "Treatment cost estimate the patient approves",
+    "description": "Treatment cost estimate integrated with treatment plans",
     "source": "#2",
     "phase": "launch",
     "area": "Clinical",
     "route": "/clinical/estimates",
-    "inNav": true
+    "inNav": false
   },
   {
     "id": "bill.invoices",
@@ -563,6 +553,20 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
     "phase": "launch",
     "area": "Settings",
     "route": "/settings/staff",
+    "inNav": true,
+    "roles": [
+      "ORGANIZATION_ADMIN",
+      "BRANCH_ADMIN"
+    ]
+  },
+  {
+    "id": "set.clinical-config",
+    "name": "Clinical configuration",
+    "description": "Clinical master lists: complaints, findings, diagnoses, medicines, advice",
+    "source": "Part 1",
+    "phase": "launch",
+    "area": "Settings",
+    "route": "/settings/clinical-config",
     "inNav": true,
     "roles": [
       "ORGANIZATION_ADMIN",

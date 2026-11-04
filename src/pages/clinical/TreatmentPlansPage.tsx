@@ -86,7 +86,7 @@ export const TreatmentPlansPage: React.FC = () => {
   return (
     <section className="clinic-record-page pat-profile-page" data-testid="feature-page-clin.plans">
       {/* Header */}
-      <header className="clinic-record-header" style={{ marginBottom: '4px' }}>
+      <header className="clinic-record-header" style={{ marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <span className="clinic-record-eyebrow">CLINICAL WORKFLOW</span>
           <h1 style={{ fontSize: '24px', fontWeight: 700, margin: '2px 0 4px 0' }}>Treatment Plans</h1>
@@ -94,6 +94,24 @@ export const TreatmentPlansPage: React.FC = () => {
             Comprehensive dental care plans, proposed procedures, and stage-by-stage clinical tracking.
           </p>
         </div>
+        <Link
+          to="/clinical/estimates"
+          style={{
+            fontSize: '12.5px',
+            color: 'var(--teal-primary, #008891)',
+            fontWeight: 600,
+            textDecoration: 'none',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '6px 12px',
+            borderRadius: '6px',
+            border: '1px solid var(--line, #e2e8f0)',
+            background: 'var(--surface, #ffffff)'
+          }}
+        >
+          Cost Estimates →
+        </Link>
       </header>
 
       {/* Filter Tabs */}

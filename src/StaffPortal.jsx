@@ -191,6 +191,17 @@ export default function StaffPortal({
       map['Patients'] = map['Patients'].filter((f) => f.id === 'pat.list')
     }
 
+    // Clinical module: exactly these three entries in this order:
+    // 1. Digital Prescriptions
+    // 2. Treatment Plans
+    // 3. Clinical Notes
+    if (map['Clinical']) {
+      const clinicalOrder = ['clin.prescriptions', 'clin.plans', 'clin.notes']
+      map['Clinical'] = clinicalOrder
+        .map((id) => map['Clinical'].find((feat) => feat.id === id))
+        .filter(Boolean)
+    }
+
     if (map['Appointments']) {
       const hasCalendar = map['Appointments'].some((f) => f.id === 'appt.calendar')
       if (!hasCalendar) {

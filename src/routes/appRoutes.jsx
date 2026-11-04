@@ -122,6 +122,30 @@ export function AppRoutes({
           }
         />
         <Route
+          path="/patients/:id/x-rays"
+          element={
+            <ProtectedRoute currentUser={currentUser}>
+              <Suspense fallback={<PageFallback />}>
+                {React.createElement(lazyComponents['pat.profile'])}
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/patients/:id/documents"
+          element={
+            <ProtectedRoute currentUser={currentUser}>
+              <Suspense fallback={<PageFallback />}>
+                {React.createElement(lazyComponents['pat.profile'])}
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/clinical/master-lists"
+          element={<Navigate to="/settings/clinical-config" replace />}
+        />
+        <Route
           path="/clinical"
           element={<AreaPage areaKey="clinical" />}
         />

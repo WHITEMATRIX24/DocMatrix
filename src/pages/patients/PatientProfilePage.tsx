@@ -155,12 +155,13 @@ export const PatientProfilePage: React.FC = () => {
 
   // Resolve active tab based on pathname deep link (e.g. /patients/:id/timeline) or query param ?tab=...
   const activeTab: TabKey = useMemo(() => {
-    const queryTab = searchParams.get('tab') as TabKey
-    if (queryTab && TAB_KEYS.includes(queryTab)) return queryTab
+    const rawQuery = searchParams.get('tab')?.toLowerCase()
+    if (rawQuery && TAB_KEYS.includes(rawQuery as TabKey)) return rawQuery as TabKey
+    if (rawQuery === 'x-rays' || rawQuery === 'xrays' || rawQuery === 'radiographs') return 'documents'
 
     const path = location.pathname.toLowerCase()
     if (path.endsWith('/timeline')) return 'timeline'
-    if (path.endsWith('/documents')) return 'documents'
+    if (path.endsWith('/documents') || path.endsWith('/x-rays') || path.endsWith('/xrays')) return 'documents'
     if (path.endsWith('/consents')) return 'consents'
     if (path.endsWith('/prescriptions')) return 'prescriptions'
     if (path.endsWith('/billing')) return 'billing'
@@ -749,7 +750,7 @@ export const PatientProfilePage: React.FC = () => {
           onClick={() => setTab('documents')}
         >
           <FileText size={15} />
-          <span>Documents</span>
+          <span>X-rays & Documents</span>
           {patientDocs.length > 0 && (
             <span className="pat-tab-badge">{patientDocs.length}</span>
           )}
