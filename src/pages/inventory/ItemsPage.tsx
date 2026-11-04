@@ -56,6 +56,12 @@ import {
   type InventoryCategory
 } from '@/services/adaptiveInventoryStore'
 import { apiClient } from '@/services/apiClient'
+import {
+  getClinicStaffDoctors,
+  fetchAndSyncClinicStaff,
+  subscribeStaff,
+  addClinicDoctor
+} from '@/services/clinicStaffStore'
 import { TreatmentMaterialUsageModal } from '@/components/inventory/TreatmentMaterialUsageModal'
 import './adaptiveInventory.css'
 
@@ -172,41 +178,46 @@ export const ItemsPage: React.FC = () => {
   // Full-screen Modal state
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Real clinic staff / doctors loaded from API
+  // Real clinic staff / doctors loaded from clinicStaffStore & API
   const [clinicStaffDoctors, setClinicStaffDoctors] = useState<{ id: string; name: string; label: string }[]>([])
+  const [showAddDoctorModal, setShowAddDoctorModal] = useState(false)
+  const [newDoctorName, setNewDoctorName] = useState('')
+  const [isAddingDoctor, setIsAddingDoctor] = useState(false)
 
   useEffect(() => {
-    apiClient
-      .get<any[]>('/clinics/my-clinic/staff')
-      .then((res) => {
-        if (Array.isArray(res) && res.length > 0) {
-          const docs = res.map((s) => ({
-            id: s.id,
-            name: s.fullName || s.name || 'Practitioner',
-            label: `${s.fullName || s.name || 'Practitioner'}${s.role ? ` (${s.role})` : ''}`
-          }))
-          setClinicStaffDoctors(docs)
-          if (docs[0]) setSelectedDoctorId(docs[0].id)
-        }
-      })
-      .catch(() => {
-        try {
-          const cached = localStorage.getItem('docmatrix_clinic_staff')
-          if (cached) {
-            const parsed = JSON.parse(cached)
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              const docs = parsed.map((s: any) => ({
-                id: s.id,
-                name: s.fullName || s.name || 'Practitioner',
-                label: `${s.fullName || s.name || 'Practitioner'}${s.role ? ` (${s.role})` : ''}`
-              }))
-              setClinicStaffDoctors(docs)
-              if (docs[0]) setSelectedDoctorId(docs[0].id)
-            }
-          }
-        } catch {}
-      })
+    const updateDocs = () => {
+      const staff = getClinicStaffDoctors()
+      if (staff.length > 0) {
+        const mapped = staff.map((s) => ({
+          id: s.id,
+          name: s.name,
+          label: `${s.name}${s.role ? ` (${s.role})` : ''}`
+        }))
+        setClinicStaffDoctors(mapped)
+        setSelectedDoctorId((curr) => (mapped.some((m) => m.id === curr) ? curr : mapped[0].id))
+      }
+    }
+
+    updateDocs()
+    fetchAndSyncClinicStaff().then(updateDocs)
+    const unsub = subscribeStaff(updateDocs)
+    return () => unsub()
   }, [])
+
+  const handleCreateDoctor = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newDoctorName.trim()) return
+
+    try {
+      setIsAddingDoctor(true)
+      const created = await addClinicDoctor(newDoctorName.trim())
+      setSelectedDoctorId(created.id)
+      setShowAddDoctorModal(false)
+      setNewDoctorName('')
+    } finally {
+      setIsAddingDoctor(false)
+    }
+  }
 
   const doctorsList = clinicStaffDoctors.length > 0
     ? clinicStaffDoctors
@@ -819,10 +830,33 @@ export const ItemsPage: React.FC = () => {
               </div>
 
               <div className="consumption-ctrl-group">
-                <label className="consumption-ctrl-label">Doctor</label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
+                  <label className="consumption-ctrl-label">Doctor</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddDoctorModal(true)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--teal-primary, #008891)',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      padding: 0
+                    }}
+                  >
+                    + Add Doctor
+                  </button>
+                </div>
                 <select
                   value={selectedDoctorId}
-                  onChange={(e) => handleDoctorSwitch(e.target.value)}
+                  onChange={(e) => {
+                    if (e.target.value === '__ADD_NEW__') {
+                      setShowAddDoctorModal(true)
+                    } else {
+                      handleDoctorSwitch(e.target.value)
+                    }
+                  }}
                   className="consumption-select"
                 >
                   {doctorsList.map((doc) => (
@@ -830,6 +864,7 @@ export const ItemsPage: React.FC = () => {
                       {doc.label}
                     </option>
                   ))}
+                  <option value="__ADD_NEW__">+ Add New Doctor...</option>
                 </select>
               </div>
 
@@ -1153,6 +1188,70 @@ export const ItemsPage: React.FC = () => {
       )}
 
 
+
+      {/* MODAL: QUICK ADD DOCTOR */}
+      {showAddDoctorModal && (
+        <div className="ai-modal-overlay" onClick={() => setShowAddDoctorModal(false)} role="dialog" aria-modal="true">
+          <div className="ai-modal-content" style={{ maxWidth: '440px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="ai-modal-header">
+              <div>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 700, color: 'var(--text-strong, #0f172a)' }}>
+                  Add Doctor to Clinic
+                </h3>
+                <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
+                  Register a practitioner for treatment tracking and consumption audits
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddDoctorModal(false)}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px', color: 'var(--text-muted, #64748b)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateDoctor}>
+              <div className="ai-modal-body" style={{ gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                    Doctor Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    value={newDoctorName}
+                    onChange={(e) => setNewDoctorName(e.target.value)}
+                    placeholder="e.g. Dr. Jane Smith"
+                    className="pat-input"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                  />
+                </div>
+              </div>
+
+              <div className="ai-modal-footer">
+                <button
+                  type="button"
+                  onClick={() => setShowAddDoctorModal(false)}
+                  className="pat-btn"
+                  style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--line, #cbd5e1)', borderRadius: '8px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAddingDoctor}
+                  className="pat-btn pat-btn-primary"
+                  style={{ padding: '8px 20px', borderRadius: '8px' }}
+                >
+                  <PlusCircle size={15} /> {isAddingDoctor ? 'Adding...' : 'Add Doctor'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL 0: ADD NEW INVENTORY ITEM */}
       {showAddItemModal && (

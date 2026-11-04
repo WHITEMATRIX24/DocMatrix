@@ -3,22 +3,60 @@ import {
   History,
   Search,
   CheckCircle2,
-  X
+  X,
+  UserPlus,
+  PlusCircle
 } from 'lucide-react'
 import { useAdaptiveInventory, syncInventoryWithBackend } from '@/services/adaptiveInventoryStore'
+import {
+  getClinicStaffDoctors,
+  fetchAndSyncClinicStaff,
+  subscribeStaff,
+  addClinicDoctor
+} from '@/services/clinicStaffStore'
 import './adaptiveInventory.css'
 
 export const MovementsPage: React.FC = () => {
   const inventory = useAdaptiveInventory()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState('All')
+  const [doctorsList, setDoctorsList] = useState<string[]>([])
+  const [showAddDoctorModal, setShowAddDoctorModal] = useState(false)
+  const [newDoctorName, setNewDoctorName] = useState('')
+  const [isAddingDoctor, setIsAddingDoctor] = useState(false)
 
   useEffect(() => {
     syncInventoryWithBackend()
-  }, [])
+
+    const updateDoctors = () => {
+      const staffDocs = getClinicStaffDoctors().map((d) => d.name)
+      const auditDocs = inventory.deductionAuditLog.map((l) => l.doctorName)
+      const allUnique = Array.from(new Set([...staffDocs, ...auditDocs].filter(Boolean)))
+      setDoctorsList(allUnique)
+    }
+
+    updateDoctors()
+    fetchAndSyncClinicStaff().then(updateDoctors)
+    const unsub = subscribeStaff(updateDoctors)
+    return () => unsub()
+  }, [inventory.deductionAuditLog])
 
   const auditLogs = inventory.deductionAuditLog
-  const doctorsInAudit = Array.from(new Set(auditLogs.map((l) => l.doctorName).filter(Boolean)))
+
+  const handleCreateDoctor = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newDoctorName.trim()) return
+
+    try {
+      setIsAddingDoctor(true)
+      const created = await addClinicDoctor(newDoctorName.trim())
+      setSelectedDoctorFilter(created.name)
+      setShowAddDoctorModal(false)
+      setNewDoctorName('')
+    } finally {
+      setIsAddingDoctor(false)
+    }
+  }
 
   const filteredLogs = auditLogs.filter((log) => {
     if (selectedDoctorFilter !== 'All' && log.doctorName !== selectedDoctorFilter) {
@@ -100,16 +138,50 @@ export const MovementsPage: React.FC = () => {
               )}
             </div>
 
-            <select
-              value={selectedDoctorFilter}
-              onChange={(e) => setSelectedDoctorFilter(e.target.value)}
-              className="unified-select"
-            >
-              <option value="All">All Doctors</option>
-              {doctorsInAudit.map((doc) => (
-                <option key={doc} value={doc}>{doc}</option>
-              ))}
-            </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <select
+                value={selectedDoctorFilter}
+                onChange={(e) => {
+                  if (e.target.value === '__ADD_NEW__') {
+                    setShowAddDoctorModal(true)
+                  } else {
+                    setSelectedDoctorFilter(e.target.value)
+                  }
+                }}
+                className="unified-select"
+              >
+                <option value="All">All Doctors</option>
+                {doctorsList.map((doc) => (
+                  <option key={doc} value={doc}>{doc}</option>
+                ))}
+                <option value="__ADD_NEW__">+ Add New Doctor...</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={() => setShowAddDoctorModal(true)}
+                title="Add a doctor to clinic"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  height: '38px',
+                  padding: '0 12px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--line, #cbd5e1)',
+                  background: 'var(--surface, #ffffff)',
+                  color: 'var(--text-strong, #0f172a)',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <UserPlus size={14} style={{ color: 'var(--teal-primary, #008891)' }} />
+                <span>Add Doctor</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -220,6 +292,70 @@ export const MovementsPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* QUICK MODAL: ADD DOCTOR */}
+      {showAddDoctorModal && (
+        <div className="ai-modal-overlay" onClick={() => setShowAddDoctorModal(false)} role="dialog" aria-modal="true">
+          <div className="ai-modal-content" style={{ maxWidth: '440px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="ai-modal-header">
+              <div>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 700, color: 'var(--text-strong, #0f172a)' }}>
+                  Add Doctor to Clinic
+                </h3>
+                <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
+                  Register a practitioner for treatment tracking and consumption audits
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddDoctorModal(false)}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px', color: 'var(--text-muted, #64748b)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateDoctor}>
+              <div className="ai-modal-body" style={{ gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                    Doctor Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    value={newDoctorName}
+                    onChange={(e) => setNewDoctorName(e.target.value)}
+                    placeholder="e.g. Dr. Jane Smith"
+                    className="pat-input"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                  />
+                </div>
+              </div>
+
+              <div className="ai-modal-footer">
+                <button
+                  type="button"
+                  onClick={() => setShowAddDoctorModal(false)}
+                  className="pat-btn"
+                  style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--line, #cbd5e1)', borderRadius: '8px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAddingDoctor}
+                  className="pat-btn pat-btn-primary"
+                  style={{ padding: '8px 20px', borderRadius: '8px' }}
+                >
+                  <PlusCircle size={15} /> {isAddingDoctor ? 'Adding...' : 'Add Doctor'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
