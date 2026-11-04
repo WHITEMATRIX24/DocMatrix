@@ -481,15 +481,14 @@ export const ItemsPage: React.FC = () => {
 
           {/* Clean, Non-Cramped Inventory Table */}
           <div style={{ overflowX: 'auto', width: '100%' }}>
-            <table className="inv-sheet-table" style={{ width: '100%', minWidth: '780px' }}>
+            <table className="inv-sheet-table" style={{ width: '100%', minWidth: '720px' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '30%' }}>Item & SKU</th>
-                  <th style={{ width: '13%' }}>Current Stock</th>
-                  <th style={{ width: '13%' }}>Reorder Level</th>
-                  <th style={{ width: '28%' }}>Active Batches (FEFO)</th>
-                  <th style={{ width: '10%' }}>Status</th>
-                  <th style={{ width: '6%', textAlign: 'right', paddingRight: '22px' }}>Action</th>
+                  <th style={{ width: '35%' }}>Item & SKU</th>
+                  <th style={{ width: '16%' }}>Stock Level</th>
+                  <th style={{ width: '26%' }}>Active Batches</th>
+                  <th style={{ width: '11%' }}>Status</th>
+                  <th style={{ width: '12%', textAlign: 'right', paddingRight: '16px' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -504,41 +503,32 @@ export const ItemsPage: React.FC = () => {
                         <div style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--text-strong, #0f172a)', lineHeight: 1.35 }}>
                           {stock.name}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--text-muted, #64748b)', marginTop: '3px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>
                           <span style={{ fontFamily: 'monospace' }}>SKU: {stock.sku}</span>
                           <span>&bull;</span>
                           <span>{stock.category}</span>
                         </div>
                       </td>
 
-                      {/* Current Stock */}
+                      {/* Stock Level (Current & Reorder Combined) */}
                       <td>
-                        <span style={{ fontSize: '14px', fontWeight: 700, color: isLow ? 'var(--tone-red, #dc2626)' : 'var(--text-strong, #0f172a)' }}>
-                          {stock.totalStock}
-                        </span>
-                        <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted, #64748b)', marginLeft: '4px' }}>
-                          {stock.unit}
-                        </span>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: isLow ? 'var(--tone-red, #dc2626)' : 'var(--text-strong, #0f172a)' }}>
+                          {stock.totalStock} <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted, #64748b)' }}>{stock.unit}</span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', marginTop: '1px' }}>
+                          Min: {stock.reorderLevel} {stock.unit}
+                        </div>
                       </td>
 
-                      {/* Reorder Level */}
+                      {/* Active Batches - Simple & Streamlined */}
                       <td>
-                        <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
-                          {stock.reorderLevel} {stock.unit}
-                        </span>
-                      </td>
-
-                      {/* Active Batches (FEFO) - Clean Self-Contained Tags */}
-                      <td>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                          {sortedBatches.slice(0, 2).map((b, idx) => (
-                            <div key={b.batchNumber} className="batch-lot-pill">
-                              <strong>{b.batchNumber}</strong>
-                              <span className="qty">({b.quantity} {stock.unit})</span>
-                              <span className="exp">Exp: {b.expiryDate}</span>
-                              {idx === 0 && sortedBatches.length > 1 && (
-                                <span className="fefo-pill">FEFO</span>
-                              )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          {sortedBatches.slice(0, 2).map((b) => (
+                            <div key={b.batchNumber} style={{ fontSize: '11.5px', color: 'var(--text, #334155)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <span style={{ fontWeight: 600, fontFamily: 'monospace', color: 'var(--text-strong, #0f172a)' }}>{b.batchNumber}</span>
+                              <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '11px' }}>({b.quantity} {stock.unit})</span>
+                              <span style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '10px' }}>&bull;</span>
+                              <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '11px' }}>Exp {b.expiryDate}</span>
                             </div>
                           ))}
                         </div>
@@ -547,20 +537,20 @@ export const ItemsPage: React.FC = () => {
                       {/* Status */}
                       <td>
                         {isLow ? (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '9999px', fontSize: '11.5px', fontWeight: 600, background: 'rgba(220, 38, 38, 0.12)', color: 'var(--tone-red, #dc2626)', whiteSpace: 'nowrap' }}>
-                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor' }} />
-                            Low Stock
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 600, background: 'rgba(220, 38, 38, 0.1)', color: 'var(--tone-red, #dc2626)', whiteSpace: 'nowrap' }}>
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'currentColor' }} />
+                            Low
                           </span>
                         ) : (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '9999px', fontSize: '11.5px', fontWeight: 600, background: 'rgba(5, 150, 105, 0.12)', color: 'var(--tone-green, #059669)', whiteSpace: 'nowrap' }}>
-                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor' }} />
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: '999px', fontSize: '11px', fontWeight: 600, background: 'rgba(5, 150, 105, 0.1)', color: 'var(--tone-green, #059669)', whiteSpace: 'nowrap' }}>
+                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'currentColor' }} />
                             In Stock
                           </span>
                         )}
                       </td>
 
                       {/* Actions */}
-                      <td style={{ textAlign: 'right', paddingRight: '22px' }}>
+                      <td style={{ textAlign: 'right', paddingRight: '16px' }}>
                         <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', whiteSpace: 'nowrap' }}>
                           <button
                             type="button"
@@ -572,8 +562,9 @@ export const ItemsPage: React.FC = () => {
                             }}
                             className="inv-btn-lot"
                             title="Receive new batch lot"
+                            style={{ padding: '3px 8px', fontSize: '11.5px' }}
                           >
-                            <Plus size={12} /> Lot
+                            <Plus size={11} /> Lot
                           </button>
                           {stock.activeBatches[0] && (
                             <button
@@ -584,6 +575,7 @@ export const ItemsPage: React.FC = () => {
                               }}
                               className="inv-btn-adjust"
                               title="Adjust stock quantity"
+                              style={{ padding: '3px 8px', fontSize: '11.5px' }}
                             >
                               Adjust
                             </button>
