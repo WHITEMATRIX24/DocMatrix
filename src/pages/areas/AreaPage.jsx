@@ -6,8 +6,7 @@ import { findDemoUserById } from '@/mocks/auth'
 import {
   Calendar, Users, Stethoscope, Receipt, BookOpen, Package, MessageSquare,
   Globe, BarChart3, Settings, Milestone, ArrowRight, ArrowLeft, Home,
-  Lock, CheckCircle2, Sparkles, Compass, Search, Filter, ShieldCheck,
-  ArrowLeftRight, AlertTriangle, Layers, Boxes
+  Lock, CheckCircle2, Sparkles, Compass, Search, Filter, ShieldCheck
 } from 'lucide-react'
 
 const AREA_META = {
@@ -71,18 +70,15 @@ const AREA_META = {
 const FEATURE_CUSTOM_DETAILS = {
   'inv.items': {
     title: 'Items & Stock Catalog',
-    desc: 'Real-time stock quantities, batch lot tracking, unit pricing, and adaptive procedure consumption.',
-    icon: Package
+    desc: 'Real-time stock quantities, batch lot tracking, unit pricing, and adaptive procedure consumption.'
   },
   'inv.movements': {
     title: 'Stock Movements & Audit',
-    desc: 'Log stock receipts, clinic issuances, batch transfers, and automatic procedure deduction history.',
-    icon: ArrowLeftRight
+    desc: 'Log stock receipts, clinic issuances, batch transfers, and automatic procedure deduction history.'
   },
   'inv.alerts': {
     title: 'Low-Stock & Expiry Alerts',
-    desc: 'Real-time proactive notifications for material replenishment, lot expiry risk, and doctor consumption shifts.',
-    icon: AlertTriangle
+    desc: 'Real-time proactive notifications for material replenishment, lot expiry risk, and doctor consumption shifts.'
   }
 }
 
@@ -95,7 +91,6 @@ export function AreaPage({ areaKey }) {
     desc: 'Operational management area for DocMatrix clinic features.'
   }
 
-  const Icon = meta.icon
   const isRoadmap = areaKey === 'roadmap'
 
   const sessionUserId = typeof window !== 'undefined' ? sessionStorage.getItem('docmatrix-demo-session') : null
@@ -205,27 +200,9 @@ export function AreaPage({ areaKey }) {
           marginBottom: '28px',
           boxShadow: '0 4px 20px rgba(0, 136, 145, 0.04)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '14px' }}>
-            <div style={{
-              width: '46px',
-              height: '46px',
-              borderRadius: '12px',
-              background: 'var(--teal-primary, #008891)',
-              color: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 14px rgba(0, 136, 145, 0.25)',
-              flexShrink: 0
-            }}>
-              <Icon size={24} />
-            </div>
-            <div>
-              <h1 style={{ fontSize: '24px', fontWeight: '850', color: 'var(--charcoal-title, #1a2626)', margin: 0, letterSpacing: '-0.02em' }}>
-                {meta.title}
-              </h1>
-            </div>
-          </div>
+          <h1 style={{ fontSize: '24px', fontWeight: '850', color: 'var(--charcoal-title, #1a2626)', margin: '0 0 8px 0', letterSpacing: '-0.02em' }}>
+            {meta.title}
+          </h1>
 
           <p style={{ fontSize: '14px', color: 'var(--charcoal-body, #475554)', lineHeight: '1.6', maxWidth: '780px', margin: 0 }}>
             {meta.desc}
@@ -238,9 +215,6 @@ export function AreaPage({ areaKey }) {
             <h2 style={{ fontSize: '18px', fontWeight: '800', color: 'var(--charcoal-title, #1a2626)', margin: 0 }}>
               {meta.title.split('&')[0].trim()} Modules
             </h2>
-            <span style={{ fontSize: '12.5px', color: 'var(--charcoal-muted, #6e7e7d)' }}>
-              Select a module to view records, run clinic actions, or manage settings
-            </span>
           </div>
 
           {/* Quick Filter Input */}
@@ -276,7 +250,6 @@ export function AreaPage({ areaKey }) {
               ? `/coming-soon/${feat.id}`
               : feat.route.replace(':id', feat.area === 'Patients' ? 'pt-1001' : 'apt-101')
             const custom = FEATURE_CUSTOM_DETAILS[feat.id]
-            const CardIcon = custom?.icon || Icon || Package
             const title = custom?.title || feat.name
             const description = custom?.desc || (feat.desc && feat.desc.toLowerCase() !== feat.name.toLowerCase() ? feat.desc : (feat.description && feat.description.toLowerCase() !== feat.name.toLowerCase() ? feat.description : `Clinical management workflow for ${feat.name}.`))
 
@@ -294,27 +267,13 @@ export function AreaPage({ areaKey }) {
                   borderRadius: '16px',
                   border: '1px solid var(--line, #e9e9e5)',
                   background: 'var(--surface)',
-                  minHeight: '210px',
+                  minHeight: '170px',
                   transition: 'transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease'
                 }}
               >
                 <div>
-                  <div style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '10px',
-                    background: 'var(--teal-tint, rgba(0, 136, 145, 0.08))',
-                    color: 'var(--teal-primary, #008891)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: '16px'
-                  }}>
-                    <CardIcon size={20} />
-                  </div>
-
                   <h3 style={{
-                    fontSize: '16.5px',
+                    fontSize: '17px',
                     fontWeight: '800',
                     color: 'var(--charcoal-title, #1a2626)',
                     marginBottom: '8px',
@@ -336,18 +295,13 @@ export function AreaPage({ areaKey }) {
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between',
+                  justifyContent: 'flex-end',
                   paddingTop: '16px',
                   marginTop: '18px',
                   borderTop: '1px solid var(--line, rgba(0, 0, 0, 0.06))',
                   fontSize: '12px',
                   fontWeight: '700'
                 }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', color: 'var(--charcoal-muted, #6e7e7d)', fontWeight: '600' }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
-                    <span>Active Module</span>
-                  </div>
-
                   <span style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -378,12 +332,9 @@ export function AreaPage({ areaKey }) {
               gap: '12px'
             }}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                  <ShieldCheck size={16} style={{ color: 'var(--teal-primary, #008891)' }} />
-                  <h2 style={{ fontSize: '16px', fontWeight: '850', color: 'var(--charcoal-title, #1a2626)', margin: 0 }}>
-                    Accounts & Financial Ledgers
-                  </h2>
-                </div>
+                <h2 style={{ fontSize: '16px', fontWeight: '850', color: 'var(--charcoal-title, #1a2626)', margin: '0 0 2px 0' }}>
+                  Accounts & Financial Ledgers
+                </h2>
                 <p style={{ fontSize: '12.5px', color: 'var(--charcoal-muted, #6e7e7d)', margin: 0 }}>
                   Double-entry accounting, day book, GST reports, and automated Tally XML sync
                 </p>
@@ -430,25 +381,11 @@ export function AreaPage({ areaKey }) {
                       borderRadius: '16px',
                       border: '1px solid var(--line, #e9e9e5)',
                       background: 'var(--surface)',
-                      minHeight: '210px',
+                      minHeight: '170px',
                       opacity: isRestricted ? 0.82 : 1
                     }}
                   >
                     <div>
-                      <div style={{
-                        width: '38px',
-                        height: '38px',
-                        borderRadius: '10px',
-                        background: 'var(--teal-tint, rgba(0, 136, 145, 0.08))',
-                        color: 'var(--teal-primary, #008891)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: '16px'
-                      }}>
-                        <BookOpen size={20} />
-                      </div>
-
                       <h3 style={{ fontSize: '16.5px', fontWeight: '800', color: 'var(--charcoal-title, #1a2626)', marginBottom: '8px' }}>
                         {feat.name}
                       </h3>
@@ -460,20 +397,22 @@ export function AreaPage({ areaKey }) {
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between',
+                      justifyContent: isRestricted ? 'space-between' : 'flex-end',
                       paddingTop: '16px',
                       marginTop: '18px',
                       borderTop: '1px solid var(--line, rgba(0, 0, 0, 0.06))',
                       fontSize: '12px',
                       fontWeight: '700'
                     }}>
-                      <span style={{
-                        fontSize: '11px',
-                        fontWeight: '750',
-                        color: isRestricted ? '#dc2626' : 'var(--charcoal-muted, #6e7e7d)'
-                      }}>
-                        {isRestricted ? 'Restricted Access' : 'Active Module'}
-                      </span>
+                      {isRestricted && (
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: '750',
+                          color: '#dc2626'
+                        }}>
+                          Restricted Access
+                        </span>
+                      )}
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--teal-primary, #008891)' }}>
                         Open Module <ArrowRight size={13} />
                       </span>
