@@ -398,3 +398,4 @@ export const ClinicalConfigPage: React.FC = () => {
 }
 
 export default ClinicalConfigPage
+

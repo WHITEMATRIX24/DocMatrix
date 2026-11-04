@@ -88,14 +88,100 @@ export interface AppointmentRecord {
   createdAt: string
 }
 
+export interface ClinicalNoteAddendumRecord {
+  id: string
+  noteId: string
+  content: string
+  doctorId?: string
+  doctorName?: string
+  createdAt: string
+}
+
 export interface ClinicalNoteRecord {
   id: string
+  clinicId?: string
   patientId: string
+  appointmentId?: string
+  doctorId?: string
+  noteNumber?: string
+  consultationDate?: string
+  consultationType?: string
+  status?: 'DRAFT' | 'FINALIZED'
+  finalizedAt?: string
+  finalizedById?: string
+  finalizedByName?: string
+  doctorName?: string
+
+  // Section 1: Chief Complaint
+  chiefComplaint?: string
+
+  // Section 2: Symptoms & History
+  symptoms?: string
+  symptomDuration?: string
+  painSeverity?: number
+  historyNotes?: string
+
+  // Section 3: Clinical Examination
+  extraoralFindings?: string
+  intraoralFindings?: string
+  toothSpecificFindings?: string
+  periodontalFindings?: string
+  examinationNotes?: string
+
+  // Section 4: Diagnosis
+  primaryDiagnosis?: string
+  additionalDiagnoses?: any
+  diagnosisNotes?: string
+
+  // Section 5: Treatment Performed
+  treatmentPerformed?: string
+  treatmentToothNumber?: string
+  treatmentDescription?: string
+  materialsUsed?: string
+  treatmentOutcome?: string
+
+  // Section 6: Treatment Recommendations
+  treatmentRecommendations?: string
+  referralNotes?: string
+
+  // Section 7: Follow-up & Advice
+  followUpRequired?: boolean
+  followUpDate?: string
+  followUpInstructions?: string
+  patientAdvice?: string
+
+  // Addenda
+  addenda?: ClinicalNoteAddendumRecord[]
+
+  // Legacy compatibility fields
   visitDate: string
   complaint: string
   findings: string
   plan: string
   createdAt: string
+  updatedAt?: string
+
+  patient?: {
+    id: string
+    patientCode?: string
+    firstName: string
+    lastName: string
+    gender?: string
+    dateOfBirth?: string
+    mobile?: string
+    medicalSafetyAlerts?: string[]
+  }
+  doctor?: {
+    id: string
+    fullName?: string
+    name?: string
+    role?: string
+  }
+  appointment?: {
+    id: string
+    time?: string
+    type?: string
+  }
 }
 
 export type PaymentMode = 'Cash' | 'Card' | 'UPI'
@@ -585,7 +671,36 @@ const initialAppointments: AppointmentRecord[] = [
 const initialClinicalNotes: ClinicalNoteRecord[] = [
   {
     id: 'NOT-1001',
+    noteNumber: 'CN-1001',
     patientId: 'pt-1001',
+    doctorId: 'doc-001',
+    doctorName: 'Dr. Sarah Mitchell',
+    consultationDate: '2026-10-24T15:00:00.000Z',
+    consultationType: 'EMERGENCY',
+    status: 'FINALIZED',
+    finalizedAt: '2026-10-24T15:30:00.000Z',
+    finalizedByName: 'Dr. Sarah Mitchell',
+    chiefComplaint: 'Severe throbbing pain in lower right posterior quadrant radiating to ear for 2 days.',
+    symptoms: 'Spontaneous pain, heightened at night, aggravated by hot fluids.',
+    symptomDuration: '48 hours',
+    painSeverity: 8,
+    historyNotes: 'Patient took OTC Ibuprofen with transient minimal relief.',
+    extraoralFindings: 'No visible facial asymmetry or extraoral lymphadenopathy.',
+    intraoralFindings: 'Deep disto-occlusal caries on tooth #46 involving pulp. Tenderness on vertical percussion positive.',
+    toothSpecificFindings: 'Tooth 46: Non-vital response to thermal testing, percussion sensitive.',
+    periodontalFindings: 'Probing depths 2-3mm, normal physiological mobility Grade 0.',
+    examinationNotes: 'Deep occlusal caries on tooth #46 involving pulp. Tenderness on vertical percussion positive. Cold test elicited prolonged lingering pain.',
+    primaryDiagnosis: 'Symptomatic Irreversible Pulpitis with Acute Apical Periodontitis (#46)',
+    treatmentPerformed: 'Pulpectomy and Emergency Access Opening on #46',
+    treatmentToothNumber: '46',
+    treatmentDescription: 'Local anesthesia administered (2% Lignocaine with 1:80000 adrenaline). Rubber dam isolation achieved. Caries excavated, pulp chamber de-roofed, coronal pulp extirpated. Working length established. Formocresol pellet and Cavit temporary seal placed.',
+    materialsUsed: 'Rubber Dam, Cavit, Lignocaine 2%, EDTA gel',
+    treatmentOutcome: 'Immediate alleviation of pressure; patient comfortable post-op.',
+    treatmentRecommendations: 'Complete 2nd sitting Root Canal Treatment followed by core build-up and full coverage zirconia crown.',
+    followUpRequired: true,
+    followUpDate: '2026-10-28',
+    followUpInstructions: 'Soft diet on right side, avoid hard/sticky food. Return if swelling develops.',
+    patientAdvice: 'Avoid chewing on right side until definitive restoration is bonded.',
     visitDate: '2026-10-24',
     complaint: 'Severe throbbing pain in lower right posterior quadrant radiating to ear for 2 days.',
     findings: 'Deep occlusal caries on tooth #46 involving pulp. Tenderness on vertical percussion positive. Cold test elicited prolonged lingering pain.',
@@ -594,7 +709,31 @@ const initialClinicalNotes: ClinicalNoteRecord[] = [
   },
   {
     id: 'NOT-1002',
+    noteNumber: 'CN-1002',
     patientId: 'pt-1001',
+    doctorId: 'doc-001',
+    doctorName: 'Dr. Sarah Mitchell',
+    consultationDate: new Date().toISOString(),
+    consultationType: 'FOLLOW_UP',
+    status: 'FINALIZED',
+    finalizedAt: new Date().toISOString(),
+    finalizedByName: 'Dr. Sarah Mitchell',
+    chiefComplaint: 'Follow-up for second sitting RCT on #46.',
+    symptoms: 'Asymptomatic. Patient reports complete resolution of throbbing pain.',
+    painSeverity: 0,
+    intraoralFindings: 'Temporary restoration intact, gingiva surrounding #46 healthy without sinus tract.',
+    toothSpecificFindings: 'Tooth 46: Percussion negative, palpation negative.',
+    examinationNotes: 'Symptom-free. Temporary filling intact. Working length confirmed at 21mm MB, 21mm ML, 20.5mm Distal via RVG.',
+    primaryDiagnosis: 'Previously Initiated Root Canal Therapy (#46)',
+    treatmentPerformed: 'Biomechanical Preparation and Calcium Hydroxide Dressing (#46)',
+    treatmentToothNumber: '46',
+    treatmentDescription: 'Canals negotiated and shaped with ProTaper Gold rotary files up to F2. 3% NaOCl and 17% EDTA irrigation with sonic activation. Canals dried with paper points. Calcium hydroxide placed. Cavit sealed.',
+    materialsUsed: 'ProTaper Gold, NaOCl 3%, EDTA 17%, Calcipex, Cavit',
+    treatmentOutcome: 'Canals thoroughly prepared and dried.',
+    treatmentRecommendations: 'Obturation with gutta-percha and bioceramic sealer at next visit.',
+    followUpRequired: true,
+    followUpDate: '2026-11-08',
+    followUpInstructions: 'Continue routine oral hygiene. Schedule appointment for obturation.',
     visitDate: getTodayDateStr(),
     complaint: 'Follow-up for second sitting RCT on #46.',
     findings: 'Symptom-free. Temporary filling intact. Working length confirmed at 21mm MB, 21mm ML, 20.5mm Distal via RVG.',
@@ -603,7 +742,25 @@ const initialClinicalNotes: ClinicalNoteRecord[] = [
   },
   {
     id: 'NOT-1003',
+    noteNumber: 'CN-1003',
     patientId: 'PAT-1001',
+    doctorId: 'doc-002',
+    doctorName: 'Dr. Alex Vance',
+    consultationDate: '2026-10-18T11:00:00.000Z',
+    consultationType: 'ROUTINE_CHECKUP',
+    status: 'DRAFT',
+    chiefComplaint: 'Routine 6-month orthodontic bracket review and check-up.',
+    symptoms: 'Mild tightness after previous archwire change.',
+    painSeverity: 1,
+    intraoralFindings: 'Alignment progressing well. Mild supra-gingival calculus on lower anteriors.',
+    examinationNotes: 'Alignment progressing well. Mild supra-gingival calculus on lower anteriors.',
+    primaryDiagnosis: 'Class I Malocclusion with mild anterior crowding; Generalized mild gingivitis',
+    treatmentPerformed: 'Orthodontic Wire Adjustment & Bracket Inspection',
+    treatmentDescription: '0.016x0.022 NiTi upper and lower archwires engaged. Ligatures replaced.',
+    treatmentRecommendations: 'Full mouth ultrasonic scaling and prophy scheduled.',
+    followUpRequired: true,
+    followUpDate: '2026-11-20',
+    followUpInstructions: 'Maintain interdental brushing around brackets.',
     visitDate: '2026-10-18',
     complaint: 'Routine 6-month orthodontic bracket review and check-up.',
     findings: 'Alignment progressing well. Mild supra-gingival calculus on lower anteriors.',
@@ -1142,7 +1299,7 @@ export const syncWithBackend = async (): Promise<void> => {
 
     if (!token) return;
 
-    const [remotePatients, remoteAppts, remoteCharts, remoteDocs, remoteConsents, remoteEnquiries, remotePrescriptions] = await Promise.all([
+    const [remotePatients, remoteAppts, remoteCharts, remoteDocs, remoteConsents, remoteEnquiries, remotePrescriptions, remoteClinicalNotes] = await Promise.all([
       apiClient.get<any[]>('/patients?includeArchived=true'),
       apiClient.get<any[]>('/appointments'),
       apiClient.get<Record<string, Record<number, { condition: string; notes?: string }>>>('/clinical/tooth-charts').catch(() => ({})),
@@ -1150,6 +1307,7 @@ export const syncWithBackend = async (): Promise<void> => {
       apiClient.get<any[]>('/clinical/consents').catch(() => []),
       apiClient.get<any[]>('/enquiries').catch(() => []),
       apiClient.get<any[]>('/prescriptions').catch(() => []),
+      apiClient.get<any[]>('/clinical-notes').catch(() => []),
     ]);
 
     const mappedPatients: PatientRecord[] = Array.isArray(remotePatients)
@@ -1298,6 +1456,77 @@ export const syncWithBackend = async (): Promise<void> => {
         }))
       : [];
 
+    const mappedClinicalNotes: ClinicalNoteRecord[] = Array.isArray(remoteClinicalNotes)
+      ? remoteClinicalNotes.map((n: any) => ({
+          id: n.id,
+          clinicId: n.clinicId,
+          patientId: n.patient?.patientCode || n.patientId,
+          appointmentId: n.appointmentId,
+          doctorId: n.doctorId,
+          noteNumber: n.noteNumber,
+          consultationDate: n.consultationDate,
+          consultationType: n.consultationType,
+          status: n.status,
+          finalizedAt: n.finalizedAt,
+          finalizedById: n.finalizedById,
+          finalizedByName: n.finalizedByName,
+          doctorName: n.doctor?.fullName || n.finalizedByName || 'Attending Doctor',
+          chiefComplaint: n.chiefComplaint,
+          symptoms: n.symptoms,
+          symptomDuration: n.symptomDuration,
+          painSeverity: n.painSeverity,
+          historyNotes: n.historyNotes,
+          extraoralFindings: n.extraoralFindings,
+          intraoralFindings: n.intraoralFindings,
+          toothSpecificFindings: n.toothSpecificFindings,
+          periodontalFindings: n.periodontalFindings,
+          examinationNotes: n.examinationNotes,
+          primaryDiagnosis: n.primaryDiagnosis,
+          additionalDiagnoses: n.additionalDiagnoses,
+          diagnosisNotes: n.diagnosisNotes,
+          treatmentPerformed: n.treatmentPerformed,
+          treatmentToothNumber: n.treatmentToothNumber,
+          treatmentDescription: n.treatmentDescription,
+          materialsUsed: n.materialsUsed,
+          treatmentOutcome: n.treatmentOutcome,
+          treatmentRecommendations: n.treatmentRecommendations,
+          referralNotes: n.referralNotes,
+          followUpRequired: n.followUpRequired,
+          followUpDate: n.followUpDate,
+          followUpInstructions: n.followUpInstructions,
+          patientAdvice: n.patientAdvice,
+          addenda: Array.isArray(n.addenda) ? n.addenda : [],
+          visitDate: n.consultationDate ? n.consultationDate.slice(0, 10) : (n.createdAt ? n.createdAt.slice(0, 10) : getTodayDateStr()),
+          complaint: n.chiefComplaint || '',
+          findings: n.examinationNotes || n.intraoralFindings || '',
+          plan: n.treatmentRecommendations || n.treatmentPerformed || '',
+          patient: n.patient
+            ? {
+                id: n.patient.id,
+                patientCode: n.patient.patientCode,
+                firstName: n.patient.firstName,
+                lastName: n.patient.lastName,
+                gender: n.patient.gender,
+                dateOfBirth: n.patient.dateOfBirth,
+                mobile: n.patient.mobile,
+                medicalSafetyAlerts: Array.isArray(n.patient.medicalSafetyAlerts)
+                  ? n.patient.medicalSafetyAlerts
+                  : [],
+              }
+            : undefined,
+          doctor: n.doctor
+            ? {
+                id: n.doctor.id,
+                fullName: n.doctor.fullName,
+                email: n.doctor.email,
+                role: n.doctor.role,
+              }
+            : undefined,
+          createdAt: n.createdAt || new Date().toISOString(),
+          updatedAt: n.updatedAt,
+        }))
+      : [];
+
     patientsState = mappedPatients;
     appointmentsState = mappedAppts;
     toothChartsState = remoteCharts && typeof remoteCharts === 'object' ? (remoteCharts as ClinicToothCharts) : {};
@@ -1305,6 +1534,7 @@ export const syncWithBackend = async (): Promise<void> => {
     patientConsentsState = mappedConsents;
     enquiriesState = mappedEnquiries;
     prescriptionsState = mappedPrescriptions;
+    clinicalNotesState = mappedClinicalNotes;
 
     emitChange();
   } catch (err) {
@@ -1852,22 +2082,7 @@ export const savePatient = (data: Omit<PatientRecord, 'id' | 'createdAt'>): Pati
   return newPatient
 }
 
-export const saveClinicalNote = (data: {
-  patientId: string
-  visitDate: string
-  complaint: string
-  findings: string
-  plan: string
-}): ClinicalNoteRecord => {
-  const newNote: ClinicalNoteRecord = {
-    ...data,
-    id: `NOT-${Date.now().toString().slice(-4)}`,
-    createdAt: new Date().toISOString()
-  }
-  clinicalNotesState = [newNote, ...clinicalNotesState]
-  emitChange()
-  return newNote
-}
+// Clinical notes creation moved to end of file (addClinicalNote / saveClinicalNote)
 
 export function createInvoice(details: Omit<InvoiceRecord, 'id' | 'status' | 'createdAt'>) {
   const record: InvoiceRecord = {
@@ -2173,7 +2388,6 @@ export const updatePatientConsent = async (
 }
 
 export const registerPatient = savePatient
-export const addClinicalNote = saveClinicalNote
 
 export const getToothConditionsForPatient = (patientId: string): PatientToothChartMap => {
   if (toothChartsState[patientId]) {
@@ -2660,4 +2874,442 @@ export const refreshPrescriptions = async (): Promise<void> => {
   } catch (err) {
     console.warn('[clinicStore] refreshPrescriptions failed:', err);
   }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLINICAL NOTES MANAGEMENT (STRUCTURED DENTAL CONSULTATIONS)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ClinicalNoteInput {
+  id?: string;
+  patientId: string;
+  appointmentId?: string;
+  doctorId?: string;
+  doctorName?: string;
+  consultationDate?: string;
+  consultationType?: string;
+  chiefComplaint?: string;
+  symptoms?: string;
+  symptomDuration?: string;
+  painSeverity?: number;
+  historyNotes?: string;
+  extraoralFindings?: string;
+  intraoralFindings?: string;
+  toothSpecificFindings?: string;
+  periodontalFindings?: string;
+  examinationNotes?: string;
+  primaryDiagnosis?: string;
+  additionalDiagnoses?: any;
+  diagnosisNotes?: string;
+  treatmentPerformed?: string;
+  treatmentToothNumber?: string;
+  treatmentDescription?: string;
+  materialsUsed?: string;
+  treatmentOutcome?: string;
+  treatmentRecommendations?: string;
+  referralNotes?: string;
+  followUpRequired?: boolean;
+  followUpDate?: string;
+  followUpInstructions?: string;
+  patientAdvice?: string;
+  isFinalized?: boolean;
+
+  // Legacy fields
+  visitDate?: string;
+  complaint?: string;
+  findings?: string;
+  plan?: string;
+}
+
+export const refreshClinicalNotes = async (): Promise<void> => {
+  if (!hasAuthToken()) return;
+  try {
+    const remote = await apiClient.get<any[]>('/clinical-notes');
+    if (Array.isArray(remote)) {
+      clinicalNotesState = remote.map((n: any) => ({
+        id: n.id,
+        clinicId: n.clinicId,
+        patientId: n.patient?.patientCode || n.patientId,
+        appointmentId: n.appointmentId,
+        doctorId: n.doctorId,
+        noteNumber: n.noteNumber,
+        consultationDate: n.consultationDate,
+        consultationType: n.consultationType,
+        status: n.status,
+        finalizedAt: n.finalizedAt,
+        finalizedById: n.finalizedById,
+        finalizedByName: n.finalizedByName,
+        doctorName: n.doctor?.fullName || n.finalizedByName || 'Attending Doctor',
+        chiefComplaint: n.chiefComplaint,
+        symptoms: n.symptoms,
+        symptomDuration: n.symptomDuration,
+        painSeverity: n.painSeverity,
+        historyNotes: n.historyNotes,
+        extraoralFindings: n.extraoralFindings,
+        intraoralFindings: n.intraoralFindings,
+        toothSpecificFindings: n.toothSpecificFindings,
+        periodontalFindings: n.periodontalFindings,
+        examinationNotes: n.examinationNotes,
+        primaryDiagnosis: n.primaryDiagnosis,
+        additionalDiagnoses: n.additionalDiagnoses,
+        diagnosisNotes: n.diagnosisNotes,
+        treatmentPerformed: n.treatmentPerformed,
+        treatmentToothNumber: n.treatmentToothNumber,
+        treatmentDescription: n.treatmentDescription,
+        materialsUsed: n.materialsUsed,
+        treatmentOutcome: n.treatmentOutcome,
+        treatmentRecommendations: n.treatmentRecommendations,
+        referralNotes: n.referralNotes,
+        followUpRequired: n.followUpRequired,
+        followUpDate: n.followUpDate,
+        followUpInstructions: n.followUpInstructions,
+        patientAdvice: n.patientAdvice,
+        addenda: Array.isArray(n.addenda) ? n.addenda : [],
+        visitDate: n.consultationDate ? n.consultationDate.slice(0, 10) : (n.createdAt ? n.createdAt.slice(0, 10) : getTodayDateStr()),
+        complaint: n.chiefComplaint || '',
+        findings: n.examinationNotes || n.intraoralFindings || '',
+        plan: n.treatmentRecommendations || n.treatmentPerformed || '',
+        patient: n.patient
+          ? {
+              id: n.patient.id,
+              patientCode: n.patient.patientCode,
+              firstName: n.patient.firstName,
+              lastName: n.patient.lastName,
+              gender: n.patient.gender,
+              dateOfBirth: n.patient.dateOfBirth,
+              mobile: n.patient.mobile,
+              medicalSafetyAlerts: Array.isArray(n.patient.medicalSafetyAlerts)
+                ? n.patient.medicalSafetyAlerts
+                : [],
+            }
+          : undefined,
+        doctor: n.doctor
+          ? {
+              id: n.doctor.id,
+              fullName: n.doctor.fullName,
+              email: n.doctor.email,
+              role: n.doctor.role,
+            }
+          : undefined,
+        appointment: n.appointment,
+        createdAt: n.createdAt || new Date().toISOString(),
+        updatedAt: n.updatedAt,
+      }));
+      emitChange();
+    }
+  } catch (err) {
+    console.warn('[clinicStore] refreshClinicalNotes failed:', err);
+  }
+};
+
+export const addClinicalNote = async (
+  note: ClinicalNoteInput
+): Promise<ClinicalNoteRecord> => {
+  const matchedPatient = patientsState.find(
+    (p) =>
+      p.id.toLowerCase() === note.patientId.toLowerCase() ||
+      (p.backendId && p.backendId.toLowerCase() === note.patientId.toLowerCase())
+  );
+
+  const tempId = note.id || `not-temp-${Date.now()}`;
+  const optimisticNumber = `CN-${1000 + clinicalNotesState.length + 1}`;
+  const visitDate = note.consultationDate
+    ? note.consultationDate.slice(0, 10)
+    : (note.visitDate || getTodayDateStr());
+  const chiefComplaint = (note.chiefComplaint || note.complaint || 'Routine dental consultation').trim();
+  const primaryDiagnosis = (note.primaryDiagnosis || 'Clinical Examination').trim();
+  const examinationNotes = (note.examinationNotes || note.findings || '').trim();
+  const treatmentRecommendations = (note.treatmentRecommendations || note.plan || '').trim();
+
+  const localNote: ClinicalNoteRecord = {
+    id: tempId,
+    noteNumber: optimisticNumber,
+    clinicId: undefined,
+    patientId: matchedPatient?.id || note.patientId,
+    appointmentId: note.appointmentId,
+    doctorId: note.doctorId || 'doc-current',
+    doctorName: note.doctorName || 'Attending Doctor',
+    consultationDate: note.consultationDate || new Date().toISOString(),
+    consultationType: note.consultationType || 'ROUTINE_CHECKUP',
+    status: note.isFinalized ? 'FINALIZED' : 'DRAFT',
+    finalizedAt: note.isFinalized ? new Date().toISOString() : undefined,
+    finalizedByName: note.isFinalized ? (note.doctorName || 'Attending Doctor') : undefined,
+    chiefComplaint,
+    symptoms: note.symptoms?.trim() || '',
+    symptomDuration: note.symptomDuration?.trim() || '',
+    painSeverity: typeof note.painSeverity === 'number' ? note.painSeverity : 0,
+    historyNotes: note.historyNotes?.trim() || '',
+    extraoralFindings: note.extraoralFindings?.trim() || '',
+    intraoralFindings: note.intraoralFindings?.trim() || '',
+    toothSpecificFindings: note.toothSpecificFindings?.trim() || '',
+    periodontalFindings: note.periodontalFindings?.trim() || '',
+    examinationNotes,
+    primaryDiagnosis,
+    additionalDiagnoses: note.additionalDiagnoses,
+    diagnosisNotes: note.diagnosisNotes?.trim() || '',
+    treatmentPerformed: note.treatmentPerformed?.trim() || '',
+    treatmentToothNumber: note.treatmentToothNumber?.trim() || '',
+    treatmentDescription: note.treatmentDescription?.trim() || '',
+    materialsUsed: note.materialsUsed?.trim() || '',
+    treatmentOutcome: note.treatmentOutcome?.trim() || '',
+    treatmentRecommendations,
+    referralNotes: note.referralNotes?.trim() || '',
+    followUpRequired: Boolean(note.followUpRequired),
+    followUpDate: note.followUpDate,
+    followUpInstructions: note.followUpInstructions?.trim() || '',
+    patientAdvice: note.patientAdvice?.trim() || '',
+    addenda: [],
+    visitDate,
+    complaint: chiefComplaint,
+    findings: examinationNotes || note.intraoralFindings || '',
+    plan: treatmentRecommendations || note.treatmentPerformed || '',
+    createdAt: new Date().toISOString(),
+    patient: matchedPatient
+      ? {
+          id: matchedPatient.id,
+          patientCode: matchedPatient.id,
+          firstName: matchedPatient.firstName,
+          lastName: matchedPatient.lastName,
+          gender: matchedPatient.gender,
+          dateOfBirth: matchedPatient.dateOfBirth,
+          mobile: matchedPatient.mobile,
+          medicalSafetyAlerts: (matchedPatient as any).medicalAlerts || (matchedPatient.allergiesDetails ? [matchedPatient.allergiesDetails] : []),
+        }
+      : undefined,
+  };
+
+  const prevNotes = [...clinicalNotesState];
+  clinicalNotesState = [localNote, ...clinicalNotesState];
+  emitChange();
+
+  if (hasAuthToken()) {
+    try {
+      const created = await apiClient.post<any>('/clinical-notes', {
+        patientId: matchedPatient?.backendId || note.patientId,
+        appointmentId: note.appointmentId,
+        doctorId: note.doctorId,
+        consultationDate: note.consultationDate,
+        consultationType: note.consultationType,
+        chiefComplaint,
+        symptoms: note.symptoms?.trim() || undefined,
+        symptomDuration: note.symptomDuration?.trim() || undefined,
+        painSeverity: typeof note.painSeverity === 'number' ? note.painSeverity : undefined,
+        historyNotes: note.historyNotes?.trim() || undefined,
+        extraoralFindings: note.extraoralFindings?.trim() || undefined,
+        intraoralFindings: note.intraoralFindings?.trim() || undefined,
+        toothSpecificFindings: note.toothSpecificFindings?.trim() || undefined,
+        periodontalFindings: note.periodontalFindings?.trim() || undefined,
+        examinationNotes: examinationNotes || undefined,
+        primaryDiagnosis,
+        additionalDiagnoses: note.additionalDiagnoses,
+        diagnosisNotes: note.diagnosisNotes?.trim() || undefined,
+        treatmentPerformed: note.treatmentPerformed?.trim() || undefined,
+        treatmentToothNumber: note.treatmentToothNumber?.trim() || undefined,
+        treatmentDescription: note.treatmentDescription?.trim() || undefined,
+        materialsUsed: note.materialsUsed?.trim() || undefined,
+        treatmentOutcome: note.treatmentOutcome?.trim() || undefined,
+        treatmentRecommendations: treatmentRecommendations || undefined,
+        referralNotes: note.referralNotes?.trim() || undefined,
+        followUpRequired: note.followUpRequired,
+        followUpDate: note.followUpDate,
+        followUpInstructions: note.followUpInstructions?.trim() || undefined,
+        patientAdvice: note.patientAdvice?.trim() || undefined,
+        isFinalized: note.isFinalized,
+      });
+
+      if (created?.id) {
+        clinicalNotesState = clinicalNotesState.map((cn) =>
+          cn.id === tempId
+            ? {
+                ...cn,
+                id: created.id,
+                noteNumber: created.noteNumber || cn.noteNumber,
+                status: created.status || cn.status,
+                finalizedAt: created.finalizedAt || cn.finalizedAt,
+                finalizedById: created.finalizedById || cn.finalizedById,
+                finalizedByName: created.finalizedByName || cn.finalizedByName,
+                doctorName: created.doctor?.fullName || created.finalizedByName || cn.doctorName,
+                patient: created.patient || cn.patient,
+                doctor: created.doctor || cn.doctor,
+                appointment: created.appointment || cn.appointment,
+                createdAt: created.createdAt || cn.createdAt,
+              }
+            : cn
+        );
+        emitChange();
+        return clinicalNotesState.find((c) => c.id === created.id) || localNote;
+      }
+    } catch (err) {
+      console.warn('[clinicStore] addClinicalNote failed on backend, rolling back:', err);
+      clinicalNotesState = prevNotes;
+      emitChange();
+      throw err;
+    }
+  }
+
+  return localNote;
+};
+
+export const saveClinicalNote = addClinicalNote;
+
+export const updateClinicalNote = async (
+  id: string,
+  patch: Partial<ClinicalNoteInput>
+): Promise<ClinicalNoteRecord> => {
+  const prevNotes = [...clinicalNotesState];
+  clinicalNotesState = clinicalNotesState.map((cn) => {
+    if (cn.id !== id) return cn;
+    return {
+      ...cn,
+      ...(patch.chiefComplaint !== undefined ? { chiefComplaint: patch.chiefComplaint.trim(), complaint: patch.chiefComplaint.trim() } : {}),
+      ...(patch.primaryDiagnosis !== undefined ? { primaryDiagnosis: patch.primaryDiagnosis.trim() } : {}),
+      ...(patch.examinationNotes !== undefined ? { examinationNotes: patch.examinationNotes.trim(), findings: patch.examinationNotes.trim() } : {}),
+      ...(patch.treatmentRecommendations !== undefined ? { treatmentRecommendations: patch.treatmentRecommendations.trim(), plan: patch.treatmentRecommendations.trim() } : {}),
+      ...(patch.symptoms !== undefined ? { symptoms: patch.symptoms } : {}),
+      ...(patch.symptomDuration !== undefined ? { symptomDuration: patch.symptomDuration } : {}),
+      ...(patch.painSeverity !== undefined ? { painSeverity: patch.painSeverity } : {}),
+      ...(patch.historyNotes !== undefined ? { historyNotes: patch.historyNotes } : {}),
+      ...(patch.extraoralFindings !== undefined ? { extraoralFindings: patch.extraoralFindings } : {}),
+      ...(patch.intraoralFindings !== undefined ? { intraoralFindings: patch.intraoralFindings } : {}),
+      ...(patch.toothSpecificFindings !== undefined ? { toothSpecificFindings: patch.toothSpecificFindings } : {}),
+      ...(patch.periodontalFindings !== undefined ? { periodontalFindings: patch.periodontalFindings } : {}),
+      ...(patch.additionalDiagnoses !== undefined ? { additionalDiagnoses: patch.additionalDiagnoses } : {}),
+      ...(patch.diagnosisNotes !== undefined ? { diagnosisNotes: patch.diagnosisNotes } : {}),
+      ...(patch.treatmentPerformed !== undefined ? { treatmentPerformed: patch.treatmentPerformed } : {}),
+      ...(patch.treatmentToothNumber !== undefined ? { treatmentToothNumber: patch.treatmentToothNumber } : {}),
+      ...(patch.treatmentDescription !== undefined ? { treatmentDescription: patch.treatmentDescription } : {}),
+      ...(patch.materialsUsed !== undefined ? { materialsUsed: patch.materialsUsed } : {}),
+      ...(patch.treatmentOutcome !== undefined ? { treatmentOutcome: patch.treatmentOutcome } : {}),
+      ...(patch.referralNotes !== undefined ? { referralNotes: patch.referralNotes } : {}),
+      ...(patch.followUpRequired !== undefined ? { followUpRequired: patch.followUpRequired } : {}),
+      ...(patch.followUpDate !== undefined ? { followUpDate: patch.followUpDate } : {}),
+      ...(patch.followUpInstructions !== undefined ? { followUpInstructions: patch.followUpInstructions } : {}),
+      ...(patch.patientAdvice !== undefined ? { patientAdvice: patch.patientAdvice } : {}),
+      ...(patch.consultationDate !== undefined ? { consultationDate: patch.consultationDate, visitDate: patch.consultationDate.slice(0, 10) } : {}),
+      updatedAt: new Date().toISOString(),
+    };
+  });
+  emitChange();
+
+  if (hasAuthToken()) {
+    try {
+      const updated = await apiClient.patch<any>(`/clinical-notes/${id}`, patch);
+      if (updated?.id) {
+        clinicalNotesState = clinicalNotesState.map((cn) =>
+          cn.id === id
+            ? {
+                ...cn,
+                ...updated,
+                visitDate: updated.consultationDate ? updated.consultationDate.slice(0, 10) : cn.visitDate,
+                complaint: updated.chiefComplaint || cn.complaint,
+                findings: updated.examinationNotes || updated.intraoralFindings || cn.findings,
+                plan: updated.treatmentRecommendations || updated.treatmentPerformed || cn.plan,
+              }
+            : cn
+        );
+        emitChange();
+        return clinicalNotesState.find((c) => c.id === id)!;
+      }
+    } catch (err) {
+      console.warn('[clinicStore] updateClinicalNote failed on backend, rolling back:', err);
+      clinicalNotesState = prevNotes;
+      emitChange();
+      throw err;
+    }
+  }
+
+  return clinicalNotesState.find((c) => c.id === id)!;
+};
+
+export const finalizeClinicalNote = async (id: string): Promise<ClinicalNoteRecord> => {
+  const prevNotes = [...clinicalNotesState];
+  if (hasAuthToken()) {
+    try {
+      const finalized = await apiClient.post<any>(`/clinical-notes/${id}/finalize`, {});
+      clinicalNotesState = clinicalNotesState.map((cn) =>
+        cn.id === id
+          ? {
+              ...cn,
+              status: 'FINALIZED',
+              finalizedAt: finalized?.finalizedAt || new Date().toISOString(),
+              finalizedById: finalized?.finalizedById,
+              finalizedByName: finalized?.finalizedByName,
+              doctorName: finalized?.finalizedByName || cn.doctorName,
+            }
+          : cn
+      );
+      emitChange();
+      const res = clinicalNotesState.find((c) => c.id === id);
+      if (!res) throw new Error('Clinical note not found after finalization');
+      return res;
+    } catch (err) {
+      console.warn('[clinicStore] finalizeClinicalNote failed on backend, rolling back:', err);
+      clinicalNotesState = prevNotes;
+      emitChange();
+      throw err;
+    }
+  } else {
+    clinicalNotesState = clinicalNotesState.map((cn) =>
+      cn.id === id
+        ? {
+            ...cn,
+            status: 'FINALIZED',
+            finalizedAt: new Date().toISOString(),
+            finalizedByName: cn.doctorName || 'Attending Doctor',
+          }
+        : cn
+    );
+    emitChange();
+    const res = clinicalNotesState.find((c) => c.id === id);
+    if (!res) throw new Error('Clinical note not found after finalization');
+    return res;
+  }
+};
+
+export const addClinicalNoteAddendum = async (
+  noteId: string,
+  content: string
+): Promise<ClinicalNoteAddendumRecord> => {
+  const prevNotes = [...clinicalNotesState];
+  const tempAddendum: ClinicalNoteAddendumRecord = {
+    id: `add-${Date.now()}`,
+    noteId,
+    content: content.trim(),
+    createdAt: new Date().toISOString(),
+  };
+
+  clinicalNotesState = clinicalNotesState.map((cn) => {
+    if (cn.id !== noteId) return cn;
+    return {
+      ...cn,
+      addenda: [...(cn.addenda || []), tempAddendum],
+    };
+  });
+  emitChange();
+
+  if (hasAuthToken()) {
+    try {
+      const created = await apiClient.post<any>(`/clinical-notes/${noteId}/addenda`, {
+        content: content.trim(),
+      });
+      if (created?.id) {
+        clinicalNotesState = clinicalNotesState.map((cn) => {
+          if (cn.id !== noteId) return cn;
+          return {
+            ...cn,
+            addenda: (cn.addenda || []).map((a) => (a.id === tempAddendum.id ? created : a)),
+          };
+        });
+        emitChange();
+        return created;
+      }
+    } catch (err) {
+      console.warn('[clinicStore] addClinicalNoteAddendum failed on backend, rolling back:', err);
+      clinicalNotesState = prevNotes;
+      emitChange();
+      throw err;
+    }
+  }
+
+  return tempAddendum;
 };

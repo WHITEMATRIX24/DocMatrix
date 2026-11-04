@@ -163,6 +163,8 @@ model Clinic {
   consents        PatientConsent[]
   enquiries       Enquiry[]
   prescriptions   Prescription[]
+  clinicalNotes   ClinicalNote[]
+  clinicalNoteAddenda ClinicalNoteAddendum[]
   clinicSequences ClinicSequence[]
 
   @@index([status])
@@ -192,6 +194,9 @@ model User {
   prescriptions Prescription[] @relation("DoctorPrescriptions")
   finalizedPrescriptions Prescription[] @relation("FinalizedPrescriptions")
   cancelledPrescriptions Prescription[] @relation("CancelledPrescriptions")
+  clinicalNotes ClinicalNote[] @relation("DoctorClinicalNotes")
+  finalizedClinicalNotes ClinicalNote[] @relation("FinalizedClinicalNotes")
+  clinicalNoteAddenda ClinicalNoteAddendum[]
 
   // Compound unique key enabling engine-level compound foreign key references
   @@unique([id, clinicId])
@@ -232,6 +237,7 @@ model Patient {
   documents       PatientDocument[]
   consents        PatientConsent[]
   prescriptions   Prescription[]
+  clinicalNotes   ClinicalNote[]
 
   // Deterministic identifier unique per clinic
   @@unique([clinicId, patientCode])
@@ -269,6 +275,7 @@ model Appointment {
   // Compound foreign keys guaranteeing cross-clinic data integrity at the database engine level
   patient Patient @relation(fields: [patientId, clinicId], references: [id, clinicId], onDelete: Restrict)
   doctor  User?   @relation("DoctorAppointments", fields: [doctorId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  clinicalNotes ClinicalNote[]
 
   @@index([clinicId, startTime, endTime])
   @@index([doctorId, startTime])
@@ -452,5 +459,104 @@ model ClinicSequence {
   clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Restrict)
 
   @@unique([clinicId, sequenceType])
+  @@index([clinicId])
+}
+
+// ------------------------------------------
+// Structured Clinical Notes Model
+// ------------------------------------------
+
+enum ClinicalNoteStatus {
+  DRAFT
+  FINALIZED
+}
+
+model ClinicalNote {
+  id                     String             @id @default(uuid())
+  clinicId               String
+  noteNumber             String             // e.g. 'CN-1001'
+  patientId              String
+  doctorId               String             // Authenticated treating dentist
+  appointmentId          String?            // Optional linked appointment
+  consultationDate       DateTime           @default(now()) @db.Timestamptz(6)
+  consultationType       String             @default("ROUTINE_CHECKUP") // 'INITIAL_VISIT', 'FOLLOW_UP', 'EMERGENCY', 'ROUTINE_CHECKUP', 'OTHER'
+  status                 ClinicalNoteStatus @default(DRAFT)
+
+  // 1. Chief Complaint
+  chiefComplaint         String
+
+  // 2. Symptoms and History
+  symptoms               String?
+  symptomDuration        String?
+  painSeverity           Int?               // 0 to 10 scale
+  historyNotes           String?
+
+  // 3. Clinical Examination
+  extraoralFindings      String?
+  intraoralFindings      String?
+  toothSpecificFindings  String?            // e.g. tooth numbers + findings
+  periodontalFindings    String?
+  examinationNotes       String?
+
+  // 4. Diagnosis
+  primaryDiagnosis       String
+  additionalDiagnoses    Json?              // String[] or { code, title }[]
+  diagnosisNotes         String?
+
+  // 5. Treatment Performed
+  treatmentPerformed     String?
+  treatmentToothNumber   String?
+  treatmentDescription   String?
+  materialsUsed          String?
+  treatmentOutcome       String?
+
+  // 6. Treatment Recommendations
+  treatmentRecommendations String?
+  referralNotes          String?
+
+  // 7. Follow-up Instructions
+  followUpRequired       Boolean            @default(false)
+  followUpDate           DateTime?          @db.Date
+  followUpInstructions   String?
+  patientAdvice          String?
+
+  // 8. Lifecycle & Finalization Audit
+  finalizedAt            DateTime?          @db.Timestamptz(6)
+  finalizedById          String?
+  finalizedByName        String?
+
+  createdAt              DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt              DateTime           @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  clinic       Clinic                 @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient      Patient                @relation(fields: [patientId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  doctor       User                   @relation("DoctorClinicalNotes", fields: [doctorId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  finalizedBy  User?                  @relation("FinalizedClinicalNotes", fields: [finalizedById, clinicId], references: [id, clinicId], onDelete: Restrict)
+  appointment  Appointment?           @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  addenda      ClinicalNoteAddendum[]
+
+  @@unique([clinicId, noteNumber])
+  @@unique([id, clinicId])
+  @@index([clinicId, patientId])
+  @@index([clinicId, doctorId])
+  @@index([clinicId, status])
+  @@index([clinicId, consultationDate])
+}
+
+model ClinicalNoteAddendum {
+  id             String       @id @default(uuid())
+  clinicalNoteId String
+  clinicId       String
+  authorId       String
+  authorName     String
+  content        String
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+
+  clinicalNote ClinicalNote @relation(fields: [clinicalNoteId], references: [id], onDelete: Cascade)
+  clinic       Clinic       @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  author       User         @relation(fields: [authorId, clinicId], references: [id, clinicId], onDelete: Restrict)
+
+  @@index([clinicalNoteId])
   @@index([clinicId])
 }
