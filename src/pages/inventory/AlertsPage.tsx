@@ -30,8 +30,9 @@ export const AlertsPage: React.FC = () => {
       title: item.name,
       category: item.category,
       details: `${item.totalStock} ${item.unit} remaining`,
-      subDetails: `Reorder threshold: ${item.reorderLevel} ${item.unit}`,
-      context: `SKU: ${item.sku}`,
+      subDetails: `Threshold: ${item.reorderLevel} ${item.unit}`,
+      contextPrimary: 'Reorder Queue',
+      contextSecondary: `SKU: ${item.sku}`,
       statusText: 'Reorder Needed',
       statusType: 'danger' as const
     }))
@@ -50,9 +51,11 @@ export const AlertsPage: React.FC = () => {
           Icon: Clock,
           title: item.name,
           category: item.category,
-          details: `Batch ${batch.batchNumber} (${batch.quantity} ${item.unit})`,
-          subDetails: `Expires: ${batch.expiryDate}`,
-          context: batch.location || 'Central Dispensary',
+          lotNumber: batch.batchNumber,
+          lotQty: `${batch.quantity} ${item.unit}`,
+          expiryDate: batch.expiryDate,
+          contextPrimary: batch.location || 'Central Dispensary',
+          contextSecondary: `SKU: ${item.sku}`,
           statusText: 'FEFO Priority',
           statusType: 'fefo' as const
         })
@@ -73,9 +76,10 @@ export const AlertsPage: React.FC = () => {
           Icon: TrendingUp,
           title: m.name,
           category: log.procedureName,
-          details: `Used ${m.confirmedQty} ${m.unit}`,
-          subDetails: `Standard suggested: ${m.suggestedQty} ${m.unit}`,
-          context: `${log.doctorName} · Pt: ${log.patientName}`,
+          confirmedText: `Used ${m.confirmedQty} ${m.unit}`,
+          baselineText: `Suggested: ${m.suggestedQty} ${m.unit}`,
+          contextPrimary: log.doctorName,
+          contextSecondary: `Patient: ${log.patientName}`,
           statusText: 'Shift Recorded',
           statusType: 'shift' as const
         })
@@ -110,8 +114,8 @@ export const AlertsPage: React.FC = () => {
       const q = searchQuery.toLowerCase().trim()
       return (
         alert.title.toLowerCase().includes(q) ||
-        alert.details.toLowerCase().includes(q) ||
-        alert.context.toLowerCase().includes(q) ||
+        alert.contextPrimary.toLowerCase().includes(q) ||
+        (alert.contextSecondary && alert.contextSecondary.toLowerCase().includes(q)) ||
         alert.category.toLowerCase().includes(q)
       )
     }
@@ -219,15 +223,15 @@ export const AlertsPage: React.FC = () => {
             <table className="inv-sheet-table" style={{ width: '100%', minWidth: '960px' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '15%' }}>Alert Type</th>
-                  <th style={{ width: '25%' }}>Item & Department</th>
-                  <th style={{ width: '32%' }}>Details & Threshold</th>
-                  <th style={{ width: '16%' }}>Context / Doctor</th>
+                  <th style={{ width: '14%' }}>Alert Type</th>
+                  <th style={{ width: '24%' }}>Item & Department</th>
+                  <th style={{ width: '34%' }}>Condition & Details</th>
+                  <th style={{ width: '16%' }}>Context / Source</th>
                   <th style={{ width: '12%', textAlign: 'right', paddingRight: '22px' }}>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredAlerts.map((alert) => {
+                {filteredAlerts.map((alert: any) => {
                   const { Icon } = alert
                   return (
                     <tr key={alert.id} className="inv-sheet-row">
@@ -249,60 +253,135 @@ export const AlertsPage: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Details & Threshold */}
+                      {/* Condition & Details */}
                       <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
-                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-strong, #0f172a)' }}>
-                          {alert.details}
-                        </div>
-                        <div style={{ fontSize: '11.5px', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>
-                          {alert.subDetails}
-                        </div>
+                        {alert.tab === 'low' && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ color: 'var(--tone-red, #dc2626)', fontWeight: 700, fontSize: '13px' }}>
+                              {alert.details}
+                            </span>
+                            <span style={{ fontSize: '11.5px', color: 'var(--text-muted, #64748b)' }}>
+                              · {alert.subDetails}
+                            </span>
+                          </div>
+                        )}
+
+                        {alert.tab === 'expiry' && (
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: 'var(--inv-bg-subtle, #f8fafc)',
+                            border: '1px solid var(--inv-border, #e2e8f0)',
+                            padding: '3px 8px',
+                            borderRadius: '6px'
+                          }}>
+                            <span style={{
+                              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              color: 'var(--text-strong, #0f172a)'
+                            }}>
+                              {alert.lotNumber}
+                            </span>
+                            <span style={{
+                              color: 'var(--teal-primary, #008891)',
+                              fontWeight: 700,
+                              fontSize: '11.5px'
+                            }}>
+                              {alert.lotQty}
+                            </span>
+                            <span style={{
+                              color: 'var(--text-muted, #64748b)',
+                              fontSize: '11px',
+                              borderLeft: '1px solid var(--inv-border, #e2e8f0)',
+                              paddingLeft: '6px'
+                            }}>
+                              Expires: {alert.expiryDate}
+                            </span>
+                          </div>
+                        )}
+
+                        {alert.tab === 'shift' && (
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            background: 'var(--inv-bg-subtle, #f8fafc)',
+                            border: '1px solid var(--inv-border, #e2e8f0)',
+                            padding: '3px 8px',
+                            borderRadius: '6px'
+                          }}>
+                            <span style={{
+                              color: 'var(--teal-primary, #008891)',
+                              fontWeight: 700,
+                              fontSize: '11.5px'
+                            }}>
+                              {alert.confirmedText}
+                            </span>
+                            <span style={{
+                              color: 'var(--text-muted, #64748b)',
+                              fontSize: '11px',
+                              borderLeft: '1px solid var(--inv-border, #e2e8f0)',
+                              paddingLeft: '6px'
+                            }}>
+                              {alert.baselineText}
+                            </span>
+                          </div>
+                        )}
                       </td>
 
-                      {/* Context / Doctor */}
+                      {/* Context / Source */}
                       <td style={{ verticalAlign: 'top', paddingTop: '16px' }}>
-                        <span style={{ fontSize: '12.5px', color: 'var(--text, #334155)', fontWeight: 500 }}>
-                          {alert.context}
-                        </span>
+                        <div style={{ fontSize: '12.5px', color: 'var(--text, #334155)', fontWeight: 500 }}>
+                          {alert.contextPrimary}
+                        </div>
+                        {alert.contextSecondary && (
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', marginTop: '2px' }}>
+                            {alert.contextSecondary}
+                          </div>
+                        )}
                       </td>
 
                       {/* Status */}
                       <td style={{ verticalAlign: 'top', paddingTop: '16px', textAlign: 'right', paddingRight: '22px' }}>
-                        {alert.statusType === 'fefo' && (
-                          <span className="fefo-pill">
-                            {alert.statusText}
-                          </span>
-                        )}
-                        {alert.statusType === 'danger' && (
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            padding: '3px 9px',
-                            borderRadius: '9999px',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            background: 'rgba(220, 38, 38, 0.12)',
-                            color: 'var(--tone-red, #dc2626)',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            {alert.statusText}
-                          </span>
-                        )}
-                        {alert.statusType === 'shift' && (
-                          <span style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            padding: '3px 9px',
-                            borderRadius: '9999px',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            background: 'rgba(44, 189, 183, 0.12)',
-                            color: 'var(--teal-primary, #008891)',
-                            whiteSpace: 'nowrap'
-                          }}>
-                            {alert.statusText}
-                          </span>
-                        )}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          {alert.statusType === 'fefo' && (
+                            <span className="fefo-pill">
+                              {alert.statusText}
+                            </span>
+                          )}
+                          {alert.statusType === 'danger' && (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              padding: '3px 9px',
+                              borderRadius: '9999px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              background: 'rgba(220, 38, 38, 0.12)',
+                              color: 'var(--tone-red, #dc2626)',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {alert.statusText}
+                            </span>
+                          )}
+                          {alert.statusType === 'shift' && (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              padding: '3px 9px',
+                              borderRadius: '9999px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              background: 'rgba(44, 189, 183, 0.12)',
+                              color: 'var(--teal-primary, #008891)',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {alert.statusText}
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )
