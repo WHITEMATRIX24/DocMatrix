@@ -403,8 +403,8 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
   },
   {
     "id": "inv.items",
-    "name": "Items and stock",
-    "description": "Items and stock",
+    "name": "Items & Stock",
+    "description": "Real-time stock quantities, batch lots, and adaptive clinical consumption",
     "source": "#6",
     "phase": "launch",
     "area": "Inventory",
@@ -413,8 +413,8 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
   },
   {
     "id": "inv.movements",
-    "name": "Stock in and out",
-    "description": "Stock in and out",
+    "name": "Stock Movements & Audit",
+    "description": "Stock receipts, clinic issuances, and automated procedure consumption deductions",
     "source": "#6",
     "phase": "launch",
     "area": "Inventory",
@@ -423,8 +423,8 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
   },
   {
     "id": "inv.alerts",
-    "name": "Low-stock & expiry alerts",
-    "description": "Low-stock and expiry alerts",
+    "name": "Low-Stock & Expiry Alerts",
+    "description": "Proactive replenishment alerts, expiring batch lots, and doctor consumption shifts",
     "source": "#6",
     "phase": "launch",
     "area": "Inventory",
