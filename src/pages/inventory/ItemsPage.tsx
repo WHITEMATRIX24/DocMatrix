@@ -266,7 +266,6 @@ export const ItemsPage: React.FC = () => {
 
   // In adjust modal, allow editing item name directly
   const [editAdjustItemName, setEditAdjustItemName] = useState('')
-  const [editAdjustReorderLevel, setEditAdjustReorderLevel] = useState<number>(10)
   const [targetQty, setTargetQty] = useState<number>(0)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
@@ -428,15 +427,10 @@ export const ItemsPage: React.FC = () => {
     e.preventDefault()
     if (!adjustModalData) return
 
-    const updates: Partial<InventoryStockItem> = {}
     if (editAdjustItemName.trim() && editAdjustItemName.trim() !== adjustModalData.item.name) {
-      updates.name = editAdjustItemName.trim()
-    }
-    if (editAdjustReorderLevel !== adjustModalData.item.reorderLevel) {
-      updates.reorderLevel = editAdjustReorderLevel
-    }
-    if (Object.keys(updates).length > 0) {
-      updateInventoryItem(adjustModalData.item.id, updates)
+      updateInventoryItem(adjustModalData.item.id, {
+        name: editAdjustItemName.trim()
+      })
     }
 
     if (targetQty !== adjustModalData.batch.quantity) {
@@ -774,7 +768,6 @@ export const ItemsPage: React.FC = () => {
                                 setAdjustAmount(0)
                                 setTargetQty(stock.activeBatches[0].quantity)
                                 setEditAdjustItemName(stock.name)
-                                setEditAdjustReorderLevel(stock.reorderLevel ?? 10)
                                 setDeleteConfirmOpen(false)
                               }}
                               title="Adjust stock quantity"
@@ -1459,7 +1452,6 @@ export const ItemsPage: React.FC = () => {
                                 setAdjustAmount(0)
                                 setTargetQty(b.quantity)
                                 setEditAdjustItemName(batchModalItem.name)
-                                setEditAdjustReorderLevel(batchModalItem.reorderLevel ?? 10)
                                 setDeleteConfirmOpen(false)
                               }}
                               className="careplus-pill-btn secondary"
@@ -1644,74 +1636,7 @@ export const ItemsPage: React.FC = () => {
                       {v > 0 ? `+${v}` : v}
                     </button>
                   ))}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const lowQty = Math.max(0, editAdjustReorderLevel)
-                      setTargetQty(lowQty)
-                      setAdjustAmount(lowQty - adjustModalData.batch.quantity)
-                    }}
-                    style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #fde68a', background: '#fffbeb', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, color: '#b45309' }}
-                    title={`Set quantity to ${editAdjustReorderLevel} to trigger Low Stock status`}
-                  >
-                    Set Low Stock ({editAdjustReorderLevel})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTargetQty(0)
-                      setAdjustAmount(-adjustModalData.batch.quantity)
-                    }}
-                    style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #fecaca', background: '#fef2f2', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, color: '#dc2626' }}
-                    title="Set quantity to 0 to trigger Out of Stock"
-                  >
-                    Out of Stock (0)
-                  </button>
                 </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, marginBottom: '6px' }}>
-                    Low Stock Alert Threshold:
-                  </label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input
-                      type="number"
-                      min={0}
-                      value={editAdjustReorderLevel}
-                      onChange={(e) => setEditAdjustReorderLevel(Math.max(0, parseInt(e.target.value, 10) || 0))}
-                      className="pat-input"
-                      placeholder="e.g. 20"
-                      style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)', fontSize: '14px', fontWeight: 600 }}
-                    />
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted, #64748b)' }}>
-                      {adjustModalData.item.unit}
-                    </span>
-                  </div>
-                </div>
-
-                {targetQty <= editAdjustReorderLevel && (
-                  <div
-                    style={{
-                      background: targetQty === 0 ? '#fef2f2' : '#fffbeb',
-                      border: targetQty === 0 ? '1px solid #fecaca' : '1px solid #fde68a',
-                      borderRadius: '8px',
-                      padding: '8px 12px',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      color: targetQty === 0 ? '#b91c1c' : '#b45309',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    <span>{targetQty === 0 ? '🛑' : '⚠️'}</span>
-                    <span>
-                      {targetQty === 0
-                        ? 'Will be marked as Out of Stock (0 units remaining)'
-                        : `Will be marked as Low Stock (${targetQty} <= ${editAdjustReorderLevel} ${adjustModalData.item.unit})`}
-                    </span>
-                  </div>
-                )}
               </div>
 
               <div className="ai-modal-footer" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1806,7 +1731,7 @@ export const ItemsPage: React.FC = () => {
                       </button>
                       <button
                         type="submit"
-                        disabled={targetQty === adjustModalData.batch.quantity && (!editAdjustItemName.trim() || editAdjustItemName.trim() === adjustModalData.item.name) && editAdjustReorderLevel === adjustModalData.item.reorderLevel}
+                        disabled={targetQty === adjustModalData.batch.quantity && (!editAdjustItemName.trim() || editAdjustItemName.trim() === adjustModalData.item.name)}
                         className="pat-btn pat-btn-primary"
                         style={{ padding: '8px 20px', borderRadius: '8px' }}
                       >
