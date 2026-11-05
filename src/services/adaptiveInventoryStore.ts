@@ -767,16 +767,21 @@ export function updateInventoryItem(itemId: string, updates: Partial<InventorySt
 /**
  * Delete an inventory item
  */
-export function deleteInventoryItem(itemId: string) {
+export function deleteInventoryItem(itemIdOrSku: string, sku?: string) {
   state = {
     ...state,
-    items: state.items.filter((item) => item.id !== itemId)
+    items: state.items.filter((item) => {
+      if (item.id === itemIdOrSku || item.sku === itemIdOrSku) return false
+      if (sku && (item.sku === sku || item.id === sku)) return false
+      return true
+    })
   }
   emitChange()
 
-  // Asynchronously synchronize deletion with backend database
+  // Target backend by real identifier or SKU
+  const targetKey = itemIdOrSku.startsWith('item-') && sku ? sku : itemIdOrSku
   apiClient
-    .delete(`/inventory/items/${itemId}`)
+    .delete(`/inventory/items/${encodeURIComponent(targetKey)}`)
     .catch(() => {
       // Offline fallback
     })

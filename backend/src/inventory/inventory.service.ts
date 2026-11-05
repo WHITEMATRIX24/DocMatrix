@@ -81,19 +81,22 @@ export class InventoryService {
 
   async deleteItem(clinicId: string, id: string) {
     const existing = await this.prisma.inventoryItem.findFirst({
-      where: { id, clinicId },
+      where: {
+        clinicId,
+        OR: [{ id }, { sku: id }],
+      },
     });
     if (!existing) {
-      throw new NotFoundException('Inventory item not found');
+      return { success: true, message: 'Item already removed' };
     }
 
     // Delete associated batches first within clinic boundary
     await this.prisma.inventoryBatch.deleteMany({
-      where: { itemId: id, clinicId },
+      where: { itemId: existing.id, clinicId },
     });
 
     return this.prisma.inventoryItem.delete({
-      where: { id },
+      where: { id: existing.id },
     });
   }
 

@@ -266,15 +266,14 @@ export const ItemsPage: React.FC = () => {
 
   // In adjust modal, allow editing item name directly
   const [editAdjustItemName, setEditAdjustItemName] = useState('')
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   // Handle Delete Inventory Item
-  const handleDeleteItem = (itemId: string, itemName: string) => {
-    if (window.confirm(`Are you sure you want to delete "${itemName}"? This action cannot be undone.`)) {
-      deleteInventoryItem(itemId)
-      if (adjustModalData?.item.id === itemId) {
-        setAdjustModalData(null)
-      }
-    }
+  const handleDeleteItem = (itemId: string, sku?: string) => {
+    deleteInventoryItem(itemId, sku)
+    setAdjustModalData(null)
+    setDeleteConfirmOpen(false)
+    setEditAdjustItemName('')
   }
 
   // Reload terminal suggestions when doctor, procedure, or suggestion mode changes
@@ -740,6 +739,7 @@ export const ItemsPage: React.FC = () => {
                                 setAdjustModalData({ item: stock, batch: stock.activeBatches[0] })
                                 setAdjustAmount(0)
                                 setEditAdjustItemName(stock.name)
+                                setDeleteConfirmOpen(false)
                               }}
                               title="Adjust stock quantity"
                               className="inv-action-btn btn-adjust"
@@ -1421,6 +1421,8 @@ export const ItemsPage: React.FC = () => {
                               onClick={() => {
                                 setAdjustModalData({ item: batchModalItem, batch: b })
                                 setAdjustAmount(0)
+                                setEditAdjustItemName(batchModalItem.name)
+                                setDeleteConfirmOpen(false)
                               }}
                               className="careplus-pill-btn secondary"
                               style={{ padding: '3px 10px', fontSize: '11px' }}
@@ -1602,48 +1604,107 @@ export const ItemsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="ai-modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteItem(adjustModalData.item.id, editAdjustItemName || adjustModalData.item.name)}
-                  title="Delete this item from inventory"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '8px',
-                    border: '1px solid #fecaca',
-                    background: '#fef2f2',
-                    color: '#dc2626',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.borderColor = '#fca5a5' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.borderColor = '#fecaca' }}
-                >
-                  <Trash2 size={16} />
-                </button>
+              <div className="ai-modal-footer" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {deleteConfirmOpen ? (
+                  <div
+                    style={{
+                      background: '#fff1f2',
+                      border: '1px solid #fecdd3',
+                      borderRadius: '8px',
+                      padding: '10px 14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      width: '100%'
+                    }}
+                  >
+                    <div style={{ fontSize: '13px', color: '#9f1239', fontWeight: 600 }}>
+                      Delete <strong>{editAdjustItemName || adjustModalData.item.name}</strong> permanently?
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteConfirmOpen(false)}
+                        className="pat-btn"
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          borderRadius: '6px',
+                          border: '1px solid #cbd5e1',
+                          background: '#ffffff',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteItem(adjustModalData.item.id, adjustModalData.item.sku)}
+                        style={{
+                          padding: '6px 14px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          borderRadius: '6px',
+                          border: 'none',
+                          background: '#e11d48',
+                          color: '#ffffff',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Yes, Delete
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteConfirmOpen(true)}
+                      title="Delete this item from inventory"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: '8px',
+                        border: '1px solid #fecaca',
+                        background: '#fef2f2',
+                        color: '#dc2626',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.borderColor = '#fca5a5' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.borderColor = '#fecaca' }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setAdjustModalData(null)}
-                    className="pat-btn"
-                    style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--line, #cbd5e1)', borderRadius: '8px' }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={adjustAmount === 0 && (!editAdjustItemName.trim() || editAdjustItemName.trim() === adjustModalData.item.name)}
-                    className="pat-btn pat-btn-primary"
-                    style={{ padding: '8px 20px', borderRadius: '8px' }}
-                  >
-                    Save Changes
-                  </button>
-                </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdjustModalData(null)
+                          setDeleteConfirmOpen(false)
+                        }}
+                        className="pat-btn"
+                        style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--line, #cbd5e1)', borderRadius: '8px' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={adjustAmount === 0 && (!editAdjustItemName.trim() || editAdjustItemName.trim() === adjustModalData.item.name)}
+                        className="pat-btn pat-btn-primary"
+                        style={{ padding: '8px 20px', borderRadius: '8px' }}
+                      >
+                        Save Changes
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </form>
           </div>

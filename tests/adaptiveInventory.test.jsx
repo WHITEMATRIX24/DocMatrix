@@ -6,6 +6,7 @@ import {
   resetAdaptiveInventory,
   seedDemoInventoryForTesting,
   getAdaptiveInventorySnapshot,
+  deleteInventoryItem,
   INITIAL_INVENTORY_ITEMS
 } from '../src/services/adaptiveInventoryStore'
 
@@ -177,6 +178,18 @@ describe('Adaptive Treatment-Based Inventory Engine', () => {
     expect(categories.has('Preventive')).toBe(true)
     expect(categories.has('Prosthodontics')).toBe(true)
     expect(categories.has('Orthodontics')).toBe(true)
+  })
+
+  it('reliably removes inventory item from store state by id and sku', () => {
+    const initialItems = getAdaptiveInventorySnapshot().items
+    expect(initialItems.length).toBeGreaterThan(0)
+
+    const targetItem = initialItems[0]
+    deleteInventoryItem(targetItem.id, targetItem.sku)
+
+    const updatedItems = getAdaptiveInventorySnapshot().items
+    expect(updatedItems.find((i) => i.id === targetItem.id)).toBeUndefined()
+    expect(updatedItems.find((i) => i.sku === targetItem.sku)).toBeUndefined()
   })
 })
 
