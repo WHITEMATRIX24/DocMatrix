@@ -747,7 +747,7 @@ export function updateInventoryItem(itemId: string, updates: Partial<InventorySt
   state = {
     ...state,
     items: state.items.map((item) => {
-      if (item.id !== itemId) return item
+      if (item.id !== itemId && item.sku !== itemId) return item
       return {
         ...item,
         ...updates
@@ -756,9 +756,12 @@ export function updateInventoryItem(itemId: string, updates: Partial<InventorySt
   }
   emitChange()
 
+  const item = state.items.find((i) => i.id === itemId || i.sku === itemId)
+  const targetKey = item?.id?.startsWith('item-') && item?.sku ? item.sku : itemId
+
   // Asynchronously synchronize updates with backend database
   apiClient
-    .patch(`/inventory/items/${itemId}`, updates)
+    .patch(`/inventory/items/${encodeURIComponent(targetKey)}`, updates)
     .catch(() => {
       // Offline fallback
     })
@@ -825,7 +828,7 @@ export function addBatchToItem(itemId: string, batch: InventoryBatch) {
  */
 export function adjustBatchQuantity(itemId: string, batchNumber: string, deltaOrExact: { delta?: number; exact?: number }) {
   let calculatedDelta = 0
-  const item = state.items.find((i) => i.id === itemId)
+  const item = state.items.find((i) => i.id === itemId || i.sku === itemId)
   const existingBatch = item?.activeBatches.find((b) => b.batchNumber === batchNumber)
 
   if (deltaOrExact.delta !== undefined) {
@@ -837,7 +840,7 @@ export function adjustBatchQuantity(itemId: string, batchNumber: string, deltaOr
   state = {
     ...state,
     items: state.items.map((item) => {
-      if (item.id !== itemId) return item
+      if (item.id !== itemId && item.sku !== itemId) return item
       const updatedBatches = item.activeBatches.map((b) => {
         if (b.batchNumber !== batchNumber) return b
         const newQty = deltaOrExact.exact !== undefined
@@ -857,9 +860,10 @@ export function adjustBatchQuantity(itemId: string, batchNumber: string, deltaOr
 
   // Asynchronously synchronize stock adjustment with backend database
   if (calculatedDelta !== 0) {
+    const targetKey = item?.id?.startsWith('item-') && item?.sku ? item.sku : itemId
     apiClient
       .post('/inventory/adjust', {
-        itemId,
+        itemId: targetKey,
         batchNumber,
         adjustmentAmount: calculatedDelta
       })

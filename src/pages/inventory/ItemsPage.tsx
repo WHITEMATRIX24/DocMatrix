@@ -266,6 +266,7 @@ export const ItemsPage: React.FC = () => {
 
   // In adjust modal, allow editing item name directly
   const [editAdjustItemName, setEditAdjustItemName] = useState('')
+  const [editAdjustReorderLevel, setEditAdjustReorderLevel] = useState<number>(10)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   // Handle Delete Inventory Item
@@ -426,10 +427,15 @@ export const ItemsPage: React.FC = () => {
     e.preventDefault()
     if (!adjustModalData) return
 
+    const updates: Partial<InventoryStockItem> = {}
     if (editAdjustItemName.trim() && editAdjustItemName.trim() !== adjustModalData.item.name) {
-      updateInventoryItem(adjustModalData.item.id, {
-        name: editAdjustItemName.trim()
-      })
+      updates.name = editAdjustItemName.trim()
+    }
+    if (editAdjustReorderLevel !== adjustModalData.item.reorderLevel) {
+      updates.reorderLevel = editAdjustReorderLevel
+    }
+    if (Object.keys(updates).length > 0) {
+      updateInventoryItem(adjustModalData.item.id, updates)
     }
 
     if (adjustAmount !== 0) {
@@ -441,6 +447,14 @@ export const ItemsPage: React.FC = () => {
     setAdjustModalData(null)
     setAdjustAmount(0)
     setEditAdjustItemName('')
+  }
+
+  // Low Stock condition: totalStock <= reorderLevel (with safe default threshold)
+  const isItemLowStock = (item: InventoryStockItem) => {
+    const threshold = typeof item.reorderLevel === 'number' && !isNaN(item.reorderLevel) && item.reorderLevel > 0 
+      ? item.reorderLevel 
+      : 10
+    return item.totalStock <= threshold
   }
 
   // Filtering Stock Items
@@ -459,7 +473,7 @@ export const ItemsPage: React.FC = () => {
 
     // 3. Quick Status Filter
     if (statusQuickFilter === 'low') {
-      return item.totalStock <= item.reorderLevel
+      return isItemLowStock(item)
     }
     if (statusQuickFilter === 'expiring') {
       return item.activeBatches.some((b) => {
@@ -468,7 +482,7 @@ export const ItemsPage: React.FC = () => {
       })
     }
     if (statusQuickFilter === 'optimal') {
-      return item.totalStock > item.reorderLevel
+      return !isItemLowStock(item)
     }
 
     return true
@@ -476,7 +490,7 @@ export const ItemsPage: React.FC = () => {
 
   // Stock Summary Metrics
   const totalStockCount = inventory.items.reduce((s, i) => s + i.totalStock, 0)
-  const lowStockCount = inventory.items.filter((i) => i.totalStock <= i.reorderLevel).length
+  const lowStockCount = inventory.items.filter(isItemLowStock).length
   const totalBatchesCount = inventory.items.reduce((s, i) => s + i.activeBatches.length, 0)
   const nearExpiryCount = inventory.items.reduce((acc, item) => {
     return acc + item.activeBatches.filter((b) => parseInt(b.expiryDate.split('-')[0], 10) <= 2027).length
@@ -646,6 +660,7 @@ export const ItemsPage: React.FC = () => {
               <tbody>
                 {filteredStock.map((stock) => {
                   const sortedBatches = [...stock.activeBatches].sort((a, b) => a.expiryDate.localeCompare(b.expiryDate))
+                  const isLow = isItemLowStock(stock)
 
                   return (
                     <tr key={stock.id} className="inv-sheet-row">
@@ -658,9 +673,42 @@ export const ItemsPage: React.FC = () => {
 
                       {/* Stock Level */}
                       <td>
-                        <span className="inv-stock-qty">
-                          {stock.totalStock} <span className="inv-stock-unit">{stock.unit}</span>
-                        </span>
+                        {isLow ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className="inv-stock-qty is-low" style={{ color: stock.totalStock === 0 ? '#dc2626' : '#d97706', fontWeight: 700 }}>
+                              {stock.totalStock} <span className="inv-stock-unit">{stock.unit}</span>
+                            </span>
+                            <span
+                              className="inv-status-pill pill-low"
+                              style={{
+                                background: stock.totalStock === 0 ? '#fef2f2' : '#fffbeb',
+                                color: stock.totalStock === 0 ? '#dc2626' : '#b45309',
+                                border: stock.totalStock === 0 ? '1px solid #fecaca' : '1px solid #fde68a',
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: '6px',
+                                  height: '6px',
+                                  borderRadius: '50%',
+                                  background: stock.totalStock === 0 ? '#dc2626' : '#f59e0b'
+                                }}
+                              />
+                              {stock.totalStock === 0 ? 'Out of Stock' : 'Low Stock'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="inv-stock-qty">
+                            {stock.totalStock} <span className="inv-stock-unit">{stock.unit}</span>
+                          </span>
+                        )}
                       </td>
 
                       {/* Active Batches - Centered in column */}
@@ -722,6 +770,7 @@ export const ItemsPage: React.FC = () => {
                                 setAdjustModalData({ item: stock, batch: stock.activeBatches[0] })
                                 setAdjustAmount(0)
                                 setEditAdjustItemName(stock.name)
+                                setEditAdjustReorderLevel(stock.reorderLevel ?? 10)
                                 setDeleteConfirmOpen(false)
                               }}
                               title="Adjust stock quantity"
@@ -1405,6 +1454,7 @@ export const ItemsPage: React.FC = () => {
                                 setAdjustModalData({ item: batchModalItem, batch: b })
                                 setAdjustAmount(0)
                                 setEditAdjustItemName(batchModalItem.name)
+                                setEditAdjustReorderLevel(batchModalItem.reorderLevel ?? 10)
                                 setDeleteConfirmOpen(false)
                               }}
                               className="careplus-pill-btn secondary"
@@ -1582,8 +1632,35 @@ export const ItemsPage: React.FC = () => {
                   ))}
                 </div>
 
-                <div style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>
-                  New Projected Lot Quantity: <strong>{Math.max(0, adjustModalData.batch.quantity + adjustAmount)} {adjustModalData.item.unit}</strong>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, marginBottom: '6px' }}>
+                    Low Stock Alert Threshold:
+                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editAdjustReorderLevel}
+                      onChange={(e) => setEditAdjustReorderLevel(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                      className="pat-input"
+                      placeholder="e.g. 20"
+                      style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)', fontSize: '14px', fontWeight: 600 }}
+                    />
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted, #64748b)' }}>
+                      {adjustModalData.item.unit}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>
+                    New Projected Lot Quantity: <strong>{Math.max(0, adjustModalData.batch.quantity + adjustAmount)} {adjustModalData.item.unit}</strong>
+                  </span>
+                  {Math.max(0, adjustModalData.item.totalStock + adjustAmount) <= editAdjustReorderLevel && (
+                    <span style={{ color: '#dc2626', fontWeight: 600, fontSize: '11.5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      ⚠️ Will trigger Low Stock
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -1679,7 +1756,7 @@ export const ItemsPage: React.FC = () => {
                       </button>
                       <button
                         type="submit"
-                        disabled={adjustAmount === 0 && (!editAdjustItemName.trim() || editAdjustItemName.trim() === adjustModalData.item.name)}
+                        disabled={adjustAmount === 0 && (!editAdjustItemName.trim() || editAdjustItemName.trim() === adjustModalData.item.name) && editAdjustReorderLevel === adjustModalData.item.reorderLevel}
                         className="pat-btn pat-btn-primary"
                         style={{ padding: '8px 20px', borderRadius: '8px' }}
                       >

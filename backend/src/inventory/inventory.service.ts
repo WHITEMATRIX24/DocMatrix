@@ -61,20 +61,23 @@ export class InventoryService {
     dto: { name?: string; category?: string; unit?: string; reorderLevel?: number; costPerUnit?: number },
   ) {
     const existing = await this.prisma.inventoryItem.findFirst({
-      where: { id, clinicId },
+      where: {
+        clinicId,
+        OR: [{ id }, { sku: id }],
+      },
     });
     if (!existing) {
       throw new NotFoundException('Inventory item not found');
     }
 
     return this.prisma.inventoryItem.update({
-      where: { id },
+      where: { id: existing.id },
       data: {
         ...(dto.name ? { name: dto.name.trim() } : {}),
         ...(dto.category ? { category: dto.category.trim() } : {}),
         ...(dto.unit ? { unit: dto.unit.trim() } : {}),
-        ...(dto.reorderLevel !== undefined ? { reorderLevel: dto.reorderLevel } : {}),
-        ...(dto.costPerUnit !== undefined ? { costPerUnit: dto.costPerUnit } : {}),
+        ...(dto.reorderLevel !== undefined ? { reorderLevel: Number(dto.reorderLevel) } : {}),
+        ...(dto.costPerUnit !== undefined ? { costPerUnit: Number(dto.costPerUnit) } : {}),
       },
     });
   }
@@ -147,14 +150,17 @@ export class InventoryService {
 
   async adjustStock(clinicId: string, dto: AdjustStockDto) {
     const item = await this.prisma.inventoryItem.findFirst({
-      where: { id: dto.itemId, clinicId },
+      where: {
+        clinicId,
+        OR: [{ id: dto.itemId }, { sku: dto.itemId }],
+      },
     });
     if (!item) {
       throw new NotFoundException('Inventory item not found');
     }
 
     const batch = await this.prisma.inventoryBatch.findFirst({
-      where: { clinicId, itemId: dto.itemId, batchNumber: dto.batchNumber },
+      where: { clinicId, itemId: item.id, batchNumber: dto.batchNumber },
     });
     if (!batch) {
       throw new NotFoundException('Batch not found');
