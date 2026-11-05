@@ -263,40 +263,8 @@ export const ItemsPage: React.FC = () => {
     setShowAddItemModal(true)
   }
 
-  // Edit Item Modal State
-  const [editModalItem, setEditModalItem] = useState<InventoryStockItem | null>(null)
-  const [editItemName, setEditItemName] = useState('')
-  const [editItemCategory, setEditItemCategory] = useState<InventoryCategory>('PPE & General')
-  const [editItemUnit, setEditItemUnit] = useState('pieces')
-  const [editItemReorder, setEditItemReorder] = useState(10)
-  const [editItemCost, setEditItemCost] = useState(0)
-
-  // In adjust modal, also keep track of edited name
+  // In adjust modal, allow editing item name directly
   const [editAdjustItemName, setEditAdjustItemName] = useState('')
-
-  const openEditModal = (item: InventoryStockItem) => {
-    setEditModalItem(item)
-    setEditItemName(item.name)
-    setEditItemCategory(item.category)
-    setEditItemUnit(item.unit)
-    setEditItemReorder(item.reorderLevel)
-    setEditItemCost(item.costPerUnit || 0)
-  }
-
-  const handleEditItemSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editModalItem || !editItemName.trim()) return
-
-    updateInventoryItem(editModalItem.id, {
-      name: editItemName.trim(),
-      category: editItemCategory,
-      unit: editItemUnit.trim() || 'pieces',
-      reorderLevel: Number(editItemReorder) || 10,
-      costPerUnit: Number(editItemCost) || 0
-    })
-
-    setEditModalItem(null)
-  }
 
   // Reload terminal suggestions when doctor, procedure, or suggestion mode changes
   const reloadTerminal = (procId: string, docId: string, mode: SuggestionMode) => {
@@ -674,30 +642,8 @@ export const ItemsPage: React.FC = () => {
                     <tr key={stock.id} className="inv-sheet-row">
                       {/* Item */}
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div className="inv-sheet-item-name">
-                            {stock.name}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(stock)}
-                            title="Edit item name & details"
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              padding: '2px 4px',
-                              cursor: 'pointer',
-                              color: 'var(--text-muted, #94a3b8)',
-                              borderRadius: '4px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              opacity: 0.7
-                            }}
-                            onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = 'var(--teal-primary, #008891)' }}
-                            onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; e.currentTarget.style.color = 'var(--text-muted, #94a3b8)' }}
-                          >
-                            <Edit3 size={13} />
-                          </button>
+                        <div className="inv-sheet-item-name">
+                          {stock.name}
                         </div>
                       </td>
 
@@ -762,15 +708,7 @@ export const ItemsPage: React.FC = () => {
 
                       {/* Actions */}
                       <td style={{ textAlign: 'right', paddingRight: '20px' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', whiteSpace: 'nowrap' }}>
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(stock)}
-                            title="Edit item name & details"
-                            className="inv-action-btn btn-edit"
-                          >
-                            <Edit3 size={12} /> Edit
-                          </button>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', whiteSpace: 'nowrap' }}>
                           <button
                             type="button"
                             onClick={() => {
@@ -1665,138 +1603,6 @@ export const ItemsPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={adjustAmount === 0 && (!editAdjustItemName.trim() || editAdjustItemName.trim() === adjustModalData.item.name)}
-                  className="pat-btn pat-btn-primary"
-                  style={{ padding: '8px 20px', borderRadius: '8px' }}
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL 3: EDIT INVENTORY ITEM DETAILS */}
-      {editModalItem && (
-        <div className="ai-modal-overlay" onClick={() => setEditModalItem(null)} role="dialog" aria-modal="true">
-          <div className="ai-modal-content" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="ai-modal-header">
-              <div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 700, color: 'var(--text-strong, #0f172a)' }}>
-                  Edit Inventory Item
-                </h3>
-                <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
-                  SKU: <strong>{editModalItem.sku}</strong>
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditModalItem(null)}
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px', color: 'var(--text-muted, #64748b)' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleEditItemSubmit}>
-              <div className="ai-modal-body" style={{ gap: '14px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
-                    Item Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    autoFocus
-                    value={editItemName}
-                    onChange={(e) => setEditItemName(e.target.value)}
-                    placeholder="e.g. 2% Lignocaine with Adrenaline (1:80,000)"
-                    className="pat-input"
-                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)', fontSize: '14px' }}
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
-                      Department Category
-                    </label>
-                    <select
-                      value={editItemCategory}
-                      onChange={(e) => setEditItemCategory(e.target.value as InventoryCategory)}
-                      className="pat-input"
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)', background: 'var(--surface, #fff)' }}
-                    >
-                      <option value="PPE & General">PPE &amp; General</option>
-                      <option value="Endodontics">Endodontics</option>
-                      <option value="Restorative">Restorative</option>
-                      <option value="Surgical">Surgical</option>
-                      <option value="Anesthetics">Anesthetics</option>
-                      <option value="Prosthodontics">Prosthodontics</option>
-                      <option value="Preventive">Preventive</option>
-                      <option value="Orthodontics">Orthodontics</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
-                      Unit of Measure
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={editItemUnit}
-                      onChange={(e) => setEditItemUnit(e.target.value)}
-                      placeholder="e.g. cartridges, boxes, ml"
-                      className="pat-input"
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
-                      Reorder Alert Level
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={editItemReorder}
-                      onChange={(e) => setEditItemReorder(parseInt(e.target.value, 10) || 0)}
-                      className="pat-input"
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
-                      Cost Per Unit (₹)
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={editItemCost}
-                      onChange={(e) => setEditItemCost(parseFloat(e.target.value) || 0)}
-                      className="pat-input"
-                      style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="ai-modal-footer">
-                <button
-                  type="button"
-                  onClick={() => setEditModalItem(null)}
-                  className="pat-btn"
-                  style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--line, #cbd5e1)', borderRadius: '8px' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
                   className="pat-btn pat-btn-primary"
                   style={{ padding: '8px 20px', borderRadius: '8px' }}
                 >
