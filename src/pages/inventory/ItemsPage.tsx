@@ -645,7 +645,6 @@ export const ItemsPage: React.FC = () => {
               </thead>
               <tbody>
                 {filteredStock.map((stock) => {
-                  const isLow = stock.totalStock <= stock.reorderLevel
                   const sortedBatches = [...stock.activeBatches].sort((a, b) => a.expiryDate.localeCompare(b.expiryDate))
 
                   return (
@@ -657,27 +656,11 @@ export const ItemsPage: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Stock Level (Integrated Status & Reorder Threshold) */}
+                      {/* Stock Level */}
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className={`inv-stock-qty ${isLow ? 'is-low' : ''}`}>
-                            {stock.totalStock} <span className="inv-stock-unit">{stock.unit}</span>
-                          </span>
-                          {isLow ? (
-                            <span className="inv-status-pill pill-low">
-                              <span className="inv-status-dot dot-low" />
-                              Low Stock
-                            </span>
-                          ) : (
-                            <span className="inv-status-pill pill-ok">
-                              <span className="inv-status-dot dot-ok" />
-                              In Stock
-                            </span>
-                          )}
-                        </div>
-                        <div className="inv-stock-reorder">
-                          Min: {stock.reorderLevel} {stock.unit}
-                        </div>
+                        <span className="inv-stock-qty">
+                          {stock.totalStock} <span className="inv-stock-unit">{stock.unit}</span>
+                        </span>
                       </td>
 
                       {/* Active Batches - Centered in column */}
