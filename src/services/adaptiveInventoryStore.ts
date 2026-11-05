@@ -501,7 +501,12 @@ export function confirmConsumptionAndDeductStock(payload: {
 
   // 1. Execute stock deductions across active batches
   const updatedItems = state.items.map((stockItem) => {
-    const consumedItem = payload.items.find((c) => c.itemId === stockItem.id)
+    const consumedItem = payload.items.find(
+      (c) =>
+        c.itemId === stockItem.id ||
+        c.itemId === stockItem.sku ||
+        (c.name && stockItem.name && c.name.trim().toLowerCase() === stockItem.name.trim().toLowerCase())
+    )
     if (!consumedItem) return stockItem
 
     const totalToDeduct = consumedItem.confirmedQty + consumedItem.wastageQty

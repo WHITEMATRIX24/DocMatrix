@@ -22,22 +22,25 @@ export class InventoryService {
       orderBy: { name: 'asc' },
     });
 
-    return items.map((i) => ({
-      id: i.id,
-      sku: i.sku,
-      name: i.name,
-      category: i.category,
-      unit: i.unit,
-      totalStock: i.totalStock,
-      reorderLevel: i.reorderLevel,
-      costPerUnit: i.costPerUnit,
-      activeBatches: i.batches.map((b) => ({
-        batchNumber: b.batchNumber,
-        expiryDate: b.expiryDate,
-        quantity: b.quantity,
-        location: b.location,
-      })),
-    }));
+    return items.map((i) => {
+      const computedTotal = i.batches.reduce((sum, b) => sum + b.quantity, 0);
+      return {
+        id: i.id,
+        sku: i.sku,
+        name: i.name,
+        category: i.category,
+        unit: i.unit,
+        totalStock: i.batches.length > 0 ? computedTotal : i.totalStock,
+        reorderLevel: i.reorderLevel,
+        costPerUnit: i.costPerUnit,
+        activeBatches: i.batches.map((b) => ({
+          batchNumber: b.batchNumber,
+          expiryDate: b.expiryDate,
+          quantity: b.quantity,
+          location: b.location,
+        })),
+      };
+    });
   }
 
   async createItem(clinicId: string, dto: CreateItemDto) {
@@ -214,7 +217,14 @@ export class InventoryService {
       if (totalDeduct <= 0) continue;
 
       const item = await this.prisma.inventoryItem.findFirst({
-        where: { id: mat.itemId, clinicId },
+        where: {
+          clinicId,
+          OR: [
+            { id: mat.itemId },
+            { sku: mat.itemId },
+            ...(mat.name ? [{ name: { equals: mat.name, mode: 'insensitive' as const } }] : []),
+          ],
+        },
       });
       if (item) {
         await this.prisma.inventoryItem.update({

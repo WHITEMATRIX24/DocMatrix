@@ -129,7 +129,6 @@ export const ItemsPage: React.FC = () => {
 
   const [adjustModalData, setAdjustModalData] = useState<{ item: InventoryStockItem; batch: InventoryBatch } | null>(null)
   const [adjustAmount, setAdjustAmount] = useState(0)
-  const [adjustNewLotQty, setAdjustNewLotQty] = useState(0)
 
   // Interactive Consumption Terminal State (embedded interactive card)
   const [terminalItems, setTerminalItems] = useState<TerminalItem[]>(() => {
@@ -268,6 +267,7 @@ export const ItemsPage: React.FC = () => {
   // In adjust modal, allow editing item name directly
   const [editAdjustItemName, setEditAdjustItemName] = useState('')
   const [editAdjustReorderLevel, setEditAdjustReorderLevel] = useState<number>(10)
+  const [targetQty, setTargetQty] = useState<number>(0)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   // Handle Delete Inventory Item
@@ -439,26 +439,25 @@ export const ItemsPage: React.FC = () => {
       updateInventoryItem(adjustModalData.item.id, updates)
     }
 
-    const calculatedDelta = adjustNewLotQty - adjustModalData.batch.quantity
-    if (calculatedDelta !== 0) {
+    if (targetQty !== adjustModalData.batch.quantity) {
       adjustBatchQuantity(adjustModalData.item.id, adjustModalData.batch.batchNumber, {
-        exact: adjustNewLotQty,
-        delta: calculatedDelta
+        exact: targetQty
       })
     }
 
     setAdjustModalData(null)
     setAdjustAmount(0)
-    setAdjustNewLotQty(0)
+    setTargetQty(0)
     setEditAdjustItemName('')
   }
 
   // Low Stock condition: totalStock <= reorderLevel (with safe default threshold)
   const isItemLowStock = (item: InventoryStockItem) => {
+    const stockQty = Number(item.totalStock) || 0
     const threshold = typeof item.reorderLevel === 'number' && !isNaN(item.reorderLevel) && item.reorderLevel > 0 
-      ? item.reorderLevel 
+      ? Number(item.reorderLevel) 
       : 10
-    return item.totalStock <= threshold
+    return stockQty <= threshold
   }
 
   // Filtering Stock Items
@@ -773,7 +772,7 @@ export const ItemsPage: React.FC = () => {
                               onClick={() => {
                                 setAdjustModalData({ item: stock, batch: stock.activeBatches[0] })
                                 setAdjustAmount(0)
-                                setAdjustNewLotQty(stock.activeBatches[0].quantity)
+                                setTargetQty(stock.activeBatches[0].quantity)
                                 setEditAdjustItemName(stock.name)
                                 setEditAdjustReorderLevel(stock.reorderLevel ?? 10)
                                 setDeleteConfirmOpen(false)
@@ -824,49 +823,28 @@ export const ItemsPage: React.FC = () => {
                         </div>
                       ) : (
                         <div>
-                          <p style={{ margin: '0 0 6px 0', fontSize: '14.5px', fontWeight: 700, color: 'var(--text-strong, #0f172a)' }}>
-                            {statusQuickFilter === 'low' ? 'No items are currently low on stock' : 'No inventory items match the current filter'}
+                          <p style={{ margin: '0 0 6px 0', fontSize: '13.5px', fontWeight: 600 }}>
+                            No inventory items match the current filter
                           </p>
-                          <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
-                            {statusQuickFilter === 'low'
-                              ? 'All clinic items currently have sufficient stock above their reorder thresholds.'
-                              : 'Try adjusting your search or category filter.'}
-                          </p>
-                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                            {statusQuickFilter === 'low' && inventory.items.length > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const target = inventory.items[0]
-                                  if (target && target.activeBatches[0]) {
-                                    setAdjustModalData({ item: target, batch: target.activeBatches[0] })
-                                    const lowVal = Math.min(5, Math.max(1, Math.floor((target.reorderLevel || 10) / 2)))
-                                    setAdjustNewLotQty(lowVal)
-                                    setAdjustAmount(lowVal - target.activeBatches[0].quantity)
-                                    setEditAdjustItemName(target.name)
-                                    setEditAdjustReorderLevel(target.reorderLevel ?? 10)
-                                    setDeleteConfirmOpen(false)
-                                  }
-                                }}
-                                className="pat-btn pat-btn-primary"
-                                style={{ padding: '7px 16px', fontSize: '12.5px', borderRadius: '6px' }}
-                              >
-                                ⚡ Set an Item to Low Stock
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setStatusQuickFilter('all')
-                                setCategoryFilter('All')
-                                setSearchStock('')
-                              }}
-                              className="pat-btn"
-                              style={{ padding: '7px 16px', fontSize: '12.5px', borderRadius: '6px' }}
-                            >
-                              Show All Items
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStatusQuickFilter('all')
+                              setCategoryFilter('All')
+                              setSearchStock('')
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--teal-primary, #008891)',
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                              textDecoration: 'underline'
+                            }}
+                          >
+                            Reset all filters
+                          </button>
                         </div>
                       )}
                     </td>
@@ -1479,7 +1457,7 @@ export const ItemsPage: React.FC = () => {
                               onClick={() => {
                                 setAdjustModalData({ item: batchModalItem, batch: b })
                                 setAdjustAmount(0)
-                                setAdjustNewLotQty(b.quantity)
+                                setTargetQty(b.quantity)
                                 setEditAdjustItemName(batchModalItem.name)
                                 setEditAdjustReorderLevel(batchModalItem.reorderLevel ?? 10)
                                 setDeleteConfirmOpen(false)
@@ -1619,8 +1597,8 @@ export const ItemsPage: React.FC = () => {
                 </div>
 
                 <div style={{ background: 'var(--surface-sunken, #f8fafc)', padding: '12px 14px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>Current Lot Stock:</span>
-                  <span style={{ fontSize: '17px', fontWeight: 800 }}>
+                  <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>Current Lot Quantity:</span>
+                  <span style={{ fontSize: '18px', fontWeight: 800 }}>
                     {adjustModalData.batch.quantity} {adjustModalData.item.unit}
                   </span>
                 </div>
@@ -1632,17 +1610,17 @@ export const ItemsPage: React.FC = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <input
                       type="number"
-                      required
                       min={0}
-                      value={adjustNewLotQty}
+                      required
+                      value={targetQty}
                       onChange={(e) => {
                         const val = Math.max(0, parseInt(e.target.value, 10) || 0)
-                        setAdjustNewLotQty(val)
+                        setTargetQty(val)
                         setAdjustAmount(val - adjustModalData.batch.quantity)
                       }}
                       className="pat-input"
-                      placeholder="Enter new quantity..."
-                      style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)', fontSize: '15px', fontWeight: 700 }}
+                      placeholder="e.g. 5"
+                      style={{ flex: 1, padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)', fontSize: '16px', fontWeight: 700 }}
                     />
                     <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted, #64748b)' }}>
                       {adjustModalData.item.unit}
@@ -1650,18 +1628,18 @@ export const ItemsPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Quick Increment Pill Shortcuts & Direct Make Low Stock */}
+                {/* Quick Increment Pill Shortcuts */}
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   {[-10, -5, +5, +10, +25].map((v) => (
                     <button
                       key={v}
                       type="button"
                       onClick={() => {
-                        const next = Math.max(0, adjustNewLotQty + v)
-                        setAdjustNewLotQty(next)
+                        const next = Math.max(0, targetQty + v)
+                        setTargetQty(next)
                         setAdjustAmount(next - adjustModalData.batch.quantity)
                       }}
-                      style={{ flex: 1, minWidth: '42px', padding: '6px 0', borderRadius: '6px', border: '1px solid var(--line, #cbd5e1)', background: 'var(--surface, #ffffff)', cursor: 'pointer', fontSize: '11.5px', fontWeight: 600, color: v < 0 ? '#dc2626' : '#059669' }}
+                      style={{ flex: 1, minWidth: '40px', padding: '5px 0', borderRadius: '6px', border: '1px solid var(--line, #cbd5e1)', background: 'var(--surface, #ffffff)', cursor: 'pointer', fontSize: '12px', fontWeight: 600, color: v < 0 ? '#dc2626' : '#059669' }}
                     >
                       {v > 0 ? `+${v}` : v}
                     </button>
@@ -1669,23 +1647,25 @@ export const ItemsPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      const lowTarget = Math.min(5, Math.max(1, Math.floor(editAdjustReorderLevel / 2)))
-                      setAdjustNewLotQty(lowTarget)
-                      setAdjustAmount(lowTarget - adjustModalData.batch.quantity)
+                      const lowQty = Math.max(0, editAdjustReorderLevel)
+                      setTargetQty(lowQty)
+                      setAdjustAmount(lowQty - adjustModalData.batch.quantity)
                     }}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      border: '1px solid #fde68a',
-                      background: '#fffbeb',
-                      cursor: 'pointer',
-                      fontSize: '11.5px',
-                      fontWeight: 700,
-                      color: '#b45309'
-                    }}
-                    title="Directly set lot quantity to low stock level"
+                    style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #fde68a', background: '#fffbeb', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, color: '#b45309' }}
+                    title={`Set quantity to ${editAdjustReorderLevel} to trigger Low Stock status`}
                   >
-                    ⚡ Make Low Stock ({Math.min(5, Math.max(1, Math.floor(editAdjustReorderLevel / 2)))})
+                    Set Low Stock ({editAdjustReorderLevel})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetQty(0)
+                      setAdjustAmount(-adjustModalData.batch.quantity)
+                    }}
+                    style={{ padding: '5px 10px', borderRadius: '6px', border: '1px solid #fecaca', background: '#fef2f2', cursor: 'pointer', fontSize: '11.5px', fontWeight: 700, color: '#dc2626' }}
+                    title="Set quantity to 0 to trigger Out of Stock"
+                  >
+                    Out of Stock (0)
                   </button>
                 </div>
 
@@ -1709,25 +1689,29 @@ export const ItemsPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div style={{
-                  fontSize: '12px',
-                  padding: '9px 12px',
-                  borderRadius: '8px',
-                  background: (adjustModalData.item.totalStock + (adjustNewLotQty - adjustModalData.batch.quantity)) <= editAdjustReorderLevel ? '#fffbeb' : '#f0fdf4',
-                  border: (adjustModalData.item.totalStock + (adjustNewLotQty - adjustModalData.batch.quantity)) <= editAdjustReorderLevel ? '1px solid #fde68a' : '1px solid #bbf7d0',
-                  color: (adjustModalData.item.totalStock + (adjustNewLotQty - adjustModalData.batch.quantity)) <= editAdjustReorderLevel ? '#b45309' : '#15803d',
-                  fontWeight: 600,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between'
-                }}>
-                  <span>Projected Total Stock: <strong>{Math.max(0, adjustModalData.item.totalStock + (adjustNewLotQty - adjustModalData.batch.quantity))} {adjustModalData.item.unit}</strong></span>
-                  {(adjustModalData.item.totalStock + (adjustNewLotQty - adjustModalData.batch.quantity)) <= editAdjustReorderLevel ? (
-                    <span style={{ color: '#dc2626', fontWeight: 700 }}>⚠️ Low Stock</span>
-                  ) : (
-                    <span>✓ Normal</span>
-                  )}
-                </div>
+                {targetQty <= editAdjustReorderLevel && (
+                  <div
+                    style={{
+                      background: targetQty === 0 ? '#fef2f2' : '#fffbeb',
+                      border: targetQty === 0 ? '1px solid #fecaca' : '1px solid #fde68a',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: targetQty === 0 ? '#b91c1c' : '#b45309',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <span>{targetQty === 0 ? '🛑' : '⚠️'}</span>
+                    <span>
+                      {targetQty === 0
+                        ? 'Will be marked as Out of Stock (0 units remaining)'
+                        : `Will be marked as Low Stock (${targetQty} <= ${editAdjustReorderLevel} ${adjustModalData.item.unit})`}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="ai-modal-footer" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1822,7 +1806,7 @@ export const ItemsPage: React.FC = () => {
                       </button>
                       <button
                         type="submit"
-                        disabled={adjustNewLotQty === adjustModalData.batch.quantity && (!editAdjustItemName.trim() || editAdjustItemName.trim() === adjustModalData.item.name) && editAdjustReorderLevel === adjustModalData.item.reorderLevel}
+                        disabled={targetQty === adjustModalData.batch.quantity && (!editAdjustItemName.trim() || editAdjustItemName.trim() === adjustModalData.item.name) && editAdjustReorderLevel === adjustModalData.item.reorderLevel}
                         className="pat-btn pat-btn-primary"
                         style={{ padding: '8px 20px', borderRadius: '8px' }}
                       >
