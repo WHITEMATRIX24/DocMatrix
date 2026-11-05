@@ -1399,7 +1399,7 @@ export const ItemsPage: React.FC = () => {
                   className="pat-btn pat-btn-primary"
                   style={{ padding: '8px 20px', borderRadius: '8px' }}
                 >
-                  <PlusCircle size={15} /> {isSubmittingItem ? 'Saving...' : 'Save & Add Item'}
+                  {isSubmittingItem ? 'Saving...' : 'Save & Add Item'}
                 </button>
               </div>
             </form>
@@ -1544,7 +1544,7 @@ export const ItemsPage: React.FC = () => {
                   className="pat-btn pat-btn-primary"
                   style={{ padding: '8px 20px', borderRadius: '8px' }}
                 >
-                  <PlusCircle size={15} /> Save & Add Batch
+                  Save & Add Batch
                 </button>
               </div>
             </form>
