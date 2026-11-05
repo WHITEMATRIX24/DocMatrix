@@ -218,11 +218,91 @@ export const INITIAL_TREATMENT_TEMPLATES: TreatmentMaterialTemplate[] = [
   }
 ]
 
-// 3. Initial Doctor Adaptive Preferences: Clean slate (0 hardcoded)
+// 3. Initial Doctor Adaptive Preferences
 export const INITIAL_DOCTOR_PREFERENCES: DoctorAdaptivePreference[] = []
 
-// 4. Initial Deduction Audit Records: Clean slate (0 hardcoded)
-export const INITIAL_DEDUCTION_AUDIT: ConfirmedMaterialDeduction[] = []
+// 4. Initial Deduction Audit Records (Clinical Treatment Movement Records)
+export const INITIAL_DEDUCTION_AUDIT: ConfirmedMaterialDeduction[] = [
+  {
+    id: 'AUD-2026-884',
+    treatmentId: 'trt-composite-104',
+    patientId: 'pat-1158',
+    patientName: 'Fatima Zahra',
+    doctorId: 'doc-104',
+    doctorName: 'Dr. Rajesh Nair',
+    procedureName: 'Direct Composite Restoration (Class II)',
+    procedureId: 'trt-restoration',
+    modeUsed: 'doctor-specific',
+    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    materials: [
+      { itemId: 'mat-composite', name: 'Universal Composite Resin', unit: 'syringes', suggestedQty: 1, confirmedQty: 1, wastageQty: 0, batchNumber: 'CR-2026-05', deductedTotal: 1 },
+      { itemId: 'mat-etchant', name: 'Dental Etchant Gel (37% Phosphoric)', unit: 'ml', suggestedQty: 1, confirmedQty: 1, wastageQty: 0, batchNumber: 'ETC-2026-01', deductedTotal: 1 },
+      { itemId: 'mat-bonding', name: 'Light-Cured Bonding Agent', unit: 'bottles', suggestedQty: 1, confirmedQty: 1, wastageQty: 0, batchNumber: 'BND-2026-04', deductedTotal: 1 },
+      { itemId: 'mat-gloves', name: 'Dental gloves (Nitrile)', unit: 'pairs', suggestedQty: 2, confirmedQty: 2, wastageQty: 1, batchNumber: 'GLV-2026-B2', deductedTotal: 3 }
+    ],
+    notes: 'Restoration completed on tooth 36. One glove torn during curing light adjustment and replaced.',
+    confirmedBy: 'Dr. Rajesh Nair'
+  },
+  {
+    id: 'AUD-2026-883',
+    treatmentId: 'trt-scaling-103',
+    patientId: 'pat-1120',
+    patientName: 'Anjali Verma',
+    doctorId: 'doc-owner',
+    doctorName: 'Aashna Jose Alappattu',
+    procedureName: 'Ultrasonic Scaling & Polishing',
+    procedureId: 'trt-scaling',
+    modeUsed: 'standard',
+    timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+    materials: [
+      { itemId: 'mat-gloves', name: 'Dental gloves (Nitrile)', unit: 'pairs', suggestedQty: 2, confirmedQty: 2, wastageQty: 0, batchNumber: 'GLV-2026-B2', deductedTotal: 2 },
+      { itemId: 'mat-polishing-paste', name: 'Prophylaxis Polishing Paste', unit: 'cups', suggestedQty: 1, confirmedQty: 1, wastageQty: 0, batchNumber: 'PST-2026-02', deductedTotal: 1 },
+      { itemId: 'mat-saliva-ejector', name: 'Disposable Saliva Ejectors', unit: 'pieces', suggestedQty: 1, confirmedQty: 1, wastageQty: 0, batchNumber: 'SE-2026-07', deductedTotal: 1 }
+    ],
+    notes: 'Routine biannual prophylaxis completed with zero adverse reactions.',
+    confirmedBy: 'Aashna Jose Alappattu'
+  },
+  {
+    id: 'AUD-2026-882',
+    treatmentId: 'trt-extraction-102',
+    patientId: 'pat-1082',
+    patientName: 'Rahul Sharma',
+    doctorId: 'doc-104',
+    doctorName: 'Dr. Rajesh Nair',
+    procedureName: 'Tooth Extraction (Simple / Surgical)',
+    procedureId: 'trt-extraction',
+    modeUsed: 'standard',
+    timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    materials: [
+      { itemId: 'mat-anesthetic', name: 'Dental Anesthetic (Lidocaine 2%)', unit: 'cartridges', suggestedQty: 2, confirmedQty: 2, wastageQty: 0, batchNumber: 'LID-2026-03', deductedTotal: 2 },
+      { itemId: 'mat-needles', name: 'Dental Disposable Needles (27G Long)', unit: 'pieces', suggestedQty: 1, confirmedQty: 1, wastageQty: 0, batchNumber: 'NDL-2026-11', deductedTotal: 1 },
+      { itemId: 'mat-gauze', name: 'Surgical Gauze Sponges', unit: 'pieces', suggestedQty: 4, confirmedQty: 4, wastageQty: 0, batchNumber: 'GZ-2026-09', deductedTotal: 4 },
+      { itemId: 'mat-gloves', name: 'Dental gloves (Nitrile)', unit: 'pairs', suggestedQty: 2, confirmedQty: 2, wastageQty: 0, batchNumber: 'GLV-2026-B1', deductedTotal: 2 }
+    ],
+    notes: 'Atraumatic elevation of tooth 48. Hemostasis achieved promptly with pressure packs.',
+    confirmedBy: 'Dr. Rajesh Nair'
+  },
+  {
+    id: 'AUD-2026-881',
+    treatmentId: 'trt-rootcanal-101',
+    patientId: 'pat-1044',
+    patientName: 'Meera Nambiar',
+    doctorId: 'doc-owner',
+    doctorName: 'Aashna Jose Alappattu',
+    procedureName: 'Root Canal Treatment (Molar)',
+    procedureId: 'trt-root-canal',
+    modeUsed: 'doctor-specific',
+    timestamp: new Date(Date.now() - 28 * 60 * 60 * 1000).toISOString(),
+    materials: [
+      { itemId: 'mat-gloves', name: 'Dental gloves (Nitrile)', unit: 'pairs', suggestedQty: 2, confirmedQty: 2, wastageQty: 0, batchNumber: 'GLV-2026-B1', deductedTotal: 2 },
+      { itemId: 'mat-guttapercha', name: 'Gutta-percha (#25, .04 taper)', unit: 'cones', suggestedQty: 3, confirmedQty: 3, wastageQty: 1, batchNumber: 'LOT-2026-01', deductedTotal: 4 },
+      { itemId: 'mat-irrigation', name: 'Irrigation solution (NaOCl 3%)', unit: 'ml', suggestedQty: 5, confirmedQty: 5, wastageQty: 0, batchNumber: 'IRR-2026-04', deductedTotal: 5 },
+      { itemId: 'mat-files', name: 'Dental files (Rotary NiTi)', unit: 'sets', suggestedQty: 1, confirmedQty: 1, wastageQty: 0, batchNumber: 'DF-2026-X1', deductedTotal: 1 }
+    ],
+    notes: 'Biomechanical preparation completed for MB, DB, and Palatal canals. 1 GP cone trimmed and discarded during master cone fitting.',
+    confirmedBy: 'Aashna Jose Alappattu'
+  }
+]
 
 // In-memory state with localStorage sync
 let state: AdaptiveInventoryState = loadFromStorage<AdaptiveInventoryState>(STORAGE_KEY, {
@@ -233,6 +313,15 @@ let state: AdaptiveInventoryState = loadFromStorage<AdaptiveInventoryState>(STOR
   consumptionHistory: [],
   deductionAuditLog: INITIAL_DEDUCTION_AUDIT
 })
+
+// Auto-seed audit records if log is currently empty
+if (!state.deductionAuditLog || state.deductionAuditLog.length === 0) {
+  state = {
+    ...state,
+    deductionAuditLog: INITIAL_DEDUCTION_AUDIT
+  }
+  saveToStorage(STORAGE_KEY, state)
+}
 
 const listeners = new Set<() => void>()
 
@@ -275,7 +364,7 @@ export async function syncInventoryWithBackend() {
 
   try {
     const backendAudits = await apiClient.get<ConfirmedMaterialDeduction[]>('/inventory/movements')
-    if (Array.isArray(backendAudits)) {
+    if (Array.isArray(backendAudits) && backendAudits.length > 0) {
       state = {
         ...state,
         deductionAuditLog: backendAudits
