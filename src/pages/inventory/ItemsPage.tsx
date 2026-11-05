@@ -82,6 +82,104 @@ export interface TerminalItem {
   availableStock: number
 }
 
+interface ActiveLotItemRowProps {
+  batch: InventoryBatch
+  item: InventoryStockItem
+  onAdjust: () => void
+  onUpdateBatch: (oldBatchNumber: string, updates: { newBatchNumber?: string; expiryDate?: string }) => void
+}
+
+function ActiveLotItemRow({ batch, item, onAdjust, onUpdateBatch }: ActiveLotItemRowProps) {
+  const [lotVal, setLotVal] = useState(batch.batchNumber)
+  const [expVal, setExpVal] = useState(batch.expiryDate)
+
+  useEffect(() => {
+    setLotVal(batch.batchNumber)
+    setExpVal(batch.expiryDate)
+  }, [batch.batchNumber, batch.expiryDate])
+
+  const commitChanges = () => {
+    const trimmedLot = lotVal.trim().toUpperCase()
+    const trimmedExp = expVal.trim()
+    if (!trimmedLot) {
+      setLotVal(batch.batchNumber)
+      return
+    }
+    if (trimmedLot !== batch.batchNumber || trimmedExp !== batch.expiryDate) {
+      onUpdateBatch(batch.batchNumber, {
+        newBatchNumber: trimmedLot,
+        expiryDate: trimmedExp || batch.expiryDate
+      })
+    }
+  }
+
+  return (
+    <div className="ai-modal-batch-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+        <input
+          type="text"
+          value={lotVal}
+          onChange={(e) => setLotVal(e.target.value.toUpperCase())}
+          onBlur={commitChanges}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.currentTarget.blur()
+            }
+          }}
+          className="pat-input"
+          placeholder="Lot number"
+          style={{
+            fontWeight: 700,
+            fontSize: '12.5px',
+            color: 'var(--text-strong, #0f172a)',
+            background: 'var(--bg-input, #ffffff)',
+            border: '1px solid var(--line, #cbd5e1)',
+            borderRadius: '6px',
+            padding: '3px 8px',
+            width: '125px'
+          }}
+        />
+        <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '12px' }}>&bull; Exp:</span>
+        <input
+          type="text"
+          value={expVal}
+          onChange={(e) => setExpVal(e.target.value)}
+          onBlur={commitChanges}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.currentTarget.blur()
+            }
+          }}
+          className="pat-input"
+          placeholder="YYYY-MM-DD"
+          style={{
+            fontSize: '12px',
+            color: 'var(--text-muted, #475569)',
+            background: 'var(--bg-input, #ffffff)',
+            border: '1px solid var(--line, #cbd5e1)',
+            borderRadius: '6px',
+            padding: '3px 8px',
+            width: '105px'
+          }}
+        />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        <span style={{ fontWeight: 700, color: 'var(--text-strong, #0f172a)', fontSize: '12.5px' }}>
+          {batch.quantity} {item.unit}
+        </span>
+        <button
+          type="button"
+          onClick={onAdjust}
+          className="careplus-pill-btn secondary"
+          style={{ padding: '3px 10px', fontSize: '11px' }}
+        >
+          Adjust
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export const ItemsPage: React.FC = () => {
   const inventory = useAdaptiveInventory()
   const location = useLocation()
@@ -422,6 +520,38 @@ export const ItemsPage: React.FC = () => {
     setNewBatchNumber('')
     setNewBatchExpiry('')
     setNewBatchQty(100)
+  }
+
+  // Handle Inline Active Batch Lot and Expiry Editing
+  const handleActiveBatchUpdate = (
+    oldBatchNumber: string,
+    updates: { newBatchNumber?: string; expiryDate?: string }
+  ) => {
+    if (!batchModalItem) return
+    const newLot = updates.newBatchNumber?.trim().toUpperCase() || oldBatchNumber
+    const newExp = updates.expiryDate?.trim() || ''
+
+    updateItemBatch(batchModalItem.id, oldBatchNumber, {
+      newBatchNumber: newLot,
+      expiryDate: newExp
+    })
+
+    setBatchModalItem((prev) => {
+      if (!prev) return null
+      return {
+        ...prev,
+        activeBatches: prev.activeBatches.map((b) => {
+          if (b.batchNumber === oldBatchNumber) {
+            return {
+              ...b,
+              batchNumber: newLot,
+              expiryDate: newExp || b.expiryDate
+            }
+          }
+          return b
+        })
+      }
+    })
   }
 
   // Handle Quick Adjust Submit
@@ -1447,29 +1577,20 @@ export const ItemsPage: React.FC = () => {
                     </label>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       {batchModalItem.activeBatches.map((b) => (
-                        <div key={b.batchNumber} className="ai-modal-batch-item">
-                          <div>
-                            <strong>{b.batchNumber}</strong> &bull; <span style={{ color: 'var(--text-muted, #64748b)' }}>Exp: {b.expiryDate}</span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontWeight: 700, color: 'var(--text-strong, #0f172a)' }}>{b.quantity} {batchModalItem.unit}</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAdjustModalData({ item: batchModalItem, batch: b })
-                                setAdjustAmount(0)
-                                setTargetQty(b.quantity)
-                                setEditAdjustItemName(batchModalItem.name)
-                                setEditAdjustBatchNumber(b.batchNumber)
-                                setDeleteConfirmOpen(false)
-                              }}
-                              className="careplus-pill-btn secondary"
-                              style={{ padding: '3px 10px', fontSize: '11px' }}
-                            >
-                              Adjust
-                            </button>
-                          </div>
-                        </div>
+                        <ActiveLotItemRow
+                          key={b.batchNumber}
+                          batch={b}
+                          item={batchModalItem}
+                          onUpdateBatch={handleActiveBatchUpdate}
+                          onAdjust={() => {
+                            setAdjustModalData({ item: batchModalItem, batch: b })
+                            setAdjustAmount(0)
+                            setTargetQty(b.quantity)
+                            setEditAdjustItemName(batchModalItem.name)
+                            setEditAdjustBatchNumber(b.batchNumber)
+                            setDeleteConfirmOpen(false)
+                          }}
+                        />
                       ))}
                     </div>
                   </div>
