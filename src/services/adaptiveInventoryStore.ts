@@ -765,6 +765,24 @@ export function updateInventoryItem(itemId: string, updates: Partial<InventorySt
 }
 
 /**
+ * Delete an inventory item
+ */
+export function deleteInventoryItem(itemId: string) {
+  state = {
+    ...state,
+    items: state.items.filter((item) => item.id !== itemId)
+  }
+  emitChange()
+
+  // Asynchronously synchronize deletion with backend database
+  apiClient
+    .delete(`/inventory/items/${itemId}`)
+    .catch(() => {
+      // Offline fallback
+    })
+}
+
+/**
  * Add a new batch to an existing inventory item
  */
 export function addBatchToItem(itemId: string, batch: InventoryBatch) {

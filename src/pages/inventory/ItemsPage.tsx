@@ -49,6 +49,7 @@ import {
   addBatchToItem,
   adjustBatchQuantity,
   updateInventoryItem,
+  deleteInventoryItem,
   createNewInventoryItem,
   syncInventoryWithBackend,
   type SuggestionMode,
@@ -265,6 +266,16 @@ export const ItemsPage: React.FC = () => {
 
   // In adjust modal, allow editing item name directly
   const [editAdjustItemName, setEditAdjustItemName] = useState('')
+
+  // Handle Delete Inventory Item
+  const handleDeleteItem = (itemId: string, itemName: string) => {
+    if (window.confirm(`Are you sure you want to delete "${itemName}"? This action cannot be undone.`)) {
+      deleteInventoryItem(itemId)
+      if (adjustModalData?.item.id === itemId) {
+        setAdjustModalData(null)
+      }
+    }
+  }
 
   // Reload terminal suggestions when doctor, procedure, or suggestion mode changes
   const reloadTerminal = (procId: string, docId: string, mode: SuggestionMode) => {
@@ -736,6 +747,27 @@ export const ItemsPage: React.FC = () => {
                               Adjust
                             </button>
                           )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteItem(stock.id, stock.name)}
+                            title={`Delete ${stock.name}`}
+                            className="inv-action-btn btn-delete-symbol"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: '32px',
+                              height: '32px',
+                              padding: 0,
+                              borderRadius: '8px',
+                              border: '1px solid #fecaca',
+                              background: '#fef2f2',
+                              color: '#dc2626',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1591,23 +1623,48 @@ export const ItemsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="ai-modal-footer">
+              <div className="ai-modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <button
                   type="button"
-                  onClick={() => setAdjustModalData(null)}
-                  className="pat-btn"
-                  style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--line, #cbd5e1)', borderRadius: '8px' }}
+                  onClick={() => handleDeleteItem(adjustModalData.item.id, editAdjustItemName || adjustModalData.item.name)}
+                  title="Delete this item from inventory"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '8px',
+                    border: '1px solid #fecaca',
+                    background: '#fef2f2',
+                    color: '#dc2626',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.borderColor = '#fca5a5' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.borderColor = '#fecaca' }}
                 >
-                  Cancel
+                  <Trash2 size={16} />
                 </button>
-                <button
-                  type="submit"
-                  disabled={adjustAmount === 0 && (!editAdjustItemName.trim() || editAdjustItemName.trim() === adjustModalData.item.name)}
-                  className="pat-btn pat-btn-primary"
-                  style={{ padding: '8px 20px', borderRadius: '8px' }}
-                >
-                  Save Changes
-                </button>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setAdjustModalData(null)}
+                    className="pat-btn"
+                    style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--line, #cbd5e1)', borderRadius: '8px' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={adjustAmount === 0 && (!editAdjustItemName.trim() || editAdjustItemName.trim() === adjustModalData.item.name)}
+                    className="pat-btn pat-btn-primary"
+                    style={{ padding: '8px 20px', borderRadius: '8px' }}
+                  >
+                    Save Changes
+                  </button>
+                </div>
               </div>
             </form>
           </div>

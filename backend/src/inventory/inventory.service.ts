@@ -79,6 +79,24 @@ export class InventoryService {
     });
   }
 
+  async deleteItem(clinicId: string, id: string) {
+    const existing = await this.prisma.inventoryItem.findFirst({
+      where: { id, clinicId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Inventory item not found');
+    }
+
+    // Delete associated batches first within clinic boundary
+    await this.prisma.inventoryBatch.deleteMany({
+      where: { itemId: id, clinicId },
+    });
+
+    return this.prisma.inventoryItem.delete({
+      where: { id },
+    });
+  }
+
   async receiveBatch(clinicId: string, dto: AddBatchDto) {
     const item = await this.prisma.inventoryItem.findFirst({
       where: { id: dto.itemId, clinicId },
