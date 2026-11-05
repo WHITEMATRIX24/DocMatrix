@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Patch,
   Post,
   Req,
@@ -41,6 +42,12 @@ export class InventoryController {
   async createItem(@Req() req: any, @Body() dto: CreateItemDto) {
     const clinicId = await this.resolveClinicId(req);
     return this.inventoryService.createItem(clinicId, dto);
+  }
+
+  @Patch('items/:id')
+  async updateItem(@Req() req: any, @Param('id') id: string, @Body() dto: any) {
+    const clinicId = await this.resolveClinicId(req);
+    return this.inventoryService.updateItem(clinicId, id, dto);
   }
 
   @Post('batches')

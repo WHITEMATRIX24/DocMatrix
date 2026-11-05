@@ -1328,6 +1328,18 @@
   border: 1px solid rgba(0, 136, 145, 0.25);
 }
 
+.inv-action-btn.btn-edit {
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.inv-action-btn.btn-edit:hover {
+  background: #f1f5f9;
+  color: var(--teal-primary, #008891);
+  border-color: rgba(0, 136, 145, 0.4);
+}
+
 .inv-action-btn.btn-adjust {
   background: #ffffff;
   color: #475569;

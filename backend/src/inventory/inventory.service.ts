@@ -55,6 +55,30 @@ export class InventoryService {
     });
   }
 
+  async updateItem(
+    clinicId: string,
+    id: string,
+    dto: { name?: string; category?: string; unit?: string; reorderLevel?: number; costPerUnit?: number },
+  ) {
+    const existing = await this.prisma.inventoryItem.findFirst({
+      where: { id, clinicId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Inventory item not found');
+    }
+
+    return this.prisma.inventoryItem.update({
+      where: { id },
+      data: {
+        ...(dto.name ? { name: dto.name.trim() } : {}),
+        ...(dto.category ? { category: dto.category.trim() } : {}),
+        ...(dto.unit ? { unit: dto.unit.trim() } : {}),
+        ...(dto.reorderLevel !== undefined ? { reorderLevel: dto.reorderLevel } : {}),
+        ...(dto.costPerUnit !== undefined ? { costPerUnit: dto.costPerUnit } : {}),
+      },
+    });
+  }
+
   async receiveBatch(clinicId: string, dto: AddBatchDto) {
     const item = await this.prisma.inventoryItem.findFirst({
       where: { id: dto.itemId, clinicId },

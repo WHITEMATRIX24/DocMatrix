@@ -741,6 +741,30 @@ export async function createNewInventoryItem(data: {
 }
 
 /**
+ * Update an existing inventory item (name, category, unit, reorderLevel, cost)
+ */
+export function updateInventoryItem(itemId: string, updates: Partial<InventoryStockItem>) {
+  state = {
+    ...state,
+    items: state.items.map((item) => {
+      if (item.id !== itemId) return item
+      return {
+        ...item,
+        ...updates
+      }
+    })
+  }
+  emitChange()
+
+  // Asynchronously synchronize updates with backend database
+  apiClient
+    .patch(`/inventory/items/${itemId}`, updates)
+    .catch(() => {
+      // Offline fallback
+    })
+}
+
+/**
  * Add a new batch to an existing inventory item
  */
 export function addBatchToItem(itemId: string, batch: InventoryBatch) {
