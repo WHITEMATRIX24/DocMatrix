@@ -1589,7 +1589,15 @@ export const ItemsPage: React.FC = () => {
                 </div>
 
                 <div style={{ background: 'var(--surface-sunken, #f8fafc)', padding: '12px 14px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>Current Lot Quantity:</span>
+                  <div>
+                    <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>Current Lot Quantity:</span>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>Min stock:</span>
+                      <span style={{ fontWeight: 600, color: '#475569' }}>
+                        {adjustModalData.item.reorderLevel ?? 10} {adjustModalData.item.unit}
+                      </span>
+                    </div>
+                  </div>
                   <span style={{ fontSize: '18px', fontWeight: 800 }}>
                     {adjustModalData.batch.quantity} {adjustModalData.item.unit}
                   </span>
