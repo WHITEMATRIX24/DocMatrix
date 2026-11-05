@@ -63,6 +63,15 @@ export class InventoryController {
     return this.inventoryService.receiveBatch(clinicId, dto);
   }
 
+  @Patch('batches')
+  async updateBatch(
+    @Req() req: any,
+    @Body() dto: { itemId: string; batchNumber: string; newBatchNumber?: string; expiryDate?: string; quantity?: number },
+  ) {
+    const clinicId = await this.resolveClinicId(req);
+    return this.inventoryService.updateBatch(clinicId, dto);
+  }
+
   @Post('adjust')
   async adjustStock(@Req() req: any, @Body() dto: AdjustStockDto) {
     const clinicId = await this.resolveClinicId(req);

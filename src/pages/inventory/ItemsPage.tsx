@@ -48,6 +48,7 @@ import {
   resetAdaptiveInventory,
   addBatchToItem,
   adjustBatchQuantity,
+  updateItemBatch,
   updateInventoryItem,
   deleteInventoryItem,
   createNewInventoryItem,
@@ -266,6 +267,7 @@ export const ItemsPage: React.FC = () => {
 
   // In adjust modal, allow editing item name directly
   const [editAdjustItemName, setEditAdjustItemName] = useState('')
+  const [editAdjustBatchNumber, setEditAdjustBatchNumber] = useState('')
   const [targetQty, setTargetQty] = useState<number>(0)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
@@ -433,9 +435,13 @@ export const ItemsPage: React.FC = () => {
       })
     }
 
-    if (targetQty !== adjustModalData.batch.quantity) {
-      adjustBatchQuantity(adjustModalData.item.id, adjustModalData.batch.batchNumber, {
-        exact: targetQty
+    const lotRenamed = editAdjustBatchNumber.trim() && editAdjustBatchNumber.trim().toUpperCase() !== adjustModalData.batch.batchNumber
+    const qtyChanged = targetQty !== adjustModalData.batch.quantity
+
+    if (lotRenamed || qtyChanged) {
+      updateItemBatch(adjustModalData.item.id, adjustModalData.batch.batchNumber, {
+        newBatchNumber: lotRenamed ? editAdjustBatchNumber.trim().toUpperCase() : undefined,
+        quantity: targetQty
       })
     }
 
@@ -443,6 +449,7 @@ export const ItemsPage: React.FC = () => {
     setAdjustAmount(0)
     setTargetQty(0)
     setEditAdjustItemName('')
+    setEditAdjustBatchNumber('')
   }
 
   // Low Stock condition: totalStock <= reorderLevel (with safe default threshold)
@@ -768,6 +775,7 @@ export const ItemsPage: React.FC = () => {
                                 setAdjustAmount(0)
                                 setTargetQty(stock.activeBatches[0].quantity)
                                 setEditAdjustItemName(stock.name)
+                                setEditAdjustBatchNumber(stock.activeBatches[0].batchNumber)
                                 setDeleteConfirmOpen(false)
                               }}
                               title="Adjust stock quantity"
@@ -1452,6 +1460,7 @@ export const ItemsPage: React.FC = () => {
                                 setAdjustAmount(0)
                                 setTargetQty(b.quantity)
                                 setEditAdjustItemName(batchModalItem.name)
+                                setEditAdjustBatchNumber(b.batchNumber)
                                 setDeleteConfirmOpen(false)
                               }}
                               className="careplus-pill-btn secondary"
@@ -1583,6 +1592,21 @@ export const ItemsPage: React.FC = () => {
                     value={editAdjustItemName}
                     onChange={(e) => setEditAdjustItemName(e.target.value)}
                     placeholder="Enter item name..."
+                    className="pat-input"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)', fontSize: '14px', fontWeight: 600 }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, marginBottom: '6px' }}>
+                    Active Lot:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editAdjustBatchNumber}
+                    onChange={(e) => setEditAdjustBatchNumber(e.target.value.toUpperCase())}
+                    placeholder="e.g. LOT-2026-01"
                     className="pat-input"
                     style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)', fontSize: '14px', fontWeight: 600 }}
                   />
@@ -1739,7 +1763,7 @@ export const ItemsPage: React.FC = () => {
                       </button>
                       <button
                         type="submit"
-                        disabled={targetQty === adjustModalData.batch.quantity && (!editAdjustItemName.trim() || editAdjustItemName.trim() === adjustModalData.item.name)}
+                        disabled={targetQty === adjustModalData.batch.quantity && (!editAdjustItemName.trim() || editAdjustItemName.trim() === adjustModalData.item.name) && (!editAdjustBatchNumber.trim() || editAdjustBatchNumber.trim().toUpperCase() === adjustModalData.batch.batchNumber)}
                         className="pat-btn pat-btn-primary"
                         style={{ padding: '8px 20px', borderRadius: '8px' }}
                       >

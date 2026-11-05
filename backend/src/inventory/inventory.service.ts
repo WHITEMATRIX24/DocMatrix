@@ -151,6 +151,45 @@ export class InventoryService {
     return { item: updatedItem, batch };
   }
 
+  async updateBatch(
+    clinicId: string,
+    dto: { itemId: string; batchNumber: string; newBatchNumber?: string; expiryDate?: string; quantity?: number },
+  ) {
+    const item = await this.prisma.inventoryItem.findFirst({
+      where: { clinicId, OR: [{ id: dto.itemId }, { sku: dto.itemId }] },
+    });
+    if (!item) {
+      throw new NotFoundException('Inventory item not found');
+    }
+
+    const batch = await this.prisma.inventoryBatch.findFirst({
+      where: { clinicId, itemId: item.id, batchNumber: dto.batchNumber },
+    });
+    if (!batch) {
+      throw new NotFoundException('Batch not found');
+    }
+
+    const updatedBatch = await this.prisma.inventoryBatch.update({
+      where: { id: batch.id },
+      data: {
+        ...(dto.newBatchNumber ? { batchNumber: dto.newBatchNumber.trim().toUpperCase() } : {}),
+        ...(dto.expiryDate ? { expiryDate: dto.expiryDate } : {}),
+        ...(dto.quantity !== undefined ? { quantity: Math.max(0, dto.quantity) } : {}),
+      },
+    });
+
+    const allBatches = await this.prisma.inventoryBatch.findMany({
+      where: { clinicId, itemId: item.id },
+    });
+    const totalStock = allBatches.reduce((s, b) => s + b.quantity, 0);
+    const updatedItem = await this.prisma.inventoryItem.update({
+      where: { id: item.id },
+      data: { totalStock },
+    });
+
+    return { item: updatedItem, batch: updatedBatch };
+  }
+
   async adjustStock(clinicId: string, dto: AdjustStockDto) {
     const item = await this.prisma.inventoryItem.findFirst({
       where: {

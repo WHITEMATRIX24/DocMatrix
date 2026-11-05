@@ -829,6 +829,51 @@ export function addBatchToItem(itemId: string, batch: InventoryBatch) {
 }
 
 /**
+ * Update an existing batch (batchNumber, expiryDate, quantity)
+ */
+export function updateItemBatch(
+  itemId: string,
+  batchNumber: string,
+  updates: { newBatchNumber?: string; expiryDate?: string; quantity?: number }
+) {
+  state = {
+    ...state,
+    items: state.items.map((item) => {
+      if (item.id !== itemId && item.sku !== itemId) return item
+      const updatedBatches = item.activeBatches.map((b) => {
+        if (b.batchNumber !== batchNumber) return b
+        return {
+          ...b,
+          batchNumber: updates.newBatchNumber?.trim().toUpperCase() || b.batchNumber,
+          expiryDate: updates.expiryDate || b.expiryDate,
+          quantity: updates.quantity !== undefined ? Math.max(0, updates.quantity) : b.quantity
+        }
+      })
+      const updatedTotal = updatedBatches.reduce((sum, b) => sum + b.quantity, 0)
+      return {
+        ...item,
+        totalStock: updatedTotal,
+        activeBatches: updatedBatches
+      }
+    })
+  }
+  emitChange()
+
+  const item = state.items.find((i) => i.id === itemId || i.sku === itemId)
+  const targetKey = item?.id?.startsWith('item-') && item?.sku ? item.sku : itemId
+
+  apiClient
+    .patch('/inventory/batches', {
+      itemId: targetKey,
+      batchNumber,
+      ...updates
+    })
+    .catch(() => {
+      // Offline fallback
+    })
+}
+
+/**
  * Adjust stock quantity for a specific batch
  */
 export function adjustBatchQuantity(itemId: string, batchNumber: string, deltaOrExact: { delta?: number; exact?: number }) {
