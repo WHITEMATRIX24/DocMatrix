@@ -747,27 +747,6 @@ export const ItemsPage: React.FC = () => {
                               Adjust
                             </button>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteItem(stock.id, stock.name)}
-                            title={`Delete ${stock.name}`}
-                            className="inv-action-btn btn-delete-symbol"
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              width: '32px',
-                              height: '32px',
-                              padding: 0,
-                              borderRadius: '8px',
-                              border: '1px solid #fecaca',
-                              background: '#fef2f2',
-                              color: '#dc2626',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <Trash2 size={13} />
-                          </button>
                         </div>
                       </td>
                     </tr>
