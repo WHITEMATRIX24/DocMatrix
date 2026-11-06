@@ -229,9 +229,14 @@ export const PatientProfilePage: React.FC = () => {
 
   const patientInvoices = useMemo(() => {
     return invoices
-      .filter((inv) => inv.patientId.toLowerCase() === (id || '').toLowerCase())
+      .filter(
+        (inv) =>
+          Boolean(inv?.patientId) &&
+          (inv.patientId.toLowerCase() === (id || '').toLowerCase() ||
+            Boolean(patient?.backendId && inv.patientId.toLowerCase() === patient.backendId.toLowerCase()))
+      )
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  }, [invoices, id])
+  }, [invoices, id, patient?.backendId])
 
   const patientPlans = useMemo(() => {
     return (treatmentPlans as TreatmentPlanRecord[])
@@ -2822,12 +2827,13 @@ export const PatientProfilePage: React.FC = () => {
         </div>
       )}
 
-      {openInvoice && <InvoiceDrawer invoice={openInvoice} patient={patient} onClose={() => setOpenInvoiceId(null)} />}
+      {openInvoice && <InvoiceDrawer invoice={openInvoice} patient={patient} onClose={() => setOpenInvoiceId(null)} onDone={() => setOpenInvoiceId(null)} />}
       {payInvoice && (
         <PaymentDialog
           invoice={payInvoice}
           patientName={`${patient.firstName} ${patient.lastName}`}
           onClose={() => setPayInvoiceId(null)}
+          onDone={() => setPayInvoiceId(null)}
         />
       )}
     </section>

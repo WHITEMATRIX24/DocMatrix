@@ -84,8 +84,8 @@ export const PendingDuesPage: React.FC = () => {
         </div>
       )}
 
-      {paying && <PaymentDialog invoice={paying} patientName={patientLabel(patients, paying.patientId)} onClose={() => setPayingId(null)} />}
-      {opened && <InvoiceDrawer invoice={opened} patient={patients.find((p) => p.id === opened.patientId)} onClose={() => setOpenId(null)} />}
+      {paying && <PaymentDialog invoice={paying} patientName={patientLabel(patients, paying.patientId)} onClose={() => setPayingId(null)} onDone={() => setPayingId(null)} />}
+      {opened && <InvoiceDrawer invoice={opened} patient={patients.find((p) => p.id === opened.patientId)} onClose={() => setOpenId(null)} onDone={() => setOpenId(null)} />}
     </div>
   )
 }

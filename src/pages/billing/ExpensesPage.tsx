@@ -13,6 +13,8 @@ export const ExpensesPage: React.FC = () => {
   const [vendor, setVendor] = useState('')
   const [amount, setAmount] = useState('')
   const [mode, setMode] = useState<PaymentMode>('Cash')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const monthRows = useMemo(() => expenses.filter((e) => e.date.startsWith(month)).sort((a, b) => b.date.localeCompare(a.date)), [expenses, month])
   const monthTotal = monthRows.reduce((s, e) => s + e.amount, 0)
@@ -22,15 +24,32 @@ export const ExpensesPage: React.FC = () => {
     return [...map.entries()].sort((a, b) => b[1] - a[1])
   }, [monthRows])
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     const value = Number(amount)
-    if (!(value > 0) || !description.trim()) return
-    addExpense({ date, category, description: description.trim(), vendor: vendor.trim() || undefined, amount: value, mode })
-    setDescription('')
-    setVendor('')
-    setAmount('')
-    if (!date.startsWith(month)) setMonth(date.slice(0, 7))
+    if (!(value > 0) || !description.trim() || isSubmitting) return
+    setIsSubmitting(true)
+    setError(null)
+    try {
+      await addExpense({ date, category, description: description.trim(), vendor: vendor.trim() || undefined, amount: value, mode })
+      setDescription('')
+      setVendor('')
+      setAmount('')
+      if (!date.startsWith(month)) setMonth(date.slice(0, 7))
+    } catch (err: any) {
+      setError(err?.message || 'Failed to record expense.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleDelete = async (id: string, desc: string, val: number) => {
+    if (!window.confirm(`Delete "${desc}" (${inr(val)})?`)) return
+    try {
+      await deleteExpense(id)
+    } catch (err: any) {
+      alert(err?.message || 'Failed to delete expense.')
+    }
   }
 
   return (
@@ -58,7 +77,10 @@ export const ExpensesPage: React.FC = () => {
             </div>
           </div>
           <div className="bill-field bill-form-submit">
-            <button type="submit" className="patient-intake-primary"><Plus size={15} /> Add expense</button>
+            {error && <p className="bill-error">{error}</p>}
+            <button type="submit" className="patient-intake-primary" disabled={isSubmitting}>
+              <Plus size={15} /> {isSubmitting ? 'Adding...' : 'Add expense'}
+            </button>
           </div>
         </div>
       </form>
@@ -95,7 +117,7 @@ export const ExpensesPage: React.FC = () => {
                   <td>{e.mode}</td>
                   <td className="r"><strong>{inr(e.amount)}</strong></td>
                   <td className="r">
-                    <button className="bill-icon-btn" aria-label={`Delete ${e.description}`} onClick={() => window.confirm(`Delete "${e.description}" (${inr(e.amount)})?`) && deleteExpense(e.id)}>
+                    <button className="bill-icon-btn" aria-label={`Delete ${e.description}`} onClick={() => handleDelete(e.id, e.description, e.amount)}>
                       <Trash2 size={15} />
                     </button>
                   </td>

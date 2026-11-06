@@ -23,6 +23,8 @@ export const NewInvoicePage: React.FC = () => {
   const [payAmount, setPayAmount] = useState('')
   const [payMode, setPayMode] = useState<PaymentMode>('UPI')
   const [payRef, setPayRef] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const patient = patients.find((p) => p.id === patientId)
   const planSuggestions = useMemo(
@@ -80,19 +82,28 @@ export const NewInvoicePage: React.FC = () => {
 
   const validItems = items.filter((i) => i.name.trim() && i.qty > 0 && i.unitPrice >= 0)
   const payValue = Number(payAmount) || 0
-  const canSave = Boolean(patient) && validItems.length > 0 && validItems.length === items.length && totals.total > 0 && (!collectNow || (payValue > 0 && payValue <= totals.total))
+  const canSave = Boolean(patient) && validItems.length > 0 && validItems.length === items.length && totals.total > 0 && (!collectNow || (payValue > 0 && payValue <= totals.total)) && !isSubmitting
 
-  const save = (e: React.FormEvent) => {
+  const save = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!canSave) return
-    const invoice = createItemisedInvoice({
-      patientId,
-      items: items.map((i) => ({ ...i, name: i.name.trim(), discount: Math.min(i.discount, i.qty * i.unitPrice) })),
-      appointmentId: params.get('appointmentId') || undefined,
-      notes: notes.trim() || undefined,
-      upfrontPayment: collectNow ? { amount: payValue, mode: payMode, reference: payRef.trim() || undefined } : undefined,
-    })
-    navigate(`/billing/invoices?open=${invoice.id}`)
+    if (!canSave || isSubmitting) return
+    setIsSubmitting(true)
+    setSubmitError(null)
+    try {
+      const invoice = await createItemisedInvoice({
+        patientId,
+        items: items.map((i) => ({ ...i, name: i.name.trim(), discount: Math.min(i.discount, i.qty * i.unitPrice) })),
+        appointmentId: params.get('appointmentId') || undefined,
+        notes: notes.trim() || undefined,
+        upfrontPayment: collectNow ? { amount: payValue, mode: payMode, reference: payRef.trim() || undefined } : undefined,
+      })
+      navigate(`/billing/invoices?open=${invoice.id}`)
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to create invoice. Please try again.'
+      setSubmitError(Array.isArray(msg) ? msg.join(', ') : String(msg))
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (!patients.length) {
@@ -217,8 +228,9 @@ export const NewInvoicePage: React.FC = () => {
             </div>
           )}
 
-          <button type="submit" className="patient-intake-primary bill-block" disabled={!canSave}>
-            Create invoice {totals.total > 0 ? inr(totals.total) : ''}
+          {submitError && <p className="bill-error">{submitError}</p>}
+          <button type="submit" className="patient-intake-primary bill-block" disabled={!canSave || isSubmitting}>
+            {isSubmitting ? 'Creating invoice...' : `Create invoice ${totals.total > 0 ? inr(totals.total) : ''}`}
           </button>
           {!patient && <p className="bill-muted">Select a patient to continue.</p>}
         </section>

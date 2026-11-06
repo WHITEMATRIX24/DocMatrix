@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { loadFromStorage, saveToStorage, removeFromStorage, STORAGE_KEYS } from './storageService'
 import { apiClient } from './apiClient'
+import { billingApi, toFrontendStatus, toFrontendMode, toBackendMode } from './billingApi'
 
 export type MedicalAnswer = 'yes' | 'no' | 'unknown'
 
@@ -184,7 +185,7 @@ export interface ClinicalNoteRecord {
   }
 }
 
-export type PaymentMode = 'Cash' | 'Card' | 'UPI'
+export type PaymentMode = 'Cash' | 'Card' | 'UPI' | 'Net Banking' | 'Cheque'
 
 export interface InvoiceLineItem {
   id: string
@@ -207,10 +208,11 @@ export interface InvoicePayment {
 
 export interface InvoiceRecord {
   id: string
+  backendId?: string
   patientId: string
   description: string
   amount: number // grand total including GST
-  status: 'Unpaid' | 'Partial' | 'Paid'
+  status: 'Draft' | 'Unpaid' | 'Partial' | 'Paid' | 'Void'
   createdAt: string
   items?: InvoiceLineItem[]
   subtotal?: number
@@ -219,6 +221,7 @@ export interface InvoiceRecord {
   payments?: InvoicePayment[]
   appointmentId?: string
   notes?: string
+  dueDate?: string
 }
 
 /** Amount received against an invoice. Older invoices without a payment log count as fully paid when marked Paid. */
@@ -1525,6 +1528,7 @@ export const syncWithBackend = async (): Promise<void> => {
       remotePrescriptions,
       remoteClinicalNotes,
       remoteTreatmentPlans,
+      remoteInvoices,
     ] = await Promise.all([
       apiClient.get<any[]>('/patients?includeArchived=true'),
       apiClient.get<any[]>('/appointments'),
@@ -1535,7 +1539,13 @@ export const syncWithBackend = async (): Promise<void> => {
       safeFetch(apiClient.get<any[]>('/prescriptions'), []),
       safeFetch(apiClient.get<any[]>('/clinical-notes'), []),
       safeFetch(apiClient.get<any>('/treatment-plans'), { items: [] }),
+      safeFetch(billingApi.getInvoices({ limit: 500 }), { data: [] } as any),
     ]);
+
+    // Also trigger master billing data sync (tariffs, expenses) in background
+    import('./billingStore')
+      .then(({ syncBillingMasterData }) => syncBillingMasterData())
+      .catch((e) => console.warn('[clinicStore] syncBillingMasterData failed:', e));
 
     if (syncVersion !== currentSyncVersion) return;
 
@@ -1856,6 +1866,51 @@ export const syncWithBackend = async (): Promise<void> => {
       };
     });
 
+    const rawInvoicesList = Array.isArray(remoteInvoices?.data)
+      ? remoteInvoices.data
+      : (Array.isArray(remoteInvoices) ? remoteInvoices : []);
+
+    const mappedInvoices: InvoiceRecord[] = rawInvoicesList.map((inv: any) => ({
+      id: inv.invoiceNumber || inv.id,
+      backendId: inv.id,
+      patientId: inv.patient?.patientCode || inv.patientId,
+      description:
+        inv.description ||
+        (Array.isArray(inv.items) && inv.items.length > 0
+          ? inv.items.map((i: any) => i.name).join(', ')
+          : 'Dental Treatment'),
+      amount: Number(inv.totalAmount) || 0,
+      subtotal: Number(inv.subtotal) || 0,
+      discountTotal: Number(inv.discountTotal) || 0,
+      taxTotal: Number(inv.taxTotal) || 0,
+      status: toFrontendStatus(inv.status),
+      createdAt: inv.createdAt || new Date().toISOString(),
+      dueDate: inv.dueDate || undefined,
+      appointmentId: inv.appointmentId || undefined,
+      notes: inv.notes || undefined,
+      items: Array.isArray(inv.items)
+        ? inv.items.map((it: any) => ({
+            id: it.id,
+            serviceId: it.serviceTariffId || undefined,
+            name: it.name,
+            toothNumber: it.toothNumber || undefined,
+            qty: Number(it.quantity) || 1,
+            unitPrice: Number(it.unitPrice) || 0,
+            discount: Number(it.discount) || 0,
+            gstRate: Number(it.gstRate) || 0,
+          }))
+        : [],
+      payments: Array.isArray(inv.payments)
+        ? inv.payments.map((p: any) => ({
+            id: p.id,
+            amount: Number(p.amount) || 0,
+            mode: toFrontendMode(p.mode) as PaymentMode,
+            reference: p.reference || undefined,
+            receivedAt: p.receivedAt || new Date().toISOString(),
+          }))
+        : [],
+    }));
+
     patientsState = mappedPatients;
     appointmentsState = mappedAppts;
     toothChartsState = remoteCharts && typeof remoteCharts === 'object' ? (remoteCharts as ClinicToothCharts) : {};
@@ -1865,6 +1920,7 @@ export const syncWithBackend = async (): Promise<void> => {
     prescriptionsState = mappedPrescriptions;
     clinicalNotesState = mappedClinicalNotes;
     treatmentPlansState = mappedTreatmentPlans;
+    invoicesState = mappedInvoices;
 
     syncStatusState = 'SYNCHRONIZED';
     syncErrorState = null;
@@ -2460,6 +2516,8 @@ export function createInvoice(details: Omit<InvoiceRecord, 'id' | 'status' | 'cr
 }
 
 const deriveInvoiceStatus = (invoice: InvoiceRecord): InvoiceRecord['status'] => {
+  if (invoice.status === 'Void') return 'Void'
+  if (invoice.status === 'Draft') return 'Draft'
   const paid = invoicePaidAmount(invoice)
   if (paid <= 0) return 'Unpaid'
   return invoiceBalance(invoice) <= 0 ? 'Paid' : 'Partial'
@@ -2470,9 +2528,10 @@ export function createItemisedInvoice(details: {
   patientId: string
   items: InvoiceLineItem[]
   appointmentId?: string
+  treatmentPlanId?: string
   notes?: string
   upfrontPayment?: Omit<InvoicePayment, 'id' | 'receivedAt'>
-}) {
+}): InvoiceRecord {
   const totals = details.items.reduce(
     (acc, item) => {
       const t = lineItemTotals(item)
@@ -2486,9 +2545,15 @@ export function createItemisedInvoice(details: {
   const amount = Math.round((totals.subtotal - totals.discount + totals.tax) * 100) / 100
   const now = new Date().toISOString()
   const stamp = Date.now().toString()
+
   const payments: InvoicePayment[] = []
   if (details.upfrontPayment && details.upfrontPayment.amount > 0) {
-    payments.push({ ...details.upfrontPayment, amount: Math.min(details.upfrontPayment.amount, amount), id: `PAY-${stamp.slice(-8)}`, receivedAt: now })
+    payments.push({
+      ...details.upfrontPayment,
+      amount: Math.min(details.upfrontPayment.amount, amount),
+      id: `PAY-${stamp.slice(-8)}`,
+      receivedAt: now,
+    })
   }
   const record: InvoiceRecord = {
     id: `INV-${stamp.slice(-8)}`,
@@ -2503,31 +2568,193 @@ export function createItemisedInvoice(details: {
     taxTotal: Math.round(totals.tax * 100) / 100,
     payments,
     appointmentId: details.appointmentId,
-    notes: details.notes
+    notes: details.notes,
   }
   record.status = deriveInvoiceStatus(record)
+
+  if (isAuthenticatedClinic() && !isDemoSession()) {
+    const payload = {
+      patientId: details.patientId,
+      appointmentId: details.appointmentId || undefined,
+      treatmentPlanId: details.treatmentPlanId || undefined,
+      description: details.items.map((i) => i.name).join(', ') || 'Dental Treatment',
+      notes: details.notes || undefined,
+      items: details.items.map((it) => ({
+        name: it.name,
+        quantity: it.qty || 1,
+        unitPrice: it.unitPrice,
+        discount: it.discount || 0,
+        gstRate: it.gstRate || 0,
+        toothNumber: it.toothNumber || undefined,
+        serviceTariffId: it.serviceId || undefined,
+      })),
+      upfrontPayment:
+        details.upfrontPayment && details.upfrontPayment.amount > 0
+          ? {
+              amount: details.upfrontPayment.amount,
+              mode: toBackendMode(details.upfrontPayment.mode as any),
+              reference: details.upfrontPayment.reference || undefined,
+            }
+          : undefined,
+    }
+
+    const promise = billingApi.createAndIssueInvoice(payload).then((created) => {
+      const syncedRecord: InvoiceRecord = {
+        ...record,
+        id: created.invoiceNumber || created.id,
+        backendId: created.id,
+        amount: Number(created.totalAmount) || record.amount,
+        subtotal: Number(created.subtotal) || record.subtotal,
+        discountTotal: Number(created.discountTotal) || record.discountTotal,
+        taxTotal: Number(created.taxTotal) || record.taxTotal,
+        status: toFrontendStatus(created.status),
+        createdAt: created.createdAt || record.createdAt,
+        payments: Array.isArray(created.payments)
+          ? created.payments.map((p: any) => ({
+              id: p.id,
+              amount: Number(p.amount) || 0,
+              mode: toFrontendMode(p.mode) as PaymentMode,
+              reference: p.reference || undefined,
+              receivedAt: p.receivedAt || now,
+            }))
+          : record.payments,
+      }
+      // Authoritative database-confirmed update: commit to invoicesState only on success
+      invoicesState = [syncedRecord, ...invoicesState.filter((inv) => inv.id !== syncedRecord.id && inv.id !== record.id)]
+      emitChange()
+      return syncedRecord
+    })
+
+    return Object.assign(promise, record) as InvoiceRecord & Promise<InvoiceRecord>
+  }
+
+  // Demo / offline unauthenticated session: commit locally
   invoicesState = [record, ...invoicesState]
   emitChange()
-  return record
+  return Object.assign(Promise.resolve(record), record) as InvoiceRecord & Promise<InvoiceRecord>
 }
 
 /** Record a part or full payment against an invoice. The amount is capped at the remaining balance. */
-export function recordInvoicePayment(invoiceId: string, payment: Omit<InvoicePayment, 'id' | 'receivedAt'> & { receivedAt?: string }) {
-  const index = invoicesState.findIndex((inv) => inv.id === invoiceId)
+export function recordInvoicePayment(
+  invoiceId: string,
+  payment: Omit<InvoicePayment, 'id' | 'receivedAt'> & { receivedAt?: string }
+): (InvoiceRecord & Promise<InvoiceRecord>) | null {
+  const index = invoicesState.findIndex(
+    (inv) => inv.id === invoiceId || inv.backendId === invoiceId
+  )
   if (index === -1) return null
   const invoice = invoicesState[index]
+  const targetId = invoice.backendId || invoice.id
+
   const amount = Math.min(payment.amount, invoiceBalance(invoice))
-  if (amount <= 0) return invoice
+  if (amount <= 0) {
+    return Object.assign(Promise.resolve(invoice), invoice) as InvoiceRecord & Promise<InvoiceRecord>
+  }
+
   const existing = Array.isArray(invoice.payments)
     ? invoice.payments
     : invoice.status === 'Paid'
-      ? [{ id: `PAY-${invoice.id}`, amount: invoice.amount, mode: 'Cash' as PaymentMode, receivedAt: invoice.createdAt }]
+      ? [
+          {
+            id: `PAY-${invoice.id}`,
+            amount: invoice.amount,
+            mode: 'Cash' as PaymentMode,
+            receivedAt: invoice.createdAt,
+          },
+        ]
       : []
+
   const updated: InvoiceRecord = {
     ...invoice,
-    payments: [...existing, { ...payment, amount, id: `PAY-${Date.now().toString().slice(-8)}`, receivedAt: payment.receivedAt || new Date().toISOString() }]
+    payments: [
+      ...existing,
+      {
+        ...payment,
+        amount,
+        id: `PAY-${Date.now().toString().slice(-8)}`,
+        receivedAt: payment.receivedAt || new Date().toISOString(),
+      },
+    ],
   }
   updated.status = deriveInvoiceStatus(updated)
+
+  if (isAuthenticatedClinic() && !isDemoSession()) {
+    const promise = billingApi
+      .recordPayment(targetId, {
+        amount: payment.amount,
+        mode: toBackendMode(payment.mode as any),
+        reference: payment.reference,
+        receivedAt: payment.receivedAt,
+      })
+      .then(async () => {
+        const updatedBackendInv = await billingApi.getInvoiceById(targetId)
+        const refreshed: InvoiceRecord = {
+          ...updated,
+          id: updatedBackendInv.invoiceNumber || updated.id,
+          backendId: updatedBackendInv.id,
+          amount: Number(updatedBackendInv.totalAmount) || updated.amount,
+          subtotal: Number(updatedBackendInv.subtotal) || updated.subtotal,
+          discountTotal: Number(updatedBackendInv.discountTotal) || updated.discountTotal,
+          taxTotal: Number(updatedBackendInv.taxTotal) || updated.taxTotal,
+          status: toFrontendStatus(updatedBackendInv.status),
+          payments: Array.isArray(updatedBackendInv.payments)
+            ? updatedBackendInv.payments.map((p: any) => ({
+                id: p.id,
+                amount: Number(p.amount) || 0,
+                mode: toFrontendMode(p.mode) as PaymentMode,
+                reference: p.reference || undefined,
+                receivedAt: p.receivedAt || new Date().toISOString(),
+              }))
+            : updated.payments,
+        }
+        // Authoritative database-confirmed update: commit to invoicesState only on success
+        invoicesState = invoicesState.map((inv) =>
+          inv.id === invoice.id || inv.backendId === invoice.backendId || inv.id === refreshed.id
+            ? refreshed
+            : inv
+        )
+        emitChange()
+        return refreshed
+      })
+
+    return Object.assign(promise, updated) as InvoiceRecord & Promise<InvoiceRecord>
+  }
+
+  // Demo / offline unauthenticated session: commit locally
+  invoicesState = invoicesState.map((inv, i) => (i === index ? updated : inv))
+  emitChange()
+  return Object.assign(Promise.resolve(updated), updated) as InvoiceRecord & Promise<InvoiceRecord>
+}
+
+/** Void an issued invoice */
+export async function voidInvoiceRecord(invoiceId: string, reason: string): Promise<InvoiceRecord | null> {
+  const index = invoicesState.findIndex((inv) => inv.id === invoiceId || inv.backendId === invoiceId)
+  if (index === -1) return null
+  const invoice = invoicesState[index]
+  const targetId = invoice.backendId || invoice.id
+
+  if (isAuthenticatedClinic() && !isDemoSession()) {
+    try {
+      await billingApi.voidInvoice(targetId, reason)
+      const updated: InvoiceRecord = {
+        ...invoice,
+        status: 'Void',
+        notes: reason ? `${invoice.notes || ''} [Void: ${reason}]`.trim() : invoice.notes,
+      }
+      invoicesState = invoicesState.map((inv, i) => (i === index ? updated : inv))
+      emitChange()
+      return updated
+    } catch (err) {
+      console.error('[clinicStore] voidInvoiceRecord backend call failed:', err)
+      throw err
+    }
+  }
+
+  const updated: InvoiceRecord = {
+    ...invoice,
+    status: 'Void',
+    notes: reason ? `${invoice.notes || ''} [Void: ${reason}]`.trim() : invoice.notes,
+  }
   invoicesState = invoicesState.map((inv, i) => (i === index ? updated : inv))
   emitChange()
   return updated

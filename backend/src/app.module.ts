@@ -14,6 +14,7 @@ import { EnquiriesModule } from './enquiries/enquiries.module.js';
 import { PrescriptionsModule } from './prescriptions/prescriptions.module.js';
 import { ClinicalNotesModule } from './clinical-notes/clinical-notes.module.js';
 import { TreatmentPlansModule } from './treatment-plans/treatment-plans.module.js';
+import { BillingModule } from './billing/billing.module.js';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { TreatmentPlansModule } from './treatment-plans/treatment-plans.module.j
     PrescriptionsModule,
     ClinicalNotesModule,
     TreatmentPlansModule,
+    BillingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

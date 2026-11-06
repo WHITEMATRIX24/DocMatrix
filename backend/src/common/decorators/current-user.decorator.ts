@@ -4,6 +4,7 @@ export class AuthenticatedUser {
   id!: string;
   email!: string;
   fullName!: string;
+  name?: string;
   role!: string;
   clinicId!: string | null;
   isPlatformAdmin!: boolean;

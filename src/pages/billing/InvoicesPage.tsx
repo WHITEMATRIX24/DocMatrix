@@ -74,7 +74,7 @@ export const InvoicesPage: React.FC = () => {
         </div>
       )}
 
-      {open && <InvoiceDrawer invoice={open} patient={patients.find((p) => p.id === open.patientId)} onClose={() => setOpenId(null)} />}
+      {open && <InvoiceDrawer invoice={open} patient={patients.find((p) => p.id === open.patientId)} onClose={() => setOpenId(null)} onDone={() => setOpenId(null)} />}
     </div>
   )
 }

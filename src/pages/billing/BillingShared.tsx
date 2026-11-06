@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Banknote, CreditCard, Printer, Smartphone, X } from 'lucide-react'
+import { Ban, Banknote, CreditCard, Printer, Smartphone, X } from 'lucide-react'
 import {
   CLINIC_CONFIG,
   invoiceBalance,
   invoicePaidAmount,
   lineItemTotals,
   recordInvoicePayment,
+  voidInvoiceRecord,
   type InvoicePayment,
   type InvoiceRecord,
   type PatientRecord,
@@ -74,33 +75,48 @@ export const PaymentDialog: React.FC<{
   const [amount, setAmount] = useState(String(balance))
   const [mode, setMode] = useState<PaymentMode>('UPI')
   const [reference, setReference] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !isSubmitting && onClose()
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, isSubmitting])
 
   const value = Number(amount)
   const valid = value > 0 && value <= balance
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!valid) return
-    const updated = recordInvoicePayment(invoice.id, { amount: value, mode, reference: reference.trim() || undefined })
-    if (updated && onDone) onDone(updated)
-    onClose()
+    if (!valid || isSubmitting) return
+    setIsSubmitting(true)
+    setError(null)
+    try {
+      const updated = await recordInvoicePayment(invoice.id, {
+        amount: value,
+        mode,
+        reference: reference.trim() || undefined,
+      })
+      if (updated && onDone) onDone(updated)
+      onClose()
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to record payment. Please try again.'
+      setError(Array.isArray(msg) ? msg.join(', ') : String(msg))
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
-    <div className="bill-overlay" role="dialog" aria-modal="true" aria-label="Record payment" onMouseDown={(e) => { e.stopPropagation(); onClose() }}>
+    <div className="bill-overlay" role="dialog" aria-modal="true" aria-label="Record payment" onMouseDown={(e) => { e.stopPropagation(); if (!isSubmitting) onClose() }}>
       <form className="bill-dialog" onSubmit={submit} onMouseDown={(e) => e.stopPropagation()}>
         <header className="bill-dialog-head">
           <div>
             <h2>Record payment</h2>
             <p>{invoice.id} · {patientName}</p>
           </div>
-          <button type="button" className="bill-icon-btn" onClick={onClose} aria-label="Close"><X size={16} /></button>
+          <button type="button" className="bill-icon-btn" onClick={onClose} disabled={isSubmitting} aria-label="Close"><X size={16} /></button>
         </header>
 
         <div className="bill-balance-strip">
@@ -111,18 +127,18 @@ export const PaymentDialog: React.FC<{
 
         <label className="bill-field">
           Amount received
-          <input type="number" min="1" max={balance} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus required />
+          <input type="number" min="1" max={balance} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus required disabled={isSubmitting} />
         </label>
         <div className="bill-quick-amounts">
-          <button type="button" onClick={() => setAmount(String(balance))}>Full balance</button>
-          <button type="button" onClick={() => setAmount(String(Math.round(balance / 2)))}>Half</button>
+          <button type="button" onClick={() => setAmount(String(balance))} disabled={isSubmitting}>Full balance</button>
+          <button type="button" onClick={() => setAmount(String(Math.round(balance / 2)))} disabled={isSubmitting}>Half</button>
         </div>
 
         <fieldset className="bill-mode-group">
           <legend>Mode</legend>
           {PAYMENT_MODES.map(({ id, icon: Icon }) => (
             <label key={id} className={`bill-mode${mode === id ? ' is-on' : ''}`}>
-              <input type="radio" name="mode" value={id} checked={mode === id} onChange={() => setMode(id)} />
+              <input type="radio" name="mode" value={id} checked={mode === id} onChange={() => setMode(id)} disabled={isSubmitting} />
               <Icon size={15} /> {id}
             </label>
           ))}
@@ -131,16 +147,17 @@ export const PaymentDialog: React.FC<{
         {mode !== 'Cash' && (
           <label className="bill-field">
             {mode === 'UPI' ? 'UPI transaction ID' : 'Card reference'} <span className="bill-optional">optional</span>
-            <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder={mode === 'UPI' ? 'e.g. 4482 1093 2210' : 'Last 4 digits / approval code'} />
+            <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder={mode === 'UPI' ? 'e.g. 4482 1093 2210' : 'Last 4 digits / approval code'} disabled={isSubmitting} />
           </label>
         )}
 
         {value > balance && <p className="bill-error">Amount is more than the balance of {inr(balance)}.</p>}
+        {error && <p className="bill-error">{error}</p>}
 
         <footer className="bill-dialog-foot">
-          <button type="button" className="patient-intake-secondary" onClick={onClose}>Cancel</button>
-          <button type="submit" className="patient-intake-primary" disabled={!valid}>
-            Save {valid ? inr(value) : ''} {value > 0 && value < balance ? '(part payment)' : ''}
+          <button type="button" className="patient-intake-secondary" onClick={onClose} disabled={isSubmitting}>Cancel</button>
+          <button type="submit" className="patient-intake-primary" disabled={!valid || isSubmitting}>
+            {isSubmitting ? 'Saving...' : `Save ${valid ? inr(value) : ''} ${value > 0 && value < balance ? '(part payment)' : ''}`}
           </button>
         </footer>
       </form>
@@ -203,16 +220,35 @@ export const InvoiceDrawer: React.FC<{
   invoice: InvoiceRecord
   patient?: PatientRecord
   onClose: () => void
-}> = ({ invoice, patient, onClose }) => {
+  onDone?: () => void
+}> = ({ invoice, patient, onClose, onDone }) => {
   const [paying, setPaying] = useState(false)
+  const [isVoiding, setIsVoiding] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const balance = invoiceBalance(invoice)
   const items = invoice.items?.length ? invoice.items : null
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !paying && onClose()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !paying && !isVoiding && onClose()
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, paying])
+  }, [onClose, paying, isVoiding])
+
+  const handleVoid = async () => {
+    const reason = window.prompt('Please enter the reason for voiding this invoice:')
+    if (!reason || !reason.trim()) return
+    setIsVoiding(true)
+    setError(null)
+    try {
+      await voidInvoiceRecord(invoice.id, reason.trim())
+      if (onDone) onDone()
+      onClose()
+    } catch (err: any) {
+      setError(err?.message || 'Failed to void invoice.')
+    } finally {
+      setIsVoiding(false)
+    }
+  }
 
   return (
     <div className="bill-overlay bill-overlay-side" onMouseDown={onClose}>
@@ -278,12 +314,19 @@ export const InvoiceDrawer: React.FC<{
           {invoice.notes && <p className="bill-muted">Note: {invoice.notes}</p>}
         </div>
 
+        {error && <p className="bill-error" style={{ margin: '8px 16px' }}>{error}</p>}
+
         <footer className="bill-dialog-foot">
-          <button type="button" className="patient-intake-secondary" onClick={() => printInvoice(invoice, patient)}>
+          <button type="button" className="patient-intake-secondary" onClick={() => printInvoice(invoice, patient)} disabled={isVoiding}>
             <Printer size={15} /> Print / PDF
           </button>
-          {balance > 0 && (
-            <button type="button" className="patient-intake-primary" onClick={() => setPaying(true)}>
+          {invoice.status !== 'Void' && (
+            <button type="button" className="patient-intake-secondary" onClick={handleVoid} disabled={isVoiding} title="Void invoice">
+              <Ban size={15} /> {isVoiding ? 'Voiding...' : 'Void'}
+            </button>
+          )}
+          {balance > 0 && invoice.status !== 'Void' && (
+            <button type="button" className="patient-intake-primary" onClick={() => setPaying(true)} disabled={isVoiding}>
               Collect {inr(balance)}
             </button>
           )}
@@ -294,6 +337,10 @@ export const InvoiceDrawer: React.FC<{
           invoice={invoice}
           patientName={patient ? `${patient.firstName} ${patient.lastName}` : 'Patient'}
           onClose={() => setPaying(false)}
+          onDone={(updated) => {
+            setPaying(false)
+            if (onDone) onDone()
+          }}
         />
       )}
     </div>

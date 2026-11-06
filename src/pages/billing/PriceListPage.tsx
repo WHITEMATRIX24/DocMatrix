@@ -21,6 +21,8 @@ export const PriceListPage: React.FC = () => {
   const { services } = useBillingData()
   const [query, setQuery] = useState('')
   const [draft, setDraft] = useState<Draft | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const categories = useMemo(() => [...new Set(services.map((s) => s.category))].sort(), [services])
 
   const grouped = useMemo(() => {
@@ -32,22 +34,30 @@ export const PriceListPage: React.FC = () => {
     return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
   }, [services, query])
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!draft) return
+    if (!draft || isSubmitting) return
     const price = Number(draft.price)
     const offer = Number(draft.offerPrice)
     if (!draft.name.trim() || !(price > 0)) return
-    saveService({
-      id: draft.id,
-      name: draft.name.trim(),
-      category: draft.category.trim() || 'General',
-      price,
-      offerPrice: offer > 0 && offer < price ? offer : undefined,
-      gstClass: draft.gstClass,
-      active: draft.active,
-    })
-    setDraft(null)
+    setIsSubmitting(true)
+    setError(null)
+    try {
+      await saveService({
+        id: draft.id,
+        name: draft.name.trim(),
+        category: draft.category.trim() || 'General',
+        price,
+        offerPrice: offer > 0 && offer < price ? offer : undefined,
+        gstClass: draft.gstClass,
+        active: draft.active,
+      })
+      setDraft(null)
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save service tariff.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const offerInvalid = draft && Number(draft.offerPrice) > 0 && Number(draft.offerPrice) >= Number(draft.price)
@@ -84,9 +94,12 @@ export const PriceListPage: React.FC = () => {
             </div>
           </div>
           {offerInvalid && <p className="bill-error">Offer price must be lower than the regular price.</p>}
+          {error && <p className="bill-error">{error}</p>}
           <footer className="bill-dialog-foot">
-            <button type="button" className="patient-intake-secondary" onClick={() => setDraft(null)}>Cancel</button>
-            <button type="submit" className="patient-intake-primary" disabled={Boolean(offerInvalid)}>Save service</button>
+            <button type="button" className="patient-intake-secondary" onClick={() => setDraft(null)} disabled={isSubmitting}>Cancel</button>
+            <button type="submit" className="patient-intake-primary" disabled={Boolean(offerInvalid) || isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save service'}
+            </button>
           </footer>
         </form>
       )}

@@ -1,16 +1,19 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   AlertCircle,
+  CreditCard,
   IndianRupee,
   LayoutGrid,
   ListOrdered,
   Plus,
   Receipt,
   ReceiptText,
+  Tag,
   Wallet,
 } from 'lucide-react'
-import { invoiceBalance, useClinicData } from '@/services/clinicStore'
+import { invoiceBalance, syncWithBackend, useClinicData } from '@/services/clinicStore'
+import { syncBillingMasterData } from '@/services/billingStore'
 import { inr, localDate, usePayments } from './BillingShared'
 import './billing.css'
 
@@ -29,6 +32,11 @@ export default function BillingWorkspace({ activeFeatureId, children }: { active
   const navigate = useNavigate()
   const { invoices } = useClinicData()
   const payments = usePayments(invoices)
+
+  useEffect(() => {
+    syncBillingMasterData().catch((e) => console.warn('[BillingWorkspace] syncBillingMasterData error:', e))
+    syncWithBackend().catch((e) => console.warn('[BillingWorkspace] syncWithBackend error:', e))
+  }, [])
 
   const stats = useMemo(() => {
     const today = localDate()

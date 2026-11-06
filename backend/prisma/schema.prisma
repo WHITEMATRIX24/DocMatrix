@@ -171,6 +171,10 @@ model Clinic {
   treatmentPlans  TreatmentPlan[]
   treatmentPlanHistories TreatmentPlanHistory[]
   clinicSequences ClinicSequence[]
+  invoices        Invoice[]
+  invoicePayments InvoicePayment[]
+  serviceTariffs  ServiceTariff[]
+  expenses        Expense[]
 
   @@index([status])
   @@index([email])
@@ -203,6 +207,9 @@ model User {
   finalizedClinicalNotes ClinicalNote[] @relation("FinalizedClinicalNotes")
   clinicalNoteAddenda ClinicalNoteAddendum[]
   treatmentPlans TreatmentPlan[] @relation("DoctorTreatmentPlans")
+  receivedPayments InvoicePayment[] @relation("StaffReceivedPayments")
+  voidedInvoices   Invoice[]        @relation("InvoiceVoidedByStaff")
+  paidExpenses     Expense[]        @relation("StaffPaidExpenses")
 
   // Compound unique key enabling engine-level compound foreign key references
   @@unique([id, clinicId])
@@ -245,6 +252,7 @@ model Patient {
   prescriptions   Prescription[]
   clinicalNotes   ClinicalNote[]
   treatmentPlans  TreatmentPlan[]
+  invoices        Invoice[]
 
   // Deterministic identifier unique per clinic
   @@unique([clinicId, patientCode])
@@ -284,6 +292,7 @@ model Appointment {
   doctor  User?   @relation("DoctorAppointments", fields: [doctorId, clinicId], references: [id, clinicId], onDelete: Restrict)
   clinicalNotes ClinicalNote[]
   treatmentPlans TreatmentPlan[]
+  invoices       Invoice[]
 
   @@index([clinicId, startTime, endTime])
   @@index([doctorId, startTime])
@@ -728,6 +737,7 @@ model TreatmentPlan {
   stages                   TreatmentPlanStage[]
   estimateRevisions        TreatmentEstimateRevision[]
   histories                TreatmentPlanHistory[]
+  invoices                 Invoice[]
 
   @@unique([clinicId, planNumber])
   @@unique([id, clinicId])
@@ -772,6 +782,7 @@ model TreatmentPlanItem {
   updatedAt     DateTime                @updatedAt @db.Timestamptz(6)
 
   stage         TreatmentPlanStage      @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  invoiceLineItems InvoiceLineItem[]
 
   @@index([stageId])
 }
@@ -817,4 +828,195 @@ model TreatmentPlanHistory {
 
   @@index([treatmentPlanId])
   @@index([clinicId])
+}
+
+// ============================================================================
+// DOCMATRIX BILLING & FINANCIAL MANAGEMENT MODULE
+// ============================================================================
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
+enum PaymentMode {
+  CASH
+  CARD
+  UPI
+  NET_BANKING
+  CHEQUE
+}
+
+enum InvoicePaymentType {
+  PAYMENT
+  REFUND
+}
+
+enum GstClass {
+  EXEMPT
+  TAXABLE
+  NIL_RATED
+}
+
+enum ExpenseCategory {
+  LAB_FEES
+  DENTAL_SUPPLIES
+  RENT
+  SALARIES
+  UTILITIES
+  EQUIPMENT_MAINTENANCE
+  MARKETING
+  OTHER
+}
+
+model Invoice {
+  id              String         @id @default(uuid())
+  clinicId        String
+  invoiceNumber   String
+  patientId       String
+  appointmentId   String?
+  treatmentPlanId String?
+  description     String
+  notes           String?
+  internalNotes   String?
+
+  subtotal        Decimal        @default(0.00) @db.Decimal(12, 2)
+  discountTotal   Decimal        @default(0.00) @db.Decimal(12, 2)
+  taxTotal        Decimal        @default(0.00) @db.Decimal(12, 2)
+  totalAmount     Decimal        @default(0.00) @db.Decimal(12, 2)
+  paidAmount      Decimal        @default(0.00) @db.Decimal(12, 2)
+  balance         Decimal        @default(0.00) @db.Decimal(12, 2)
+
+  status          InvoiceStatus  @default(DRAFT)
+  dueDate         DateTime?      @db.Date
+  issuedAt        DateTime?      @db.Timestamptz(6)
+
+  voidedAt        DateTime?      @db.Timestamptz(6)
+  voidedById      String?
+  voidReason      String?
+
+  createdAt       DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime       @updatedAt @db.Timestamptz(6)
+
+  clinic          Clinic         @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient         Patient        @relation(fields: [patientId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  appointment     Appointment?   @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  treatmentPlan   TreatmentPlan? @relation(fields: [treatmentPlanId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  voidedBy        User?          @relation("InvoiceVoidedByStaff", fields: [voidedById, clinicId], references: [id, clinicId], onDelete: Restrict)
+
+  items           InvoiceLineItem[]
+  payments        InvoicePayment[]
+
+  @@unique([clinicId, invoiceNumber])
+  @@unique([id, clinicId])
+  @@index([clinicId, status])
+  @@index([clinicId, patientId])
+  @@index([clinicId, createdAt])
+  @@index([clinicId, balance])
+}
+
+model InvoiceLineItem {
+  id                  String             @id @default(uuid())
+  clinicId            String
+  invoiceId           String
+  serviceTariffId     String?
+  treatmentPlanItemId String?
+
+  name                String
+  category            String?
+  toothNumber         String?
+  quantity            Int                @default(1)
+  unitPrice           Decimal            @db.Decimal(10, 2)
+  discount            Decimal            @default(0.00) @db.Decimal(10, 2)
+  gstRate             Decimal            @default(0.00) @db.Decimal(5, 2)
+  taxableAmount       Decimal            @db.Decimal(10, 2)
+  taxAmount           Decimal            @default(0.00) @db.Decimal(10, 2)
+  totalAmount         Decimal            @db.Decimal(10, 2)
+  createdAt           DateTime           @default(now()) @db.Timestamptz(6)
+
+  invoice             Invoice            @relation(fields: [invoiceId, clinicId], references: [id, clinicId], onDelete: Cascade)
+  serviceTariff       ServiceTariff?     @relation(fields: [serviceTariffId], references: [id], onDelete: SetNull)
+  treatmentPlanItem   TreatmentPlanItem? @relation(fields: [treatmentPlanItemId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@index([clinicId])
+  @@index([serviceTariffId])
+  @@index([treatmentPlanItemId])
+}
+
+model InvoicePayment {
+  id                 String             @id @default(uuid())
+  clinicId           String
+  invoiceId          String
+  type               InvoicePaymentType @default(PAYMENT)
+  amount             Decimal            @db.Decimal(10, 2)
+  mode               PaymentMode        @default(UPI)
+  reference          String?
+  idempotencyKey     String?
+  receivedAt         DateTime           @default(now()) @db.Timestamptz(6)
+  receivedById       String?
+  notes              String?
+
+  refundForPaymentId String?            @unique
+  refundForPayment   InvoicePayment?    @relation("PaymentRefundReversal", fields: [refundForPaymentId], references: [id], onDelete: Restrict)
+  reversedByRefund   InvoicePayment?    @relation("PaymentRefundReversal")
+
+  createdAt          DateTime           @default(now()) @db.Timestamptz(6)
+
+  clinic             Clinic             @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  invoice            Invoice            @relation(fields: [invoiceId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  receivedBy         User?              @relation("StaffReceivedPayments", fields: [receivedById, clinicId], references: [id, clinicId], onDelete: Restrict)
+
+  @@unique([clinicId, idempotencyKey])
+  @@index([clinicId, invoiceId])
+  @@index([clinicId, receivedAt])
+  @@index([clinicId, mode])
+  @@index([clinicId, reference])
+}
+
+model ServiceTariff {
+  id          String            @id @default(uuid())
+  clinicId    String
+  code        String?
+  name        String
+  category    String            @default("General")
+  standardFee Decimal           @db.Decimal(10, 2)
+  offerPrice  Decimal?          @db.Decimal(10, 2)
+  gstClass    GstClass          @default(EXEMPT)
+  gstRate     Decimal           @default(0.00) @db.Decimal(5, 2)
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime          @updatedAt @db.Timestamptz(6)
+
+  clinic       Clinic            @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  invoiceItems InvoiceLineItem[]
+
+  @@unique([clinicId, name])
+  @@index([clinicId, category])
+  @@index([clinicId, isActive])
+}
+
+model Expense {
+  id            String          @id @default(uuid())
+  clinicId      String
+  expenseNumber String?
+  date          DateTime        @db.Date
+  category      ExpenseCategory @default(DENTAL_SUPPLIES)
+  description   String
+  vendor        String?
+  amount        Decimal         @db.Decimal(10, 2)
+  mode          PaymentMode     @default(CASH)
+  reference     String?
+  paidById      String?
+  createdAt     DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime        @updatedAt @db.Timestamptz(6)
+
+  clinic        Clinic          @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  paidBy        User?           @relation("StaffPaidExpenses", fields: [paidById, clinicId], references: [id, clinicId], onDelete: Restrict)
+
+  @@index([clinicId, date])
+  @@index([clinicId, category])
 }
