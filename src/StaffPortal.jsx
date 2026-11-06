@@ -57,7 +57,7 @@ const AREA_ICONS = {
 }
 
 // Areas that open as one tabbed workspace, so the sidebar shows a single link with no sub-page list
-const SINGLE_LINK_AREAS = new Set(['Billing'])
+const SINGLE_LINK_AREAS = new Set(['Billing', 'Reports'])
 
 export default function StaffPortal({
   user = { id: 'usr-104', name: 'Dr. Arun Kumar', role: 'DOCTOR', clinicName: 'DocMatrix Dental Care' },
@@ -287,7 +287,7 @@ export default function StaffPortal({
             const visibleFeatures = features.filter((feat) => !feat.roles || feat.roles.includes(currentUser.role))
             if (visibleFeatures.length === 0) return null
 
-            // Billing is a single tabbed workspace: one link, no sub-page list
+            // Billing and Reports are single tabbed workspaces: one link, no sub-page list
             if (SINGLE_LINK_AREAS.has(areaName)) {
               return (
                 <div key={areaName} className="dmx-module">

@@ -489,7 +489,12 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
     "phase": "launch",
     "area": "Reports",
     "route": "/reports/revenue",
-    "inNav": true
+    "inNav": true,
+    "roles": [
+      "ORGANIZATION_ADMIN",
+      "BRANCH_ADMIN",
+      "ACCOUNTANT"
+    ]
   },
   {
     "id": "rep.doctors",
@@ -512,13 +517,13 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
     "inNav": true
   },
   {
-    "id": "rep.dues-ageing",
-    "name": "Pending dues by age",
-    "description": "Pending dues by age",
+    "id": "rep.followups",
+    "name": "Follow-ups & bookings",
+    "description": "Patients with unfinished treatment or missed visits who need a call or a booking",
     "source": "Part 1",
     "phase": "launch",
     "area": "Reports",
-    "route": "/reports/dues-ageing",
+    "route": "/reports/follow-ups",
     "inNav": true
   },
   {
