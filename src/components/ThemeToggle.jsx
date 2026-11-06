@@ -1,34 +1,170 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { flushSync } from 'react-dom'
-import { Sun, Moon } from 'lucide-react'
+import { Sun, Moon, Monitor } from 'lucide-react'
 
-const STORAGE_KEY = 'docmatrix-theme'
+export const THEME_STORAGE_KEY = 'docmatrix-theme-pref'
+export const LEGACY_STORAGE_KEY = 'docmatrix-theme'
 
-// Theme only ever changes through this switch: no OS auto-follow.
-export function getStoredTheme() {
+/**
+ * Returns system OS color-scheme preference ('dark' | 'light')
+ */
+export function getSystemTheme() {
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  }
+  return 'light'
+}
+
+/**
+ * Returns stored user preference ('system' | 'dark' | 'light').
+ * Defaults to 'system' so OS dark / bright mode is respected everywhere.
+ */
+export function getThemePreference() {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'dark' ? 'dark' : 'light'
+    const pref = localStorage.getItem(THEME_STORAGE_KEY)
+    if (pref === 'dark' || pref === 'light' || pref === 'system') {
+      return pref
+    }
+    // Backward compatibility: if old key is explicitly set and new key is not
+    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY)
+    if (legacy === 'dark') {
+      return 'dark'
+    }
+    return 'system'
   } catch {
-    return 'light'
+    return 'system'
   }
 }
 
-export function applyTheme(theme) {
-  document.documentElement.dataset.theme = theme
-  try {
-    localStorage.setItem(STORAGE_KEY, theme)
-  } catch {}
+/**
+ * Returns the effective active theme applied to document ('dark' | 'light').
+ */
+export function getStoredTheme() {
+  const pref = getThemePreference()
+  if (pref === 'system') {
+    return getSystemTheme()
+  }
+  return pref
+}
+
+/**
+ * True if currently following system default.
+ */
+export function isSystemTheme() {
+  return getThemePreference() === 'system'
+}
+
+/**
+ * Apply theme to document element and notify listeners.
+ */
+export function applyTheme(prefOrTheme, save = true) {
+  let effectiveTheme = 'light'
+  let preferenceToSave = prefOrTheme || 'system'
+
+  if (prefOrTheme === 'system' || !prefOrTheme) {
+    effectiveTheme = getSystemTheme()
+    preferenceToSave = 'system'
+  } else if (prefOrTheme === 'dark' || prefOrTheme === 'light') {
+    effectiveTheme = prefOrTheme
+    preferenceToSave = prefOrTheme
+  }
+
+  if (typeof document !== 'undefined') {
+    document.documentElement.dataset.theme = effectiveTheme
+    document.documentElement.style.colorScheme = effectiveTheme
+  }
+
+  if (save) {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, preferenceToSave)
+      localStorage.setItem(LEGACY_STORAGE_KEY, effectiveTheme)
+    } catch {}
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('docmatrix-theme-changed', {
+        detail: {
+          preference: preferenceToSave,
+          effectiveTheme,
+          isSystem: preferenceToSave === 'system'
+        }
+      })
+    )
+  }
+
+  return effectiveTheme
+}
+
+/**
+ * Global OS preference listener: dynamically updates anywhere in dashboard
+ * when system toggles between dark and bright modes.
+ */
+let isListenerInitialized = false
+export function initSystemThemeListener() {
+  if (isListenerInitialized || typeof window === 'undefined' || !window.matchMedia) return
+  isListenerInitialized = true
+
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  const handleChange = (e) => {
+    const currentPref = getThemePreference()
+    if (currentPref === 'system') {
+      const nextTheme = e.matches ? 'dark' : 'light'
+      if (document.documentElement.dataset.theme !== nextTheme) {
+        document.documentElement.dataset.theme = nextTheme
+        document.documentElement.style.colorScheme = nextTheme
+        window.dispatchEvent(
+          new CustomEvent('docmatrix-theme-changed', {
+            detail: {
+              preference: 'system',
+              effectiveTheme: nextTheme,
+              isSystem: true
+            }
+          })
+        )
+      }
+    }
+  }
+
+  if (mediaQuery.addEventListener) {
+    mediaQuery.addEventListener('change', handleChange)
+  } else if (mediaQuery.addListener) {
+    mediaQuery.addListener(handleChange)
+  }
 }
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState(getStoredTheme)
+  const [pref, setPref] = useState(getThemePreference)
+  const [effectiveTheme, setEffectiveTheme] = useState(getStoredTheme)
   const buttonRef = useRef(null)
-  const isDark = theme === 'dark'
 
-  const toggle = () => {
+  useEffect(() => {
+    initSystemThemeListener()
+    const handleThemeChange = (e) => {
+      if (e.detail) {
+        setPref(e.detail.preference)
+        setEffectiveTheme(e.detail.effectiveTheme)
+      }
+    }
+    window.addEventListener('docmatrix-theme-changed', handleThemeChange)
+    return () => window.removeEventListener('docmatrix-theme-changed', handleThemeChange)
+  }, [])
+
+  const isDark = effectiveTheme === 'dark'
+  const isSystem = pref === 'system'
+
+  const toggle = (e) => {
+    if (e && (e.altKey || e.shiftKey)) {
+      applyTheme('system')
+      return
+    }
+
     const next = isDark ? 'light' : 'dark'
     const commit = () => {
-      flushSync(() => setTheme(next))
+      flushSync(() => {
+        setPref(next)
+        setEffectiveTheme(next)
+      })
       applyTheme(next)
     }
 
@@ -47,7 +183,6 @@ export default function ThemeToggle() {
     document.documentElement.classList.add('dm-theme-transition')
     const transition = document.startViewTransition(commit)
     transition.ready.then(() => {
-      // 150% of the normalized diagonal reaches every corner from any origin
       document.documentElement.animate(
         { clipPath: [`circle(0% at ${x}% ${y}%)`, `circle(150% at ${x}% ${y}%)`] },
         { duration: 700, easing: 'cubic-bezier(0.65, 0, 0.35, 1)', pseudoElement: '::view-transition-new(root)' }
@@ -62,10 +197,24 @@ export default function ThemeToggle() {
       type="button"
       role="switch"
       aria-checked={isDark}
-      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-      title={isDark ? 'Light mode' : 'Dark mode'}
-      className={`dmx-theme-switch ${isDark ? 'is-dark' : ''}`}
+      aria-label={
+        isSystem
+          ? `System default (${effectiveTheme === 'dark' ? 'Dark' : 'Bright'} mode). Click to toggle, Alt+Click to reset.`
+          : isDark
+          ? 'Switch to bright mode'
+          : 'Switch to dark mode'
+      }
+      title={
+        isSystem
+          ? `System default: ${effectiveTheme === 'dark' ? 'Dark' : 'Bright'} mode • Click to toggle, Alt+Click for System`
+          : `${effectiveTheme === 'dark' ? 'Dark' : 'Bright'} mode • Alt+Click for System default`
+      }
+      className={`dmx-theme-switch ${isDark ? 'is-dark' : ''} ${isSystem ? 'is-system' : ''}`}
       onClick={toggle}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        applyTheme('system')
+      }}
     >
       <span className="dmx-theme-track">
         <Sun size={13} className="dmx-theme-icon dmx-theme-sun" />
@@ -74,6 +223,13 @@ export default function ThemeToggle() {
       <span className="dmx-theme-knob">
         {isDark ? <Moon size={12} /> : <Sun size={12} />}
       </span>
+      {isSystem && (
+        <span
+          className="dmx-theme-sys-dot"
+          title="System Default Active"
+          aria-hidden="true"
+        />
+      )}
     </button>
   )
 }

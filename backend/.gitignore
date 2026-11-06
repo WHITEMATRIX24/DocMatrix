@@ -5,3 +5,5 @@ node_modules
 /generated/prisma
 .agents/
 skills-lock.json
+
+*.tsbuildinfo

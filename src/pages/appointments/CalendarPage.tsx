@@ -823,15 +823,15 @@ export const CalendarPage: React.FC = () => {
                       />
                     </div>
                     {matchedPatients.length > 0 && (
-                      <div style={{ marginTop: '6px', maxHeight: '140px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#ffffff', boxShadow: '0 4px 10px rgba(0,0,0,0.08)' }}>
+                      <div style={{ marginTop: '6px', maxHeight: '140px', overflowY: 'auto', border: '1px solid var(--line, #e2e8f0)', borderRadius: '6px', background: 'var(--surface-raised, #ffffff)', color: 'var(--text-strong, inherit)', boxShadow: '0 4px 10px rgba(0,0,0,0.12)' }}>
                         {matchedPatients.map((p) => (
                           <div
                             key={p.id}
                             onClick={() => { setQbSelectedPatientId(p.id); setQbPatientSearch('') }}
-                            style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}
+                            style={{ padding: '8px 12px', borderBottom: '1px solid var(--line, #f1f5f9)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}
                           >
                             <strong>{p.firstName} {p.lastName}</strong>
-                            <span style={{ color: '#64748b', fontSize: '11px' }}>{p.id}</span>
+                            <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '11px' }}>{p.id}</span>
                           </div>
                         ))}
                       </div>

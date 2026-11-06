@@ -6,16 +6,34 @@ import {
   X
 } from 'lucide-react'
 import { useAdaptiveInventory, syncInventoryWithBackend } from '@/services/adaptiveInventoryStore'
+import {
+  getClinicStaffDoctors,
+  fetchAndSyncClinicStaff,
+  subscribeStaff
+} from '@/services/clinicStaffStore'
 import './adaptiveInventory.css'
 
 export const MovementsPage: React.FC = () => {
   const inventory = useAdaptiveInventory()
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState('All')
+  const [doctorsList, setDoctorsList] = useState<string[]>([])
 
   useEffect(() => {
     syncInventoryWithBackend()
-  }, [])
+
+    const updateDoctors = () => {
+      const staffDocs = getClinicStaffDoctors().map((d) => d.name)
+      const auditDocs = inventory.deductionAuditLog.map((l) => l.doctorName)
+      const allUnique = Array.from(new Set([...staffDocs, ...auditDocs].filter(Boolean)))
+      setDoctorsList(allUnique)
+    }
+
+    updateDoctors()
+    fetchAndSyncClinicStaff().then(updateDoctors)
+    const unsub = subscribeStaff(updateDoctors)
+    return () => unsub()
+  }, [inventory.deductionAuditLog])
 
   const auditLogs = inventory.deductionAuditLog
 
@@ -105,9 +123,9 @@ export const MovementsPage: React.FC = () => {
               className="unified-select"
             >
               <option value="All">All Doctors</option>
-              <option value="Dr. Arun Kumar">Dr. Arun Kumar</option>
-              <option value="Dr. Priya Nair">Dr. Priya Nair</option>
-              <option value="Dr. Tariq Antoun">Dr. Tariq Antoun</option>
+              {doctorsList.map((doc) => (
+                <option key={doc} value={doc}>{doc}</option>
+              ))}
             </select>
           </div>
         </div>

@@ -11,7 +11,7 @@ export function NotFoundPage() {
           maxWidth: '440px',
           width: '100%',
           textAlign: 'center',
-          background: '#ffffff',
+          background: 'var(--surface-raised, #ffffff)',
           borderRadius: '16px',
           padding: '36px 28px',
           border: '1px solid var(--line, #e9e9e5)',

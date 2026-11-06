@@ -132,22 +132,22 @@ export const PlanSubscriptionPage: React.FC = () => {
           </div>
 
           <div style={{
-            background: '#ffffff',
-            border: '1px solid #d1fae5',
+            background: 'var(--surface-raised, #ffffff)',
+            border: '1px solid var(--line, #d1fae5)',
             borderRadius: '12px',
             padding: '14px 20px',
             minWidth: '220px'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6b7280', fontSize: '12px', marginBottom: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted, #6b7280)', fontSize: '12px', marginBottom: '4px' }}>
               <Calendar size={14} />
               <span>Current Term Ends</span>
             </div>
-            <div style={{ fontSize: '16px', fontWeight: 700, color: '#111827' }}>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-strong, #111827)' }}>
               {subscription?.currentPeriodEnd
                 ? new Date(subscription.currentPeriodEnd).toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' })
                 : '30 Nov 2026'}
             </div>
-            <div style={{ fontSize: '11px', color: '#059669', marginTop: '4px', fontWeight: 600 }}>
+            <div style={{ fontSize: '11px', color: 'var(--teal-primary, #059669)', marginTop: '4px', fontWeight: 600 }}>
               Auto-renewing active tier
             </div>
           </div>
@@ -156,10 +156,10 @@ export const PlanSubscriptionPage: React.FC = () => {
 
       {/* Available Plans Grid */}
       <section>
-        <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#111827', marginBottom: '8px' }}>
+        <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-strong, #111827)', marginBottom: '8px' }}>
           Available Clinical Editions
         </h2>
-        <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '24px' }}>
+        <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: '14px', marginBottom: '24px' }}>
           Select the edition that best matches your practice volume and number of operatory chairs.
         </p>
 
@@ -174,8 +174,8 @@ export const PlanSubscriptionPage: React.FC = () => {
               <div
                 key={plan.id}
                 style={{
-                  background: '#ffffff',
-                  border: isCurrent ? '2px solid #0d9488' : '1px solid #e5e7eb',
+                  background: 'var(--surface-raised, #ffffff)',
+                  border: isCurrent ? '2px solid var(--teal-primary, #0d9488)' : '1px solid var(--line, #e5e7eb)',
                   borderRadius: '16px',
                   padding: '24px',
                   position: 'relative',
@@ -190,7 +190,7 @@ export const PlanSubscriptionPage: React.FC = () => {
                     position: 'absolute',
                     top: '-12px',
                     right: '20px',
-                    background: '#0d9488',
+                    background: 'var(--teal-primary, #0d9488)',
                     color: '#ffffff',
                     padding: '2px 10px',
                     borderRadius: '9999px',
@@ -202,35 +202,35 @@ export const PlanSubscriptionPage: React.FC = () => {
                   </span>
                 )}
                 <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#111827', margin: '0 0 6px' }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-strong, #111827)', margin: '0 0 6px' }}>
                     {plan.name}
                   </h3>
-                  <p style={{ color: '#6b7280', fontSize: '13px', minHeight: '38px', margin: '0 0 16px' }}>
+                  <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: '13px', minHeight: '38px', margin: '0 0 16px' }}>
                     {plan.description}
                   </p>
 
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '20px' }}>
-                    <span style={{ fontSize: '28px', fontWeight: 800, color: '#0d9488' }}>
+                    <span style={{ fontSize: '28px', fontWeight: 800, color: 'var(--teal-primary, #0d9488)' }}>
                       ₹{plan.monthlyPriceInr.toLocaleString('en-IN')}
                     </span>
-                    <span style={{ color: '#6b7280', fontSize: '13px' }}>/ month</span>
+                    <span style={{ color: 'var(--text-muted, #6b7280)', fontSize: '13px' }}>/ month</span>
                   </div>
 
                   <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#374151' }}>
-                      <Check size={16} color="#0d9488" />
+                    <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text, #374151)' }}>
+                      <Check size={16} color="var(--teal-primary, #0d9488)" />
                       <span><strong>{plan.maxDoctors}</strong> Doctor Seat{plan.maxDoctors > 1 ? 's' : ''} Included</span>
                     </li>
-                    <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#374151' }}>
-                      <Check size={16} color="#0d9488" />
+                    <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text, #374151)' }}>
+                      <Check size={16} color="var(--teal-primary, #0d9488)" />
                       <span><strong>{plan.maxChairs}</strong> Operatory Chair{plan.maxChairs > 1 ? 's' : ''}</span>
                     </li>
-                    <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#374151' }}>
-                      <Check size={16} color="#0d9488" />
+                    <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text, #374151)' }}>
+                      <Check size={16} color="var(--teal-primary, #0d9488)" />
                       <span>Smart Live Queue &amp; Check-In</span>
                     </li>
-                    <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#374151' }}>
-                      <Check size={16} color="#0d9488" />
+                    <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text, #374151)' }}>
+                      <Check size={16} color="var(--teal-primary, #0d9488)" />
                       <span>Interactive Odontogram Charting</span>
                     </li>
                     <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#374151' }}>

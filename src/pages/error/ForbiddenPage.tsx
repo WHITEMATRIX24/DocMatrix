@@ -14,9 +14,9 @@ export const ForbiddenPage: React.FC = () => {
           style={{
             maxWidth: '520px',
             width: '100%',
-            background: '#ffffff',
+            background: 'var(--surface-raised, #ffffff)',
             borderRadius: '18px',
-            border: '1px solid #fee2e2',
+            border: '1px solid var(--line, #fee2e2)',
             padding: '36px 28px',
             textAlign: 'center',
             boxShadow: '0 4px 24px rgba(220, 38, 38, 0.08)'
@@ -94,7 +94,7 @@ export const ForbiddenPage: React.FC = () => {
                 padding: '9px 18px',
                 borderRadius: '999px',
                 border: '1px solid var(--line, #e9e9e5)',
-                background: '#ffffff',
+                background: 'var(--surface, #ffffff)',
                 color: 'var(--charcoal-dark, #111a1a)',
                 fontSize: '13px',
                 fontWeight: '600',

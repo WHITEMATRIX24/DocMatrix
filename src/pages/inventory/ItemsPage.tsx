@@ -48,11 +48,23 @@ import {
   resetAdaptiveInventory,
   addBatchToItem,
   adjustBatchQuantity,
+  updateItemBatch,
+  updateInventoryItem,
+  deleteInventoryItem,
+  createNewInventoryItem,
   syncInventoryWithBackend,
   type SuggestionMode,
   type InventoryStockItem,
-  type InventoryBatch
+  type InventoryBatch,
+  type InventoryCategory
 } from '@/services/adaptiveInventoryStore'
+import { apiClient } from '@/services/apiClient'
+import {
+  getClinicStaffDoctors,
+  fetchAndSyncClinicStaff,
+  subscribeStaff,
+  addClinicDoctor
+} from '@/services/clinicStaffStore'
 import { TreatmentMaterialUsageModal } from '@/components/inventory/TreatmentMaterialUsageModal'
 import './adaptiveInventory.css'
 
@@ -68,6 +80,104 @@ export interface TerminalItem {
   isAdaptiveOverride: boolean
   confidence?: number
   availableStock: number
+}
+
+interface ActiveLotItemRowProps {
+  batch: InventoryBatch
+  item: InventoryStockItem
+  onAdjust: () => void
+  onUpdateBatch: (oldBatchNumber: string, updates: { newBatchNumber?: string; expiryDate?: string }) => void
+}
+
+function ActiveLotItemRow({ batch, item, onAdjust, onUpdateBatch }: ActiveLotItemRowProps) {
+  const [lotVal, setLotVal] = useState(batch.batchNumber)
+  const [expVal, setExpVal] = useState(batch.expiryDate)
+
+  useEffect(() => {
+    setLotVal(batch.batchNumber)
+    setExpVal(batch.expiryDate)
+  }, [batch.batchNumber, batch.expiryDate])
+
+  const commitChanges = () => {
+    const trimmedLot = lotVal.trim().toUpperCase()
+    const trimmedExp = expVal.trim()
+    if (!trimmedLot) {
+      setLotVal(batch.batchNumber)
+      return
+    }
+    if (trimmedLot !== batch.batchNumber || trimmedExp !== batch.expiryDate) {
+      onUpdateBatch(batch.batchNumber, {
+        newBatchNumber: trimmedLot,
+        expiryDate: trimmedExp || batch.expiryDate
+      })
+    }
+  }
+
+  return (
+    <div className="ai-modal-batch-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+        <input
+          type="text"
+          value={lotVal}
+          onChange={(e) => setLotVal(e.target.value.toUpperCase())}
+          onBlur={commitChanges}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.currentTarget.blur()
+            }
+          }}
+          className="pat-input"
+          placeholder="Lot number"
+          style={{
+            fontWeight: 700,
+            fontSize: '12.5px',
+            color: 'var(--text-strong, #0f172a)',
+            background: 'var(--bg-input, #ffffff)',
+            border: '1px solid var(--line, #cbd5e1)',
+            borderRadius: '6px',
+            padding: '3px 8px',
+            width: '125px'
+          }}
+        />
+        <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '12px' }}>&bull; Exp:</span>
+        <input
+          type="text"
+          value={expVal}
+          onChange={(e) => setExpVal(e.target.value)}
+          onBlur={commitChanges}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.currentTarget.blur()
+            }
+          }}
+          className="pat-input"
+          placeholder="YYYY-MM-DD"
+          style={{
+            fontSize: '12px',
+            color: 'var(--text-muted, #475569)',
+            background: 'var(--bg-input, #ffffff)',
+            border: '1px solid var(--line, #cbd5e1)',
+            borderRadius: '6px',
+            padding: '3px 8px',
+            width: '105px'
+          }}
+        />
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        <span style={{ fontWeight: 700, color: 'var(--text-strong, #0f172a)', fontSize: '12.5px' }}>
+          {batch.quantity} {item.unit}
+        </span>
+        <button
+          type="button"
+          onClick={onAdjust}
+          className="careplus-pill-btn secondary"
+          style={{ padding: '3px 10px', fontSize: '11px' }}
+        >
+          Adjust
+        </button>
+      </div>
+    </div>
+  )
 }
 
 export const ItemsPage: React.FC = () => {
@@ -96,7 +206,7 @@ export const ItemsPage: React.FC = () => {
     }
   }, [location.search])
 
-  
+
 
   // Selected doctor & procedure for the interactive simulator / consumption engine
   const [selectedDoctorId, setSelectedDoctorId] = useState('doc-2') // Default to Dr. Priya Nair (Doctor B)
@@ -169,15 +279,103 @@ export const ItemsPage: React.FC = () => {
   // Full-screen Modal state
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Doctors metadata for quick switching
-  const doctorsList = [
-    { id: 'doc-1', name: 'Dr. Arun Kumar', label: 'Dr. Arun Kumar (General / Ortho)', filePref: '1 set' },
-    { id: 'doc-2', name: 'Dr. Priya Nair', label: 'Dr. Priya Nair (Endodontics Specialist)', filePref: '2 sets' },
-    { id: 'doc-3', name: 'Dr. Tariq Antoun', label: 'Dr. Tariq Antoun (Oral Surgeon)', filePref: '1 set' }
-  ]
+  // Real clinic staff / doctors loaded from clinicStaffStore & API
+  const [clinicStaffDoctors, setClinicStaffDoctors] = useState<{ id: string; name: string; label: string }[]>([])
 
-  const activeDoctor = doctorsList.find((d) => d.id === selectedDoctorId) || doctorsList[1]
+  useEffect(() => {
+    const updateDocs = () => {
+      const staff = getClinicStaffDoctors()
+      if (staff.length > 0) {
+        const mapped = staff.map((s) => ({
+          id: s.id,
+          name: s.name,
+          label: `${s.name}${s.role ? ` (${s.role})` : ''}`
+        }))
+        setClinicStaffDoctors(mapped)
+        setSelectedDoctorId((curr) => (mapped.some((m) => m.id === curr) ? curr : mapped[0].id))
+      }
+    }
+
+    updateDocs()
+    fetchAndSyncClinicStaff().then(updateDocs)
+    const unsub = subscribeStaff(updateDocs)
+    return () => unsub()
+  }, [])
+
+  const doctorsList = clinicStaffDoctors.length > 0
+    ? clinicStaffDoctors
+    : [{ id: 'doc-primary', name: 'Primary Practitioner', label: 'Primary Practitioner' }]
+
+  const activeDoctor = doctorsList.find((d) => d.id === selectedDoctorId) || doctorsList[0]
   const activeTemplate = inventory.templates.find((t) => t.procedureId === selectedProcedureId) || inventory.templates[0]
+
+  // Add New Item Modal Form State
+  const [showAddItemModal, setShowAddItemModal] = useState(false)
+  const [newItemSku, setNewItemSku] = useState('')
+  const [newItemName, setNewItemName] = useState('')
+  const [newItemCategory, setNewItemCategory] = useState<InventoryCategory>('PPE & General')
+  const [newItemUnit, setNewItemUnit] = useState('pieces')
+  const [newItemReorder, setNewItemReorder] = useState(20)
+  const [newItemCost, setNewItemCost] = useState(0)
+  const [newInitialBatchNum, setNewInitialBatchNum] = useState('')
+  const [newInitialExpiry, setNewInitialExpiry] = useState('')
+  const [newInitialQty, setNewInitialQty] = useState(100)
+  const [newInitialLocation, setNewInitialLocation] = useState('Central Storage')
+  const [isSubmittingItem, setIsSubmittingItem] = useState(false)
+
+  const handleAddNewItemSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newItemName.trim() || !newItemSku.trim()) return
+
+    try {
+      setIsSubmittingItem(true)
+      await createNewInventoryItem({
+        sku: newItemSku.trim(),
+        name: newItemName.trim(),
+        category: newItemCategory,
+        unit: newItemUnit.trim() || 'pieces',
+        reorderLevel: Number(newItemReorder) || 10,
+        costPerUnit: Number(newItemCost) || 0,
+        initialBatch: newInitialBatchNum.trim() && newInitialQty > 0 ? {
+          batchNumber: newInitialBatchNum.trim(),
+          expiryDate: newInitialExpiry || '2028-12-31',
+          quantity: Number(newInitialQty) || 1,
+          location: newInitialLocation.trim() || 'Central Storage'
+        } : undefined
+      })
+      setShowAddItemModal(false)
+    } finally {
+      setIsSubmittingItem(false)
+    }
+  }
+
+  const openAddItemModal = () => {
+    setNewItemSku(`SKU-${Date.now().toString(36).slice(-5).toUpperCase()}`)
+    setNewItemName('')
+    setNewItemCategory('PPE & General')
+    setNewItemUnit('pieces')
+    setNewItemReorder(20)
+    setNewItemCost(0)
+    setNewInitialBatchNum(`LOT-${new Date().getFullYear()}-01`)
+    setNewInitialExpiry('2028-12-31')
+    setNewInitialQty(100)
+    setNewInitialLocation('Central Storage')
+    setShowAddItemModal(true)
+  }
+
+  // In adjust modal, allow editing item name directly
+  const [editAdjustItemName, setEditAdjustItemName] = useState('')
+  const [editAdjustBatchNumber, setEditAdjustBatchNumber] = useState('')
+  const [targetQty, setTargetQty] = useState<number>(0)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+
+  // Handle Delete Inventory Item
+  const handleDeleteItem = (itemId: string, sku?: string) => {
+    deleteInventoryItem(itemId, sku)
+    setAdjustModalData(null)
+    setDeleteConfirmOpen(false)
+    setEditAdjustItemName('')
+  }
 
   // Reload terminal suggestions when doctor, procedure, or suggestion mode changes
   const reloadTerminal = (procId: string, docId: string, mode: SuggestionMode) => {
@@ -324,17 +522,73 @@ export const ItemsPage: React.FC = () => {
     setNewBatchQty(100)
   }
 
+  // Handle Inline Active Batch Lot and Expiry Editing
+  const handleActiveBatchUpdate = (
+    oldBatchNumber: string,
+    updates: { newBatchNumber?: string; expiryDate?: string }
+  ) => {
+    if (!batchModalItem) return
+    const newLot = updates.newBatchNumber?.trim().toUpperCase() || oldBatchNumber
+    const newExp = updates.expiryDate?.trim() || ''
+
+    updateItemBatch(batchModalItem.id, oldBatchNumber, {
+      newBatchNumber: newLot,
+      expiryDate: newExp
+    })
+
+    setBatchModalItem((prev) => {
+      if (!prev) return null
+      return {
+        ...prev,
+        activeBatches: prev.activeBatches.map((b) => {
+          if (b.batchNumber === oldBatchNumber) {
+            return {
+              ...b,
+              batchNumber: newLot,
+              expiryDate: newExp || b.expiryDate
+            }
+          }
+          return b
+        })
+      }
+    })
+  }
+
   // Handle Quick Adjust Submit
   const handleAdjustSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!adjustModalData || adjustAmount === 0) return
+    if (!adjustModalData) return
 
-    adjustBatchQuantity(adjustModalData.item.id, adjustModalData.batch.batchNumber, {
-      delta: adjustAmount
-    })
+    if (editAdjustItemName.trim() && editAdjustItemName.trim() !== adjustModalData.item.name) {
+      updateInventoryItem(adjustModalData.item.id, {
+        name: editAdjustItemName.trim()
+      })
+    }
+
+    const lotRenamed = editAdjustBatchNumber.trim() && editAdjustBatchNumber.trim().toUpperCase() !== adjustModalData.batch.batchNumber
+    const qtyChanged = targetQty !== adjustModalData.batch.quantity
+
+    if (lotRenamed || qtyChanged) {
+      updateItemBatch(adjustModalData.item.id, adjustModalData.batch.batchNumber, {
+        newBatchNumber: lotRenamed ? editAdjustBatchNumber.trim().toUpperCase() : undefined,
+        quantity: targetQty
+      })
+    }
 
     setAdjustModalData(null)
     setAdjustAmount(0)
+    setTargetQty(0)
+    setEditAdjustItemName('')
+    setEditAdjustBatchNumber('')
+  }
+
+  // Low Stock condition: totalStock <= reorderLevel (with safe default threshold)
+  const isItemLowStock = (item: InventoryStockItem) => {
+    const stockQty = Number(item.totalStock) || 0
+    const threshold = typeof item.reorderLevel === 'number' && !isNaN(item.reorderLevel) && item.reorderLevel > 0 
+      ? Number(item.reorderLevel) 
+      : 10
+    return stockQty <= threshold
   }
 
   // Filtering Stock Items
@@ -353,7 +607,7 @@ export const ItemsPage: React.FC = () => {
 
     // 3. Quick Status Filter
     if (statusQuickFilter === 'low') {
-      return item.totalStock <= item.reorderLevel
+      return isItemLowStock(item)
     }
     if (statusQuickFilter === 'expiring') {
       return item.activeBatches.some((b) => {
@@ -362,7 +616,7 @@ export const ItemsPage: React.FC = () => {
       })
     }
     if (statusQuickFilter === 'optimal') {
-      return item.totalStock > item.reorderLevel
+      return !isItemLowStock(item)
     }
 
     return true
@@ -370,7 +624,7 @@ export const ItemsPage: React.FC = () => {
 
   // Stock Summary Metrics
   const totalStockCount = inventory.items.reduce((s, i) => s + i.totalStock, 0)
-  const lowStockCount = inventory.items.filter((i) => i.totalStock <= i.reorderLevel).length
+  const lowStockCount = inventory.items.filter(isItemLowStock).length
   const totalBatchesCount = inventory.items.reduce((s, i) => s + i.activeBatches.length, 0)
   const nearExpiryCount = inventory.items.reduce((acc, item) => {
     return acc + item.activeBatches.filter((b) => parseInt(b.expiryDate.split('-')[0], 10) <= 2027).length
@@ -499,39 +753,30 @@ export const ItemsPage: React.FC = () => {
               </select>
             </div>
 
-            {/* Right Action: Receive Stock */}
+            {/* Right Action: Add Item */}
             <div>
-              {filteredStock[0] && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const first = filteredStock[0]
-                    setBatchModalItem(first)
-                    setNewBatchNumber(`${first.sku.split('-')[0]}-${new Date().getFullYear()}-01`)
-                    setNewBatchExpiry('2028-12-31')
-                    setNewBatchQty(first.reorderLevel * 2)
-                  }}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    height: '38px',
-                    padding: '0 16px',
-                    borderRadius: '8px',
-                    background: 'var(--teal-primary, #008891)',
-                    color: '#ffffff',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    boxShadow: '0 2px 6px rgba(0, 136, 145, 0.2)',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <Plus size={14} /> Receive Stock
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={openAddItemModal}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  height: '38px',
+                  padding: '0 16px',
+                  borderRadius: '8px',
+                  background: '#0d9488',
+                  color: '#ffffff',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  boxShadow: '0 2px 4px rgba(13, 148, 136, 0.2)'
+                }}
+              >
+                <Plus size={14} /> Add Inventory Item
+              </button>
             </div>
           </div>
 
@@ -548,8 +793,8 @@ export const ItemsPage: React.FC = () => {
               </thead>
               <tbody>
                 {filteredStock.map((stock) => {
-                  const isLow = stock.totalStock <= stock.reorderLevel
                   const sortedBatches = [...stock.activeBatches].sort((a, b) => a.expiryDate.localeCompare(b.expiryDate))
+                  const isLow = isItemLowStock(stock)
 
                   return (
                     <tr key={stock.id} className="inv-sheet-row">
@@ -560,27 +805,44 @@ export const ItemsPage: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Stock Level (Integrated Status & Reorder Threshold) */}
+                      {/* Stock Level */}
                       <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span className={`inv-stock-qty ${isLow ? 'is-low' : ''}`}>
+                        {isLow ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className="inv-stock-qty is-low" style={{ color: stock.totalStock === 0 ? '#dc2626' : '#d97706', fontWeight: 700 }}>
+                              {stock.totalStock} <span className="inv-stock-unit">{stock.unit}</span>
+                            </span>
+                            <span
+                              className="inv-status-pill pill-low"
+                              style={{
+                                background: stock.totalStock === 0 ? '#fef2f2' : '#fffbeb',
+                                color: stock.totalStock === 0 ? '#dc2626' : '#b45309',
+                                border: stock.totalStock === 0 ? '1px solid #fecaca' : '1px solid #fde68a',
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <span
+                                style={{
+                                  width: '6px',
+                                  height: '6px',
+                                  borderRadius: '50%',
+                                  background: stock.totalStock === 0 ? '#dc2626' : '#f59e0b'
+                                }}
+                              />
+                              {stock.totalStock === 0 ? 'Out of Stock' : 'Low Stock'}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="inv-stock-qty">
                             {stock.totalStock} <span className="inv-stock-unit">{stock.unit}</span>
                           </span>
-                          {isLow ? (
-                            <span className="inv-status-pill pill-low">
-                              <span className="inv-status-dot dot-low" />
-                              Low Stock
-                            </span>
-                          ) : (
-                            <span className="inv-status-pill pill-ok">
-                              <span className="inv-status-dot dot-ok" />
-                              In Stock
-                            </span>
-                          )}
-                        </div>
-                        <div className="inv-stock-reorder">
-                          Min: {stock.reorderLevel} {stock.unit}
-                        </div>
+                        )}
                       </td>
 
                       {/* Active Batches - Centered in column */}
@@ -641,6 +903,10 @@ export const ItemsPage: React.FC = () => {
                               onClick={() => {
                                 setAdjustModalData({ item: stock, batch: stock.activeBatches[0] })
                                 setAdjustAmount(0)
+                                setTargetQty(stock.activeBatches[0].quantity)
+                                setEditAdjustItemName(stock.name)
+                                setEditAdjustBatchNumber(stock.activeBatches[0].batchNumber)
+                                setDeleteConfirmOpen(false)
                               }}
                               title="Adjust stock quantity"
                               className="inv-action-btn btn-adjust"
@@ -655,29 +921,63 @@ export const ItemsPage: React.FC = () => {
                 })}
                 {filteredStock.length === 0 && (
                   <tr>
-                    <td colSpan={4} style={{ textAlign: 'center', padding: '36px 20px', color: '#64748b' }}>
-                      <p style={{ margin: '0 0 6px 0', fontSize: '13.5px', fontWeight: 600 }}>
-                        No inventory items match the current filter
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setStatusQuickFilter('all')
-                          setCategoryFilter('All')
-                          setSearchStock('')
-                        }}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--teal-primary, #008891)',
-                          fontWeight: 700,
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                          textDecoration: 'underline'
-                        }}
-                      >
-                        Reset all filters
-                      </button>
+                    <td colSpan={4} style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted, #64748b)' }}>
+                      {inventory.items.length === 0 ? (
+                        <div>
+                          <Package size={34} style={{ color: 'var(--teal-primary, #008891)', margin: '0 auto 10px', opacity: 0.8 }} />
+                          <p style={{ margin: '0 0 6px 0', fontSize: '15px', fontWeight: 600, color: 'var(--text-strong, #0f172a)' }}>
+                            No inventory items recorded yet
+                          </p>
+                          <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
+                            Your clinic inventory is clean. Add your clinic's items to start tracking stock, lots, and consumption.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={openAddItemModal}
+                            style={{
+                              padding: '10px 22px',
+                              borderRadius: '8px',
+                              fontSize: '13.5px',
+                              fontWeight: 600,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              background: '#0d9488',
+                              color: '#ffffff',
+                              border: 'none',
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 4px rgba(13, 148, 136, 0.2)'
+                            }}
+                          >
+                            <Plus size={15} /> Add First Item
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          <p style={{ margin: '0 0 6px 0', fontSize: '13.5px', fontWeight: 600 }}>
+                            No inventory items match the current filter
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setStatusQuickFilter('all')
+                              setCategoryFilter('All')
+                              setSearchStock('')
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--teal-primary, #008891)',
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              cursor: 'pointer',
+                              textDecoration: 'underline'
+                            }}
+                          >
+                            Reset all filters
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 )}
@@ -754,11 +1054,11 @@ export const ItemsPage: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <button
                 type="button"
-                onClick={() => resetAdaptiveInventory()}
+                onClick={() => syncInventoryWithBackend()}
                 className="consumption-subtle-btn"
-                title="Reset demo data to initial defaults"
+                title="Refresh stock and audit records from backend"
               >
-                <RotateCcw size={13} /> Reset Demo Data
+                <RotateCcw size={13} /> Refresh Data
               </button>
             </div>
           </div>
@@ -1044,6 +1344,204 @@ export const ItemsPage: React.FC = () => {
 
 
 
+      {/* MODAL 0: ADD NEW INVENTORY ITEM */}
+      {showAddItemModal && (
+        <div className="ai-modal-overlay" onClick={() => setShowAddItemModal(false)} role="dialog" aria-modal="true">
+          <div className="ai-modal-content" style={{ maxWidth: '560px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="ai-modal-header">
+              <div>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '18px', fontWeight: 700, color: 'var(--text-strong, #0f172a)' }}>
+                  Add New Inventory Item
+                </h3>
+                <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
+                  Create a new stock item and record its starting batch lot
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddItemModal(false)}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '4px', color: 'var(--text-muted, #64748b)' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddNewItemSubmit}>
+              <div className="ai-modal-body" style={{ gap: '14px', maxHeight: '70vh', overflowY: 'auto' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                    Item Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newItemName}
+                    onChange={(e) => setNewItemName(e.target.value)}
+                    placeholder="e.g. Dental Examination Gloves (Nitrile)"
+                    className="pat-input"
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                      SKU / Catalog Code *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newItemSku}
+                      onChange={(e) => setNewItemSku(e.target.value)}
+                      placeholder="e.g. PPE-GLV-01"
+                      className="pat-input"
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                      Department / Category
+                    </label>
+                    <select
+                      value={newItemCategory}
+                      onChange={(e) => setNewItemCategory(e.target.value as any)}
+                      className="consumption-select"
+                      style={{ width: '100%' }}
+                    >
+                      <option value="PPE & General">PPE & General</option>
+                      <option value="Endodontics">Endodontics</option>
+                      <option value="Restorative">Restorative</option>
+                      <option value="Surgical">Surgical</option>
+                      <option value="Anesthetics">Anesthetics</option>
+                      <option value="Prosthodontics">Prosthodontics</option>
+                      <option value="Preventive">Preventive</option>
+                      <option value="Orthodontics">Orthodontics</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                      Unit of Measure *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newItemUnit}
+                      onChange={(e) => setNewItemUnit(e.target.value)}
+                      placeholder="e.g. pairs, pieces, ml, box"
+                      className="pat-input"
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                      Reorder Alert Level
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={newItemReorder}
+                      onChange={(e) => setNewItemReorder(parseInt(e.target.value, 10) || 0)}
+                      className="pat-input"
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Initial Batch Details */}
+                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px', marginTop: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '8px', color: 'var(--teal-primary, #008891)' }}>
+                    Initial Batch / Lot Details (Optional)
+                  </label>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                        Batch Number
+                      </label>
+                      <input
+                        type="text"
+                        value={newInitialBatchNum}
+                        onChange={(e) => setNewInitialBatchNum(e.target.value)}
+                        placeholder="e.g. LOT-2026-01"
+                        className="pat-input"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                        Expiry Date
+                      </label>
+                      <input
+                        type="date"
+                        value={newInitialExpiry}
+                        onChange={(e) => setNewInitialExpiry(e.target.value)}
+                        className="pat-input"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '10px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                        Initial Quantity
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={newInitialQty}
+                        onChange={(e) => setNewInitialQty(parseInt(e.target.value, 10) || 0)}
+                        className="pat-input"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>
+                        Storage Location
+                      </label>
+                      <input
+                        type="text"
+                        value={newInitialLocation}
+                        onChange={(e) => setNewInitialLocation(e.target.value)}
+                        placeholder="e.g. Shelf A-1, Cold Storage"
+                        className="pat-input"
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="ai-modal-footer">
+                <button
+                  type="button"
+                  onClick={() => setShowAddItemModal(false)}
+                  className="pat-btn"
+                  style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--line, #cbd5e1)', borderRadius: '8px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingItem}
+                  className="pat-btn pat-btn-primary"
+                  style={{ padding: '8px 20px', borderRadius: '8px' }}
+                >
+                  {isSubmittingItem ? 'Saving...' : 'Save & Add Item'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* MODAL 1: ADD NEW BATCH LOT */}
       {batchModalItem && (
         <div className="ai-modal-overlay" onClick={() => setBatchModalItem(null)} role="dialog" aria-modal="true">
@@ -1079,25 +1577,20 @@ export const ItemsPage: React.FC = () => {
                     </label>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       {batchModalItem.activeBatches.map((b) => (
-                        <div key={b.batchNumber} className="ai-modal-batch-item">
-                          <div>
-                            <strong>{b.batchNumber}</strong> &bull; <span style={{ color: 'var(--text-muted, #64748b)' }}>Exp: {b.expiryDate}</span>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontWeight: 700, color: 'var(--text-strong, #0f172a)' }}>{b.quantity} {batchModalItem.unit}</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAdjustModalData({ item: batchModalItem, batch: b })
-                                setAdjustAmount(0)
-                              }}
-                              className="careplus-pill-btn secondary"
-                              style={{ padding: '3px 10px', fontSize: '11px' }}
-                            >
-                              Adjust
-                            </button>
-                          </div>
-                        </div>
+                        <ActiveLotItemRow
+                          key={b.batchNumber}
+                          batch={b}
+                          item={batchModalItem}
+                          onUpdateBatch={handleActiveBatchUpdate}
+                          onAdjust={() => {
+                            setAdjustModalData({ item: batchModalItem, batch: b })
+                            setAdjustAmount(0)
+                            setTargetQty(b.quantity)
+                            setEditAdjustItemName(batchModalItem.name)
+                            setEditAdjustBatchNumber(b.batchNumber)
+                            setDeleteConfirmOpen(false)
+                          }}
+                        />
                       ))}
                     </div>
                   </div>
@@ -1178,7 +1671,7 @@ export const ItemsPage: React.FC = () => {
                   className="pat-btn pat-btn-primary"
                   style={{ padding: '8px 20px', borderRadius: '8px' }}
                 >
-                  <PlusCircle size={15} /> Save & Add Batch
+                  Save & Add Batch
                 </button>
               </div>
             </form>
@@ -1186,7 +1679,7 @@ export const ItemsPage: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 2: QUICK ADJUST BATCH QUANTITY */}
+      {/* MODAL 2: QUICK ADJUST BATCH QUANTITY & EDIT NAME */}
       {adjustModalData && (
         <div className="ai-modal-overlay" onClick={() => setAdjustModalData(null)} role="dialog" aria-modal="true">
           <div className="ai-modal-content" style={{ maxWidth: '460px' }} onClick={(e) => e.stopPropagation()}>
@@ -1196,7 +1689,7 @@ export const ItemsPage: React.FC = () => {
                   Adjust Batch Stock
                 </h3>
                 <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>
-                  {adjustModalData.item.name} &bull; Lot: <strong>{adjustModalData.batch.batchNumber}</strong>
+                  Lot: <strong>{adjustModalData.batch.batchNumber}</strong> &bull; SKU: {adjustModalData.item.sku}
                 </span>
               </div>
               <button
@@ -1210,8 +1703,46 @@ export const ItemsPage: React.FC = () => {
 
             <form onSubmit={handleAdjustSubmit}>
               <div className="ai-modal-body" style={{ gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, marginBottom: '6px' }}>
+                    Item Name:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editAdjustItemName}
+                    onChange={(e) => setEditAdjustItemName(e.target.value)}
+                    placeholder="Enter item name..."
+                    className="pat-input"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)', fontSize: '14px', fontWeight: 600 }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, marginBottom: '6px' }}>
+                    Active Lot:
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editAdjustBatchNumber}
+                    onChange={(e) => setEditAdjustBatchNumber(e.target.value.toUpperCase())}
+                    placeholder="e.g. LOT-2026-01"
+                    className="pat-input"
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)', fontSize: '14px', fontWeight: 600 }}
+                  />
+                </div>
+
                 <div style={{ background: 'var(--surface-sunken, #f8fafc)', padding: '12px 14px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>Current Lot Quantity:</span>
+                  <div>
+                    <span style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)' }}>Current Lot Quantity:</span>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span>Min stock:</span>
+                      <span style={{ fontWeight: 600, color: '#475569' }}>
+                        {adjustModalData.item.reorderLevel ?? 10} {adjustModalData.item.unit}
+                      </span>
+                    </div>
+                  </div>
                   <span style={{ fontSize: '18px', fontWeight: 800 }}>
                     {adjustModalData.batch.quantity} {adjustModalData.item.unit}
                   </span>
@@ -1219,17 +1750,22 @@ export const ItemsPage: React.FC = () => {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, marginBottom: '6px' }}>
-                    Stock Adjustment (+ Restock / - Write-Off):
+                    New Lot Quantity:
                   </label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <input
                       type="number"
+                      min={0}
                       required
-                      value={adjustAmount}
-                      onChange={(e) => setAdjustAmount(parseInt(e.target.value, 10) || 0)}
+                      value={targetQty}
+                      onChange={(e) => {
+                        const val = Math.max(0, parseInt(e.target.value, 10) || 0)
+                        setTargetQty(val)
+                        setAdjustAmount(val - adjustModalData.batch.quantity)
+                      }}
                       className="pat-input"
-                      placeholder="e.g. +20 or -5"
-                      style={{ flex: 1, padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)', fontSize: '15px', fontWeight: 700 }}
+                      placeholder="e.g. 5"
+                      style={{ flex: 1, padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--line, #cbd5e1)', fontSize: '16px', fontWeight: 700 }}
                     />
                     <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted, #64748b)' }}>
                       {adjustModalData.item.unit}
@@ -1238,41 +1774,126 @@ export const ItemsPage: React.FC = () => {
                 </div>
 
                 {/* Quick Increment Pill Shortcuts */}
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  {[-10, -5, +10, +25, +50].map((v) => (
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {[-10, -5, +5, +10, +25].map((v) => (
                     <button
                       key={v}
                       type="button"
-                      onClick={() => setAdjustAmount(v)}
-                      style={{ flex: 1, padding: '5px 0', borderRadius: '6px', border: '1px solid var(--line, #cbd5e1)', background: 'var(--surface, #ffffff)', cursor: 'pointer', fontSize: '11.5px', fontWeight: 600, color: v < 0 ? '#dc2626' : '#059669' }}
+                      onClick={() => {
+                        const next = Math.max(0, targetQty + v)
+                        setTargetQty(next)
+                        setAdjustAmount(next - adjustModalData.batch.quantity)
+                      }}
+                      style={{ flex: 1, minWidth: '40px', padding: '5px 0', borderRadius: '6px', border: '1px solid var(--line, #cbd5e1)', background: 'var(--surface, #ffffff)', cursor: 'pointer', fontSize: '12px', fontWeight: 600, color: v < 0 ? '#dc2626' : '#059669' }}
                     >
                       {v > 0 ? `+${v}` : v}
                     </button>
                   ))}
                 </div>
-
-                <div style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>
-                  New Projected Lot Quantity: <strong>{Math.max(0, adjustModalData.batch.quantity + adjustAmount)} {adjustModalData.item.unit}</strong>
-                </div>
               </div>
 
-              <div className="ai-modal-footer">
-                <button
-                  type="button"
-                  onClick={() => setAdjustModalData(null)}
-                  className="pat-btn"
-                  style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--line, #cbd5e1)', borderRadius: '8px' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={adjustAmount === 0}
-                  className="pat-btn pat-btn-primary"
-                  style={{ padding: '8px 20px', borderRadius: '8px' }}
-                >
-                  Apply Stock Adjustment
-                </button>
+              <div className="ai-modal-footer" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {deleteConfirmOpen ? (
+                  <div
+                    style={{
+                      background: '#fff1f2',
+                      border: '1px solid #fecdd3',
+                      borderRadius: '8px',
+                      padding: '10px 14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '12px',
+                      width: '100%'
+                    }}
+                  >
+                    <div style={{ fontSize: '13px', color: '#9f1239', fontWeight: 600 }}>
+                      Delete <strong>{editAdjustItemName || adjustModalData.item.name}</strong> permanently?
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteConfirmOpen(false)}
+                        className="pat-btn"
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          borderRadius: '6px',
+                          border: '1px solid var(--line, #cbd5e1)',
+                          background: 'var(--surface-raised, #ffffff)',
+                          color: 'var(--text, inherit)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteItem(adjustModalData.item.id, adjustModalData.item.sku)}
+                        style={{
+                          padding: '6px 14px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          borderRadius: '6px',
+                          border: 'none',
+                          background: '#e11d48',
+                          color: '#ffffff',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Yes, Delete
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteConfirmOpen(true)}
+                      title="Delete this item from inventory"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: '8px',
+                        border: '1px solid #fecaca',
+                        background: '#fef2f2',
+                        color: '#dc2626',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.borderColor = '#fca5a5' }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.borderColor = '#fecaca' }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdjustModalData(null)
+                          setDeleteConfirmOpen(false)
+                        }}
+                        className="pat-btn"
+                        style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--line, #cbd5e1)', borderRadius: '8px' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={targetQty === adjustModalData.batch.quantity && (!editAdjustItemName.trim() || editAdjustItemName.trim() === adjustModalData.item.name) && (!editAdjustBatchNumber.trim() || editAdjustBatchNumber.trim().toUpperCase() === adjustModalData.batch.batchNumber)}
+                        className="pat-btn pat-btn-primary"
+                        style={{ padding: '8px 20px', borderRadius: '8px' }}
+                      >
+                        Save Changes
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </form>
           </div>

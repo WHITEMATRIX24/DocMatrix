@@ -40,7 +40,7 @@ export const ComingSoonPage = () => {
       </div>
 
       <div style={{
-        background: '#ffffff',
+        background: 'var(--surface-raised, #ffffff)',
         border: '1px solid var(--line, #e9e9e5)',
         borderRadius: '16px',
         padding: '28px',
@@ -93,7 +93,7 @@ export const ComingSoonPage = () => {
               padding: '7px 14px',
               borderRadius: '999px',
               border: '1px solid var(--line, #e9e9e5)',
-              background: '#ffffff',
+              background: 'var(--surface, #ffffff)',
               fontSize: '12px',
               fontWeight: '700',
               color: 'var(--charcoal-dark, #111a1a)',

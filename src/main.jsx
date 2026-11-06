@@ -2,7 +2,7 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
-import { applyTheme, getStoredTheme } from './components/ThemeToggle'
+import { applyTheme, getThemePreference, initSystemThemeListener } from './components/ThemeToggle'
 import './styles.css'
 import './portal.css'
 import '@fontsource/instrument-sans/400.css'
@@ -23,7 +23,8 @@ import '@fontsource/manrope/600.css'
 import '@fontsource/manrope/700.css'
 import '@fontsource/manrope/800.css'
 
-applyTheme(getStoredTheme())
+applyTheme(getThemePreference(), false)
+initSystemThemeListener()
 
 createRoot(document.getElementById('root')).render(
   <BrowserRouter>

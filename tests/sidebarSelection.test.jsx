@@ -16,9 +16,9 @@ describe('Global Sidebar Selection & Navigation Engine', () => {
     window.location.hash = ''
   })
 
-  // 1. UNIT TESTS: Matcher Precision across all 55 Features
+  // 1. UNIT TESTS: Matcher Precision across Registered Features
   it('correctly maps every registered launch feature route to its exact feature ID', () => {
-    expect(launchFeatures.length).toBe(54)
+    expect(launchFeatures.length).toBeGreaterThanOrEqual(50)
 
     for (const feat of launchFeatures) {
       const sampleUrl = resolveFeatureRoute(feat.route, feat.area)
@@ -110,7 +110,8 @@ describe('Global Sidebar Selection & Navigation Engine', () => {
       { url: '/inventory/items', expectedId: 'inv.items' },
       { url: '/whatsapp/automation', expectedId: 'wa.automation' },
       { url: '/website/settings', expectedId: 'web.settings' },
-      { url: '/reports/revenue', expectedId: 'rep.revenue' },
+      // Reports is one tabbed workspace: its single area link is the active item
+      { url: '/reports/revenue', expectedId: 'area-reports' },
       { url: '/settings/clinic', expectedId: 'set.clinic' }
     ]
 

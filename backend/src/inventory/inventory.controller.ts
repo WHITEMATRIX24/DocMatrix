@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  Param,
   Patch,
   Post,
   Req,
@@ -43,10 +45,31 @@ export class InventoryController {
     return this.inventoryService.createItem(clinicId, dto);
   }
 
+  @Patch('items/:id')
+  async updateItem(@Req() req: any, @Param('id') id: string, @Body() dto: any) {
+    const clinicId = await this.resolveClinicId(req);
+    return this.inventoryService.updateItem(clinicId, id, dto);
+  }
+
+  @Delete('items/:id')
+  async deleteItem(@Req() req: any, @Param('id') id: string) {
+    const clinicId = await this.resolveClinicId(req);
+    return this.inventoryService.deleteItem(clinicId, id);
+  }
+
   @Post('batches')
   async receiveBatch(@Req() req: any, @Body() dto: AddBatchDto) {
     const clinicId = await this.resolveClinicId(req);
     return this.inventoryService.receiveBatch(clinicId, dto);
+  }
+
+  @Patch('batches')
+  async updateBatch(
+    @Req() req: any,
+    @Body() dto: { itemId: string; batchNumber: string; newBatchNumber?: string; expiryDate?: string; quantity?: number },
+  ) {
+    const clinicId = await this.resolveClinicId(req);
+    return this.inventoryService.updateBatch(clinicId, dto);
   }
 
   @Post('adjust')

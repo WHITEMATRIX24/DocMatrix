@@ -13,7 +13,10 @@ import {
   ChevronRight,
   UserRound,
   Check,
-  UserPlus
+  UserPlus,
+  Plus,
+  ArrowRight,
+  Sparkles
 } from 'lucide-react'
 import {
   useClinicData,
@@ -35,6 +38,21 @@ const timeSlots = [
   '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
   '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
 ]
+
+const formatDisplayDate = (dateStr: string) => {
+  try {
+    const [y, m, d] = dateStr.split('-').map(Number)
+    const dateObj = new Date(y, m - 1, d)
+    return dateObj.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    })
+  } catch {
+    return dateStr
+  }
+}
 
 export const NewAppointmentPage: React.FC = () => {
   const navigate = useNavigate()
@@ -224,23 +242,104 @@ export const NewAppointmentPage: React.FC = () => {
       </div>
 
       {bookingSuccess ? (
-        <div className="booking-success-card">
-          <CheckCircle2 size={40} className="success-icon" />
-          <h3>Appointment Confirmed!</h3>
-          <p>Booking reference <strong>{bookingSuccess}</strong> has been registered successfully.</p>
-          <div className="success-meta-box">
-            <div>Patient: <strong>{selectedPatient?.firstName} {selectedPatient?.lastName}</strong></div>
-            <div>Doctor: <strong>{selectedDoctor}</strong> ({selectedDentist?.chair})</div>
-            <div>Schedule: <strong>{selectedDate} at {selectedTime}</strong></div>
-            <div>Procedure: <strong>{selectedTreatment?.name}</strong></div>
-          </div>
-          <div className="success-action-row">
-            <button className="btn-book-another" onClick={() => setBookingSuccess(null)}>
-              Book Another Appointment
-            </button>
-            <Link to={`/appointments/${bookingSuccess}`} className="btn-view-booking">
-              View Booking Details
-            </Link>
+        <div className="booking-confirmed-wrapper">
+          <div className="booking-confirmed-card">
+            {/* Header Badge & Title */}
+            <div className="confirmed-header">
+              <div className="confirmed-icon-circle">
+                <CheckCircle2 size={36} className="confirmed-check-icon" />
+              </div>
+              <span className="confirmed-pill-badge">Booking Confirmed</span>
+              <h2 className="confirmed-title">Appointment Confirmed!</h2>
+              <p className="confirmed-subtitle">
+                Booking reference <strong className="confirmed-ref-code">{bookingSuccess}</strong> has been registered and added to the clinic schedule.
+              </p>
+            </div>
+
+            {/* Summary Ticket Details Box */}
+            <div className="confirmed-details-box">
+              <div className="confirmed-detail-row">
+                <div className="confirmed-detail-item">
+                  <div className="confirmed-detail-icon">
+                    <UserRound size={18} />
+                  </div>
+                  <div>
+                    <span className="confirmed-detail-label">Patient</span>
+                    <strong className="confirmed-detail-val">
+                      {selectedPatient ? `${selectedPatient.firstName} ${selectedPatient.lastName}` : 'Walk-in Patient'}
+                    </strong>
+                    {selectedPatient?.id && (
+                      <span className="confirmed-detail-sub">Patient ID: {selectedPatient.id}</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="confirmed-detail-item">
+                  <div className="confirmed-detail-icon">
+                    <Stethoscope size={18} />
+                  </div>
+                  <div>
+                    <span className="confirmed-detail-label">Doctor & Operatory</span>
+                    <strong className="confirmed-detail-val">{selectedDoctor}</strong>
+                    <span className="confirmed-detail-sub">{selectedDentist?.chair || 'Operatory Chair'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="confirmed-divider" />
+
+              <div className="confirmed-detail-row">
+                <div className="confirmed-detail-item">
+                  <div className="confirmed-detail-icon">
+                    <CalendarDays size={18} />
+                  </div>
+                  <div>
+                    <span className="confirmed-detail-label">Date & Time</span>
+                    <strong className="confirmed-detail-val">
+                      {formatDisplayDate(selectedDate)} at {selectedTime}
+                    </strong>
+                    <span className="confirmed-detail-sub">
+                      {selectedTreatment?.defaultDurationMinutes || 30} mins session
+                    </span>
+                  </div>
+                </div>
+
+                <div className="confirmed-detail-item">
+                  <div className="confirmed-detail-icon">
+                    <Sparkles size={18} />
+                  </div>
+                  <div>
+                    <span className="confirmed-detail-label">Treatment / Procedure</span>
+                    <strong className="confirmed-detail-val">
+                      {selectedTreatment?.name || 'General Consultation'}
+                    </strong>
+                    <span className="confirmed-detail-sub">
+                      {selectedTreatment?.category || 'General Dentistry'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions Bar */}
+            <div className="confirmed-actions">
+              <button
+                type="button"
+                className="btn-book-another-styled"
+                onClick={() => setBookingSuccess(null)}
+              >
+                <Plus size={16} />
+                <span>Book Another Appointment</span>
+              </button>
+
+              <Link
+                to={`/appointments/${bookingSuccess}`}
+                className="btn-view-booking-styled"
+              >
+                <span>View Booking Details</span>
+                <ArrowRight size={16} />
+              </Link>
+            </div>
           </div>
         </div>
       ) : (

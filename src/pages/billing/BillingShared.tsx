@@ -45,19 +45,21 @@ export interface FlatPayment extends InvoicePayment {
 }
 
 /** Every payment across all invoices, newest first. Legacy paid invoices without a log appear as one payment. */
+export const flattenPayments = (invoices: InvoiceRecord[]): FlatPayment[] => {
+  const rows: FlatPayment[] = []
+  invoices.forEach((inv) => {
+    const list = Array.isArray(inv.payments)
+      ? inv.payments
+      : inv.status === 'Paid'
+        ? [{ id: `PAY-${inv.id}`, amount: inv.amount, mode: 'Cash' as PaymentMode, receivedAt: inv.createdAt }]
+        : []
+    list.forEach((p) => rows.push({ ...p, invoiceId: inv.id, patientId: inv.patientId }))
+  })
+  return rows.sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
+}
+
 export const usePayments = (invoices: InvoiceRecord[]) =>
-  useMemo<FlatPayment[]>(() => {
-    const rows: FlatPayment[] = []
-    invoices.forEach((inv) => {
-      const list = Array.isArray(inv.payments)
-        ? inv.payments
-        : inv.status === 'Paid'
-          ? [{ id: `PAY-${inv.id}`, amount: inv.amount, mode: 'Cash' as PaymentMode, receivedAt: inv.createdAt }]
-          : []
-      list.forEach((p) => rows.push({ ...p, invoiceId: inv.id, patientId: inv.patientId }))
-    })
-    return rows.sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
-  }, [invoices])
+  useMemo<FlatPayment[]>(() => flattenPayments(invoices), [invoices])
 
 export const StatusPill: React.FC<{ status: InvoiceRecord['status'] }> = ({ status }) => (
   <span className={`bill-pill bill-pill-${status.toLowerCase()}`}>{status}</span>

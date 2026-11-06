@@ -5,6 +5,8 @@ import { LAUNCH_PAGE_MAP } from '@/features/pageMap'
 import AreaPage from '@/pages/areas/AreaPage'
 import AppointmentsWorkspace from '@/pages/appointments/AppointmentsWorkspace'
 import BillingWorkspace from '@/pages/billing/BillingWorkspace'
+import ReportsWorkspace from '@/pages/reports/ReportsWorkspace'
+import { canRoleSeeMoney } from '@/pages/reports/ReportsShared'
 import CalendarPage from '@/pages/appointments/CalendarPage'
 import NotBuiltYetPage from '@/pages/common/NotBuiltYetPage'
 import NotFoundPage from '@/pages/error/NotFoundPage'
@@ -20,6 +22,15 @@ import Hero38 from '@/components/originkit/hero-38'
 const AppointmentDetailsPage = lazy(() => import('@/pages/appointments/AppointmentDetailsPage'))
 const BillingOverviewPage = lazy(() => import('@/pages/billing/BillingOverviewPage'))
 const REMOVED_BILLING_PAGES = new Set(['bill.price-list', 'bill.expenses'])
+// Income vs expense was dropped (expenses are no longer tracked); Booking conversion merged into Follow-ups
+const MOVED_REPORT_PAGES = { 'rep.income-expense': '/reports', 'rep.conversion': '/reports/follow-ups' }
+
+// Old report links keep the selected period
+function ReportRedirect({ to }) {
+  const { search } = useLocation()
+  return <Navigate to={{ pathname: to, search }} replace />
+}
+
 const lazyComponents = {}
 for (const page of LAUNCH_PAGE_MAP) {
   lazyComponents[page.id] = lazy(page.importFn)
@@ -209,10 +220,9 @@ export function AppRoutes({
           path="/website"
           element={<AreaPage areaKey="website" />}
         />
-        <Route
-          path="/reports"
-          element={<AreaPage areaKey="reports" />}
-        />
+        <Route path="/reports" element={<Navigate to={canRoleSeeMoney(currentUser?.role) ? '/reports/revenue' : '/reports/follow-ups'} replace />} />
+        {/* Pending dues by age moved to Billing → Dues */}
+        <Route path="/reports/dues-ageing" element={<Navigate to="/billing/dues" replace />} />
         <Route
           path="/settings"
           element={
@@ -231,6 +241,9 @@ export function AppRoutes({
           // Price list and Expenses were removed from Billing; old links land on the Billing overview
           if (REMOVED_BILLING_PAGES.has(feature.id)) {
             return <Route key={feature.id} path={feature.route} element={<Navigate to="/billing" replace />} />
+          }
+          if (MOVED_REPORT_PAGES[feature.id]) {
+            return <Route key={feature.id} path={feature.route} element={<ReportRedirect to={MOVED_REPORT_PAGES[feature.id]} />} />
           }
           const Component = lazyComponents[feature.id]
           if (!Component) return null
@@ -251,6 +264,8 @@ export function AppRoutes({
                     <AppointmentsWorkspace activeFeatureId={feature.id}>{featurePage}</AppointmentsWorkspace>
                   ) : feature.area.toLowerCase() === 'billing' ? (
                     <BillingWorkspace activeFeatureId={feature.id}>{featurePage}</BillingWorkspace>
+                  ) : feature.area.toLowerCase() === 'reports' ? (
+                    <ReportsWorkspace activeFeatureId={feature.id} role={currentUser?.role}>{featurePage}</ReportsWorkspace>
                   ) : featurePage}
                 </ProtectedRoute>
               }

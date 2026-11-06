@@ -1396,7 +1396,7 @@ export const useClinicData = () => {
 export const initClinicSession = (clinicId?: string) => {
   currentSyncVersion++;
   const isAuth = isAuthenticatedClinic();
-  const storageKey = clinicId ? `docmatrix_clinic_data_${clinicId}` : getStorageKey();
+  const storageKey = isAuth && clinicId ? `docmatrix_clinic_data_${clinicId}` : (isAuth ? getStorageKey() : STORAGE_KEYS.DATA);
   const loaded = loadFromStorage<StoredClinicSnapshot>(storageKey, isAuth ? emptySnapshot : demoSnapshot);
 
   patientsState = Array.isArray(loaded?.patients)
