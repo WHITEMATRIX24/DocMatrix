@@ -94,6 +94,117 @@ export class BillingService {
     return patient;
   }
 
+  /**
+   * Validate that all referenced service tariffs and treatment plan items exist,
+   * belong to the authenticated clinic, and are in valid billable states.
+   * Manual line items (where serviceTariffId is null/undefined) are permitted.
+   */
+  async validateLineItemReferences(
+    clinicId: string,
+    items: Array<{ serviceTariffId?: string; treatmentPlanItemId?: string; name: string }>,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx || this.prisma;
+
+    // 1. Validate service tariffs if referenced
+    const rawTariffIds = items
+      .map((i) => i.serviceTariffId)
+      .filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+
+    const uniqueTariffIds = [...new Set(rawTariffIds)];
+
+    if (uniqueTariffIds.length > 0) {
+      const tariffs = await client.serviceTariff.findMany({
+        where: {
+          id: { in: uniqueTariffIds },
+          clinicId,
+        },
+        select: {
+          id: true,
+          name: true,
+          isActive: true,
+          clinicId: true,
+        },
+      });
+
+      const tariffMap = new Map(tariffs.map((t) => [t.id, t]));
+
+      for (const id of uniqueTariffIds) {
+        const tariff = tariffMap.get(id);
+        if (!tariff) {
+          throw new NotFoundException(
+            `Service tariff with ID '${id}' was not found for this clinic.`,
+          );
+        }
+        if (!tariff.isActive) {
+          throw new BadRequestException(
+            `Service tariff '${tariff.name}' (${id}) is inactive and cannot be billed.`,
+          );
+        }
+      }
+    }
+
+    // 2. Validate treatment plan items if referenced
+    const rawPlanItemIds = items
+      .map((i) => i.treatmentPlanItemId)
+      .filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+
+    const uniquePlanItemIds = [...new Set(rawPlanItemIds)];
+
+    if (uniquePlanItemIds.length > 0 && client.treatmentPlanItem) {
+      const planItems = await client.treatmentPlanItem.findMany({
+        where: {
+          id: { in: uniquePlanItemIds },
+          stage: {
+            treatmentPlan: {
+              clinicId,
+            },
+          },
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      const planItemSet = new Set(planItems.map((p) => p.id));
+
+      for (const id of uniquePlanItemIds) {
+        if (!planItemSet.has(id)) {
+          throw new NotFoundException(
+            `Treatment plan item with ID '${id}' was not found for this clinic.`,
+          );
+        }
+      }
+    }
+  }
+
+  /**
+   * Catch known Prisma exceptions (e.g. foreign key constraint violations P2003)
+   * and translate them into appropriate HTTP exceptions (404/400).
+   */
+  handlePrismaError(err: unknown): never {
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      if (err.code === 'P2003') {
+        const field = (err.meta?.field_name as string) || (err.meta?.target as string) || '';
+        const msg = String(err.message || '');
+        if (field.includes('serviceTariffId') || msg.includes('InvoiceLineItem_serviceTariffId_fkey')) {
+          throw new NotFoundException(
+            'Referenced service tariff was not found or was deleted before invoice creation.',
+          );
+        }
+        if (field.includes('treatmentPlanItemId') || msg.includes('InvoiceLineItem_treatmentPlanItemId_fkey')) {
+          throw new NotFoundException(
+            'Referenced treatment plan item was not found or was deleted before invoice creation.',
+          );
+        }
+        throw new BadRequestException(
+          'Foreign key constraint violation: a referenced record does not exist or was deleted.',
+        );
+      }
+    }
+    throw err;
+  }
+
   // ==========================================
   // 1. INVOICE MANAGEMENT
   // ==========================================
@@ -136,6 +247,8 @@ export class BillingService {
     const totals = this.calc.computeInvoiceTotals(computedItems);
 
     return this.prisma.$transaction(async (tx) => {
+      await this.validateLineItemReferences(clinicId, computedItems, tx);
+
       const draftNumber = await this.allocateDraftNumber(tx, clinicId);
 
       const description =
@@ -144,50 +257,54 @@ export class BillingService {
           ? computedItems.map((i) => i.name).join(', ')
           : 'Draft Invoice');
 
-      const invoice = await tx.invoice.create({
-        data: {
-          clinicId,
-          invoiceNumber: draftNumber,
-          patientId: patient.id,
-          appointmentId: dto.appointmentId,
-          treatmentPlanId: dto.treatmentPlanId,
-          description,
-          notes: dto.notes,
-          internalNotes: dto.internalNotes,
-          dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
-          subtotal: totals.subtotal,
-          discountTotal: totals.discountTotal,
-          taxTotal: totals.taxTotal,
-          totalAmount: totals.totalAmount,
-          paidAmount: 0,
-          balance: totals.totalAmount,
-          status: InvoiceStatus.DRAFT,
-          items: {
-            create: computedItems.map((item) => ({
-              serviceTariffId: item.serviceTariffId,
-              treatmentPlanItemId: item.treatmentPlanItemId,
-              name: item.name,
-              category: item.category,
-              toothNumber: item.toothNumber,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              discount: item.discount,
-              gstRate: item.gstRate,
-              taxableAmount: item.taxableAmount,
-              taxAmount: item.taxAmount,
-              totalAmount: item.totalAmount,
-            })),
+      try {
+        const invoice = await tx.invoice.create({
+          data: {
+            clinicId,
+            invoiceNumber: draftNumber,
+            patientId: patient.id,
+            appointmentId: dto.appointmentId,
+            treatmentPlanId: dto.treatmentPlanId,
+            description,
+            notes: dto.notes,
+            internalNotes: dto.internalNotes,
+            dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+            subtotal: totals.subtotal,
+            discountTotal: totals.discountTotal,
+            taxTotal: totals.taxTotal,
+            totalAmount: totals.totalAmount,
+            paidAmount: 0,
+            balance: totals.totalAmount,
+            status: InvoiceStatus.DRAFT,
+            items: {
+              create: computedItems.map((item) => ({
+                serviceTariffId: item.serviceTariffId,
+                treatmentPlanItemId: item.treatmentPlanItemId,
+                name: item.name,
+                category: item.category,
+                toothNumber: item.toothNumber,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                discount: item.discount,
+                gstRate: item.gstRate,
+                taxableAmount: item.taxableAmount,
+                taxAmount: item.taxAmount,
+                totalAmount: item.totalAmount,
+              })),
+            },
           },
-        },
-        include: {
-          items: true,
-          patient: {
-            select: { id: true, patientCode: true, firstName: true, lastName: true, mobile: true },
+          include: {
+            items: true,
+            patient: {
+              select: { id: true, patientCode: true, firstName: true, lastName: true, mobile: true },
+            },
           },
-        },
-      });
+        });
 
-      return invoice;
+        return invoice;
+      } catch (err) {
+        this.handlePrismaError(err);
+      }
     });
   }
 
@@ -236,28 +353,33 @@ export class BillingService {
           where: { invoiceId: invoice.id, clinicId },
         });
 
-        // Compute new items
+        // Compute and validate new items
         const computedItems = dto.items.map((i) => this.calc.computeLineItem(i));
+        await this.validateLineItemReferences(clinicId, computedItems, tx);
         totals = this.calc.computeInvoiceTotals(computedItems);
 
-        await tx.invoiceLineItem.createMany({
-          data: computedItems.map((item) => ({
-            clinicId,
-            invoiceId: invoice.id,
-            serviceTariffId: item.serviceTariffId,
-            treatmentPlanItemId: item.treatmentPlanItemId,
-            name: item.name,
-            category: item.category,
-            toothNumber: item.toothNumber,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            discount: item.discount,
-            gstRate: item.gstRate,
-            taxableAmount: item.taxableAmount,
-            taxAmount: item.taxAmount,
-            totalAmount: item.totalAmount,
-          })),
-        });
+        try {
+          await tx.invoiceLineItem.createMany({
+            data: computedItems.map((item) => ({
+              clinicId,
+              invoiceId: invoice.id,
+              serviceTariffId: item.serviceTariffId,
+              treatmentPlanItemId: item.treatmentPlanItemId,
+              name: item.name,
+              category: item.category,
+              toothNumber: item.toothNumber,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              discount: item.discount,
+              gstRate: item.gstRate,
+              taxableAmount: item.taxableAmount,
+              taxAmount: item.taxAmount,
+              totalAmount: item.totalAmount,
+            })),
+          });
+        } catch (err) {
+          this.handlePrismaError(err);
+        }
       }
 
       const updated = await tx.invoice.update({
@@ -364,47 +486,54 @@ export class BillingService {
     const totals = this.calc.computeInvoiceTotals(computedItems);
 
     return this.prisma.$transaction(async (tx) => {
+      await this.validateLineItemReferences(clinicId, computedItems, tx);
+
       const invoiceNumber = await this.allocateInvoiceNumber(tx, clinicId);
       const description =
         dto.description || computedItems.map((i) => i.name).join(', ');
 
-      const initialInvoice = await tx.invoice.create({
-        data: {
-          clinicId,
-          invoiceNumber,
-          patientId: patient.id,
-          appointmentId: dto.appointmentId,
-          treatmentPlanId: dto.treatmentPlanId,
-          description,
-          notes: dto.notes,
-          internalNotes: dto.internalNotes,
-          dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
-          issuedAt: new Date(),
-          subtotal: totals.subtotal,
-          discountTotal: totals.discountTotal,
-          taxTotal: totals.taxTotal,
-          totalAmount: totals.totalAmount,
-          paidAmount: 0,
-          balance: totals.totalAmount,
-          status: InvoiceStatus.ISSUED,
-          items: {
-            create: computedItems.map((item) => ({
-              serviceTariffId: item.serviceTariffId,
-              treatmentPlanItemId: item.treatmentPlanItemId,
-              name: item.name,
-              category: item.category,
-              toothNumber: item.toothNumber,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              discount: item.discount,
-              gstRate: item.gstRate,
-              taxableAmount: item.taxableAmount,
-              taxAmount: item.taxAmount,
-              totalAmount: item.totalAmount,
-            })),
+      let initialInvoice;
+      try {
+        initialInvoice = await tx.invoice.create({
+          data: {
+            clinicId,
+            invoiceNumber,
+            patientId: patient.id,
+            appointmentId: dto.appointmentId,
+            treatmentPlanId: dto.treatmentPlanId,
+            description,
+            notes: dto.notes,
+            internalNotes: dto.internalNotes,
+            dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+            issuedAt: new Date(),
+            subtotal: totals.subtotal,
+            discountTotal: totals.discountTotal,
+            taxTotal: totals.taxTotal,
+            totalAmount: totals.totalAmount,
+            paidAmount: 0,
+            balance: totals.totalAmount,
+            status: InvoiceStatus.ISSUED,
+            items: {
+              create: computedItems.map((item) => ({
+                serviceTariffId: item.serviceTariffId,
+                treatmentPlanItemId: item.treatmentPlanItemId,
+                name: item.name,
+                category: item.category,
+                toothNumber: item.toothNumber,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                discount: item.discount,
+                gstRate: item.gstRate,
+                taxableAmount: item.taxableAmount,
+                taxAmount: item.taxAmount,
+                totalAmount: item.totalAmount,
+              })),
+            },
           },
-        },
-      });
+        });
+      } catch (err) {
+        this.handlePrismaError(err);
+      }
 
       // Handle upfront payment if supplied
       if (dto.upfrontPayment && dto.upfrontPayment.amount > 0) {

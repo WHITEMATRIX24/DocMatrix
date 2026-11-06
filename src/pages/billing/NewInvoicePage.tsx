@@ -164,7 +164,21 @@ export const NewInvoicePage: React.FC = () => {
               </div>
               {items.map((item) => (
                 <div className="bill-line" key={item.id}>
-                  <input aria-label="Service" value={item.name} onChange={(e) => update(item.id, { name: e.target.value })} placeholder="Service name" required />
+                  <input
+                    aria-label="Service"
+                    value={item.name}
+                    onChange={(e) => {
+                      const newName = e.target.value
+                      const origService = services.find((s) => s.id === item.serviceId)
+                      const isRenamed = origService && origService.name !== newName
+                      update(item.id, {
+                        name: newName,
+                        ...(isRenamed ? { serviceId: undefined } : {}),
+                      })
+                    }}
+                    placeholder="Service name"
+                    required
+                  />
                   <input aria-label="Tooth" value={item.toothNumber || ''} onChange={(e) => update(item.id, { toothNumber: e.target.value })} placeholder="—" />
                   <input aria-label="Quantity" type="number" min="1" value={item.qty} onChange={(e) => update(item.id, { qty: Math.max(1, Number(e.target.value) || 1) })} />
                   <input aria-label="Rate" type="number" min="0" step="0.01" value={item.unitPrice} onChange={(e) => update(item.id, { unitPrice: Math.max(0, Number(e.target.value) || 0) })} />

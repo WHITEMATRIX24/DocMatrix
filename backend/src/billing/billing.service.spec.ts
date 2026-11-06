@@ -15,6 +15,7 @@ import {
   InvoicePaymentType,
   InvoiceStatus,
   PaymentMode,
+  Prisma,
 } from '@prisma/client';
 
 describe('BillingService & BillingCalculationService', () => {
@@ -75,6 +76,9 @@ describe('BillingService & BillingCalculationService', () => {
         findFirst: vi.fn(),
         findUnique: vi.fn(),
         findMany: vi.fn(),
+      },
+      treatmentPlanItem: {
+        findMany: vi.fn().mockResolvedValue([]),
       },
       serviceTariff: {
         create: vi.fn(),
@@ -694,6 +698,7 @@ describe('BillingService & BillingCalculationService', () => {
         ],
       });
       prisma.invoiceLineItem.findMany.mockResolvedValue([]); // Not yet billed
+      prisma.treatmentPlanItem.findMany.mockResolvedValue([{ id: 'tp-item-1' }]);
       prisma.$queryRaw.mockResolvedValue([{ assignedValue: 1099 }]);
       prisma.invoice.create.mockImplementation((args: any) => ({
         id: 'inv-from-tp',
@@ -760,6 +765,180 @@ describe('BillingService & BillingCalculationService', () => {
 
       await expect(
         billingService.resolvePatient(mockClinicId, 'patient-from-other-clinic'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ========================================================
+  // 8. SERVICE TARIFF VALIDATION & P2003 REGRESSION TESTS
+  // ========================================================
+  describe('Invoice Line Item Service Tariff Validation (P2003 Regression)', () => {
+    beforeEach(() => {
+      prisma.patient.findFirst.mockResolvedValue(mockPatient);
+      prisma.$queryRaw.mockResolvedValue([{ assignedValue: 2001 }]);
+    });
+
+    // 1. Invoice with a valid tariff
+    it('successfully creates and issues an invoice with a valid, active tariff belonging to the clinic', async () => {
+      const validTariff = {
+        id: 'tar-valid-101',
+        name: 'Scaling & Polishing',
+        isActive: true,
+        clinicId: mockClinicId,
+      };
+      prisma.serviceTariff.findMany.mockResolvedValue([validTariff]);
+      prisma.invoice.create.mockImplementation((args: any) => ({
+        id: 'inv-uuid-valid-tariff',
+        clinicId: mockClinicId,
+        invoiceNumber: 'INV-2001',
+        ...args.data,
+      }));
+      prisma.invoice.findUniqueOrThrow.mockResolvedValue({
+        id: 'inv-uuid-valid-tariff',
+        clinicId: mockClinicId,
+        invoiceNumber: 'INV-2001',
+        status: InvoiceStatus.ISSUED,
+        items: [{ serviceTariffId: 'tar-valid-101', name: 'Scaling & Polishing', quantity: 1, unitPrice: 1200 }],
+      });
+
+      const invoice = await billingService.createAndIssueInvoice(mockClinicId, mockStaffUser, {
+        patientId: 'pt-1001',
+        items: [{ name: 'Scaling & Polishing', quantity: 1, unitPrice: 1200, serviceTariffId: 'tar-valid-101' }],
+      });
+
+      expect(prisma.serviceTariff.findMany).toHaveBeenCalledWith({
+        where: { id: { in: ['tar-valid-101'] }, clinicId: mockClinicId },
+        select: { id: true, name: true, isActive: true, clinicId: true },
+      });
+      expect(invoice.invoiceNumber).toBe('INV-2001');
+    });
+
+    // 2. Invoice with a manual service item
+    it('successfully creates an invoice with a manual service item having no serviceTariffId', async () => {
+      prisma.serviceTariff.findMany.mockClear();
+      prisma.invoice.create.mockImplementation((args: any) => ({
+        id: 'inv-uuid-manual',
+        clinicId: mockClinicId,
+        invoiceNumber: 'INV-2001',
+        ...args.data,
+      }));
+      prisma.invoice.findUniqueOrThrow.mockResolvedValue({
+        id: 'inv-uuid-manual',
+        clinicId: mockClinicId,
+        invoiceNumber: 'INV-2001',
+        status: InvoiceStatus.ISSUED,
+        items: [{ serviceTariffId: null, name: 'Custom Dressing', quantity: 1, unitPrice: 350 }],
+      });
+
+      const invoice = await billingService.createAndIssueInvoice(mockClinicId, mockStaffUser, {
+        patientId: 'pt-1001',
+        items: [{ name: 'Custom Dressing', quantity: 1, unitPrice: 350, serviceTariffId: undefined }],
+      });
+
+      // Manual items must not query the serviceTariff table
+      expect(prisma.serviceTariff.findMany).not.toHaveBeenCalled();
+      expect(invoice.invoiceNumber).toBe('INV-2001');
+    });
+
+    // 3. Invoice with a nonexistent tariff ID
+    it('rejects invoice creation with NotFoundException when serviceTariffId does not exist', async () => {
+      prisma.serviceTariff.findMany.mockResolvedValue([]); // DB returns no matching tariff
+      prisma.invoice.create.mockClear();
+
+      await expect(
+        billingService.createAndIssueInvoice(mockClinicId, mockStaffUser, {
+          patientId: 'pt-1001',
+          items: [{ name: 'Whitening Kit', quantity: 1, unitPrice: 4000, serviceTariffId: 'nonexistent-tariff-uuid' }],
+        }),
+      ).rejects.toThrow(NotFoundException);
+
+      // Verify transaction aborted before invoice creation
+      expect(prisma.invoice.create).not.toHaveBeenCalled();
+    });
+
+    // 4. Invoice with a tariff from another clinic
+    it('enforces tenant isolation and rejects tariff ID belonging to another clinic with NotFoundException', async () => {
+      // Tariff exists in database, but under a different clinicId -> query returns empty for mockClinicId
+      prisma.serviceTariff.findMany.mockResolvedValue([]);
+      prisma.invoice.create.mockClear();
+
+      await expect(
+        billingService.createAndIssueInvoice(mockClinicId, mockStaffUser, {
+          patientId: 'pt-1001',
+          items: [{ name: 'Foreign Clinic Service', quantity: 1, unitPrice: 1500, serviceTariffId: 'tariff-clinic-beta' }],
+        }),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(prisma.serviceTariff.findMany).toHaveBeenCalledWith({
+        where: { id: { in: ['tariff-clinic-beta'] }, clinicId: mockClinicId },
+        select: { id: true, name: true, isActive: true, clinicId: true },
+      });
+      expect(prisma.invoice.create).not.toHaveBeenCalled();
+    });
+
+    // 5. Invoice with a stale or deleted/inactive tariff
+    it('rejects an inactive or stale tariff with BadRequestException', async () => {
+      const inactiveTariff = {
+        id: 'tar-inactive-1',
+        name: 'Deprecated Fluoride Treatment',
+        isActive: false, // Inactive
+        clinicId: mockClinicId,
+      };
+      prisma.serviceTariff.findMany.mockResolvedValue([inactiveTariff]);
+      prisma.invoice.create.mockClear();
+
+      await expect(
+        billingService.createAndIssueInvoice(mockClinicId, mockStaffUser, {
+          patientId: 'pt-1001',
+          items: [{ name: 'Deprecated Fluoride Treatment', quantity: 1, unitPrice: 800, serviceTariffId: 'tar-inactive-1' }],
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prisma.invoice.create).not.toHaveBeenCalled();
+    });
+
+    // 6. Correct transaction rollback after failure
+    it('ensures transaction rollback when line item tariff validation fails', async () => {
+      prisma.serviceTariff.findMany.mockResolvedValue([]);
+      prisma.invoice.create.mockClear();
+      prisma.invoicePayment.create.mockClear();
+
+      await expect(
+        billingService.createAndIssueInvoice(mockClinicId, mockStaffUser, {
+          patientId: 'pt-1001',
+          items: [
+            { name: 'Scaling', quantity: 1, unitPrice: 1000 },
+            { name: 'Invalid Tariff Item', quantity: 1, unitPrice: 500, serviceTariffId: 'bogus-id' },
+          ],
+        }),
+      ).rejects.toThrow(NotFoundException);
+
+      expect(prisma.invoice.create).not.toHaveBeenCalled();
+      expect(prisma.invoicePayment.create).not.toHaveBeenCalled();
+    });
+
+    // 7. No duplicate or phantom invoices after errors (P2003 translation)
+    it('translates Prisma P2003 foreign key constraint errors into clean NotFoundException without phantom records', async () => {
+      // Simulate race condition where tariff passes check but is deleted concurrently before insert
+      prisma.serviceTariff.findMany.mockResolvedValue([
+        { id: 'tar-race-1', name: 'Race Condition Procedure', isActive: true, clinicId: mockClinicId },
+      ]);
+
+      const p2003Error = new Prisma.PrismaClientKnownRequestError(
+        'Foreign key constraint failed on the field: `InvoiceLineItem_serviceTariffId_fkey`',
+        {
+          code: 'P2003',
+          clientVersion: '5.x',
+          meta: { field_name: 'InvoiceLineItem_serviceTariffId_fkey' },
+        },
+      );
+      prisma.invoice.create.mockRejectedValue(p2003Error);
+
+      await expect(
+        billingService.createAndIssueInvoice(mockClinicId, mockStaffUser, {
+          patientId: 'pt-1001',
+          items: [{ name: 'Race Condition Procedure', quantity: 1, unitPrice: 900, serviceTariffId: 'tar-race-1' }],
+        }),
       ).rejects.toThrow(NotFoundException);
     });
   });

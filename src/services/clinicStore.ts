@@ -2523,6 +2523,22 @@ const deriveInvoiceStatus = (invoice: InvoiceRecord): InvoiceRecord['status'] =>
   return invoiceBalance(invoice) <= 0 ? 'Paid' : 'Partial'
 }
 
+const sanitizeTariffId = (serviceId?: string): string | undefined => {
+  if (!serviceId) return undefined;
+  const trimmed = serviceId.trim();
+  if (!trimmed) return undefined;
+  // Ignore client-side mock/seed identifiers (e.g. 'trt-101', 'SRV-102', 'plan-...')
+  if (trimmed.startsWith('trt-') || trimmed.startsWith('SRV-') || trimmed.startsWith('plan-') || trimmed.startsWith('seed-')) {
+    return undefined;
+  }
+  // Valid backend tariffs must be standard UUIDs
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(trimmed)) {
+    return undefined;
+  }
+  return trimmed;
+};
+
 /** Create an itemised invoice; totals are computed from the line items. An optional upfront payment can be recorded. */
 export function createItemisedInvoice(details: {
   patientId: string
@@ -2586,7 +2602,7 @@ export function createItemisedInvoice(details: {
         discount: it.discount || 0,
         gstRate: it.gstRate || 0,
         toothNumber: it.toothNumber || undefined,
-        serviceTariffId: it.serviceId || undefined,
+        serviceTariffId: sanitizeTariffId(it.serviceId),
       })),
       upfrontPayment:
         details.upfrontPayment && details.upfrontPayment.amount > 0

@@ -71,8 +71,14 @@ export class BillingCalculationService {
       taxableAmount,
       taxAmount,
       totalAmount,
-      serviceTariffId: item.serviceTariffId,
-      treatmentPlanItemId: item.treatmentPlanItemId,
+      serviceTariffId:
+        typeof item.serviceTariffId === 'string' && item.serviceTariffId.trim().length > 0
+          ? item.serviceTariffId.trim()
+          : undefined,
+      treatmentPlanItemId:
+        typeof item.treatmentPlanItemId === 'string' && item.treatmentPlanItemId.trim().length > 0
+          ? item.treatmentPlanItemId.trim()
+          : undefined,
     };
   }
 
