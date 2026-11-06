@@ -1820,8 +1820,9 @@ export const ItemsPage: React.FC = () => {
                           fontSize: '12px',
                           fontWeight: 600,
                           borderRadius: '6px',
-                          border: '1px solid #cbd5e1',
-                          background: '#ffffff',
+                          border: '1px solid var(--line, #cbd5e1)',
+                          background: 'var(--surface-raised, #ffffff)',
+                          color: 'var(--text, inherit)',
                           cursor: 'pointer'
                         }}
                       >
