@@ -150,15 +150,16 @@ export const AppointmentDetailsPage: React.FC = () => {
             </thead>
             <tbody>
               {rows.map((appointment) => {
-                const patient = patients.find((entry) => entry.id === appointment.patientId)
+                const patient = patients.find((entry) => entry.id === appointment.patientId || entry.backendId === appointment.patientId)
+                const shortBookingId = appointment.id.length > 14 ? appointment.id.slice(0, 8).toUpperCase() : appointment.id
                 return (
                   <tr key={appointment.id}>
                     <td>
                       {patient ? (
                         <Link className="clinic-record-patient" to={`/patients/${patient.id}`}>
-                          <span><UserRound size={14} /></span>
+                          <span><UserRound size={15} /></span>
                           <strong>{patient.firstName} {patient.lastName}</strong>
-                          <small style={{ color: 'var(--text-muted, #64748b)', marginLeft: '6px' }}>({patient.id})</small>
+                          <small style={{ color: 'var(--text-muted, #64748b)', marginLeft: '4px', fontSize: '12px' }}>({patient.id})</small>
                         </Link>
                       ) : (
                         'Walk-in Guest'
@@ -171,30 +172,30 @@ export const AppointmentDetailsPage: React.FC = () => {
                     <td>{appointment.doctor}</td>
                     <td>{appointment.treatmentType || appointment.visitType}</td>
                     <td>{getStatusBadge(appointment.status)}</td>
-                    <td>{appointment.id}</td>
+                    <td title={appointment.id} style={{ fontFamily: 'monospace', fontSize: '12.5px' }}>{shortBookingId}</td>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'flex-end' }}>
                         {appointment.status !== 'cancelled' && appointment.status !== 'completed' && (
                           <button
                             type="button"
                             onClick={() => handleOpenReschedule(appointment)}
                             style={{
-                              padding: '4px 9px',
-                              fontSize: '11.5px',
+                              padding: '5px 11px',
+                              fontSize: '12.5px',
                               fontWeight: 600,
-                              borderRadius: '5px',
+                              borderRadius: '6px',
                               border: '1px solid var(--line, #cbd5e1)',
                               background: 'var(--surface, #ffffff)',
                               color: 'var(--teal-primary, #0b8185)',
                               cursor: 'pointer',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '4px',
+                              gap: '5px',
                               transition: 'transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease'
                             }}
                             title="Reschedule appointment"
                           >
-                            <RotateCcw size={12} />
+                            <RotateCcw size={13} />
                             <span>Reschedule</span>
                           </button>
                         )}

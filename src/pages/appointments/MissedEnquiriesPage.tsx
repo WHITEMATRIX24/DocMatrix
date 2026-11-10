@@ -97,9 +97,9 @@ export const MissedEnquiriesPage: React.FC = () => {
             display: 'inline-flex',
             alignItems: 'center',
             gap: '6px',
-            padding: '7px 12px',
-            fontSize: '12px',
-            fontWeight: 600,
+            padding: '8px 14px',
+            fontSize: '13px',
+            fontWeight: 650,
             background: 'var(--teal-primary, #0b8185)',
             color: '#fff',
             borderRadius: '8px',
@@ -107,7 +107,7 @@ export const MissedEnquiriesPage: React.FC = () => {
             cursor: 'pointer',
           }}
         >
-          <Plus size={14} /> New Enquiry
+          <Plus size={15} /> New Enquiry
         </button>
       </div>
 
@@ -116,10 +116,10 @@ export const MissedEnquiriesPage: React.FC = () => {
           <div style={{ display: 'inline-flex', padding: '14px', borderRadius: '50%', background: 'var(--surface-subtle, #f8fafc)', marginBottom: '12px' }}>
             <Check size={28} style={{ color: 'var(--teal-primary, #0b8185)' }} />
           </div>
-          <h3 style={{ fontSize: '15px', fontWeight: 700, margin: '0 0 6px 0', color: 'var(--charcoal-title, #1a2626)' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 8px 0', color: 'var(--charcoal-title, #1a2626)' }}>
             All caught up!
           </h3>
-          <p style={{ margin: 0, fontSize: '12px', maxWidth: '380px', marginInline: 'auto', lineHeight: 1.5 }}>
+          <p style={{ margin: 0, fontSize: '13.5px', maxWidth: '460px', marginInline: 'auto', lineHeight: 1.55 }}>
             No pending online booking enquiries or website leads. Half-finished bookings and contact form submissions will appear here.
           </p>
         </div>
