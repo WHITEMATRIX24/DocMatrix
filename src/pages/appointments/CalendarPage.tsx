@@ -31,6 +31,7 @@ import {
   DENTISTS,
   DENTAL_TREATMENTS,
   bookAppointment,
+  savePatient,
   registerWalkIn,
   updateAppointmentStatus,
   rescheduleAppointment,
@@ -72,17 +73,19 @@ export const CalendarPage: React.FC = () => {
   const [cancelReason, setCancelReason] = useState('')
   const [whatsAppType, setWhatsAppType] = useState<'confirmation' | 'reminder_24h' | 'reminder_2h' | 'recall'>('confirmation')
 
-  // In-Calendar Quick Book Modal State
-  const [showQuickBook, setShowQuickBook] = useState(false)
+  // In-Calendar Slot Booking Modal State
+  const [showSlotBookingModal, setShowSlotBookingModal] = useState(false)
   const [qbDoctor, setQbDoctor] = useState(DENTISTS[0].name)
   const [qbDate, setQbDate] = useState(selectedDate)
   const [qbTime, setQbTime] = useState('10:00')
   const [qbPatientSearch, setQbPatientSearch] = useState('')
   const [qbSelectedPatientId, setQbSelectedPatientId] = useState('')
+  const [qbNewPatientMobile, setQbNewPatientMobile] = useState('')
   const [qbTreatmentId, setQbTreatmentId] = useState(DENTAL_TREATMENTS[0].id)
   const [qbPriority, setQbPriority] = useState<AppointmentPriority>('normal')
   const [qbNotes, setQbNotes] = useState('')
   const [qbError, setQbError] = useState('')
+  const [slotSuccessToast, setSlotSuccessToast] = useState('')
 
   // In-Calendar Quick Walk-in Modal State
   const [showQuickWalkIn, setShowQuickWalkIn] = useState(false)
@@ -158,7 +161,7 @@ export const CalendarPage: React.FC = () => {
     return appointments.filter((a) => a.date === selectedDate && a.status !== 'cancelled')
   }, [appointments, selectedDate])
 
-  const getPatient = (patientId: string) => patients.find((p) => p.id === patientId)
+  const getPatient = (patientId: string) => patients.find((p) => p.id === patientId || p.backendId === patientId)
 
   // Status badge styling
   const getStatusBadge = (status: AppointmentStatus) => {
@@ -197,18 +200,20 @@ export const CalendarPage: React.FC = () => {
     setShowWhatsAppModal(true)
   }
 
-  // Open Quick Book prefilled for a specific doctor & time slot
+  // Open Slot Booking modal prefilled for a specific doctor & time slot
   const handleOpenSlotBooking = (doctorName: string, slotTime: string, dateStr?: string) => {
     setQbDoctor(doctorName)
     setQbTime(slotTime)
     setQbDate(dateStr || selectedDate)
     setQbPatientSearch('')
     setQbSelectedPatientId('')
+    setQbNewPatientMobile('')
+    setQbNotes('')
     setQbError('')
-    setShowQuickBook(true)
+    setShowSlotBookingModal(true)
   }
 
-  // Patient search: strictly by Name or unique Patient ID Number (no phone number)
+  // Patient search: by Name or unique Patient ID Number
   const matchedPatients = useMemo(() => {
     if (!qbPatientSearch.trim()) return patients
     const q = qbPatientSearch.toLowerCase().trim()
@@ -226,29 +231,91 @@ export const CalendarPage: React.FC = () => {
     })
   }, [patients, qbPatientSearch])
 
-  const selectedQbPatient = patients.find((p) => p.id === qbSelectedPatientId)
+  const selectedQbPatient = patients.find((p) => p.id === qbSelectedPatientId || p.backendId === qbSelectedPatientId)
   const selectedQbTreatment = DENTAL_TREATMENTS.find((t) => t.id === qbTreatmentId)
   const selectedQbDentist = DENTISTS.find((d) => d.name === qbDoctor)
 
-  // Real-time availability validation for Quick Book
+  // Real-time availability validation for Slot Booking
+  // Hard-blocks true appointment double-booking overlaps, while allowing booking clinic slots even outside mock shift hours
   const qbAvailability = useMemo(() => {
     const duration = selectedQbTreatment?.defaultDurationMinutes || 30
-    return checkDentistAvailability(qbDoctor, qbDate, qbTime, duration)
-  }, [qbDoctor, qbDate, qbTime, selectedQbTreatment])
+    const rawCheck = checkDentistAvailability(qbDoctor, qbDate, qbTime, duration)
+    const isHardConflict = Boolean(!rawCheck.available && rawCheck.reason?.includes('already has appointment'))
+    const isShiftAdvisory = Boolean(!rawCheck.available && !isHardConflict)
+    return {
+      available: !isHardConflict,
+      isHardConflict,
+      isShiftAdvisory,
+      reason: rawCheck.reason
+    }
+  }, [qbDoctor, qbDate, qbTime, selectedQbTreatment, appointments])
 
-  const handleExecuteQuickBook = (e: React.FormEvent) => {
+  const handleRegisterAndSelectPatient = () => {
+    const rawName = qbPatientSearch.trim()
+    if (!rawName) return
+    const parts = rawName.split(/\s+/)
+    const firstName = parts[0] || 'Patient'
+    const lastName = parts.slice(1).join(' ') || ''
+
+    const created = savePatient({
+      firstName,
+      lastName,
+      age: '30',
+      dateOfBirth: '1995-01-01',
+      gender: 'undisclosed',
+      mobile: qbNewPatientMobile.trim() || '0000000000',
+      countryCode: '+91',
+      email: '',
+      language: 'English',
+      city: '',
+      state: '',
+      postalCode: '',
+      address: 'Booked from Calendar Slot',
+      emergencyName: '',
+      emergencyPhone: '',
+      relationship: '',
+      allergies: 'no',
+      allergiesDetails: '',
+      medications: 'no',
+      medicationsDetails: '',
+      conditions: 'no',
+      conditionsDetails: ''
+    })
+
+    setQbSelectedPatientId(created.id)
+    setQbPatientSearch('')
+    setQbNewPatientMobile('')
+    setQbError('')
+    return created
+  }
+
+  const handleExecuteSlotBooking = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!qbSelectedPatientId) {
-      setQbError('Please search and select a patient by Name or Patient ID.')
+    if (qbAvailability.isHardConflict) {
+      setQbError(qbAvailability.reason || 'This slot already has a conflicting appointment.')
       return
     }
-    if (!qbAvailability.available) {
-      setQbError(qbAvailability.reason || 'This slot is unavailable.')
+
+    let finalPatientId = qbSelectedPatientId
+    let patientLabel = selectedQbPatient ? `${selectedQbPatient.firstName} ${selectedQbPatient.lastName}` : ''
+
+    if (!finalPatientId) {
+      if (qbPatientSearch.trim()) {
+        const created = handleRegisterAndSelectPatient()
+        if (created) {
+          finalPatientId = created.id
+          patientLabel = `${created.firstName} ${created.lastName}`.trim()
+        }
+      }
+    }
+
+    if (!finalPatientId) {
+      setQbError('Please select an existing patient or enter a patient name.')
       return
     }
 
     bookAppointment({
-      patientId: qbSelectedPatientId,
+      patientId: finalPatientId,
       doctor: qbDoctor,
       chair: selectedQbDentist?.chair || 'Chair 1',
       treatmentType: selectedQbTreatment?.name || 'General Dental Consultation',
@@ -260,7 +327,13 @@ export const CalendarPage: React.FC = () => {
       notes: qbNotes
     })
 
-    setShowQuickBook(false)
+    if (qbDate !== selectedDate) {
+      setSelectedDate(qbDate)
+    }
+
+    setShowSlotBookingModal(false)
+    setSlotSuccessToast(`Booked ${patientLabel || 'patient'} with ${qbDoctor} on ${qbDate} at ${qbTime}`)
+    setTimeout(() => setSlotSuccessToast(''), 4000)
   }
 
   const handleExecuteQuickWalkIn = (e: React.FormEvent) => {
@@ -437,19 +510,38 @@ export const CalendarPage: React.FC = () => {
             <UserPlus size={14} />
             <span>+ Walk-in</span>
           </button>
-
-          {/* Quick Book Button */}
-          <button
-            type="button"
-            className="btn-quick-book"
-            onClick={() => handleOpenSlotBooking(DENTISTS[0].name, '10:00', selectedDate)}
-            title="Open fast booking modal"
-          >
-            <Plus size={15} />
-            <span>+ Quick Book</span>
-          </button>
         </div>
       </header>
+
+      {slotSuccessToast && (
+        <div
+          style={{
+            marginBottom: '12px',
+            padding: '10px 14px',
+            borderRadius: '8px',
+            background: 'rgba(16, 185, 129, 0.12)',
+            border: '1px solid #10b981',
+            color: 'var(--tone-green, #065f46)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '13px',
+            fontWeight: 600
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <CheckCircle2 size={16} />
+            {slotSuccessToast}
+          </span>
+          <button
+            type="button"
+            onClick={() => setSlotSuccessToast('')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', display: 'flex' }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
 
 
@@ -770,21 +862,21 @@ export const CalendarPage: React.FC = () => {
         )}
       </div>
 
-      {/* 4. FAST IN-CALENDAR QUICK-BOOK MODAL (High Convenience) */}
-      {showQuickBook && (
+      {/* 4. IN-CALENDAR SLOT BOOKING MODAL */}
+      {showSlotBookingModal && (
         <div className="calendar-modal-overlay">
           <div className="sub-modal-card" style={{ maxWidth: '520px' }}>
             <div className="modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <CalendarDays size={18} style={{ color: '#0b8185' }} />
-                <h3 style={{ margin: 0 }}>Fast Appointment Booking</h3>
+                <CalendarDays size={18} style={{ color: 'var(--teal-primary, #0b8185)' }} />
+                <h3 style={{ margin: 0 }}>Book Appointment Slot</h3>
               </div>
-              <button className="btn-close" onClick={() => setShowQuickBook(false)}>
+              <button type="button" className="btn-close" onClick={() => setShowSlotBookingModal(false)}>
                 <X size={16} />
               </button>
             </div>
 
-            <form onSubmit={handleExecuteQuickBook} className="sub-modal-form">
+            <form onSubmit={handleExecuteSlotBooking} className="sub-modal-form">
               {qbError && (
                 <div className="conflict-alert">
                   <AlertTriangle size={15} />
@@ -792,21 +884,21 @@ export const CalendarPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Patient Search: by Name or unique Patient ID (no phone number) */}
+              {/* Patient Search or Quick Add */}
               <div className="form-field">
                 <label>
-                  <span>Patient Search (by Name or Patient ID) *</span>
+                  <span>Patient Name or ID *</span>
                 </label>
                 {selectedQbPatient ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(11, 129, 133, 0.08)', borderRadius: '6px', border: '1px solid #0b8185' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(11, 129, 133, 0.08)', borderRadius: '6px', border: '1px solid var(--teal-primary, #0b8185)' }}>
                     <div>
-                      <strong style={{ color: '#0f172a' }}>{selectedQbPatient.firstName} {selectedQbPatient.lastName}</strong>
-                      <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '8px' }}>ID: {selectedQbPatient.id}</span>
+                      <strong style={{ color: 'var(--text-strong, #0f172a)' }}>{selectedQbPatient.firstName} {selectedQbPatient.lastName}</strong>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', marginLeft: '8px' }}>ID: {selectedQbPatient.id}</span>
                     </div>
                     <button
                       type="button"
                       onClick={() => { setQbSelectedPatientId(''); setQbPatientSearch('') }}
-                      style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#64748b', fontSize: '12px' }}
+                      style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted, #64748b)', fontSize: '12px' }}
                     >
                       Change
                     </button>
@@ -816,24 +908,59 @@ export const CalendarPage: React.FC = () => {
                     <div style={{ position: 'relative' }}>
                       <input
                         type="text"
-                        placeholder="Type patient name or ID (e.g. Aarav, PAT-1001)..."
+                        placeholder="Search existing or type new patient name..."
                         value={qbPatientSearch}
                         onChange={(e) => setQbPatientSearch(e.target.value)}
                         autoFocus
                       />
                     </div>
-                    {matchedPatients.length > 0 && (
-                      <div style={{ marginTop: '6px', maxHeight: '140px', overflowY: 'auto', border: '1px solid var(--line, #e2e8f0)', borderRadius: '6px', background: 'var(--surface-raised, #ffffff)', color: 'var(--text-strong, inherit)', boxShadow: '0 4px 10px rgba(0,0,0,0.12)' }}>
+                    {(matchedPatients.length > 0 || qbPatientSearch.trim().length > 0) && (
+                      <div style={{ marginTop: '6px', maxHeight: '160px', overflowY: 'auto', border: '1px solid var(--line, #e2e8f0)', borderRadius: '6px', background: 'var(--surface-raised, #ffffff)', color: 'var(--text-strong, inherit)', boxShadow: '0 4px 10px rgba(0,0,0,0.12)' }}>
                         {matchedPatients.map((p) => (
                           <div
                             key={p.id}
-                            onClick={() => { setQbSelectedPatientId(p.id); setQbPatientSearch('') }}
+                            onClick={() => { setQbSelectedPatientId(p.id); setQbPatientSearch(''); setQbError('') }}
                             style={{ padding: '8px 12px', borderBottom: '1px solid var(--line, #f1f5f9)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}
                           >
                             <strong>{p.firstName} {p.lastName}</strong>
                             <span style={{ color: 'var(--text-muted, #64748b)', fontSize: '11px' }}>{p.id}</span>
                           </div>
                         ))}
+                        {qbPatientSearch.trim().length > 0 && (
+                          <div
+                            style={{ padding: '8px 12px', background: 'rgba(11, 129, 133, 0.06)', display: 'flex', flexDirection: 'column', gap: '6px' }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                              <span style={{ fontSize: '12px', color: 'var(--teal-primary, #0b8185)', fontWeight: 600 }}>
+                                + Register &quot;{qbPatientSearch.trim()}&quot; as new patient
+                              </span>
+                              <button
+                                type="button"
+                                onClick={handleRegisterAndSelectPatient}
+                                style={{
+                                  padding: '3px 10px',
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  borderRadius: '4px',
+                                  border: 'none',
+                                  background: 'var(--teal-primary, #0b8185)',
+                                  color: '#ffffff',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Add &amp; Select
+                              </button>
+                            </div>
+                            <input
+                              type="tel"
+                              placeholder="Mobile number (optional)"
+                              value={qbNewPatientMobile}
+                              onChange={(e) => setQbNewPatientMobile(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ fontSize: '12px', padding: '5px 8px' }}
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -878,32 +1005,64 @@ export const CalendarPage: React.FC = () => {
                 </label>
               </div>
 
-              {/* Conflict Status Display */}
-              <div style={{ padding: '6px 10px', borderRadius: '6px', background: qbAvailability.available ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)', border: `1px solid ${qbAvailability.available ? '#10b981' : '#ef4444'}`, fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                {qbAvailability.available ? (
+              {/* Conflict / Advisory Status Display */}
+              <div
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  background: qbAvailability.isHardConflict
+                    ? 'rgba(239, 68, 68, 0.08)'
+                    : qbAvailability.isShiftAdvisory
+                    ? 'rgba(245, 158, 11, 0.08)'
+                    : 'rgba(16, 185, 129, 0.08)',
+                  border: `1px solid ${
+                    qbAvailability.isHardConflict
+                      ? '#ef4444'
+                      : qbAvailability.isShiftAdvisory
+                      ? '#f59e0b'
+                      : '#10b981'
+                  }`,
+                  fontSize: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                {qbAvailability.isHardConflict ? (
                   <>
-                    <CheckCircle2 size={14} style={{ color: '#10b981' }} />
-                    <span style={{ color: '#065f46', fontWeight: 600 }}>Doctor is available at this time</span>
+                    <AlertTriangle size={14} style={{ color: '#ef4444', flexShrink: 0 }} />
+                    <span style={{ color: 'var(--tone-red, #991b1b)', fontWeight: 600 }}>
+                      {qbAvailability.reason || 'Slot conflict'}
+                    </span>
+                  </>
+                ) : qbAvailability.isShiftAdvisory ? (
+                  <>
+                    <AlertTriangle size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                    <span style={{ color: 'var(--tone-amber, #92400e)', fontWeight: 600 }}>
+                      {qbAvailability.reason} (Override allowed)
+                    </span>
                   </>
                 ) : (
                   <>
-                    <AlertTriangle size={14} style={{ color: '#ef4444' }} />
-                    <span style={{ color: '#991b1b', fontWeight: 600 }}>{qbAvailability.reason || 'Slot conflict'}</span>
+                    <CheckCircle2 size={14} style={{ color: '#10b981', flexShrink: 0 }} />
+                    <span style={{ color: 'var(--tone-green, #065f46)', fontWeight: 600 }}>
+                      Doctor is available at this time
+                    </span>
                   </>
                 )}
               </div>
 
               <div className="modal-actions" style={{ marginTop: '12px' }}>
-                <button type="button" className="btn-cancel" onClick={() => setShowQuickBook(false)}>
+                <button type="button" className="btn-cancel" onClick={() => setShowSlotBookingModal(false)}>
                   Cancel
                 </button>
                 <button
                   type="submit"
                   className="btn-confirm"
-                  disabled={!qbAvailability.available || !qbSelectedPatientId}
-                  style={{ opacity: (!qbAvailability.available || !qbSelectedPatientId) ? 0.6 : 1 }}
+                  disabled={qbAvailability.isHardConflict || (!qbSelectedPatientId && !qbPatientSearch.trim())}
+                  style={{ opacity: (qbAvailability.isHardConflict || (!qbSelectedPatientId && !qbPatientSearch.trim())) ? 0.6 : 1 }}
                 >
-                  Confirm & Drop on Calendar
+                  Confirm Slot Booking
                 </button>
               </div>
             </form>

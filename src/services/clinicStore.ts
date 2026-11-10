@@ -1580,22 +1580,29 @@ export const syncWithBackend = async (): Promise<void> => {
       : [];
 
     const mappedAppts: AppointmentRecord[] = Array.isArray(remoteAppts)
-      ? remoteAppts.map((a: any) => ({
-          id: a.id,
-          patientId: a.patientCode || a.patientId,
-          doctor: a.doctor || 'Unassigned',
-          chair: a.chair || 'Chair 1',
-          treatmentType: a.treatmentType || a.visitType || 'General Consultation',
-          visitType: a.visitType || 'General Consultation',
-          date: a.date,
-          time: a.time,
-          durationMinutes: a.durationMinutes || 30,
-          status: a.status as AppointmentStatus,
-          priority: (a.priority || 'normal') as AppointmentPriority,
-          notes: a.notes || '',
-          isWalkIn: a.isWalkIn,
-          createdAt: a.createdAt || new Date().toISOString(),
-        }))
+      ? remoteAppts.map((a: any) => {
+          const resolvedChair = a.chair || a.operatoryChair || 'Chair 1';
+          const dentistByChair = DENTISTS.find((d) => d.chair === resolvedChair);
+          const resolvedDoctor = (a.doctor && a.doctor !== 'Unassigned')
+            ? a.doctor
+            : (dentistByChair ? dentistByChair.name : 'Unassigned');
+          return {
+            id: a.id,
+            patientId: a.patientCode || a.patientId,
+            doctor: resolvedDoctor,
+            chair: resolvedChair,
+            treatmentType: a.treatmentType || a.visitType || 'General Consultation',
+            visitType: a.visitType || 'General Consultation',
+            date: a.date,
+            time: a.time,
+            durationMinutes: a.durationMinutes || 30,
+            status: a.status as AppointmentStatus,
+            priority: (a.priority || 'normal') as AppointmentPriority,
+            notes: a.notes || '',
+            isWalkIn: a.isWalkIn,
+            createdAt: a.createdAt || new Date().toISOString(),
+          };
+        })
       : [];
 
     const mappedDocs: PatientDocumentRecord[] = Array.isArray(remoteDocs)
@@ -2109,26 +2116,33 @@ export const bookAppointment = (data: {
       ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
       : null;
     if (token) {
-      apiClient.post('/appointments', {
-        patientId: data.patientId,
-        doctorName: data.doctor,
-        chair,
-        treatmentType: data.treatmentType || data.visitType,
-        visitType: data.visitType,
-        date: data.date,
-        time: data.time,
-        durationMinutes: data.durationMinutes || 30,
-        priority: data.priority || 'normal',
-        notes: data.notes || '',
-      }).then((created) => {
+      const syncTask = async () => {
+        const patient = patientsState.find((p) => p.id === data.patientId || p.backendId === data.patientId) as any;
+        if (patient?._syncPromise) {
+          await patient._syncPromise.catch(() => {});
+        }
+        const targetPatientId = patient?.backendId || patient?.id || data.patientId;
+
+        const created = await apiClient.post('/appointments', {
+          patientId: targetPatientId,
+          doctorName: data.doctor,
+          chair,
+          treatmentType: data.treatmentType || data.visitType,
+          visitType: data.visitType,
+          date: data.date,
+          time: data.time,
+          durationMinutes: data.durationMinutes || 30,
+          priority: data.priority || 'normal',
+          notes: data.notes || '',
+        });
         if (created?.id && created.id !== newAppt.id) {
           newAppt.id = created.id;
           emitChange();
         }
-      }).catch((err) => {
-        console.error('[clinicStore] bookAppointment failed:', err);
-        appointmentsState = appointmentsState.filter((a) => a.id !== newAppt.id);
-        emitChange();
+      };
+
+      syncTask().catch((err) => {
+        console.error('[clinicStore] bookAppointment sync failed (retained locally):', err);
       });
     }
   } catch { /* ignore */ }
@@ -2463,13 +2477,13 @@ export const savePatient = (data: Omit<PatientRecord, 'id' | 'createdAt'>): Pati
       ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
       : null;
     if (token) {
-      apiClient.post('/patients', {
+      const syncPromise = apiClient.post('/patients', {
         patientCode: newPatient.id,
         firstName: data.firstName,
         lastName: data.lastName,
         dateOfBirth: data.dateOfBirth || '1990-01-01',
         gender: (data.gender || 'undisclosed').toUpperCase(),
-        mobile: data.mobile,
+        mobile: data.mobile || '0000000000',
         countryCode: data.countryCode || '+91',
         email: data.email || undefined,
         city: data.city || undefined,
@@ -2485,16 +2499,17 @@ export const savePatient = (data: Omit<PatientRecord, 'id' | 'createdAt'>): Pati
           medications: data.medicationsDetails,
         } : undefined,
       }).then((created) => {
-        if (created?.patientCode && created.patientCode !== newPatient.id) {
-          newPatient.id = created.patientCode;
+        if (created?.id) {
           newPatient.backendId = created.id;
+          if (created.patientCode && created.patientCode !== newPatient.id) {
+            newPatient.id = created.patientCode;
+          }
           emitChange();
         }
       }).catch((err) => {
-        console.error('[clinicStore] savePatient failed:', err);
-        patientsState = patientsState.filter((p) => p.id !== newPatient.id);
-        emitChange();
+        console.error('[clinicStore] savePatient sync failed (retained locally):', err);
       });
+      (newPatient as any)._syncPromise = syncPromise;
     }
   } catch { /* ignore */ }
 

@@ -208,7 +208,7 @@ export class AppointmentsService {
     const created = await this.prisma.appointment.create({
       data: {
         clinicId,
-        patientId: dto.patientId,
+        patientId: patient.id,
         doctorId: resolvedDoctorId || null,
         startTime,
         endTime,
