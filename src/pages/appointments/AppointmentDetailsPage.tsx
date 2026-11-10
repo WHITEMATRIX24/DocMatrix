@@ -157,9 +157,9 @@ export const AppointmentDetailsPage: React.FC = () => {
                     <td>
                       {patient ? (
                         <Link className="clinic-record-patient" to={`/patients/${patient.id}`}>
-                          <span><UserRound size={15} /></span>
+                          <span><UserRound size={14} /></span>
                           <strong>{patient.firstName} {patient.lastName}</strong>
-                          <small style={{ color: 'var(--text-muted, #64748b)', marginLeft: '4px', fontSize: '12px' }}>({patient.id})</small>
+                          <small style={{ color: 'var(--text-muted, #64748b)', marginLeft: '4px', fontSize: '11px' }}>({patient.id})</small>
                         </Link>
                       ) : (
                         'Walk-in Guest'
@@ -172,16 +172,16 @@ export const AppointmentDetailsPage: React.FC = () => {
                     <td>{appointment.doctor}</td>
                     <td>{appointment.treatmentType || appointment.visitType}</td>
                     <td>{getStatusBadge(appointment.status)}</td>
-                    <td title={appointment.id} style={{ fontFamily: 'monospace', fontSize: '12.5px' }}>{shortBookingId}</td>
+                    <td title={appointment.id} style={{ fontFamily: 'monospace', fontSize: '11.5px' }}>{shortBookingId}</td>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'flex-end' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
                         {appointment.status !== 'cancelled' && appointment.status !== 'completed' && (
                           <button
                             type="button"
                             onClick={() => handleOpenReschedule(appointment)}
                             style={{
-                              padding: '5px 11px',
-                              fontSize: '12.5px',
+                              padding: '4px 10px',
+                              fontSize: '11.5px',
                               fontWeight: 600,
                               borderRadius: '6px',
                               border: '1px solid var(--line, #cbd5e1)',
@@ -190,12 +190,12 @@ export const AppointmentDetailsPage: React.FC = () => {
                               cursor: 'pointer',
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '5px',
+                              gap: '4px',
                               transition: 'transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease'
                             }}
                             title="Reschedule appointment"
                           >
-                            <RotateCcw size={13} />
+                            <RotateCcw size={12} />
                             <span>Reschedule</span>
                           </button>
                         )}
