@@ -13,11 +13,9 @@ import {
   AlertTriangle,
   CreditCard,
   Stethoscope,
-  CheckCircle2,
   Activity,
   History,
-  Sparkles,
-  Package
+  Sparkles
 } from 'lucide-react'
 import { TreatmentMaterialUsageModal } from '@/components/inventory/TreatmentMaterialUsageModal'
 import {
@@ -36,7 +34,7 @@ export const AppointmentDetailPage: React.FC = () => {
   const { patients, appointments } = useClinicData()
 
   const appointment = appointments.find((entry) => entry.id === id)
-  const patient = patients.find((entry) => entry.id === appointment?.patientId)
+  const patient = patients.find((entry) => entry.id === appointment?.patientId || entry.backendId === appointment?.patientId)
 
   // Modals state
   const [showReschedule, setShowReschedule] = useState(false)
@@ -54,10 +52,12 @@ export const AppointmentDetailPage: React.FC = () => {
 
   if (!appointment || !patient) {
     return (
-      <section className="appointment-simple-panel" data-testid={`record-not-found-${id || 'appointment'}`}>
+      <section className="appointment-simple-panel appointment-detail-panel" data-testid={`record-not-found-${id || 'appointment'}`}>
         <h2>Appointment not found</h2>
-        <p>This session has no booking with reference {id}.</p>
-        <button className="appointment-detail-back" onClick={() => navigate('/appointments/details')}>
+        <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: '8px 0 16px' }}>
+          This session has no booking with reference {id}.
+        </p>
+        <button type="button" className="appointment-detail-back" onClick={() => navigate('/appointments/details')}>
           <ArrowLeft size={14} /> Back to Appointments
         </button>
       </section>
@@ -105,20 +105,32 @@ export const AppointmentDetailPage: React.FC = () => {
     setShowWhatsApp(false)
   }
 
+  const shortRef = appointment.id.length > 14 ? appointment.id.slice(0, 8).toUpperCase() : appointment.id
+
   return (
     <section className="appointment-simple-panel appointment-detail-panel" data-testid="feature-page-appt.detail">
+      {/* Top Back Navigation */}
+      <div className="appointment-detail-topbar">
+        <button type="button" className="appointment-detail-back" onClick={() => navigate('/appointments/details')}>
+          <ArrowLeft size={14} /> Back to Appointments
+        </button>
+      </div>
+
       {/* Header Banner */}
-      <div className="appointment-simple-heading">
-        <div className="appointment-simple-heading-icon">
-          <CalendarDays size={20} />
-        </div>
-        <div>
-          <h2>Appointment Reference: {appointment.id}</h2>
-          <p>Booked on {new Date(appointment.createdAt).toLocaleDateString()}</p>
+      <div className="appointment-detail-heading">
+        <div className="appointment-detail-title-group">
+          <div className="appointment-simple-heading-icon">
+            <CalendarDays size={20} />
+          </div>
+          <div>
+            <h2 title={appointment.id}>Booking #{shortRef}</h2>
+            <p>Booked on {new Date(appointment.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+          </div>
         </div>
         <div className="status-dropdown-wrap">
-          <label>Status:</label>
+          <label htmlFor="appt-detail-status">Status</label>
           <select
+            id="appt-detail-status"
             className={`status-select-pill status-${appointment.status}`}
             value={appointment.status}
             onChange={(e) => handleStatusChange(e.target.value as AppointmentStatus)}
@@ -137,19 +149,19 @@ export const AppointmentDetailPage: React.FC = () => {
       {/* Main Details Grid */}
       <div className="appointment-detail-grid">
         <div>
-          <span><UserRound size={14} /> Patient</span>
+          <span><UserRound size={13} /> Patient</span>
           <strong><Link to={`/patients/${patient.id}`}>{patient.firstName} {patient.lastName} ({patient.id})</Link></strong>
         </div>
         <div>
-          <span><CalendarDays size={14} /> Date</span>
+          <span><CalendarDays size={13} /> Date</span>
           <strong>{appointment.date}</strong>
         </div>
         <div>
-          <span><Clock size={14} /> Time & Duration</span>
+          <span><Clock size={13} /> Time &amp; Duration</span>
           <strong>{appointment.time} ({appointment.durationMinutes || 30} mins)</strong>
         </div>
         <div>
-          <span>Doctor & Chair</span>
+          <span>Doctor &amp; Chair</span>
           <strong>{appointment.doctor} &bull; {appointment.chair || 'Chair 1'}</strong>
         </div>
         <div>
@@ -162,27 +174,27 @@ export const AppointmentDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Action Buttons: Reschedule, WhatsApp, Cancel */}
+      {/* Action Buttons: Materials, Reschedule, WhatsApp, Cancel */}
       <div className="appointment-action-controls">
         <button
-          className="btn-reschedule"
-          style={{ borderColor: 'rgba(11, 129, 133, 0.4)', color: 'var(--teal-primary, #0b8185)' }}
+          type="button"
+          className="btn-appt-action btn-appt-materials"
           onClick={() => setShowMaterialModal(true)}
           title="Review and confirm materials used during this procedure"
         >
           <Sparkles size={15} />
           <span>Record Material Usage</span>
         </button>
-        <button className="btn-reschedule" onClick={() => setShowReschedule(true)}>
+        <button type="button" className="btn-appt-action btn-reschedule" onClick={() => setShowReschedule(true)}>
           <RotateCcw size={15} />
           <span>Reschedule Booking</span>
         </button>
-        <button className="btn-whatsapp" onClick={() => setShowWhatsApp(true)}>
+        <button type="button" className="btn-appt-action btn-whatsapp" onClick={() => setShowWhatsApp(true)}>
           <Send size={15} />
           <span>WhatsApp Reminder</span>
         </button>
         {appointment.status !== 'cancelled' && (
-          <button className="btn-cancel-appt" onClick={() => setShowCancel(true)}>
+          <button type="button" className="btn-appt-action btn-cancel-appt" onClick={() => setShowCancel(true)}>
             <X size={15} />
             <span>Cancel Appointment</span>
           </button>
@@ -190,10 +202,10 @@ export const AppointmentDetailPage: React.FC = () => {
       </div>
 
       {/* Audit Trail & History */}
-      {(appointment.rescheduleHistory?.length || appointment.cancellationReason) && (
+      {Boolean(appointment.rescheduleHistory?.length || appointment.cancellationReason) && (
         <div className="appointment-history-box">
           <div className="history-header">
-            <History size={16} />
+            <History size={15} />
             <h4>Booking Modification History</h4>
           </div>
           {appointment.cancellationReason && (
@@ -211,36 +223,32 @@ export const AppointmentDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Module Integration Bar (Requirement #8) */}
+      {/* Module Integration Bar */}
       <div className="appointment-module-integrations">
         <h4>Connect Patient Workflow</h4>
         <nav className="clinic-record-actions" aria-label="Continue patient workflow">
           <Link to={`/patients/${patient.id}`}>
-            <UserRound size={15} />
-            <span>Patient profile</span>
+            <UserRound size={14} />
+            <span>Patient Profile</span>
           </Link>
           <Link to={`/patients/${patient.id}/tooth-chart`}>
-            <Stethoscope size={15} />
+            <Stethoscope size={14} />
             <span>Dental Tooth Chart</span>
           </Link>
           <Link to={`/clinical/notes?patientId=${patient.id}`}>
-            <FileText size={15} />
-            <span>Add clinical note</span>
+            <FileText size={14} />
+            <span>Add Clinical Note</span>
           </Link>
           <Link to={`/clinical/treatment-plans?patientId=${patient.id}`}>
-            <Activity size={15} />
+            <Activity size={14} />
             <span>Treatment Plan</span>
           </Link>
           <Link to={`/billing/invoices?patientId=${patient.id}&appointmentId=${appointment.id}`} className="action-billing-link">
-            <CreditCard size={15} />
+            <CreditCard size={14} />
             <span>Generate Invoice</span>
           </Link>
         </nav>
       </div>
-
-      <button className="appointment-detail-back" onClick={() => navigate('/appointments/details')}>
-        <ArrowLeft size={14} /> Back to Appointments
-      </button>
 
       {/* Reschedule Modal */}
       {showReschedule && (
@@ -251,10 +259,10 @@ export const AppointmentDetailPage: React.FC = () => {
                 <span className="reschedule-header-icon"><RotateCcw size={16} /></span>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '15px' }}>Reschedule Booking</h3>
-                  <span style={{ fontSize: '11.5px', color: 'var(--text-muted, #64748b)' }}>ID: {appointment.id}</span>
+                  <span style={{ fontSize: '11.5px', color: 'var(--text-muted, #64748b)' }}>Ref: #{shortRef}</span>
                 </div>
               </div>
-              <button className="btn-close" onClick={() => setShowReschedule(false)}><X size={16} /></button>
+              <button type="button" className="btn-close" onClick={() => setShowReschedule(false)}><X size={16} /></button>
             </div>
             <form onSubmit={handleRescheduleSubmit} className="sub-modal-form" style={{ padding: '20px' }}>
               <div className="reschedule-context-banner">
@@ -299,10 +307,9 @@ export const AppointmentDetailPage: React.FC = () => {
                 </label>
               </div>
               <label className="form-field">
-                <span>Reason for Reschedule *</span>
+                <span>Reason for Reschedule (Optional)</span>
                 <input
                   type="text"
-                  required
                   placeholder="e.g. Doctor emergency leave, patient requested later slot..."
                   value={rescheduleReason}
                   onChange={(e) => setRescheduleReason(e.target.value)}
@@ -322,11 +329,11 @@ export const AppointmentDetailPage: React.FC = () => {
 
       {/* Cancel Modal */}
       {showCancel && (
-        <div className="calendar-modal-overlay">
-          <div className="sub-modal-card">
+        <div className="calendar-modal-overlay" onClick={() => setShowCancel(false)}>
+          <div className="sub-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Cancel Appointment</h3>
-              <button className="btn-close" onClick={() => setShowCancel(false)}><X size={16} /></button>
+              <h3 style={{ margin: 0, fontSize: '15px' }}>Cancel Appointment</h3>
+              <button type="button" className="btn-close" onClick={() => setShowCancel(false)}><X size={16} /></button>
             </div>
             <form onSubmit={handleCancelSubmit} className="sub-modal-form">
               <label className="form-field">
@@ -350,11 +357,11 @@ export const AppointmentDetailPage: React.FC = () => {
 
       {/* WhatsApp Modal */}
       {showWhatsApp && (
-        <div className="calendar-modal-overlay">
-          <div className="sub-modal-card">
+        <div className="calendar-modal-overlay" onClick={() => setShowWhatsApp(false)}>
+          <div className="sub-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Send WhatsApp Message</h3>
-              <button className="btn-close" onClick={() => setShowWhatsApp(false)}><X size={16} /></button>
+              <h3 style={{ margin: 0, fontSize: '15px' }}>Send WhatsApp Message</h3>
+              <button type="button" className="btn-close" onClick={() => setShowWhatsApp(false)}><X size={16} /></button>
             </div>
             <div className="whatsapp-preview-box">
               <label className="form-field">
@@ -380,6 +387,7 @@ export const AppointmentDetailPage: React.FC = () => {
           </div>
         </div>
       )}
+
       {showMaterialModal && (
         <TreatmentMaterialUsageModal
           isOpen={showMaterialModal}

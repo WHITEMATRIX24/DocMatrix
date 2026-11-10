@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarDays, Search, UserRound, Plus, Stethoscope, RotateCcw, X, Clock, AlertTriangle, Check } from 'lucide-react'
+import { CalendarDays, Search, UserRound, Stethoscope, RotateCcw, X, Clock, AlertTriangle, Check } from 'lucide-react'
 import { useClinicData, rescheduleAppointment, type AppointmentStatus, type AppointmentRecord } from '@/services/clinicStore'
 import './calendar.css'
 
@@ -93,9 +93,6 @@ export const AppointmentDetailsPage: React.FC = () => {
           <h1>All Appointments</h1>
           <p>Bookings connected to patient records in this session.</p>
         </div>
-        <Link to="/appointments/new" className="patient-intake-primary">
-          <Plus size={15} /> Book appointment
-        </Link>
       </header>
 
       <div className="appointment-details-filters">
@@ -217,103 +214,117 @@ export const AppointmentDetailsPage: React.FC = () => {
           <p>
             {appointments.length
               ? 'Change the search or filters to view other bookings.'
-              : 'Book an appointment for a registered patient to see its details here.'}
+              : 'Book an appointment from the Calendar or Book Appointment tab to see its details here.'}
           </p>
-          {!appointments.length && (
-            <Link to="/appointments/new" className="patient-intake-primary">
-              Book appointment
-            </Link>
-          )}
         </div>
       )}
 
-      {/* Reschedule Modal */}
-      {rescheduleAppt && (
-        <div className="modal-overlay" onClick={() => setRescheduleAppt(null)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
-            <div className="modal-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <RotateCcw size={18} style={{ color: 'var(--teal-primary, #0b8185)' }} />
-                <h3 style={{ margin: 0, fontSize: '15px' }}>Reschedule Appointment</h3>
+      {/* Reschedule Pop-Up Modal */}
+      {rescheduleAppt && (() => {
+        const resPatient = patients.find((p) => p.id === rescheduleAppt.patientId || p.backendId === rescheduleAppt.patientId)
+        const shortResId = rescheduleAppt.id.length > 14 ? rescheduleAppt.id.slice(0, 8).toUpperCase() : rescheduleAppt.id
+        return (
+          <div className="calendar-modal-overlay" onClick={() => setRescheduleAppt(null)}>
+            <div className="sub-modal-card reschedule-modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span className="reschedule-header-icon"><RotateCcw size={16} /></span>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '15px' }}>Reschedule Appointment</h3>
+                    <span style={{ fontSize: '11.5px', color: 'var(--text-muted, #64748b)' }}>Ref: #{shortResId}</span>
+                  </div>
+                </div>
+                <button type="button" className="btn-close" onClick={() => setRescheduleAppt(null)}>
+                  <X size={16} />
+                </button>
               </div>
-              <button type="button" className="btn-modal-close" onClick={() => setRescheduleAppt(null)}>
-                <X size={16} />
-              </button>
-            </div>
 
-            <form onSubmit={handleConfirmReschedule}>
-              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ padding: '8px 12px', background: 'var(--surface-alt, #f8fafc)', borderRadius: '6px', fontSize: '13px' }}>
-                  <div>Booking ID: <strong>{rescheduleAppt.id}</strong></div>
-                  <div>Doctor: <strong>{rescheduleAppt.doctor}</strong> ({rescheduleAppt.chair})</div>
-                  <div>Current: <span>{rescheduleAppt.date} at {rescheduleAppt.time}</span></div>
+              <form onSubmit={handleConfirmReschedule} className="sub-modal-form">
+                <div className="reschedule-context-banner">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>
+                      Patient: <strong style={{ color: 'var(--text-strong)' }}>{resPatient ? `${resPatient.firstName} ${resPatient.lastName}` : 'Walk-in Guest'}</strong>
+                    </span>
+                    <span style={{ fontSize: '11px', color: 'var(--teal-primary)', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', background: 'var(--teal-tint)' }}>
+                      {rescheduleAppt.chair || 'Chair 1'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    Doctor: <strong style={{ color: 'var(--text-strong)' }}>{rescheduleAppt.doctor}</strong> &bull; {rescheduleAppt.treatmentType || rescheduleAppt.visitType}
+                  </div>
+                  <div className="reschedule-current-pill">
+                    <span>Current Schedule</span>
+                    <strong>{rescheduleAppt.date} at {rescheduleAppt.time}</strong>
+                  </div>
+                </div>
+
+                {rescheduleError && (
+                  <div className="conflict-alert">
+                    <AlertTriangle size={15} />
+                    <span>{rescheduleError}</span>
+                  </div>
+                )}
+
+                {rescheduleSuccess && (
+                  <div style={{ padding: '8px 12px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', color: 'var(--tone-green, #065f46)', fontSize: '12.5px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Check size={15} />
+                    <span>{rescheduleSuccess}</span>
+                  </div>
+                )}
+
+                <div className="form-row-2">
+                  <label className="form-field">
+                    <span>New Date *</span>
+                    <input
+                      type="date"
+                      required
+                      min={new Date().toISOString().slice(0, 10)}
+                      value={rescheduleDate}
+                      onChange={(e) => setRescheduleDate(e.target.value)}
+                    />
+                  </label>
+
+                  <label className="form-field">
+                    <span>New Time Slot *</span>
+                    <select
+                      value={rescheduleTime}
+                      onChange={(e) => setRescheduleTime(e.target.value)}
+                    >
+                      {[
+                        '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+                        '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+                        '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
+                      ].map((slot) => (
+                        <option key={slot} value={slot}>{slot}</option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
 
                 <label className="form-field">
-                  <span>New Date *</span>
+                  <span>Reason for Reschedule (Optional)</span>
                   <input
-                    type="date"
-                    required
-                    min={new Date().toISOString().slice(0, 10)}
-                    value={rescheduleDate}
-                    onChange={(e) => setRescheduleDate(e.target.value)}
-                  />
-                </label>
-
-                <label className="form-field">
-                  <span>New Time Slot *</span>
-                  <select
-                    value={rescheduleTime}
-                    onChange={(e) => setRescheduleTime(e.target.value)}
-                  >
-                    {[
-                      '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-                      '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-                      '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
-                    ].map((slot) => (
-                      <option key={slot} value={slot}>{slot}</option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="form-field">
-                  <span>Reason for Reschedule *</span>
-                  <textarea
-                    rows={2}
-                    required
-                    placeholder="E.g., Patient requested later time, doctor shift change..."
+                    type="text"
+                    placeholder="e.g. Patient requested later time, doctor shift change..."
                     value={rescheduleReason}
                     onChange={(e) => setRescheduleReason(e.target.value)}
                   />
                 </label>
 
-                {rescheduleError && (
-                  <div className="availability-warning-box">
-                    <AlertTriangle size={16} />
-                    <span style={{ fontSize: '12px' }}>{rescheduleError}</span>
-                  </div>
-                )}
-
-                {rescheduleSuccess && (
-                  <div className="availability-success-box">
-                    <Check size={16} />
-                    <span style={{ fontSize: '12px' }}>{rescheduleSuccess}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="modal-footer">
-                <button type="button" className="btn-cancel" onClick={() => setRescheduleAppt(null)}>
-                  Cancel
-                </button>
-                <button type="submit" className="patient-intake-primary" disabled={Boolean(rescheduleSuccess)}>
-                  Confirm Reschedule
-                </button>
-              </div>
-            </form>
+                <div className="modal-actions" style={{ marginTop: '8px' }}>
+                  <button type="button" className="btn-cancel" onClick={() => setRescheduleAppt(null)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-confirm-reschedule" disabled={Boolean(rescheduleSuccess)}>
+                    <RotateCcw size={14} />
+                    <span>Confirm Reschedule</span>
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </section>
   )
 }

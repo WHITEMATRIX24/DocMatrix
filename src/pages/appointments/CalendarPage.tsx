@@ -1360,10 +1360,9 @@ export const CalendarPage: React.FC = () => {
               </div>
 
               <label className="form-field">
-                <span>Reason for Reschedule *</span>
+                <span>Reason for Reschedule (Optional)</span>
                 <input
                   type="text"
-                  required
                   placeholder="e.g. Patient requested later time, doctor shift change..."
                   value={rescheduleReason}
                   onChange={(e) => setRescheduleReason(e.target.value)}
