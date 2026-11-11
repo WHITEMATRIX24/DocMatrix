@@ -1,15 +1,14 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { FEATURE_REGISTRY } from '@/features/registry'
 import { getActiveFeatureForPath, resolveFeatureRoute } from '@/features/navigationMatcher'
 import ClinicDashboard from '@/pages/dashboard/ClinicDashboard'
-import ThemeToggle, { applyTheme, getThemePreference } from '@/components/ThemeToggle'
+import ThemeToggle from '@/components/ThemeToggle'
 import {
   Calendar, Users, Stethoscope, Receipt, BookOpen, Package, MessageSquare, Globe,
   BarChart3, Settings, LayoutDashboard, LogOut, Menu, X, ChevronRight, ChevronDown,
   Check, ShieldAlert, Search, Bell, CircleAlert, PackageOpen, FlaskConical,
-  RefreshCw, AlertCircle,
-  Sun, Moon, Monitor
+  RefreshCw, AlertCircle
 } from 'lucide-react'
 import { useClinicData, retrySync, isDemoSession } from '@/services/clinicStore'
 
@@ -168,32 +167,58 @@ export default function StaffPortal({
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [headerSearch, setHeaderSearch] = useState('')
+  const [headerSearchOpen, setHeaderSearchOpen] = useState(false)
+  const headerSearchRef = useRef(null)
+  const { patients = [] } = useClinicData() || {}
   const [searchTerm, setSearchTerm] = useState('')
   const [currentTime, setCurrentTime] = useState('11:20 AM')
-  const [themePref, setThemePref] = useState(getThemePreference)
 
-  useEffect(() => {
-    const handleThemeChange = (e) => {
-      if (e.detail?.preference) {
-        setThemePref(e.detail.preference)
-      }
-    }
-    window.addEventListener('docmatrix-theme-changed', handleThemeChange)
-    return () => window.removeEventListener('docmatrix-theme-changed', handleThemeChange)
-  }, [])
+  const headerMatchedPatients = useMemo(() => {
+    const list = Array.isArray(patients) ? patients : []
+    const q = headerSearch.toLowerCase().trim()
+    if (!q) return list
+    const digitsOnly = q.replace(/\D/g, '')
+    return list.filter((p) => {
+      const fullName = `${p.firstName || ''} ${p.lastName || ''}`.trim().toLowerCase()
+      const pid = (p.id || '').toLowerCase()
+      const mobileDigits = (p.mobile || '').replace(/\D/g, '')
+      return (
+        fullName.includes(q) ||
+        pid.includes(q) ||
+        (digitsOnly.length >= 2 && (pid.includes(digitsOnly) || mobileDigits.includes(digitsOnly)))
+      )
+    })
+  }, [patients, headerSearch])
 
-  // Close popovers on click outside
+  // Close popovers on click outside or Escape
   useEffect(() => {
     const handleOutsideClick = (e) => {
-      if (!e.target.closest('.notifications-box') && !e.target.closest('.notifications-btn')) {
+      const target = e.target
+      if (!target?.closest?.('.notifications-box') && !target?.closest?.('.notifications-btn')) {
         setNotificationsOpen(false)
       }
-      if (!e.target.closest('.role-box') && !e.target.closest('.role-btn')) {
+      if (!target?.closest?.('.role-box') && !target?.closest?.('.role-btn')) {
+        setRoleDropdownOpen(false)
+      }
+      if (headerSearchRef.current && !headerSearchRef.current.contains(target)) {
+        setHeaderSearchOpen(false)
+      }
+    }
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        setHeaderSearchOpen(false)
+        setNotificationsOpen(false)
         setRoleDropdownOpen(false)
       }
     }
     document.addEventListener('mousedown', handleOutsideClick)
-    return () => document.removeEventListener('mousedown', handleOutsideClick)
+    document.addEventListener('touchstart', handleOutsideClick)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+      document.removeEventListener('touchstart', handleOutsideClick)
+      document.removeEventListener('keydown', handleEscape)
+    }
   }, [])
 
   // Live timer tick
@@ -514,21 +539,74 @@ export default function StaffPortal({
           </div>
 
           <div className="dmx-topbar-right">
-            <label className="dmx-search">
-              <Search size={15} />
-              <input
-                type="text"
-                placeholder="Search patients, MRN…"
-                value={headerSearch}
-                onChange={(e) => setHeaderSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && headerSearch.trim()) {
-                    navigateTo('/patients/list')
-                  }
-                }}
-              />
-              <kbd>↵</kbd>
-            </label>
+            <div className="dmx-search-wrap" ref={headerSearchRef}>
+              <label className="dmx-search">
+                <Search size={15} />
+                <input
+                  type="text"
+                  placeholder="Search patients, MRN…"
+                  value={headerSearch}
+                  onFocus={() => setHeaderSearchOpen(true)}
+                  onClick={() => setHeaderSearchOpen(true)}
+                  onChange={(e) => {
+                    setHeaderSearch(e.target.value)
+                    setHeaderSearchOpen(true)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && headerSearch.trim()) {
+                      setHeaderSearchOpen(false)
+                      setActiveRoute('/patients/list')
+                      navigate(`/patients/list?q=${encodeURIComponent(headerSearch.trim())}`)
+                    }
+                  }}
+                />
+                <kbd>↵</kbd>
+              </label>
+
+              {headerSearchOpen && (
+                <div className="dmx-search-dropdown" role="listbox" aria-label="Patient search results">
+                  {headerMatchedPatients.length === 0 ? (
+                    <div className="dmx-search-empty">No patients matching &ldquo;{headerSearch.trim()}&rdquo;</div>
+                  ) : (
+                    <>
+                      {headerMatchedPatients.slice(0, 8).map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className="dmx-search-item"
+                          onClick={() => {
+                            setHeaderSearchOpen(false)
+                            setHeaderSearch('')
+                            setActiveRoute(`/patients/${p.id}`)
+                            navigate(`/patients/${p.id}`)
+                          }}
+                        >
+                          <span className="dmx-search-item-main">
+                            <strong>{p.firstName} {p.lastName}</strong>
+                            {p.mobile && <small>{p.mobile}</small>}
+                          </span>
+                          <span className="dmx-search-item-id">{p.id}</span>
+                        </button>
+                      ))}
+                      {headerMatchedPatients.length > 8 && (
+                        <button
+                          type="button"
+                          className="dmx-search-more"
+                          onClick={() => {
+                            const q = headerSearch.trim()
+                            setHeaderSearchOpen(false)
+                            setActiveRoute('/patients/list')
+                            navigate(q ? `/patients/list?q=${encodeURIComponent(q)}` : '/patients/list')
+                          }}
+                        >
+                          View all {headerMatchedPatients.length} patients
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
 
             <div className="dmx-clock" title="Kerala, India Standard Time">
               <span className="dmx-live-dot" />
@@ -621,42 +699,6 @@ export default function StaffPortal({
                       {currentUser.role === r.role && <Check size={14} />}
                     </button>
                   ))}
-                  <div className="dmx-popover-divider" />
-                  <div className="dmx-popover-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '4px' }}>
-                    <span>Theme Appearance</span>
-                    <span style={{ fontSize: '10px', textTransform: 'none', fontWeight: 600, color: 'var(--teal-primary)' }}>
-                      {themePref === 'system' ? 'System Default' : themePref === 'dark' ? 'Dark Mode' : 'Bright Mode'}
-                    </span>
-                  </div>
-                  <div className="dmx-theme-options-grid">
-                    <button
-                      type="button"
-                      onClick={() => applyTheme('system')}
-                      className={`dmx-theme-option-btn ${themePref === 'system' ? 'is-active' : ''}`}
-                      title="Follow System OS Default (Dark / Bright)"
-                    >
-                      <Monitor size={12} />
-                      <span>System</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => applyTheme('light')}
-                      className={`dmx-theme-option-btn ${themePref === 'light' ? 'is-active' : ''}`}
-                      title="Bright / Light Mode"
-                    >
-                      <Sun size={12} />
-                      <span>Bright</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => applyTheme('dark')}
-                      className={`dmx-theme-option-btn ${themePref === 'dark' ? 'is-active' : ''}`}
-                      title="Dark Mode"
-                    >
-                      <Moon size={12} />
-                      <span>Dark</span>
-                    </button>
-                  </div>
                   <div className="dmx-popover-divider" />
                   <button
                     className="dmx-role-item dmx-logout"

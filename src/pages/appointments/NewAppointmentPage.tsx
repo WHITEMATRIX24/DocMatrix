@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import './calendar.css'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import {
@@ -91,6 +91,35 @@ export const NewAppointmentPage: React.FC = () => {
 
   const [dentistSearch, setDentistSearch] = useState('')
   const [isDentistSearchOpen, setIsDentistSearchOpen] = useState(false)
+
+  const patientSearchRef = useRef<HTMLDivElement>(null)
+  const dentistSearchRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleOutsideTap = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node
+      if (isSearchOpen && patientSearchRef.current && !patientSearchRef.current.contains(target)) {
+        setIsSearchOpen(false)
+      }
+      if (isDentistSearchOpen && dentistSearchRef.current && !dentistSearchRef.current.contains(target)) {
+        setIsDentistSearchOpen(false)
+      }
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsSearchOpen(false)
+        setIsDentistSearchOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideTap)
+    document.addEventListener('touchstart', handleOutsideTap)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideTap)
+      document.removeEventListener('touchstart', handleOutsideTap)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isSearchOpen, isDentistSearchOpen])
 
   const matchedDentists = useMemo(() => {
     if (!dentistSearch.trim()) return DENTISTS
@@ -235,9 +264,6 @@ export const NewAppointmentPage: React.FC = () => {
             <UserPlus size={14} />
             <span>Register Now</span>
           </Link>
-          <Link to="/appointments/calendar" className="btn-back-calendar">
-            View Calendar
-          </Link>
         </div>
       </div>
 
@@ -374,7 +400,7 @@ export const NewAppointmentPage: React.FC = () => {
                 </button>
               </div>
             ) : (
-              <div className="patient-search-container">
+              <div ref={patientSearchRef} className="patient-search-container">
                   <div className="patient-search-input-wrap">
                   <Search size={16} className="search-icon" />
                   <input
@@ -383,6 +409,7 @@ export const NewAppointmentPage: React.FC = () => {
                     placeholder="Search by Patient Name or ID Number (e.g., Aarav, PAT-1001, 1001)..."
                     value={patientSearch}
                     onFocus={() => setIsSearchOpen(true)}
+                    onClick={() => setIsSearchOpen(true)}
                     onChange={(e) => {
                       setPatientSearch(e.target.value)
                       setIsSearchOpen(true)
@@ -432,7 +459,7 @@ export const NewAppointmentPage: React.FC = () => {
               <span>2. Select Dentist *</span>
             </label>
 
-            <div className="patient-search-container">
+            <div ref={dentistSearchRef} className="patient-search-container">
               <div className="patient-search-input-wrap">
                 <Search size={16} className="search-icon" />
                 <input
@@ -441,6 +468,10 @@ export const NewAppointmentPage: React.FC = () => {
                   placeholder="Search dentist by name, specialty, or chair (e.g. Arun, Priya, Ortho, Chair 1)..."
                   value={isDentistSearchOpen ? dentistSearch : (selectedDoctor ? `${selectedDoctor} (${selectedDentist?.chair || ''})` : '')}
                   onFocus={() => {
+                    setIsDentistSearchOpen(true)
+                    setDentistSearch('')
+                  }}
+                  onClick={() => {
                     setIsDentistSearchOpen(true)
                     setDentistSearch('')
                   }}

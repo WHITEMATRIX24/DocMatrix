@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react'
 import { flushSync } from 'react-dom'
-import { Sun, Moon, Monitor } from 'lucide-react'
+import { Sun, Moon } from 'lucide-react'
 
 export const THEME_STORAGE_KEY = 'docmatrix-theme-pref'
 export const LEGACY_STORAGE_KEY = 'docmatrix-theme'
@@ -134,7 +134,6 @@ export function initSystemThemeListener() {
 }
 
 export default function ThemeToggle() {
-  const [pref, setPref] = useState(getThemePreference)
   const [effectiveTheme, setEffectiveTheme] = useState(getStoredTheme)
   const buttonRef = useRef(null)
 
@@ -142,7 +141,6 @@ export default function ThemeToggle() {
     initSystemThemeListener()
     const handleThemeChange = (e) => {
       if (e.detail) {
-        setPref(e.detail.preference)
         setEffectiveTheme(e.detail.effectiveTheme)
       }
     }
@@ -151,7 +149,6 @@ export default function ThemeToggle() {
   }, [])
 
   const isDark = effectiveTheme === 'dark'
-  const isSystem = pref === 'system'
 
   const toggle = (e) => {
     if (e && (e.altKey || e.shiftKey)) {
@@ -162,7 +159,6 @@ export default function ThemeToggle() {
     const next = isDark ? 'light' : 'dark'
     const commit = () => {
       flushSync(() => {
-        setPref(next)
         setEffectiveTheme(next)
       })
       applyTheme(next)
@@ -197,24 +193,10 @@ export default function ThemeToggle() {
       type="button"
       role="switch"
       aria-checked={isDark}
-      aria-label={
-        isSystem
-          ? `System default (${effectiveTheme === 'dark' ? 'Dark' : 'Bright'} mode). Click to toggle, Alt+Click to reset.`
-          : isDark
-          ? 'Switch to bright mode'
-          : 'Switch to dark mode'
-      }
-      title={
-        isSystem
-          ? `System default: ${effectiveTheme === 'dark' ? 'Dark' : 'Bright'} mode • Click to toggle, Alt+Click for System`
-          : `${effectiveTheme === 'dark' ? 'Dark' : 'Bright'} mode • Alt+Click for System default`
-      }
-      className={`dmx-theme-switch ${isDark ? 'is-dark' : ''} ${isSystem ? 'is-system' : ''}`}
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      title={isDark ? 'Dark mode' : 'Bright mode'}
+      className={`dmx-theme-switch ${isDark ? 'is-dark' : ''}`}
       onClick={toggle}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        applyTheme('system')
-      }}
     >
       <span className="dmx-theme-track">
         <Sun size={13} className="dmx-theme-icon dmx-theme-sun" />
@@ -223,13 +205,6 @@ export default function ThemeToggle() {
       <span className="dmx-theme-knob">
         {isDark ? <Moon size={12} /> : <Sun size={12} />}
       </span>
-      {isSystem && (
-        <span
-          className="dmx-theme-sys-dot"
-          title="System Default Active"
-          aria-hidden="true"
-        />
-      )}
     </button>
   )
 }

@@ -665,6 +665,107 @@ html.dm-theme-transition *::after {
   font: 600 10.5px var(--font-ui);
 }
 
+.dmx-search-wrap {
+  position: relative;
+}
+
+.dmx-search-wrap:focus-within .dmx-search {
+  width: 300px;
+  background: var(--surface-raised);
+  box-shadow: var(--glass-highlight), var(--ring);
+  color: var(--teal-primary);
+}
+
+.dmx-search-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 320px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--surface-raised);
+  border: 1px solid var(--line, rgba(15, 23, 42, 0.1));
+  border-radius: 14px;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.16);
+  z-index: 60;
+  padding: 6px;
+}
+
+.dmx-search-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-strong);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.dmx-search-item:hover {
+  background: var(--surface-alt);
+}
+
+.dmx-search-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dmx-search-item-main strong {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dmx-search-item-main small {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.dmx-search-item-id {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--teal-primary);
+  background: var(--surface-alt);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.dmx-search-empty {
+  padding: 12px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.dmx-search-more {
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border: 0;
+  border-top: 1px solid var(--line, rgba(15, 23, 42, 0.08));
+  background: transparent;
+  color: var(--teal-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 0 0 8px 8px;
+}
+
+.dmx-search-more:hover {
+  background: var(--surface-alt);
+}
+
 .dmx-clock {
   height: 38px;
   display: flex;
@@ -1675,6 +1776,7 @@ html.dm-theme-transition *::after {
 }
 
 @media (max-width: 960px) {
+  .dmx-search-wrap,
   .dmx-search { display: none; }
 }
 

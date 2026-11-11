@@ -2167,16 +2167,20 @@ export const rescheduleAppointment = (
     appointmentId
   )
 
-  if (!availability.available) {
+  // Only hard-block true appointment double-booking overlaps; allow overriding shift/lunch hours when explicitly rescheduling
+  const isDoubleBooking = Boolean(!availability.available && availability.reason?.includes('already has appointment'))
+  if (isDoubleBooking) {
     return { success: false, error: availability.reason }
   }
+
+  const resolvedReason = reason?.trim() || 'Patient requested new time slot.'
 
   const rescheduleLog: RescheduleRecord = {
     previousDate: appt.date,
     previousTime: appt.time,
     newDate,
     newTime,
-    reason,
+    reason: resolvedReason,
     changedAt: new Date().toISOString()
   }
 
@@ -2195,13 +2199,30 @@ export const rescheduleAppointment = (
         {
           status: 'scheduled',
           timestamp: new Date().toISOString(),
-          note: `Rescheduled to ${newDate} at ${newTime}. Reason: ${reason}`
+          note: `Rescheduled to ${newDate} at ${newTime}. Reason: ${resolvedReason}`
         }
       ]
     }
   })
 
   emitChange()
+
+  // Background sync to backend if authenticated
+  try {
+    const token = typeof sessionStorage !== 'undefined'
+      ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
+      : null;
+    if (token && !appointmentId.startsWith('APT-')) {
+      apiClient.patch(`/appointments/${appointmentId}`, {
+        date: newDate,
+        time: newTime,
+        status: 'SCHEDULED',
+      }).catch((err) => {
+        console.error('[clinicStore] rescheduleAppointment sync failed (retained locally):', err);
+      });
+    }
+  } catch { /* ignore */ }
+
   return { success: true }
 }
 

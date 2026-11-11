@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import './calendar.css'
 import { useNavigate, Link } from 'react-router-dom'
 import {
@@ -79,6 +79,7 @@ export const CalendarPage: React.FC = () => {
   const [qbDate, setQbDate] = useState(selectedDate)
   const [qbTime, setQbTime] = useState('10:00')
   const [qbPatientSearch, setQbPatientSearch] = useState('')
+  const [isQbSearchOpen, setIsQbSearchOpen] = useState(false)
   const [qbSelectedPatientId, setQbSelectedPatientId] = useState('')
   const [qbNewPatientMobile, setQbNewPatientMobile] = useState('')
   const [qbTreatmentId, setQbTreatmentId] = useState(DENTAL_TREATMENTS[0].id)
@@ -86,6 +87,29 @@ export const CalendarPage: React.FC = () => {
   const [qbNotes, setQbNotes] = useState('')
   const [qbError, setQbError] = useState('')
   const [slotSuccessToast, setSlotSuccessToast] = useState('')
+  const qbSearchRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null
+      if (qbSearchRef.current && target && !qbSearchRef.current.contains(target)) {
+        setIsQbSearchOpen(false)
+      }
+    }
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsQbSearchOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('touchstart', handleOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('touchstart', handleOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [])
 
   // In-Calendar Quick Walk-in Modal State
   const [showQuickWalkIn, setShowQuickWalkIn] = useState(false)
@@ -206,6 +230,7 @@ export const CalendarPage: React.FC = () => {
     setQbTime(slotTime)
     setQbDate(dateStr || selectedDate)
     setQbPatientSearch('')
+    setIsQbSearchOpen(false)
     setQbSelectedPatientId('')
     setQbNewPatientMobile('')
     setQbNotes('')
@@ -372,6 +397,13 @@ export const CalendarPage: React.FC = () => {
       setRescheduleError(result.error || 'Conflict detected. Please select another time.')
       return
     }
+
+    if (rescheduleDate !== selectedDate) {
+      setSelectedDate(rescheduleDate)
+    }
+
+    setSlotSuccessToast(`Rescheduled ${activeAppt.doctor} to ${rescheduleDate} at ${rescheduleTime}`)
+    setTimeout(() => setSlotSuccessToast(''), 4000)
 
     setShowRescheduleModal(false)
     setActiveAppt(null)
@@ -573,20 +605,8 @@ export const CalendarPage: React.FC = () => {
                     const isLunch = slot >= dentist.lunchStart && slot < dentist.lunchEnd
 
                     return (
-                      <div key={dentist.id} className={`dentist-slot-cell ${isLunch ? 'slot-break' : ''}`}>
-                        {isLunch ? (
-                          <span className="lunch-label">Break / Lunch</span>
-                        ) : apptsInSlot.length === 0 ? (
-                          <button
-                            type="button"
-                            className="slot-book-btn"
-                            onClick={() => handleOpenSlotBooking(dentist.name, slot, selectedDate)}
-                            title={`Click to fast book ${dentist.name} at ${slot}`}
-                          >
-                            <Plus size={11} />
-                            <span>Book slot</span>
-                          </button>
-                        ) : (
+                      <div key={dentist.id} className={`dentist-slot-cell ${isLunch && apptsInSlot.length === 0 ? 'slot-break' : ''}`}>
+                        {apptsInSlot.length > 0 ? (
                           apptsInSlot.map((appt) => {
                             const patient = getPatient(appt.patientId)
                             return (
@@ -678,6 +698,18 @@ export const CalendarPage: React.FC = () => {
                               </div>
                             )
                           })
+                        ) : isLunch ? (
+                          <span className="lunch-label">Break / Lunch</span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="slot-book-btn"
+                            onClick={() => handleOpenSlotBooking(dentist.name, slot, selectedDate)}
+                            title={`Click to book ${dentist.name} at ${slot}`}
+                          >
+                            <Plus size={11} />
+                            <span>Book slot</span>
+                          </button>
                         )}
                       </div>
                     )
@@ -904,22 +936,26 @@ export const CalendarPage: React.FC = () => {
                     </button>
                   </div>
                 ) : (
-                  <div>
+                  <div ref={qbSearchRef}>
                     <div style={{ position: 'relative' }}>
                       <input
                         type="text"
                         placeholder="Search existing or type new patient name..."
                         value={qbPatientSearch}
-                        onChange={(e) => setQbPatientSearch(e.target.value)}
-                        autoFocus
+                        onFocus={() => setIsQbSearchOpen(true)}
+                        onClick={() => setIsQbSearchOpen(true)}
+                        onChange={(e) => {
+                          setQbPatientSearch(e.target.value)
+                          setIsQbSearchOpen(true)
+                        }}
                       />
                     </div>
-                    {(matchedPatients.length > 0 || qbPatientSearch.trim().length > 0) && (
+                    {isQbSearchOpen && (matchedPatients.length > 0 || qbPatientSearch.trim().length > 0) && (
                       <div style={{ marginTop: '6px', maxHeight: '160px', overflowY: 'auto', border: '1px solid var(--line, #e2e8f0)', borderRadius: '6px', background: 'var(--surface-raised, #ffffff)', color: 'var(--text-strong, inherit)', boxShadow: '0 4px 10px rgba(0,0,0,0.12)' }}>
                         {matchedPatients.map((p) => (
                           <div
                             key={p.id}
-                            onClick={() => { setQbSelectedPatientId(p.id); setQbPatientSearch(''); setQbError('') }}
+                            onClick={() => { setQbSelectedPatientId(p.id); setQbPatientSearch(''); setIsQbSearchOpen(false); setQbError('') }}
                             style={{ padding: '8px 12px', borderBottom: '1px solid var(--line, #f1f5f9)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}
                           >
                             <strong>{p.firstName} {p.lastName}</strong>
@@ -1308,7 +1344,7 @@ export const CalendarPage: React.FC = () => {
                   <span style={{ fontSize: '11.5px', color: 'var(--text-muted, #64748b)' }}>ID: {activeAppt.id}</span>
                 </div>
               </div>
-              <button className="btn-close" onClick={() => setShowRescheduleModal(false)}>
+              <button type="button" className="btn-close" onClick={() => setShowRescheduleModal(false)}>
                 <X size={16} />
               </button>
             </div>

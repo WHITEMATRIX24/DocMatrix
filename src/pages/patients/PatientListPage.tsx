@@ -1,13 +1,21 @@
-import React, { useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import React, { useMemo, useState, useEffect } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, UserRound, AlertTriangle, ShieldCheck, Calendar, ArrowRight, Phone } from 'lucide-react'
 import { useClinicData, type PatientRecord } from '@/services/clinicStore'
 import './patientProfile.css'
 
 export const PatientListPage: React.FC = () => {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const urlQuery = searchParams.get('q') || ''
   const { patients, appointments } = useClinicData()
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(urlQuery)
+
+  useEffect(() => {
+    if (searchParams.has('q')) {
+      setQuery(urlQuery)
+    }
+  }, [searchParams, urlQuery])
   const [genderFilter, setGenderFilter] = useState<'all' | 'female' | 'male'>('all')
   const [alertsOnly, setAlertsOnly] = useState(false)
 
