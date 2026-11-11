@@ -1,9 +1,11 @@
 import { useSyncExternalStore } from 'react'
 import { loadFromStorage, saveToStorage } from './storageService'
+import { isAuthenticatedClinic, isDemoSession } from './clinicStore'
+import { reportsApi } from './reportsApi'
 
 /**
  * Remembers which patients staff have already contacted, so two people don't call the same patient.
- * Saved in this browser only, per clinic, like the rest of the billing and report data.
+ * Persisted to PostgreSQL via /reports/follow-ups/:patientId/contact when authenticated, with local cache.
  */
 
 export type ContactLog = Record<string, string> // patientId -> ISO timestamp of the last contact
@@ -38,12 +40,40 @@ const subscribe = (listener: () => void) => {
 
 export const useContactLog = () => useSyncExternalStore(subscribe, () => log, () => log)
 
-export const markContacted = (patientId: string) => commit({ ...log, [patientId]: new Date().toISOString() })
+export const markContacted = (patientId: string) => {
+  const contactedAt = new Date().toISOString()
+  commit({ ...log, [patientId]: contactedAt })
+  if (isAuthenticatedClinic() && !isDemoSession()) {
+    reportsApi.markPatientContacted(patientId).catch((err) => {
+      console.warn('[followUpStore] markPatientContacted backend sync failed:', err)
+    })
+  }
+}
 
 export const undoContacted = (patientId: string) => {
   const next = { ...log }
   delete next[patientId]
   commit(next)
+  if (isAuthenticatedClinic() && !isDemoSession()) {
+    reportsApi.unmarkPatientContacted(patientId).catch((err) => {
+      console.warn('[followUpStore] unmarkPatientContacted backend sync failed:', err)
+    })
+  }
+}
+
+export const syncFollowUpContactsWithBackend = async (): Promise<ContactLog> => {
+  if (!isAuthenticatedClinic() || isDemoSession()) {
+    return log
+  }
+  try {
+    const res = await reportsApi.getFollowUpsReport()
+    if (res && res.contactLog && typeof res.contactLog === 'object') {
+      commit({ ...log, ...res.contactLog })
+    }
+  } catch (err) {
+    console.warn('[followUpStore] syncFollowUpContactsWithBackend failed:', err)
+  }
+  return log
 }
 
 export const resetContactLogForTesting = () => commit({})

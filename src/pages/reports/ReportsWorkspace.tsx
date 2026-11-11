@@ -1,7 +1,11 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Activity, BarChart3, BellRing, IndianRupee, Stethoscope } from 'lucide-react'
 import { localDate } from '@/pages/billing/BillingShared'
+import { syncWithBackend } from '@/services/clinicStore'
+import { syncBillingMasterData } from '@/services/billingStore'
+import { fetchAndSyncClinicStaff } from '@/services/clinicStaffStore'
+import { syncFollowUpContactsWithBackend } from '@/services/followUpStore'
 import { RANGE_PRESETS, ReportMoneyProvider, ReportRangeProvider, canRoleSeeMoney, rangeText, resolveRange, type RangeKey } from './ReportsShared'
 import './reports.css'
 
@@ -39,6 +43,13 @@ export default function ReportsWorkspace({ activeFeatureId, role, children }: { 
   const today = localDate()
   const canSeeMoney = canRoleSeeMoney(role)
   const visibleTabs = tabs.filter((tab) => tab.id !== 'rep.revenue' || canSeeMoney)
+
+  useEffect(() => {
+    syncWithBackend().catch((e) => console.warn('[ReportsWorkspace] syncWithBackend error:', e))
+    syncBillingMasterData().catch((e) => console.warn('[ReportsWorkspace] syncBillingMasterData error:', e))
+    fetchAndSyncClinicStaff().catch((e) => console.warn('[ReportsWorkspace] fetchAndSyncClinicStaff error:', e))
+    syncFollowUpContactsWithBackend().catch((e) => console.warn('[ReportsWorkspace] syncFollowUpContactsWithBackend error:', e))
+  }, [])
 
   return (
     <section className="appointments-workspace rpt-workspace">

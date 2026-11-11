@@ -3,7 +3,8 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import App from '@/App'
-import { createItemisedInvoice, invoiceBalance, recordInvoicePayment, resetStoreForTesting, getClinicSnapshot } from '@/services/clinicStore'
+import { createItemisedInvoice, invoiceBalance, recordInvoicePayment, refundInvoicePayment, voidInvoiceRecord, resetStoreForTesting, getClinicSnapshot } from '@/services/clinicStore'
+import { findPatient } from '@/pages/billing/BillingShared'
 
 describe('Billing workspace', () => {
   beforeEach(() => {
@@ -77,5 +78,32 @@ describe('Billing workspace', () => {
     })
     // Lands on the invoice list with the new invoice's drawer open
     expect(await screen.findByRole('dialog', { name: /Invoice INV-/ })).toBeInTheDocument()
+  })
+
+  it('supports payment refunds, voiding unpaid invoices, and backendId patient lookup', async () => {
+    const inv = createItemisedInvoice({
+      patientId: 'pt-1001',
+      items: [{ id: 'a', name: 'Scaling', qty: 1, unitPrice: 1200, discount: 0, gstRate: 0 }],
+      upfrontPayment: { amount: 1200, mode: 'UPI' },
+    })
+    expect(inv.status).toBe('Paid')
+    expect(invoiceBalance(inv)).toBe(0)
+
+    const pmtId = inv.payments[0].id
+    const afterPartialRefund = await refundInvoicePayment(inv.id, pmtId, { amount: 500, reason: 'Discount adjustment' })
+    expect(afterPartialRefund.status).toBe('Partial')
+    expect(invoiceBalance(afterPartialRefund)).toBe(500)
+
+    const afterRemainingRefund = await refundInvoicePayment(inv.id, pmtId, 700, 'Full reversal')
+    expect(afterRemainingRefund.status).toBe('Unpaid')
+    expect(invoiceBalance(afterRemainingRefund)).toBe(1200)
+
+    const voided = await voidInvoiceRecord(inv.id, 'Duplicate entry')
+    expect(voided.status).toBe('Void')
+    expect(invoiceBalance(voided)).toBe(0)
+
+    const pts = [{ id: 'pt-1001', backendId: 'uuid-backend-123', name: 'Asha' }]
+    expect(findPatient(pts, 'pt-1001')?.name).toBe('Asha')
+    expect(findPatient(pts, 'uuid-backend-123')?.name).toBe('Asha')
   })
 })

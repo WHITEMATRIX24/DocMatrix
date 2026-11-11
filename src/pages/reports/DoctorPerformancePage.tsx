@@ -1,6 +1,8 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp } from 'lucide-react'
-import { DENTISTS, useClinicData } from '@/services/clinicStore'
+import { DENTISTS, isAuthenticatedClinic, isDemoSession, useClinicData } from '@/services/clinicStore'
+import { useClinicStaff } from '@/services/clinicStaffStore'
+import { reportsApi, type BackendDoctorRow } from '@/services/reportsApi'
 import { inr } from '@/pages/billing/BillingShared'
 import { ReportActions, StatTile, inRange, previousSpan, useMoneyAccess, useReportRange } from './ReportsShared'
 import { computePeriod } from './reportMetrics'
@@ -23,6 +25,22 @@ export const DoctorPerformancePage: React.FC = () => {
   const range = useReportRange()
   const canSeeMoney = useMoneyAccess()
   const { patients, invoices, appointments, treatmentPlans } = useClinicData()
+  const { doctors: staffDoctors } = useClinicStaff()
+  const [backendDoctors, setBackendDoctors] = useState<BackendDoctorRow[] | null>(null)
+
+  useEffect(() => {
+    if (isAuthenticatedClinic() && !isDemoSession()) {
+      reportsApi
+        .getDoctorsReport({ fromDate: range.from, toDate: range.to })
+        .then((res) => {
+          if (Array.isArray(res?.doctors)) setBackendDoctors(res.doctors)
+        })
+        .catch((err) => console.warn('[DoctorPerformancePage] getDoctorsReport error:', err))
+    } else {
+      setBackendDoctors(null)
+    }
+  }, [range.from, range.to])
+
   const { now, before } = useMemo(() => {
     const data = { patients, invoices, appointments, treatmentPlans }
     return { now: computePeriod(data, range), before: computePeriod(data, previousSpan(range)) }
@@ -30,9 +48,17 @@ export const DoctorPerformancePage: React.FC = () => {
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'completed', dir: 'desc' })
 
   const rows = useMemo<DoctorRow[]>(() => {
-    const names = new Set<string>(DENTISTS.map((d) => d.name))
-    appointments.forEach((a) => a.doctor && names.add(a.doctor))
-    treatmentPlans.forEach((p) => p.doctor && names.add(p.doctor))
+    const isAuth = isAuthenticatedClinic() && !isDemoSession()
+    const names = new Set<string>(
+      isAuth
+        ? staffDoctors.map((d) => d.name).filter(Boolean)
+        : DENTISTS.map((d) => d.name)
+    )
+    appointments.forEach((a) => a.doctor && a.doctor !== 'Unassigned' && names.add(a.doctor))
+    treatmentPlans.forEach((p) => p.doctor && p.doctor !== 'Unassigned' && names.add(p.doctor))
+    if (backendDoctors) {
+      backendDoctors.forEach((d) => d.doctor && d.doctor !== 'Unassigned' && names.add(d.doctor))
+    }
 
     return [...names].map((name) => {
       const appts = appointments.filter((a) => a.doctor === name && inRange(a.date, range))
@@ -51,7 +77,7 @@ export const DoctorPerformancePage: React.FC = () => {
         pending: plans.filter((p) => p.status !== 'Completed').reduce((s, p) => s + p.cost, 0)
       }
     })
-  }, [appointments, treatmentPlans, range])
+  }, [appointments, treatmentPlans, range, staffDoctors, backendDoctors])
 
   const sorted = useMemo(() => {
     const dir = sort.dir === 'asc' ? 1 : -1

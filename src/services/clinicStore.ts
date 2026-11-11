@@ -204,6 +204,7 @@ export interface InvoicePayment {
   mode: PaymentMode
   reference?: string
   receivedAt: string
+  type?: 'PAYMENT' | 'REFUND'
 }
 
 export interface InvoiceRecord {
@@ -226,12 +227,16 @@ export interface InvoiceRecord {
 
 /** Amount received against an invoice. Older invoices without a payment log count as fully paid when marked Paid. */
 export const invoicePaidAmount = (invoice: InvoiceRecord): number => {
-  if (Array.isArray(invoice.payments)) return invoice.payments.reduce((sum, p) => sum + p.amount, 0)
+  if (Array.isArray(invoice.payments)) {
+    return Math.max(0, Math.round(invoice.payments.reduce((sum, p) => sum + p.amount, 0) * 100) / 100)
+  }
   return invoice.status === 'Paid' ? invoice.amount : 0
 }
 
-export const invoiceBalance = (invoice: InvoiceRecord): number =>
-  Math.max(0, Math.round((invoice.amount - invoicePaidAmount(invoice)) * 100) / 100)
+export const invoiceBalance = (invoice: InvoiceRecord): number => {
+  if (invoice.status === 'Void') return 0
+  return Math.max(0, Math.round((invoice.amount - invoicePaidAmount(invoice)) * 100) / 100)
+}
 
 export const lineItemTotals = (item: InvoiceLineItem) => {
   const gross = item.qty * item.unitPrice
@@ -1910,10 +1915,11 @@ export const syncWithBackend = async (): Promise<void> => {
       payments: Array.isArray(inv.payments)
         ? inv.payments.map((p: any) => ({
             id: p.id,
-            amount: Number(p.amount) || 0,
+            amount: p.type === 'REFUND' ? -Math.abs(Number(p.amount) || 0) : (Number(p.amount) || 0),
             mode: toFrontendMode(p.mode) as PaymentMode,
             reference: p.reference || undefined,
             receivedAt: p.receivedAt || new Date().toISOString(),
+            type: p.type || 'PAYMENT',
           }))
         : [],
     }));
@@ -2625,10 +2631,16 @@ export function createItemisedInvoice(details: {
   record.status = deriveInvoiceStatus(record)
 
   if (isAuthenticatedClinic() && !isDemoSession()) {
+    const safeApptId = details.appointmentId && !details.appointmentId.startsWith('APT-')
+      ? details.appointmentId
+      : undefined
+    const safePlanId = details.treatmentPlanId && !details.treatmentPlanId.startsWith('TRT-')
+      ? details.treatmentPlanId
+      : undefined
     const payload = {
       patientId: details.patientId,
-      appointmentId: details.appointmentId || undefined,
-      treatmentPlanId: details.treatmentPlanId || undefined,
+      appointmentId: safeApptId,
+      treatmentPlanId: safePlanId,
       description: details.items.map((i) => i.name).join(', ') || 'Dental Treatment',
       notes: details.notes || undefined,
       items: details.items.map((it) => ({
@@ -2664,10 +2676,11 @@ export function createItemisedInvoice(details: {
         payments: Array.isArray(created.payments)
           ? created.payments.map((p: any) => ({
               id: p.id,
-              amount: Number(p.amount) || 0,
+              amount: p.type === 'REFUND' ? -Math.abs(Number(p.amount) || 0) : (Number(p.amount) || 0),
               mode: toFrontendMode(p.mode) as PaymentMode,
               reference: p.reference || undefined,
               receivedAt: p.receivedAt || now,
+              type: p.type || 'PAYMENT',
             }))
           : record.payments,
       }
@@ -2752,10 +2765,11 @@ export function recordInvoicePayment(
           payments: Array.isArray(updatedBackendInv.payments)
             ? updatedBackendInv.payments.map((p: any) => ({
                 id: p.id,
-                amount: Number(p.amount) || 0,
+                amount: p.type === 'REFUND' ? -Math.abs(Number(p.amount) || 0) : (Number(p.amount) || 0),
                 mode: toFrontendMode(p.mode) as PaymentMode,
                 reference: p.reference || undefined,
                 receivedAt: p.receivedAt || new Date().toISOString(),
+                type: p.type || 'PAYMENT',
               }))
             : updated.payments,
         }
@@ -2776,6 +2790,76 @@ export function recordInvoicePayment(
   invoicesState = invoicesState.map((inv, i) => (i === index ? updated : inv))
   emitChange()
   return Object.assign(Promise.resolve(updated), updated) as InvoiceRecord & Promise<InvoiceRecord>
+}
+
+/** Refund an existing payment against an invoice and recalculate paidAmount/balance. */
+export async function refundInvoicePayment(
+  invoiceId: string,
+  paymentId: string,
+  amountOrOpts: number | { amount: number; reason?: string },
+  reasonArg?: string
+): Promise<InvoiceRecord | null> {
+  const index = invoicesState.findIndex((inv) => inv.id === invoiceId || inv.backendId === invoiceId)
+  if (index === -1) return null
+  const invoice = invoicesState[index]
+  const targetId = invoice.backendId || invoice.id
+  const original = (invoice.payments || []).find((p) => p.id === paymentId)
+  const rawAmt = typeof amountOrOpts === 'object' && amountOrOpts !== null ? Number(amountOrOpts.amount) || 0 : Number(amountOrOpts) || 0
+  const reason = typeof amountOrOpts === 'object' && amountOrOpts !== null ? amountOrOpts.reason : reasonArg
+  const refundAmt = Math.min(Math.abs(rawAmt), original ? Math.abs(original.amount) : Math.abs(rawAmt))
+  if (refundAmt <= 0) return invoice
+
+  if (isAuthenticatedClinic() && !isDemoSession()) {
+    await billingApi.refundPayment(paymentId, {
+      amount: refundAmt,
+      reason: reason?.trim() || 'Payment refunded',
+    })
+    const updatedBackendInv = await billingApi.getInvoiceById(targetId)
+    const refreshed: InvoiceRecord = {
+      ...invoice,
+      id: updatedBackendInv.invoiceNumber || invoice.id,
+      backendId: updatedBackendInv.id,
+      amount: Number(updatedBackendInv.totalAmount) || invoice.amount,
+      subtotal: Number(updatedBackendInv.subtotal) || invoice.subtotal,
+      discountTotal: Number(updatedBackendInv.discountTotal) || invoice.discountTotal,
+      taxTotal: Number(updatedBackendInv.taxTotal) || invoice.taxTotal,
+      status: toFrontendStatus(updatedBackendInv.status),
+      payments: Array.isArray(updatedBackendInv.payments)
+        ? updatedBackendInv.payments.map((p: any) => ({
+            id: p.id,
+            amount: p.type === 'REFUND' ? -Math.abs(Number(p.amount) || 0) : (Number(p.amount) || 0),
+            mode: toFrontendMode(p.mode) as PaymentMode,
+            reference: p.reference || undefined,
+            receivedAt: p.receivedAt || new Date().toISOString(),
+            type: p.type || 'PAYMENT',
+          }))
+        : invoice.payments,
+    }
+    invoicesState = invoicesState.map((inv) =>
+      inv.id === invoice.id || inv.backendId === invoice.backendId || inv.id === refreshed.id
+        ? refreshed
+        : inv
+    )
+    emitChange()
+    return refreshed
+  }
+
+  const refundEntry: InvoicePayment = {
+    id: `REF-${Date.now().toString().slice(-8)}`,
+    amount: -refundAmt,
+    mode: original?.mode || 'Cash',
+    reference: `REFUND-${paymentId.slice(0, 8)}`,
+    receivedAt: new Date().toISOString(),
+    type: 'REFUND',
+  }
+  const updated: InvoiceRecord = {
+    ...invoice,
+    payments: [...(invoice.payments || []), refundEntry],
+  }
+  updated.status = deriveInvoiceStatus(updated)
+  invoicesState = invoicesState.map((inv, i) => (i === index ? updated : inv))
+  emitChange()
+  return updated
 }
 
 /** Void an issued invoice */

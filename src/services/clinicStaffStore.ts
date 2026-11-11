@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { apiClient } from './apiClient'
 
 export interface ClinicStaffDoctor {
@@ -80,6 +81,15 @@ export function getClinicStaffDoctors(): ClinicStaffDoctor[] {
     staffCache = fresh
   }
   return staffCache
+}
+
+export function useClinicStaff() {
+  const [doctors, setDoctors] = useState<ClinicStaffDoctor[]>(() => getClinicStaffDoctors())
+  useEffect(() => {
+    setDoctors(getClinicStaffDoctors())
+    return subscribeStaff(() => setDoctors(getClinicStaffDoctors()))
+  }, [])
+  return { doctors }
 }
 
 export async function fetchAndSyncClinicStaff(): Promise<ClinicStaffDoctor[]> {

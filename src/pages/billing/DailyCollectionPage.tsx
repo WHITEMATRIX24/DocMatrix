@@ -19,7 +19,11 @@ export const DailyCollectionPage: React.FC = () => {
 
   const byMode = useMemo(() => {
     const out: Record<string, { amount: number; count: number }> = { Cash: { amount: 0, count: 0 }, Card: { amount: 0, count: 0 }, UPI: { amount: 0, count: 0 } }
-    dayPayments.forEach((p) => { out[p.mode].amount += p.amount; out[p.mode].count += 1 })
+    dayPayments.forEach((p) => {
+      const modeKey = out[p.mode] ? p.mode : 'UPI'
+      out[modeKey].amount += p.amount
+      if (p.amount > 0) out[modeKey].count += 1
+    })
     return out
   }, [dayPayments])
 

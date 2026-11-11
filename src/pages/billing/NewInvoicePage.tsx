@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { ClipboardList, FilePlus2, Plus, Trash2 } from 'lucide-react'
 import { createItemisedInvoice, lineItemTotals, useClinicData, type InvoiceLineItem, type PaymentMode } from '@/services/clinicStore'
 import { effectivePrice, gstRateFor, useBillingData } from '@/services/billingStore'
-import { PAYMENT_MODES, inr } from './BillingShared'
+import { PAYMENT_MODES, findPatient, inr } from './BillingShared'
 
 let rowSeq = 0
 const rowId = () => `L${Date.now().toString(36)}${(rowSeq++).toString(36)}`
@@ -26,10 +26,10 @@ export const NewInvoicePage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
-  const patient = patients.find((p) => p.id === patientId)
+  const patient = findPatient(patients, patientId)
   const planSuggestions = useMemo(
-    () => treatmentPlans.filter((t) => t.patientId === patientId && t.status !== 'Completed' && !items.some((i) => i.id === `plan-${t.id}`)),
-    [treatmentPlans, patientId, items]
+    () => treatmentPlans.filter((t) => (t.patientId === patientId || t.patientId === patient?.id || t.patientId === patient?.backendId) && t.status !== 'Completed' && !items.some((i) => i.id === `plan-${t.id}`)),
+    [treatmentPlans, patientId, patient, items]
   )
 
   const totals = useMemo(() => {

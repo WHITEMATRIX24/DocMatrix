@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Download, ListOrdered, Search } from 'lucide-react'
 import { useClinicData, type PaymentMode } from '@/services/clinicStore'
-import { InvoiceDrawer, inr, localDate, patientLabel, prettyDate, usePayments } from './BillingShared'
+import { InvoiceDrawer, findPatient, inr, localDate, patientLabel, prettyDate, usePayments } from './BillingShared'
 
 const csvCell = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`
 
@@ -91,7 +91,7 @@ export const PaymentsHistoryPage: React.FC = () => {
         </div>
       )}
 
-      {open && <InvoiceDrawer invoice={open} patient={patients.find((p) => p.id === open.patientId)} onClose={() => setOpenId(null)} onDone={() => setOpenId(null)} />}
+      {open && <InvoiceDrawer invoice={open} patient={findPatient(patients, open.patientId)} onClose={() => setOpenId(null)} onDone={() => setOpenId(null)} />}
     </div>
   )
 }

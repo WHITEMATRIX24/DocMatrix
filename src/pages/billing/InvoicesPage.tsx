@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { FileText, Plus, Search } from 'lucide-react'
 import { invoiceBalance, useClinicData, type InvoiceRecord } from '@/services/clinicStore'
-import { InvoiceDrawer, StatusPill, inr, patientLabel, prettyDate } from './BillingShared'
+import { InvoiceDrawer, StatusPill, findPatient, inr, patientLabel, prettyDate } from './BillingShared'
 
 const FILTERS: Array<'All' | InvoiceRecord['status']> = ['All', 'Unpaid', 'Partial', 'Paid']
 
@@ -74,7 +74,7 @@ export const InvoicesPage: React.FC = () => {
         </div>
       )}
 
-      {open && <InvoiceDrawer invoice={open} patient={patients.find((p) => p.id === open.patientId)} onClose={() => setOpenId(null)} onDone={() => setOpenId(null)} />}
+      {open && <InvoiceDrawer invoice={open} patient={findPatient(patients, open.patientId)} onClose={() => setOpenId(null)} onDone={() => setOpenId(null)} />}
     </div>
   )
 }

@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarPlus, Check, CheckCircle2, Clock, MessageCircle, Phone, ShieldAlert, Undo2, UserX, XCircle } from 'lucide-react'
-import { useClinicData, type PatientRecord } from '@/services/clinicStore'
-import { isRecentlyContacted, markContacted, undoContacted, useContactLog } from '@/services/followUpStore'
+import { isAuthenticatedClinic, isDemoSession, useClinicData, type PatientRecord } from '@/services/clinicStore'
+import { isRecentlyContacted, markContacted, syncFollowUpContactsWithBackend, undoContacted, useContactLog } from '@/services/followUpStore'
+import { reportsApi } from '@/services/reportsApi'
 import { inr, prettyDate } from '@/pages/billing/BillingShared'
 import { RankedBars, ReportActions, StatTile, digitsOnly, inRange, pct, plural, previousSpan, useMoneyAccess, useReportRange, type RankedItem } from './ReportsShared'
 import { computePeriod, contactList, type ContactReason, type ContactRow } from './reportMetrics'
@@ -63,6 +64,12 @@ export const FollowUpsPage: React.FC = () => {
   const { patients, appointments, treatmentPlans, invoices } = useClinicData()
   const contactLog = useContactLog()
   const [filter, setFilter] = useState<Filter>('all')
+
+  useEffect(() => {
+    if (isAuthenticatedClinic() && !isDemoSession()) {
+      syncFollowUpContactsWithBackend().catch(() => {})
+    }
+  }, [range.from, range.to])
 
   const data = useMemo(() => ({ patients, appointments, treatmentPlans, invoices }), [patients, appointments, treatmentPlans, invoices])
   const rows = useMemo(() => contactList(data, range), [data, range])

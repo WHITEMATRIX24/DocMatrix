@@ -43,7 +43,7 @@ export const daysSince = (date: string, today: string = localDate()) =>
 
 export function computePeriod(data: ReportData, span: DateSpan) {
   const payments = flattenPayments(data.invoices).filter((p) => inSpan(p.receivedAt, span))
-  const invoices = data.invoices.filter((i) => inSpan(i.createdAt, span))
+  const invoices = data.invoices.filter((i) => i.status !== 'Void' && inSpan(i.createdAt, span))
   const visits = data.appointments.filter((a) => inSpan(a.date, span))
   const completed = visits.filter((a) => a.status === 'completed')
   const plans = data.treatmentPlans.filter((p) => inSpan(p.date, span))

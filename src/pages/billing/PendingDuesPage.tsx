@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { CheckCircle2, Phone } from 'lucide-react'
 import { invoiceBalance, invoicePaidAmount, useClinicData } from '@/services/clinicStore'
-import { InvoiceDrawer, PaymentDialog, inr, localDate, patientLabel, prettyDate } from './BillingShared'
+import { InvoiceDrawer, PaymentDialog, findPatient, inr, localDate, patientLabel, prettyDate } from './BillingShared'
 
 const BUCKETS = [
   { id: 'all', label: 'All', min: 0, max: Infinity },
@@ -57,7 +57,7 @@ export const PendingDuesPage: React.FC = () => {
             </thead>
             <tbody>
               {rows.map(({ inv, age }) => {
-                const p = patients.find((entry) => entry.id === inv.patientId)
+                const p = findPatient(patients, inv.patientId)
                 return (
                   <tr key={inv.id}>
                     <td>
@@ -85,7 +85,7 @@ export const PendingDuesPage: React.FC = () => {
       )}
 
       {paying && <PaymentDialog invoice={paying} patientName={patientLabel(patients, paying.patientId)} onClose={() => setPayingId(null)} onDone={() => setPayingId(null)} />}
-      {opened && <InvoiceDrawer invoice={opened} patient={patients.find((p) => p.id === opened.patientId)} onClose={() => setOpenId(null)} onDone={() => setOpenId(null)} />}
+      {opened && <InvoiceDrawer invoice={opened} patient={findPatient(patients, opened.patientId)} onClose={() => setOpenId(null)} onDone={() => setOpenId(null)} />}
     </div>
   )
 }

@@ -108,6 +108,19 @@ describe('Report calculations', () => {
     for (const role of ['ORGANIZATION_ADMIN', 'BRANCH_ADMIN', 'ACCOUNTANT']) expect(canRoleSeeMoney(role)).toBe(true)
     for (const role of ['RECEPTIONIST', 'DOCTOR', 'NURSE', 'LAB_TECHNICIAN', 'PHARMACIST']) expect(canRoleSeeMoney(role)).toBe(false)
   })
+
+  it('excludes Void invoices from billed and unpaid totals in computePeriod', () => {
+    const d = data({
+      invoices: [
+        { id: 'INV-1', patientId: 'p1', createdAt: '2026-10-10', service: 'RCT', amount: 4000, status: 'Partial', payments: [{ id: 'pm1', amount: 1500, mode: 'Cash', receivedAt: '2026-10-10' }] },
+        { id: 'INV-2', patientId: 'p1', createdAt: '2026-10-12', service: 'Crown', amount: 6000, status: 'Void', payments: [{ id: 'pm2', amount: 2000, mode: 'UPI', receivedAt: '2026-10-12' }] }
+      ]
+    })
+    const m = computePeriod(d, { from: '2026-10-01', to: '2026-10-31' })
+    expect(m.billed).toBe(4000)
+    expect(m.collected).toBe(1500)
+    expect(m.unpaid).toBe(2500)
+  })
 })
 
 describe('Reports for an owner', () => {

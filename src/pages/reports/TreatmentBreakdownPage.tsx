@@ -1,5 +1,7 @@
-import React, { useMemo } from 'react'
-import { DENTAL_TREATMENTS, useClinicData, type TreatmentPlanRecord } from '@/services/clinicStore'
+import React, { useEffect, useMemo } from 'react'
+import { DENTAL_TREATMENTS, isAuthenticatedClinic, isDemoSession, useClinicData, type TreatmentPlanRecord } from '@/services/clinicStore'
+import { useBillingData } from '@/services/billingStore'
+import { reportsApi } from '@/services/reportsApi'
 import { inr } from '@/pages/billing/BillingShared'
 import { RankedBars, ReportActions, StatTile, inRange, previousSpan, useMoneyAccess, useReportRange, type RankedItem } from './ReportsShared'
 import { computePeriod } from './reportMetrics'
@@ -16,6 +18,16 @@ export const TreatmentBreakdownPage: React.FC = () => {
   const range = useReportRange()
   const canSeeMoney = useMoneyAccess()
   const { patients, invoices, appointments, treatmentPlans } = useClinicData()
+  const { services: tariffs } = useBillingData()
+
+  useEffect(() => {
+    if (isAuthenticatedClinic() && !isDemoSession()) {
+      reportsApi
+        .getTreatmentsReport({ fromDate: range.from, toDate: range.to })
+        .catch((err) => console.warn('[TreatmentBreakdownPage] getTreatmentsReport error:', err))
+    }
+  }, [range.from, range.to])
+
   const { now, before } = useMemo(() => {
     const data = { patients, invoices, appointments, treatmentPlans }
     return { now: computePeriod(data, range), before: computePeriod(data, previousSpan(range)) }
@@ -23,8 +35,14 @@ export const TreatmentBreakdownPage: React.FC = () => {
 
   const categoryOf = useMemo(() => {
     const map = new Map(DENTAL_TREATMENTS.map((t) => [t.name.toLowerCase(), t.category]))
-    return (name: string) => map.get(name.toLowerCase()) || 'Other'
-  }, [])
+    tariffs.forEach((t) => {
+      if (t.name && t.category) map.set(t.name.trim().toLowerCase(), t.category)
+    })
+    treatmentPlans.forEach((p) => {
+      if (p.procedure && p.category) map.set(p.procedure.trim().toLowerCase(), p.category)
+    })
+    return (name: string) => map.get(name.trim().toLowerCase()) || 'Other'
+  }, [tariffs, treatmentPlans])
 
   const done = useMemo(() => appointments.filter((a) => a.status === 'completed' && inRange(a.date, range)), [appointments, range])
   const plans = useMemo(() => treatmentPlans.filter((p) => inRange(p.date, range)), [treatmentPlans, range])

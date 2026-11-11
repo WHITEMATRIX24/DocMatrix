@@ -318,7 +318,10 @@ export class BillingService {
     dto: UpdateDraftInvoiceDto,
   ) {
     const invoice = await this.prisma.invoice.findFirst({
-      where: { id, clinicId },
+      where: {
+        clinicId,
+        OR: [{ id }, { invoiceNumber: id }],
+      },
       include: { items: true },
     });
     if (!invoice) {
@@ -419,7 +422,10 @@ export class BillingService {
     id: string,
   ) {
     const invoice = await this.prisma.invoice.findFirst({
-      where: { id, clinicId },
+      where: {
+        clinicId,
+        OR: [{ id }, { invoiceNumber: id }],
+      },
       include: { items: true },
     });
     if (!invoice) {
@@ -722,7 +728,10 @@ export class BillingService {
     dto: VoidInvoiceDto,
   ) {
     const invoice = await this.prisma.invoice.findFirst({
-      where: { id, clinicId },
+      where: {
+        clinicId,
+        OR: [{ id }, { invoiceNumber: id }],
+      },
     });
     if (!invoice) {
       throw new NotFoundException(`Invoice ${id} not found`);
@@ -742,6 +751,7 @@ export class BillingService {
       where: { id: invoice.id },
       data: {
         status: InvoiceStatus.VOID,
+        balance: 0,
         voidedAt: new Date(),
         voidedById: user.id,
         voidReason: dto.reason,
@@ -806,7 +816,7 @@ export class BillingService {
       >`
         SELECT "id", "clinicId", "status", "totalAmount", "paidAmount", "balance"
         FROM "Invoice"
-        WHERE "id" = ${invoiceId} AND "clinicId" = ${clinicId}
+        WHERE ("id" = ${invoiceId} OR "invoiceNumber" = ${invoiceId}) AND "clinicId" = ${clinicId}
         FOR UPDATE;
       `;
 

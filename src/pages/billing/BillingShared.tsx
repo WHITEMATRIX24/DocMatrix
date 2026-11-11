@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Ban, Banknote, CreditCard, Printer, Smartphone, X } from 'lucide-react'
+import { Ban, Banknote, CreditCard, Printer, RotateCcw, Smartphone, X } from 'lucide-react'
 import {
   CLINIC_CONFIG,
   invoiceBalance,
   invoicePaidAmount,
   lineItemTotals,
   recordInvoicePayment,
+  refundInvoicePayment,
   voidInvoiceRecord,
   type InvoicePayment,
   type InvoiceRecord,
@@ -34,8 +35,11 @@ export const localDate = (iso?: string) => {
 export const prettyDate = (iso: string) =>
   new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 
+export const findPatient = (patients: PatientRecord[], id: string) =>
+  patients.find((entry) => entry.id === id || entry.backendId === id)
+
 export const patientLabel = (patients: PatientRecord[], id: string) => {
-  const p = patients.find((entry) => entry.id === id)
+  const p = findPatient(patients, id)
   return p ? `${p.firstName} ${p.lastName}`.trim() : 'Unknown patient'
 }
 
@@ -48,6 +52,7 @@ export interface FlatPayment extends InvoicePayment {
 export const flattenPayments = (invoices: InvoiceRecord[]): FlatPayment[] => {
   const rows: FlatPayment[] = []
   invoices.forEach((inv) => {
+    if (inv.status === 'Void') return
     const list = Array.isArray(inv.payments)
       ? inv.payments
       : inv.status === 'Paid'
@@ -172,6 +177,17 @@ export const PaymentDialog: React.FC<{
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string)
 
 export const printInvoice = (invoice: InvoiceRecord, patient?: PatientRecord) => {
+  let clinicName = CLINIC_CONFIG.clinicName
+  try {
+    const rawUser =
+      (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('docmatrix_auth_user')) ||
+      (typeof localStorage !== 'undefined' && localStorage.getItem('docmatrix_auth_user'))
+    if (rawUser) {
+      const parsed = JSON.parse(rawUser)
+      if (parsed?.clinicName) clinicName = parsed.clinicName
+      else if (parsed?.clinic?.name) clinicName = parsed.clinic.name
+    }
+  } catch {}
   const items = invoice.items?.length
     ? invoice.items
     : [{ id: '1', name: invoice.description, qty: 1, unitPrice: invoice.amount, discount: 0, gstRate: 0 }]
@@ -183,7 +199,7 @@ export const printInvoice = (invoice: InvoiceRecord, patient?: PatientRecord) =>
     .join('')
   const paid = invoicePaidAmount(invoice)
   const payments = (invoice.payments || [])
-    .map((p) => `<tr><td>${prettyDate(p.receivedAt)}</td><td>${p.mode}${p.reference ? ` · ${escapeHtml(p.reference)}` : ''}</td><td class="r">${inr(p.amount)}</td></tr>`)
+    .map((p) => `<tr><td>${prettyDate(p.receivedAt)}</td><td>${p.mode}${p.amount < 0 ? ' (Refund)' : ''}${p.reference ? ` · ${escapeHtml(p.reference)}` : ''}</td><td class="r">${inr(p.amount)}</td></tr>`)
     .join('')
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${invoice.id}</title><style>
     body{font:13px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;color:#0f172a;margin:32px}
@@ -192,7 +208,7 @@ export const printInvoice = (invoice: InvoiceRecord, patient?: PatientRecord) =>
     .r{text-align:right}.totals{margin-left:auto;width:280px}.totals td{border:none;padding:3px 8px}.grand td{font-weight:700;font-size:15px;border-top:2px solid #0f172a}
     .tag{display:inline-block;padding:2px 8px;border-radius:99px;font-weight:600;font-size:11px;background:${invoice.status === 'Paid' ? '#dcfce7;color:#166534' : '#fee2e2;color:#b91c1c'}}
   </style></head><body>
-    <div class="top"><div><h1>${escapeHtml(CLINIC_CONFIG.clinicName)}</h1><div class="muted">${escapeHtml(CLINIC_CONFIG.clinicAddress)} · ${escapeHtml(CLINIC_CONFIG.clinicPhone)}</div></div>
+    <div class="top"><div><h1>${escapeHtml(clinicName)}</h1><div class="muted">${escapeHtml(CLINIC_CONFIG.clinicAddress)} · ${escapeHtml(CLINIC_CONFIG.clinicPhone)}</div></div>
     <div style="text-align:right"><strong>INVOICE ${invoice.id}</strong><div class="muted">${prettyDate(invoice.createdAt)}</div><span class="tag">${invoice.status}</span></div></div>
     <div><span class="muted">Billed to</span><br><strong>${escapeHtml(patient ? `${patient.firstName} ${patient.lastName}` : 'Patient')}</strong>${patient?.mobile ? `<br>${escapeHtml(patient.countryCode || '')} ${escapeHtml(patient.mobile)}` : ''}${patient ? `<br><span class="muted">${patient.id}</span>` : ''}</div>
     <table><thead><tr><th>#</th><th>Service</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Discount</th><th class="r">GST</th><th class="r">Amount</th></tr></thead><tbody>${rows}</tbody></table>
@@ -226,15 +242,16 @@ export const InvoiceDrawer: React.FC<{
 }> = ({ invoice, patient, onClose, onDone }) => {
   const [paying, setPaying] = useState(false)
   const [isVoiding, setIsVoiding] = useState(false)
+  const [refundingId, setRefundingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const balance = invoiceBalance(invoice)
   const items = invoice.items?.length ? invoice.items : null
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !paying && !isVoiding && onClose()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !paying && !isVoiding && !refundingId && onClose()
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, paying, isVoiding])
+  }, [onClose, paying, isVoiding, refundingId])
 
   const handleVoid = async () => {
     const reason = window.prompt('Please enter the reason for voiding this invoice:')
@@ -249,6 +266,20 @@ export const InvoiceDrawer: React.FC<{
       setError(err?.message || 'Failed to void invoice.')
     } finally {
       setIsVoiding(false)
+    }
+  }
+
+  const handleRefund = async (payment: InvoicePayment) => {
+    const reason = window.prompt(`Refund ${inr(payment.amount)} (${payment.mode})? Enter reason:`)
+    if (!reason || !reason.trim()) return
+    setRefundingId(payment.id)
+    setError(null)
+    try {
+      await refundInvoicePayment(invoice.id, payment.id, payment.amount, reason.trim())
+    } catch (err: any) {
+      setError(err?.message || 'Failed to refund payment.')
+    } finally {
+      setRefundingId(null)
     }
   }
 
@@ -303,12 +334,28 @@ export const InvoiceDrawer: React.FC<{
           <h3 className="bill-section-title">Payments</h3>
           {invoice.payments?.length ? (
             <ul className="bill-timeline">
-              {invoice.payments.map((p) => (
-                <li key={p.id}>
-                  <strong>{inr(p.amount)}</strong> by {p.mode}
-                  <small className="bill-sub">{prettyDate(p.receivedAt)}{p.reference ? ` · ${p.reference}` : ''}</small>
-                </li>
-              ))}
+              {invoice.payments.map((p) => {
+                const isRefund = p.amount < 0 || p.type === 'REFUND'
+                const alreadyRefunded = !isRefund && invoice.payments?.some((other) => (other.amount < 0 || other.type === 'REFUND') && other.reference?.includes(p.id.slice(0, 8)))
+                return (
+                  <li key={p.id}>
+                    <strong>{inr(p.amount)}</strong> by {p.mode}{isRefund ? ' (Refund)' : ''}
+                    <small className="bill-sub">{prettyDate(p.receivedAt)}{p.reference ? ` · ${p.reference}` : ''}</small>
+                    {!isRefund && !alreadyRefunded && invoice.status !== 'Void' && (
+                      <button
+                        type="button"
+                        className="bill-link"
+                        style={{ marginLeft: 8, fontSize: 12 }}
+                        onClick={() => handleRefund(p)}
+                        disabled={Boolean(refundingId)}
+                        title="Refund payment"
+                      >
+                        <RotateCcw size={11} /> {refundingId === p.id ? 'Refunding...' : 'Refund'}
+                      </button>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           ) : (
             <p className="bill-muted">{invoice.status === 'Paid' ? 'Marked paid (no payment log).' : 'No payments yet.'}</p>

@@ -291,9 +291,10 @@ export const PatientProfilePage: React.FC = () => {
 
   // Money at a glance
   const billing = useMemo(() => {
-    const billed = patientInvoices.reduce((s, inv) => s + inv.amount, 0)
-    const paid = patientInvoices.reduce((s, inv) => s + invoicePaidAmount(inv), 0)
-    const due = patientInvoices.reduce((s, inv) => s + invoiceBalance(inv), 0)
+    const activeInvoices = patientInvoices.filter((inv) => inv.status !== 'Void')
+    const billed = activeInvoices.reduce((s, inv) => s + inv.amount, 0)
+    const paid = activeInvoices.reduce((s, inv) => s + invoicePaidAmount(inv), 0)
+    const due = activeInvoices.reduce((s, inv) => s + invoiceBalance(inv), 0)
     const pendingPlanValue = pendingTreatments.reduce((s, p) => s + p.cost, 0)
     return { billed, paid, due, pendingPlanValue }
   }, [patientInvoices, pendingTreatments])

@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react'
-import { useClinicData } from '@/services/clinicStore'
+import React, { useEffect, useMemo } from 'react'
+import { isAuthenticatedClinic, isDemoSession, useClinicData } from '@/services/clinicStore'
+import { reportsApi } from '@/services/reportsApi'
 import { PAYMENT_MODES, inr, localDate, usePayments } from '@/pages/billing/BillingShared'
 import {
   ColumnChart,
@@ -30,6 +31,14 @@ export const RevenueReportPage: React.FC = () => {
   const rangePayments = useMemo(() => payments.filter((p) => inRange(p.receivedAt, range)), [payments, range])
   const collected = now.collected
 
+  useEffect(() => {
+    if (isAuthenticatedClinic() && !isDemoSession()) {
+      reportsApi
+        .getRevenueReport({ fromDate: range.from, toDate: range.to })
+        .catch((err) => console.warn('[RevenueReportPage] getRevenueReport error:', err))
+    }
+  }, [range.from, range.to])
+
   const points = useMemo<ColumnPoint[]>(() => {
     const monthly = range.days > 62
     const totals = new Map<string, number>()
@@ -52,10 +61,17 @@ export const RevenueReportPage: React.FC = () => {
     return [...totals.entries()].map(([k, value]) => ({ key: k, label: monthly ? monthLabel(k) : shortDate(k), value }))
   }, [rangePayments, range])
 
-  const byMode = PAYMENT_MODES.map(({ id }) => {
-    const amount = rangePayments.filter((p) => p.mode === id).reduce((s, p) => s + p.amount, 0)
-    return { key: id, label: id, value: amount, display: `${inr(amount)} · ${pct(amount, collected)}%` }
-  })
+  const byMode = useMemo(() => {
+    const baseModes = PAYMENT_MODES.map((m) => m.id)
+    const extraModes = (['Net Banking', 'Cheque'] as const).filter((m) =>
+      rangePayments.some((p) => p.mode === m && p.amount > 0)
+    )
+    const allModes = [...baseModes, ...extraModes]
+    return allModes.map((id) => {
+      const amount = rangePayments.filter((p) => p.mode === id).reduce((s, p) => s + p.amount, 0)
+      return { key: id, label: id, value: amount, display: `${inr(amount)} · ${pct(amount, collected)}%` }
+    })
+  }, [rangePayments, collected])
 
   return (
     <div className="rpt-page" data-testid="feature-page-rep.revenue">

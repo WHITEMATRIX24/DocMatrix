@@ -3,6 +3,45 @@ import { configure } from '@testing-library/dom'
 
 configure({ asyncUtilTimeout: 5000 })
 
+// Ensure valid Web Storage API in Node 22+/25+ environments where native localStorage may be uninitialized
+const createMemoryStorage = () => {
+  let store = new Map()
+  return {
+    get length() {
+      return store.size
+    },
+    clear() {
+      store.clear()
+    },
+    getItem(key) {
+      const k = String(key)
+      return store.has(k) ? store.get(k) : null
+    },
+    key(index) {
+      return Array.from(store.keys())[index] ?? null
+    },
+    removeItem(key) {
+      store.delete(String(key))
+    },
+    setItem(key, value) {
+      store.set(String(key), String(value))
+    }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  if (!window.localStorage || typeof window.localStorage.clear !== 'function') {
+    const ls = createMemoryStorage()
+    Object.defineProperty(window, 'localStorage', { value: ls, configurable: true, writable: true })
+    Object.defineProperty(globalThis, 'localStorage', { value: ls, configurable: true, writable: true })
+  }
+  if (!window.sessionStorage || typeof window.sessionStorage.clear !== 'function') {
+    const ss = createMemoryStorage()
+    Object.defineProperty(window, 'sessionStorage', { value: ss, configurable: true, writable: true })
+    Object.defineProperty(globalThis, 'sessionStorage', { value: ss, configurable: true, writable: true })
+  }
+}
+
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

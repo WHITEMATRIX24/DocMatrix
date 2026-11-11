@@ -46,7 +46,7 @@ export default function BillingWorkspace({ activeFeatureId, children }: { active
       todayCollected: payments.filter((p) => localDate(p.receivedAt) === today).reduce((s, p) => s + p.amount, 0),
       dues: openInvoices.reduce((s, inv) => s + invoiceBalance(inv), 0),
       openCount: openInvoices.length,
-      monthBilled: invoices.filter((inv) => localDate(inv.createdAt).startsWith(month)).reduce((s, inv) => s + inv.amount, 0),
+      monthBilled: invoices.filter((inv) => inv.status !== 'Void' && localDate(inv.createdAt).startsWith(month)).reduce((s, inv) => s + inv.amount, 0),
     }
   }, [invoices, payments])
 

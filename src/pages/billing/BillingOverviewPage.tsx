@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import { invoiceBalance, useClinicData } from '@/services/clinicStore'
-import { InvoiceDrawer, PAYMENT_MODES, StatusPill, inr, localDate, patientLabel, prettyDate, usePayments } from './BillingShared'
+import { InvoiceDrawer, PAYMENT_MODES, StatusPill, findPatient, inr, localDate, patientLabel, prettyDate, usePayments } from './BillingShared'
 
 export default function BillingOverviewPage() {
   const { invoices, patients } = useClinicData()
@@ -13,7 +13,10 @@ export default function BillingOverviewPage() {
   const today = localDate()
   const todayByMode = useMemo(() => {
     const totals: Record<string, number> = { Cash: 0, Card: 0, UPI: 0 }
-    payments.filter((p) => localDate(p.receivedAt) === today).forEach((p) => (totals[p.mode] += p.amount))
+    payments.filter((p) => localDate(p.receivedAt) === today).forEach((p) => {
+      const modeKey = totals[p.mode] !== undefined ? p.mode : 'UPI'
+      totals[modeKey] += p.amount
+    })
     return totals
   }, [payments, today])
   const todayTotal = Object.values(todayByMode).reduce((a, b) => a + b, 0)
@@ -93,7 +96,7 @@ export default function BillingOverviewPage() {
         )}
       </article>
 
-      {open && <InvoiceDrawer invoice={open} patient={patients.find((p) => p.id === open.patientId)} onClose={() => setOpenId(null)} />}
+      {open && <InvoiceDrawer invoice={open} patient={findPatient(patients, open.patientId)} onClose={() => setOpenId(null)} />}
     </div>
   )
 }
