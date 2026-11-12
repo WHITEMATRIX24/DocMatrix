@@ -97,7 +97,6 @@ export default function BillingWorkspace({ activeFeatureId, children }: { active
             >
               <Icon size={15} />
               <span>{tab.label}</span>
-              {tab.id === 'bill.dues' && stats.openCount > 0 && <span className="bill-tab-badge">{stats.openCount}</span>}
             </button>
           )
         })}

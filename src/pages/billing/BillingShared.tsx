@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Ban, Banknote, CreditCard, Printer, RotateCcw, Smartphone, X } from 'lucide-react'
 import {
   CLINIC_CONFIG,
+  computeAgeFromDob,
   invoiceBalance,
   invoicePaidAmount,
   lineItemTotals,
@@ -35,12 +36,27 @@ export const localDate = (iso?: string) => {
 export const prettyDate = (iso: string) =>
   new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 
-export const findPatient = (patients: PatientRecord[], id: string) =>
-  patients.find((entry) => entry.id === id || entry.backendId === id)
+export const findPatient = (patients: PatientRecord[], id: string) => {
+  if (!id) return undefined
+  const lower = id.toLowerCase()
+  return patients.find(
+    (entry) =>
+      entry.id === id ||
+      entry.backendId === id ||
+      entry.id?.toLowerCase() === lower ||
+      entry.backendId?.toLowerCase() === lower
+  )
+}
 
 export const patientLabel = (patients: PatientRecord[], id: string) => {
   const p = findPatient(patients, id)
   return p ? `${p.firstName} ${p.lastName}`.trim() : 'Unknown patient'
+}
+
+export const patientAge = (patient?: PatientRecord): string => {
+  if (!patient) return '—'
+  const age = computeAgeFromDob(patient.dateOfBirth, patient.age)
+  return age ? `${age} yrs` : '—'
 }
 
 export interface FlatPayment extends InvoicePayment {

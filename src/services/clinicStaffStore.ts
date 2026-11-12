@@ -12,6 +12,30 @@ const STAFF_STORAGE_KEY = 'docmatrix_clinic_staff'
 
 const listeners = new Set<() => void>()
 
+export function isClinicalStaffMember(p: { name?: string; fullName?: string; role?: string }): boolean {
+  const rawName = String(p?.fullName || p?.name || '').trim()
+  if (!rawName) return false
+  const lower = rawName.toLowerCase()
+  if (
+    lower === 'reception staff' ||
+    lower === 'unassigned' ||
+    lower === 'dr. attending dentist' ||
+    lower === 'attending dentist' ||
+    lower === 'organization admin' ||
+    lower === 'branch admin' ||
+    lower === 'clinic admin'
+  ) {
+    return false
+  }
+  const role = String(p?.role || '').toUpperCase()
+  if (role === 'RECEPTIONIST') return false
+  if (role === 'ORGANIZATION_ADMIN' || role === 'BRANCH_ADMIN' || role === 'ADMIN') {
+    return /^dr\.?\s+/i.test(rawName)
+  }
+  if (role === 'DOCTOR') return true
+  return /^dr\.?\s+/i.test(rawName)
+}
+
 export function getStoredStaff(): ClinicStaffDoctor[] {
   const doctors: ClinicStaffDoctor[] = []
   try {
@@ -20,9 +44,10 @@ export function getStoredStaff(): ClinicStaffDoctor[] {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed)) {
         parsed.forEach((p: any) => {
+          if (!isClinicalStaffMember(p)) return
           doctors.push({
             id: String(p.id || 'doc-' + Math.random().toString(36).slice(2)),
-            name: String(p.fullName || p.name || 'Practitioner'),
+            name: String(p.fullName || p.name || 'Practitioner').trim(),
             role: p.role || 'DOCTOR',
             email: p.email || ''
           })
@@ -31,14 +56,14 @@ export function getStoredStaff(): ClinicStaffDoctor[] {
     }
   } catch {}
 
-  // Also include current logged-in practitioner/admin if not already present
+  // Only include current logged-in user if they are an actual clinical doctor
   try {
     const authRaw =
       (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('docmatrix_auth_user') : null) ||
       (typeof localStorage !== 'undefined' ? localStorage.getItem('docmatrix_auth_user') : null)
     if (authRaw) {
       const authUser = JSON.parse(authRaw)
-      if (authUser && authUser.fullName) {
+      if (authUser && authUser.fullName && isClinicalStaffMember(authUser)) {
         const alreadyInList = doctors.some(
           (d) => d.name.trim().toLowerCase() === authUser.fullName.trim().toLowerCase()
         )
@@ -96,16 +121,18 @@ export async function fetchAndSyncClinicStaff(): Promise<ClinicStaffDoctor[]> {
   try {
     const res = await apiClient.get<any[]>('/clinics/my-clinic/staff')
     if (Array.isArray(res) && res.length > 0) {
-      const mapped = res.map((s) => ({
-        id: String(s.id),
-        name: String(s.fullName || s.name || 'Practitioner'),
-        role: s.role || 'DOCTOR',
-        email: s.email || ''
-      }))
-      staffCache = mapped
       try {
         localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(res))
       } catch {}
+      const mapped = res
+        .filter((s) => isClinicalStaffMember(s))
+        .map((s) => ({
+          id: String(s.id),
+          name: String(s.fullName || s.name || 'Practitioner').trim(),
+          role: s.role || 'DOCTOR',
+          email: s.email || ''
+        }))
+      staffCache = mapped
       notify()
       return mapped
     }

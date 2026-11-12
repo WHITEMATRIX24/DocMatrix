@@ -537,6 +537,38 @@
   .bill-search { max-width: none; }
 }
 
+/* ── Dues table refinements ────────────────────────────────────────── */
+.bill-dues-table th,
+.bill-dues-table td {
+  vertical-align: middle;
+}
+.bill-dues-patient,
+.bill-dues-invoice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bill-dues-age span {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-body, #334155);
+  font-variant-numeric: tabular-nums;
+}
+.bill-dues-paid {
+  color: var(--text-muted, #64748b);
+}
+.bill-balance-highlight {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: rgba(180, 83, 9, 0.08);
+  color: #92400e;
+  font-weight: 700;
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── Print (daily cash-up) ─────────────────────────────────────────── */
 @media print {
   .dmx-rail, .dmx-topbar, header.dmx-top, .bill-kpis, .bill-tabs, .bill-header-cta, .bill-toolbar button { display: none !important; }

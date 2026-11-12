@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CalendarDays, ClipboardList, Inbox, Plus, Activity, UserPlus, CheckCircle2, Clock, RotateCcw } from 'lucide-react'
-import { useClinicData } from '@/services/clinicStore'
+import { getSyncStatus, isAuthenticatedClinic, syncWithBackend, useClinicData } from '@/services/clinicStore'
 import './calendar.css'
 
 type AppointmentTab = {
@@ -28,6 +28,12 @@ export default function AppointmentsWorkspace({ activeFeatureId, children }: App
   const navigate = useNavigate()
   const { appointments } = useClinicData()
   const selectedTabId = activeFeatureId === 'appt.detail' ? 'appt.details-list' : activeFeatureId
+
+  useEffect(() => {
+    if (isAuthenticatedClinic() && getSyncStatus().status === 'IDLE') {
+      syncWithBackend().catch(() => {})
+    }
+  }, [])
 
   // Live Today Metrics
   const todayStr = useMemo(() => {

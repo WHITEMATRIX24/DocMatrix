@@ -61,6 +61,8 @@ export interface StatusHistoryRecord {
 
 export interface AppointmentRecord {
   id: string
+  backendId?: string
+  bookingRef?: string
   patientId: string
   patientName?: string
   doctor: string
@@ -1478,6 +1480,285 @@ export const clearClinicStore = () => {
   emitChange();
 };
 
+const BOOKING_REF_MAP_KEY = 'docmatrix_booking_ref_map';
+
+const loadBookingRefMap = (): Record<string, string> => {
+  try {
+    if (typeof localStorage === 'undefined') return {};
+    const raw = localStorage.getItem(BOOKING_REF_MAP_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+let bookingRefMap: Record<string, string> = loadBookingRefMap();
+
+export const registerBookingRef = (bookingRef: string, backendId: string) => {
+  if (!bookingRef || !backendId) return;
+  bookingRefMap[bookingRef] = backendId;
+  bookingRefMap[backendId] = bookingRef;
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(BOOKING_REF_MAP_KEY, JSON.stringify(bookingRefMap));
+    }
+  } catch { /* ignore */ }
+};
+
+export const resolveAppointmentId = (id?: string): string => {
+  if (!id) return '';
+  const mapped = bookingRefMap[id];
+  if (mapped && id.startsWith('APT-')) return mapped;
+  return id;
+};
+
+export const matchesAppointmentId = (appt: AppointmentRecord, id?: string): boolean => {
+  if (!appt || !id) return false;
+  if (appt.id === id || appt.backendId === id || appt.bookingRef === id) return true;
+  const mapped = bookingRefMap[id];
+  if (mapped && (appt.id === mapped || appt.backendId === mapped || appt.bookingRef === mapped)) return true;
+  return false;
+};
+
+export const findAppointment = (
+  appointments: AppointmentRecord[],
+  id?: string
+): AppointmentRecord | undefined => {
+  if (!id) return undefined;
+  return appointments.find((entry) => matchesAppointmentId(entry, id));
+};
+
+export const computeAgeFromDob = (dob?: string, fallbackAge?: string): string => {
+  const cleanFallback = fallbackAge !== undefined && fallbackAge !== null ? String(fallbackAge).trim() : '';
+  if (dob && typeof dob === 'string' && dob.trim() !== '') {
+    const trimmedDob = dob.trim();
+    // If legacy placeholder 1990-01-01 was used alongside an explicit non-default age, preserve fallbackAge
+    if (trimmedDob.startsWith('1990-01-01') && cleanFallback && cleanFallback !== '30') {
+      return cleanFallback;
+    }
+    const birth = new Date(trimmedDob.length === 10 ? `${trimmedDob}T00:00:00` : trimmedDob);
+    if (!Number.isNaN(birth.getTime())) {
+      const now = new Date();
+      let years = now.getFullYear() - birth.getFullYear();
+      const monthDiff = now.getMonth() - birth.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) {
+        years -= 1;
+      }
+      if (years >= 0 && years <= 130) {
+        return String(years);
+      }
+    }
+  }
+  return cleanFallback;
+};
+
+const NON_CLINICAL_NAMES = new Set([
+  'unassigned',
+  'dr. attending dentist',
+  'attending dentist',
+  'reception staff',
+  'organization admin',
+  'branch admin',
+  'clinic admin',
+  'admin',
+  'clinical staff',
+]);
+
+const NON_CLINICAL_ROLES = new Set([
+  'RECEPTIONIST',
+  'ORGANIZATION_ADMIN',
+  'BRANCH_ADMIN',
+  'ADMIN',
+  'STAFF',
+]);
+
+export const isClinicalDoctorName = (name?: string): boolean => {
+  if (!name || typeof name !== 'string') return false;
+  const trimmed = name.trim();
+  if (!trimmed) return false;
+  const lower = trimmed.toLowerCase();
+  if (NON_CLINICAL_NAMES.has(lower)) return false;
+
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const rawStaff =
+        localStorage.getItem('docmatrix_clinic_staff') ||
+        localStorage.getItem('docmatrix_staff_members_v1');
+      if (rawStaff) {
+        const staffList = JSON.parse(rawStaff);
+        if (Array.isArray(staffList)) {
+          const matched = staffList.find(
+            (s: any) => String(s?.name || s?.fullName || '').trim().toLowerCase() === lower
+          );
+          if (matched?.role) {
+            const roleUpper = String(matched.role).toUpperCase();
+            if (NON_CLINICAL_ROLES.has(roleUpper) && !/^dr\.?\s+/i.test(trimmed)) return false;
+            if (roleUpper === 'DOCTOR') return true;
+          }
+        }
+      }
+      const rawUser =
+        (typeof sessionStorage !== 'undefined' &&
+          (sessionStorage.getItem('docmatrix_auth_user') || sessionStorage.getItem('docmatrix_current_user'))) ||
+        localStorage.getItem('docmatrix_auth_user') ||
+        localStorage.getItem('docmatrix_current_user');
+      if (rawUser) {
+        const currentUser = JSON.parse(rawUser);
+        const currentName = String(currentUser?.fullName || currentUser?.name || '').trim().toLowerCase();
+        const currentRole = String(currentUser?.role || '').toUpperCase();
+        if (currentName === lower && NON_CLINICAL_ROLES.has(currentRole) && !/^dr\.?\s+/i.test(trimmed)) {
+          return false;
+        }
+      }
+    }
+  } catch { /* ignore */ }
+
+  if (DENTISTS.some((d) => d.name.toLowerCase() === lower)) return true;
+  if (/^dr\.?\s+/i.test(trimmed)) return true;
+  return false;
+};
+
+export const resolvePlanDoctor = (
+  rawDoctorName: string | undefined,
+  patientId: string | undefined,
+  patientCode: string | undefined,
+  categoryOrProcedure: string | undefined,
+  appointments: AppointmentRecord[] = appointmentsState
+): string => {
+  if (isClinicalDoctorName(rawDoctorName)) {
+    return rawDoctorName!.trim();
+  }
+
+  const pIdLower = (patientId || '').toLowerCase();
+  const pCodeLower = (patientCode || '').toLowerCase();
+  const patientAppts = appointments.filter((a) => {
+    const aPid = (a.patientId || '').toLowerCase();
+    return (
+      (pIdLower && aPid === pIdLower) ||
+      (pCodeLower && aPid === pCodeLower)
+    ) && isClinicalDoctorName(a.doctor);
+  });
+
+  const activeAppts = patientAppts.filter((a) => a.status !== 'cancelled' && a.status !== 'no-show');
+  const candidateAppts = activeAppts.length > 0 ? activeAppts : patientAppts;
+
+  const catLower = (categoryOrProcedure || '').toLowerCase();
+  if (catLower && candidateAppts.length > 0) {
+    const specialtyMatch = candidateAppts.find((a) => {
+      const dentist = DENTISTS.find((d) => d.name.toLowerCase() === a.doctor.toLowerCase());
+      if (!dentist) return false;
+      const spec = dentist.specialization.toLowerCase();
+      return (
+        (catLower.includes('endo') || catLower.includes('root canal')) && spec.includes('endo') ||
+        (catLower.includes('ortho') || catLower.includes('aligner')) && spec.includes('ortho') ||
+        (catLower.includes('surg') || catLower.includes('extract') || catLower.includes('implant')) && spec.includes('surg') ||
+        (catLower.includes('pedi')) && spec.includes('pedi') ||
+        (catLower.includes('prostho') || catLower.includes('crown') || catLower.includes('restor') || catLower.includes('cosmetic') || catLower.includes('veneer')) && spec.includes('prostho')
+      );
+    });
+    if (specialtyMatch) return specialtyMatch.doctor;
+  }
+
+  const completedMatch = candidateAppts.find((a) => a.status === 'completed');
+  if (completedMatch) return completedMatch.doctor;
+  if (candidateAppts.length > 0) return candidateAppts[0].doctor;
+
+  if (catLower) {
+    const dentistByCat = DENTISTS.find((d) => {
+      const spec = d.specialization.toLowerCase();
+      return (
+        (catLower.includes('endo') || catLower.includes('root canal')) && spec.includes('endo') ||
+        (catLower.includes('ortho') || catLower.includes('aligner')) && spec.includes('ortho') ||
+        (catLower.includes('surg') || catLower.includes('extract') || catLower.includes('implant')) && spec.includes('surg') ||
+        (catLower.includes('pedi')) && spec.includes('pedi') ||
+        (catLower.includes('prostho') || catLower.includes('crown') || catLower.includes('veneer')) && spec.includes('prostho')
+      );
+    });
+    if (dentistByCat) return dentistByCat.name;
+  }
+
+  return DENTISTS[0]?.name || 'Dr. Arun Kumar';
+};
+
+export const mapRemoteAppointment = (a: any): AppointmentRecord => {
+  const resolvedChair = a.chair || a.operatoryChair || 'Chair 1';
+  const dentistByChair = DENTISTS.find((d) => d.chair === resolvedChair);
+  const resolvedDoctor = (a.doctor && a.doctor !== 'Unassigned' && isClinicalDoctorName(a.doctor))
+    ? a.doctor
+    : (a.doctorName && a.doctorName !== 'Unassigned' && isClinicalDoctorName(a.doctorName))
+      ? a.doctorName
+      : (dentistByChair ? dentistByChair.name : (a.doctor || 'Dr. Arun Kumar'));
+  const existing = appointmentsState.find(
+    (entry) => entry.id === a.id || entry.backendId === a.id
+  );
+  const mappedRef = bookingRefMap[a.id] || existing?.bookingRef;
+  if (mappedRef && a.id) {
+    registerBookingRef(mappedRef, a.id);
+  }
+  return {
+    id: a.id,
+    backendId: a.id,
+    bookingRef: mappedRef,
+    patientId: a.patientCode || a.patient?.patientCode || a.patientId,
+    patientName: a.patientName || (a.patient ? `${a.patient.firstName || ''} ${a.patient.lastName || ''}`.trim() : undefined),
+    doctor: resolvedDoctor,
+    chair: resolvedChair,
+    treatmentType: a.treatmentType || a.visitType || 'General Consultation',
+    visitType: a.visitType || 'General Consultation',
+    date: typeof a.date === 'string' ? a.date.slice(0, 10) : a.date,
+    time: a.time,
+    durationMinutes: a.durationMinutes || 30,
+    status: (typeof a.status === 'string' ? a.status.toLowerCase().replace('_', '-') : 'scheduled') as AppointmentStatus,
+    priority: (typeof a.priority === 'string' ? a.priority.toLowerCase() : 'normal') as AppointmentPriority,
+    notes: a.notes || '',
+    isWalkIn: Boolean(a.isWalkIn),
+    createdAt: a.createdAt || new Date().toISOString(),
+  };
+};
+
+export const fetchAppointmentById = async (id: string): Promise<AppointmentRecord | null> => {
+  if (!id) return null;
+  const existing = findAppointment(appointmentsState, id);
+  if (existing) return existing;
+
+  const token = getAuthToken();
+  if (!token || isDemoSession()) return null;
+
+  const resolvedId = resolveAppointmentId(id);
+  try {
+    if (resolvedId && !resolvedId.startsWith('APT-')) {
+      const remote = await apiClient.get<any>(`/appointments/${resolvedId}`);
+      if (remote && remote.id) {
+        if (id.startsWith('APT-')) {
+          registerBookingRef(id, remote.id);
+        }
+        const mapped = mapRemoteAppointment(remote);
+        if (id.startsWith('APT-') && !mapped.bookingRef) {
+          mapped.bookingRef = id;
+        }
+        const idx = appointmentsState.findIndex((entry) => matchesAppointmentId(entry, mapped.id) || matchesAppointmentId(entry, id));
+        if (idx >= 0) {
+          appointmentsState = appointmentsState.map((entry, i) => (i === idx ? { ...entry, ...mapped } : entry));
+        } else {
+          appointmentsState = [mapped, ...appointmentsState];
+        }
+        emitChange();
+        return mapped;
+      }
+    }
+  } catch {
+    // Fall through to full appointments sync if direct fetch fails
+  }
+
+  try {
+    await syncWithBackend();
+    const afterSync = findAppointment(appointmentsState, id);
+    if (afterSync) return afterSync;
+  } catch { /* ignore */ }
+
+  return null;
+};
+
 /**
  * Synchronize local clinic store with DocMatrix NestJS/PostgreSQL backend.
  * Overwrites with authoritative database records; never appends mock data.
@@ -1560,7 +1841,7 @@ export const syncWithBackend = async (): Promise<void> => {
           backendId: p.id,
           firstName: p.firstName,
           lastName: p.lastName,
-          age: p.age || '30',
+          age: computeAgeFromDob(p.dateOfBirth, p.age) || '30',
           dateOfBirth: p.dateOfBirth || '',
           gender: (p.gender || 'other').toLowerCase(),
           mobile: p.mobile,
@@ -1585,29 +1866,7 @@ export const syncWithBackend = async (): Promise<void> => {
       : [];
 
     const mappedAppts: AppointmentRecord[] = Array.isArray(remoteAppts)
-      ? remoteAppts.map((a: any) => {
-          const resolvedChair = a.chair || a.operatoryChair || 'Chair 1';
-          const dentistByChair = DENTISTS.find((d) => d.chair === resolvedChair);
-          const resolvedDoctor = (a.doctor && a.doctor !== 'Unassigned')
-            ? a.doctor
-            : (dentistByChair ? dentistByChair.name : 'Unassigned');
-          return {
-            id: a.id,
-            patientId: a.patientCode || a.patientId,
-            doctor: resolvedDoctor,
-            chair: resolvedChair,
-            treatmentType: a.treatmentType || a.visitType || 'General Consultation',
-            visitType: a.visitType || 'General Consultation',
-            date: a.date,
-            time: a.time,
-            durationMinutes: a.durationMinutes || 30,
-            status: a.status as AppointmentStatus,
-            priority: (a.priority || 'normal') as AppointmentPriority,
-            notes: a.notes || '',
-            isWalkIn: a.isWalkIn,
-            createdAt: a.createdAt || new Date().toISOString(),
-          };
-        })
+      ? remoteAppts.map((a: any) => mapRemoteAppointment(a))
       : [];
 
     const mappedDocs: PatientDocumentRecord[] = Array.isArray(remoteDocs)
@@ -1843,6 +2102,20 @@ export const syncWithBackend = async (): Promise<void> => {
 
       const primaryItem = stages[0]?.items[0];
       const cost = Number(tp.totalEstimatedCost) || Number(tp.subtotal) || 0;
+      const linkedAppt = tp.appointmentId
+        ? mappedAppts.find((a) => a.id === tp.appointmentId || a.backendId === tp.appointmentId)
+        : undefined;
+      const resolvedDoctorName = isClinicalDoctorName(tp.doctorName)
+        ? tp.doctorName.trim()
+        : (linkedAppt && isClinicalDoctorName(linkedAppt.doctor))
+          ? linkedAppt.doctor
+          : resolvePlanDoctor(
+              tp.doctorName,
+              tp.patientId,
+              tp.patient?.patientCode,
+               `${primaryItem?.category || ''} ${primaryItem?.procedureName || ''} ${tp.title || ''}`,
+              mappedAppts
+            );
 
       return {
         id: tp.id,
@@ -1856,7 +2129,7 @@ export const syncWithBackend = async (): Promise<void> => {
         toothNumber: primaryItem?.toothNumber || '',
         status: s,
         cost,
-        doctor: tp.doctorName || 'Dr. Attending Dentist',
+        doctor: resolvedDoctorName,
         doctorId: tp.doctorId,
         notes: tp.notes || '',
         date: tp.createdAt ? tp.createdAt.slice(0, 10) : getTodayDateStr(),
@@ -1924,8 +2197,12 @@ export const syncWithBackend = async (): Promise<void> => {
         : [],
     }));
 
+    const inFlightAppts = appointmentsState.filter(
+      (a) => (a as any)._syncing && !mappedAppts.some((m) => matchesAppointmentId(m, a.id) || (a.bookingRef && matchesAppointmentId(m, a.bookingRef)))
+    );
+
     patientsState = mappedPatients;
-    appointmentsState = mappedAppts;
+    appointmentsState = [...inFlightAppts, ...mappedAppts];
     toothChartsState = remoteCharts && typeof remoteCharts === 'object' ? (remoteCharts as ClinicToothCharts) : {};
     patientDocumentsState = mappedDocs;
     patientConsentsState = mappedConsents;
@@ -2089,9 +2366,11 @@ export const bookAppointment = (data: {
 }): AppointmentRecord => {
   const dentist = DENTISTS.find((d) => d.name === data.doctor)
   const chair = data.chair || dentist?.chair || 'Chair 1'
+  const localId = `APT-${Date.now().toString().slice(-4)}`
 
   const newAppt: AppointmentRecord = {
-    id: `APT-${Date.now().toString().slice(-4)}`,
+    id: localId,
+    bookingRef: localId,
     patientId: data.patientId,
     doctor: data.doctor,
     chair,
@@ -2122,6 +2401,7 @@ export const bookAppointment = (data: {
       ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
       : null;
     if (token) {
+      (newAppt as any)._syncing = true;
       const syncTask = async () => {
         const patient = patientsState.find((p) => p.id === data.patientId || p.backendId === data.patientId) as any;
         if (patient?._syncPromise) {
@@ -2141,15 +2421,38 @@ export const bookAppointment = (data: {
           priority: data.priority || 'normal',
           notes: data.notes || '',
         });
-        if (created?.id && created.id !== newAppt.id) {
-          newAppt.id = created.id;
+        (newAppt as any)._syncing = false;
+        if (created?.id) {
+          registerBookingRef(localId, created.id);
+          newAppt.backendId = created.id;
+          newAppt.bookingRef = localId;
+          if (created.id !== newAppt.id) {
+            newAppt.id = created.id;
+          }
+          // Deduplicate in case syncWithBackend already fetched created.id
+          const seen = new Set<string>();
+          appointmentsState = appointmentsState
+            .map((entry) =>
+              entry === newAppt || entry.id === localId || entry.bookingRef === localId || entry.id === created.id
+                ? { ...entry, ...newAppt, id: created.id, backendId: created.id, bookingRef: localId }
+                : entry
+            )
+            .filter((entry) => {
+              const key = entry.backendId || entry.id;
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
           emitChange();
         }
+        return created;
       };
 
-      syncTask().catch((err) => {
+      const syncPromise = syncTask().catch((err) => {
+        (newAppt as any)._syncing = false;
         console.error('[clinicStore] bookAppointment sync failed (retained locally):', err);
       });
+      (newAppt as any)._syncPromise = syncPromise;
     }
   } catch { /* ignore */ }
 
@@ -2162,7 +2465,7 @@ export const rescheduleAppointment = (
   newTime: string,
   reason: string
 ): { success: boolean; error?: string } => {
-  const appt = appointmentsState.find((a) => a.id === appointmentId)
+  const appt = findAppointment(appointmentsState, appointmentId)
   if (!appt) return { success: false, error: 'Appointment not found.' }
 
   const availability = checkDentistAvailability(
@@ -2170,7 +2473,7 @@ export const rescheduleAppointment = (
     newDate,
     newTime,
     appt.durationMinutes || 30,
-    appointmentId
+    appt.id
   )
 
   // Only hard-block true appointment double-booking overlaps; allow overriding shift/lunch hours when explicitly rescheduling
@@ -2193,7 +2496,7 @@ export const rescheduleAppointment = (
   const history = appt.rescheduleHistory || []
 
   appointmentsState = appointmentsState.map((entry) => {
-    if (entry.id !== appointmentId) return entry
+    if (!matchesAppointmentId(entry, appointmentId)) return entry
     return {
       ...entry,
       date: newDate,
@@ -2218,8 +2521,9 @@ export const rescheduleAppointment = (
     const token = typeof sessionStorage !== 'undefined'
       ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
       : null;
-    if (token && !appointmentId.startsWith('APT-')) {
-      apiClient.patch(`/appointments/${appointmentId}`, {
+    const targetId = appt.backendId || resolveAppointmentId(appointmentId);
+    if (token && targetId && !targetId.startsWith('APT-')) {
+      apiClient.patch(`/appointments/${targetId}`, {
         date: newDate,
         time: newTime,
         status: 'SCHEDULED',
@@ -2233,11 +2537,11 @@ export const rescheduleAppointment = (
 }
 
 export const cancelAppointment = (appointmentId: string, reason: string): boolean => {
-  const appt = appointmentsState.find((a) => a.id === appointmentId)
+  const appt = findAppointment(appointmentsState, appointmentId)
   if (!appt) return false
 
   appointmentsState = appointmentsState.map((entry) => {
-    if (entry.id !== appointmentId) return entry
+    if (!matchesAppointmentId(entry, appointmentId)) return entry
     return {
       ...entry,
       status: 'cancelled',
@@ -2260,8 +2564,9 @@ export const cancelAppointment = (appointmentId: string, reason: string): boolea
     const token = typeof sessionStorage !== 'undefined'
       ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
       : null;
-    if (token) {
-      apiClient.post(`/appointments/${appointmentId}/cancel`, { reason }).catch(() => { /* silent */ });
+    const targetId = appt.backendId || resolveAppointmentId(appointmentId);
+    if (token && targetId) {
+      apiClient.post(`/appointments/${targetId}/cancel`, { reason }).catch(() => { /* silent */ });
     }
   } catch { /* ignore */ }
 
@@ -2274,9 +2579,10 @@ export const updateAppointmentStatus = (
   note?: string
 ) => {
   const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const appt = findAppointment(appointmentsState, appointmentId)
 
   appointmentsState = appointmentsState.map((entry) => {
-    if (entry.id !== appointmentId) return entry
+    if (!matchesAppointmentId(entry, appointmentId)) return entry
 
     const updates: Partial<AppointmentRecord> = { status }
 
@@ -2309,8 +2615,9 @@ export const updateAppointmentStatus = (
     const token = typeof sessionStorage !== 'undefined'
       ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
       : null;
-    if (token) {
-      apiClient.patch(`/appointments/${appointmentId}`, {
+    const targetId = appt?.backendId || resolveAppointmentId(appointmentId);
+    if (token && targetId) {
+      apiClient.patch(`/appointments/${targetId}`, {
         status,
         notes: note,
       }).catch(() => { /* silent */ });
@@ -2370,9 +2677,11 @@ export const registerWalkIn = (data: {
   const token = `${CLINIC_CONFIG.walkInTokenPrefix}${walkInCounter++}`
   const now = new Date()
   const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  const localId = `APT-${Date.now().toString().slice(-4)}`
 
   const walkInAppt: AppointmentRecord = {
-    id: `APT-${Date.now().toString().slice(-4)}`,
+    id: localId,
+    bookingRef: localId,
     patientId: patient.id,
     doctor: data.doctor,
     chair: dentist?.chair || 'Chair 1',
@@ -2407,7 +2716,7 @@ export const registerWalkIn = (data: {
       : null;
     if (authToken) {
       apiClient.post('/appointments', {
-        patientId: patient.id,
+        patientId: patient.backendId || patient.id,
         doctorName: data.doctor,
         chair: dentist?.chair || 'Chair 1',
         treatmentType: data.complaint || 'General Dental Consultation',
@@ -2420,8 +2729,13 @@ export const registerWalkIn = (data: {
         notes: `Walk-in token: ${token}. Chief complaint: ${data.complaint}`,
         isWalkIn: true,
       }).then((created) => {
-        if (created?.id && created.id !== walkInAppt.id) {
-          walkInAppt.id = created.id;
+        if (created?.id) {
+          registerBookingRef(localId, created.id);
+          walkInAppt.backendId = created.id;
+          walkInAppt.bookingRef = localId;
+          if (created.id !== walkInAppt.id) {
+            walkInAppt.id = created.id;
+          }
           emitChange();
         }
       }).catch(() => { /* silent fallback */ });
@@ -2462,10 +2776,10 @@ export const sendAppointmentReminder = (
   appointmentId: string,
   type: 'confirmation' | '24h' | '2h' | 'whatsapp'
 ) => {
-  const appt = appointmentsState.find((a) => a.id === appointmentId)
+  const appt = findAppointment(appointmentsState, appointmentId)
   if (!appt) return
 
-  const patient = patientsState.find((p) => p.id === appt.patientId)
+  const patient = patientsState.find((p) => p.id === appt.patientId || p.backendId === appt.patientId)
   const phone = patient?.mobile || CLINIC_CONFIG.clinicPhone
 
   const reminderLog = {
@@ -2475,7 +2789,7 @@ export const sendAppointmentReminder = (
   }
 
   appointmentsState = appointmentsState.map((entry) => {
-    if (entry.id !== appointmentId) return entry
+    if (!matchesAppointmentId(entry, appointmentId)) return entry
     return {
       ...entry,
       remindersSent: [...(entry.remindersSent || []), reminderLog]
@@ -2490,8 +2804,10 @@ export const sendAppointmentReminder = (
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const savePatient = (data: Omit<PatientRecord, 'id' | 'createdAt'>): PatientRecord => {
+  const computedAge = computeAgeFromDob(data.dateOfBirth, data.age) || data.age || '30'
   const newPatient: PatientRecord = {
     ...data,
+    age: computedAge,
     id: `PAT-${Date.now().toString().slice(-4)}`,
     createdAt: new Date().toISOString()
   }
@@ -2504,11 +2820,16 @@ export const savePatient = (data: Omit<PatientRecord, 'id' | 'createdAt'>): Pati
       ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
       : null;
     if (token) {
+      const parsedAge = Number(data.age);
+      const fallbackDob =
+        Number.isFinite(parsedAge) && parsedAge > 0 && parsedAge <= 120 && parsedAge !== 30
+          ? `${new Date().getFullYear() - Math.round(parsedAge)}-01-01`
+          : '1990-01-01';
       const syncPromise = apiClient.post('/patients', {
         patientCode: newPatient.id,
         firstName: data.firstName,
         lastName: data.lastName,
-        dateOfBirth: data.dateOfBirth || '1990-01-01',
+        dateOfBirth: data.dateOfBirth || fallbackDob,
         gender: (data.gender || 'undisclosed').toUpperCase(),
         mobile: data.mobile || '0000000000',
         countryCode: data.countryCode || '+91',
@@ -3034,6 +3355,9 @@ export const addTreatmentPlan = (
 export const createStructuredTreatmentPlan = async (
   dto: {
     patientId: string;
+    appointmentId?: string;
+    doctorId?: string;
+    doctorName?: string;
     title: string;
     notes?: string;
     taxRate?: number;
@@ -3095,6 +3419,13 @@ export const createStructuredTreatmentPlan = async (
   const tax = Math.round(subtotal * (dto.taxRate || 0)) / 100;
   const total = subtotal + tax;
   const primaryItem = stages[0]?.items[0];
+  const resolvedDoctor = resolvePlanDoctor(
+    dto.doctorName,
+    dto.patientId,
+    dto.patientId,
+    `${primaryItem?.category || ''} ${primaryItem?.procedureName || ''} ${dto.title || ''}`,
+    appointmentsState
+  );
 
   const localPlan: TreatmentPlanRecord = {
     id: `TP-${Date.now().toString().slice(-4)}`,
@@ -3106,7 +3437,8 @@ export const createStructuredTreatmentPlan = async (
     toothNumber: primaryItem?.toothNumber || '',
     status: 'Proposed',
     cost: total,
-    doctor: 'Dr. Attending Dentist',
+    doctor: resolvedDoctor,
+    doctorId: dto.doctorId,
     notes: dto.notes || '',
     date: getTodayDateStr(),
     subtotal,
@@ -3126,7 +3458,7 @@ export const createStructuredTreatmentPlan = async (
         totalEstimatedCost: total,
         status: 'PROPOSED',
         isStaffRecorded: true,
-        createdByName: 'Dr. Attending Dentist',
+        createdByName: resolvedDoctor,
         createdAt: new Date().toISOString(),
       },
     ],
@@ -3140,11 +3472,47 @@ export const createStructuredTreatmentPlan = async (
       ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
       : null;
     if (token) {
-      const remote = await apiClient.post<any>('/treatment-plans', dto);
+      const payload = {
+        ...dto,
+        doctorName: resolvedDoctor,
+      };
+      const remote = await apiClient.post<any>('/treatment-plans', payload);
       if (remote && remote.id) {
         localPlan.backendId = remote.id;
-        localPlan.planNumber = remote.planNumber;
+        localPlan.planNumber = remote.planNumber || localPlan.planNumber;
         localPlan.id = remote.id;
+        if (remote.doctorName && isClinicalDoctorName(remote.doctorName)) {
+          localPlan.doctor = remote.doctorName;
+        }
+        if (Array.isArray(remote.stages) && remote.stages.length > 0) {
+          localPlan.stages = remote.stages.map((st: any) => ({
+            id: st.id,
+            treatmentPlanId: st.treatmentPlanId || remote.id,
+            stageNumber: st.stageNumber,
+            name: st.name,
+            status: st.status || 'PLANNED',
+            targetDate: st.targetDate ? String(st.targetDate).slice(0, 10) : undefined,
+            estimatedCost: Number(st.estimatedCost) || 0,
+            items: Array.isArray(st.items)
+              ? st.items.map((it: any) => ({
+                  id: it.id,
+                  stageId: it.stageId || st.id,
+                  procedureCode: it.procedureCode,
+                  procedureName: it.procedureName,
+                  category: it.category,
+                  toothNumber: it.toothNumber,
+                  surface: it.surface,
+                  quantity: it.quantity || 1,
+                  unitFee: Number(it.unitFee) || 0,
+                  discount: Number(it.discount) || 0,
+                  netFee: Number(it.netFee) || 0,
+                  status: it.status || 'PENDING',
+                  notes: it.notes,
+                }))
+              : [],
+          }));
+        }
+        treatmentPlansState = [...treatmentPlansState];
         emitChange();
       }
     }
@@ -3160,9 +3528,18 @@ export const updateTreatmentPlanStatus = (
   status: TreatmentPlanRecord['status'],
   reason?: string
 ): boolean => {
-  const plan = treatmentPlansState.find((p) => p.id === id || p.backendId === id)
+  const plan = treatmentPlansState.find((p) => p.id === id || p.backendId === id || p.planNumber === id)
   if (!plan) return false
   plan.status = status
+  if (status === 'Completed' && Array.isArray(plan.stages)) {
+    plan.stages = plan.stages.map((st) => ({
+      ...st,
+      status: 'COMPLETED',
+      items: (st.items || []).map((it) =>
+        it.status === 'CANCELLED' ? it : { ...it, status: 'COMPLETED' }
+      ),
+    }))
+  }
   treatmentPlansState = [...treatmentPlansState]
   emitChange()
 
@@ -3266,16 +3643,36 @@ export const updateTreatmentPlanItemStatus = async (
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'DEFERRED' | 'CANCELLED',
   notes?: string
 ): Promise<boolean> => {
-  const plan = treatmentPlansState.find((p) => p.id === planId || p.backendId === planId);
+  const plan = treatmentPlansState.find((p) => p.id === planId || p.backendId === planId || p.planNumber === planId);
   if (!plan || !plan.stages) return false;
 
-  for (const stage of plan.stages) {
-    const item = stage.items?.find((i) => i.id === itemId);
-    if (item) {
-      item.status = status;
-      if (notes) item.notes = notes;
-      break;
-    }
+  plan.stages = plan.stages.map((stage) => {
+    const updatedItems = (stage.items || []).map((it) => {
+      if (it.id !== itemId) return it;
+      return {
+        ...it,
+        status,
+        notes: notes !== undefined ? notes : it.notes,
+      };
+    });
+    const activeStageItems = updatedItems.filter((i) => i.status !== 'CANCELLED');
+    const allStageDone = activeStageItems.length > 0 && activeStageItems.every((i) => i.status === 'COMPLETED');
+    const anyStageStarted = activeStageItems.some((i) => i.status === 'IN_PROGRESS' || i.status === 'COMPLETED');
+    return {
+      ...stage,
+      status: allStageDone ? 'COMPLETED' : anyStageStarted ? 'IN_PROGRESS' : 'PLANNED',
+      items: updatedItems,
+    };
+  });
+
+  const allActiveItems = plan.stages.flatMap((s) => s.items || []).filter((i) => i.status !== 'CANCELLED');
+  const allItemsCompleted = allActiveItems.length > 0 && allActiveItems.every((i) => i.status === 'COMPLETED');
+  const anyItemStarted = allActiveItems.some((i) => i.status === 'IN_PROGRESS' || i.status === 'COMPLETED');
+
+  if (allItemsCompleted) {
+    plan.status = 'Completed';
+  } else if (anyItemStarted && (plan.status === 'Proposed' || plan.status === 'Accepted' || plan.status === 'Pending' || plan.status === 'Completed')) {
+    plan.status = 'In Progress';
   }
 
   treatmentPlansState = [...treatmentPlansState];

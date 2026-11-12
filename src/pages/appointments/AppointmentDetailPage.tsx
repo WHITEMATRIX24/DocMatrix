@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import './calendar.css'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
@@ -20,12 +20,16 @@ import {
 import { TreatmentMaterialUsageModal } from '@/components/inventory/TreatmentMaterialUsageModal'
 import {
   useClinicData,
+  findAppointment,
+  fetchAppointmentById,
+  isAuthenticatedClinic,
   updateAppointmentStatus,
   rescheduleAppointment,
   cancelAppointment,
   generateWhatsAppMessage,
   sendAppointmentReminder,
-  type AppointmentStatus
+  type AppointmentStatus,
+  type PatientRecord
 } from '@/services/clinicStore'
 
 export const AppointmentDetailPage: React.FC = () => {
@@ -33,8 +37,70 @@ export const AppointmentDetailPage: React.FC = () => {
   const { id } = useParams()
   const { patients, appointments } = useClinicData()
 
-  const appointment = appointments.find((entry) => entry.id === id)
-  const patient = patients.find((entry) => entry.id === appointment?.patientId || entry.backendId === appointment?.patientId)
+  const appointment = useMemo(() => findAppointment(appointments, id), [appointments, id])
+  const [isFetching, setIsFetching] = useState<boolean>(() => !appointment && Boolean(id) && isAuthenticatedClinic())
+
+  useEffect(() => {
+    let active = true
+    if (appointment) {
+      setIsFetching(false)
+      return
+    }
+    if (!id || !isAuthenticatedClinic()) {
+      setIsFetching(false)
+      return
+    }
+    setIsFetching(true)
+    fetchAppointmentById(id)
+      .catch(() => null)
+      .finally(() => {
+        if (active) setIsFetching(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [id, appointment])
+
+  const patient = useMemo<PatientRecord | undefined>(() => {
+    if (!appointment) return undefined
+    const pid = appointment.patientId || ''
+    const pidLower = pid.toLowerCase()
+    const found = patients.find(
+      (entry) =>
+        entry.id === pid ||
+        entry.backendId === pid ||
+        entry.id?.toLowerCase() === pidLower ||
+        entry.backendId?.toLowerCase() === pidLower
+    )
+    if (found) return found
+    const [firstName, ...rest] = (appointment.patientName || 'Clinic Patient').split(' ')
+    return {
+      id: pid || 'PAT-0000',
+      firstName: firstName || 'Clinic',
+      lastName: rest.join(' ') || 'Patient',
+      age: '30',
+      dateOfBirth: '',
+      gender: 'other',
+      mobile: '',
+      countryCode: '+91',
+      email: '',
+      language: 'English',
+      city: '',
+      state: '',
+      postalCode: '',
+      address: '',
+      emergencyName: '',
+      emergencyPhone: '',
+      relationship: '',
+      allergies: 'no',
+      allergiesDetails: '',
+      medications: 'no',
+      medicationsDetails: '',
+      conditions: 'no',
+      conditionsDetails: '',
+      createdAt: appointment.createdAt || new Date().toISOString()
+    }
+  }, [appointment, patients])
 
   // Modals state
   const [showReschedule, setShowReschedule] = useState(false)
@@ -49,6 +115,24 @@ export const AppointmentDetailPage: React.FC = () => {
 
   const [cancelReason, setCancelReason] = useState('')
   const [whatsAppType, setWhatsAppType] = useState<'confirmation' | 'reminder_24h' | 'reminder_2h' | 'recall'>('confirmation')
+
+  useEffect(() => {
+    if (appointment) {
+      setRescheduleDate(appointment.date)
+      setRescheduleTime(appointment.time)
+    }
+  }, [appointment?.id, appointment?.date, appointment?.time])
+
+  if (isFetching && !appointment) {
+    return (
+      <section className="appointment-simple-panel appointment-detail-panel" data-testid="feature-page-appt.detail-loading">
+        <h2>Loading appointment details…</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: '8px 0 16px' }}>
+          Retrieving booking record {id}…
+        </p>
+      </section>
+    )
+  }
 
   if (!appointment || !patient) {
     return (
@@ -105,7 +189,9 @@ export const AppointmentDetailPage: React.FC = () => {
     setShowWhatsApp(false)
   }
 
-  const shortRef = appointment.id.length > 14 ? appointment.id.slice(0, 8).toUpperCase() : appointment.id
+  const shortRef = appointment.bookingRef
+    ? appointment.bookingRef
+    : (appointment.id.length > 14 ? appointment.id.slice(0, 8).toUpperCase() : appointment.id)
 
   return (
     <section className="appointment-simple-panel appointment-detail-panel" data-testid="feature-page-appt.detail">

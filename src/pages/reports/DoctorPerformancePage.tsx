@@ -63,8 +63,60 @@ export const DoctorPerformancePage: React.FC = () => {
     return [...names].map((name) => {
       const appts = appointments.filter((a) => a.doctor === name && inRange(a.date, range))
       const done = appts.filter((a) => a.status === 'completed')
-      const plans = treatmentPlans.filter((p) => p.doctor === name)
-      const finished = plans.filter((p) => p.status === 'Completed' && inRange(p.date, range))
+
+      // Attribute treatment plans strictly to clinical doctor
+      const myPlans = treatmentPlans.filter((p) => {
+        const doc = p.doctor || ''
+        return doc.toLowerCase() === name.toLowerCase()
+      })
+
+      // Active plans (excluding cancelled and rejected)
+      const validPlans = myPlans.filter((p) => p.status !== 'Cancelled' && p.status !== 'Rejected')
+
+      // Completed treatments & treatment value done:
+      // Include:
+      // 1) Completed treatment plans in reporting date range
+      // 2) Completed items in active/in-progress plans
+      let treatmentsDone = 0
+      let treatmentValueDone = 0
+      let pendingValue = 0
+
+      validPlans.forEach((plan) => {
+        const planCost = plan.cost || plan.totalEstimatedCost || 0
+        const isPlanCompleted = plan.status === 'Completed'
+        const stages = plan.stages || []
+        const allItems = stages.flatMap((st) => st.items || [])
+
+        if (isPlanCompleted) {
+          if (inRange(plan.date, range)) {
+            const completedItemsCount = allItems.filter((i) => i.status !== 'CANCELLED').length
+            treatmentsDone += completedItemsCount > 0 ? completedItemsCount : 1
+            treatmentValueDone += planCost
+          }
+          // Completed plans have 0 still pending
+        } else {
+          // Unfinished or partially completed plan
+          let planCompletedItemsValue = 0
+          let planCompletedItemsCount = 0
+
+          allItems.forEach((it) => {
+            if (it.status === 'COMPLETED') {
+              planCompletedItemsCount += 1
+              planCompletedItemsValue += it.netFee || it.unitFee || 0
+            }
+          })
+
+          if (planCompletedItemsCount > 0 && inRange(plan.date, range)) {
+            treatmentsDone += planCompletedItemsCount
+            treatmentValueDone += planCompletedItemsValue
+          }
+
+          // Remaining pending value
+          const remaining = Math.max(0, planCost - planCompletedItemsValue)
+          pendingValue += remaining
+        }
+      })
+
       return {
         name,
         specialization: DENTISTS.find((d) => d.name === name)?.specialization || '',
@@ -72,9 +124,9 @@ export const DoctorPerformancePage: React.FC = () => {
         completed: done.length,
         patients: new Set(done.map((a) => a.patientId)).size,
         missed: appts.filter((a) => a.status === 'cancelled' || a.status === 'no-show').length,
-        treatments: finished.length,
-        value: finished.reduce((s, p) => s + p.cost, 0),
-        pending: plans.filter((p) => p.status !== 'Completed').reduce((s, p) => s + p.cost, 0)
+        treatments: treatmentsDone,
+        value: treatmentValueDone,
+        pending: pendingValue
       }
     })
   }, [appointments, treatmentPlans, range, staffDoctors, backendDoctors])
@@ -85,6 +137,9 @@ export const DoctorPerformancePage: React.FC = () => {
       sort.key === 'name' ? a.name.localeCompare(b.name) * dir : ((a[sort.key] as number) - (b[sort.key] as number)) * dir || a.name.localeCompare(b.name)
     )
   }, [rows, sort])
+
+  const totalTreatmentsCompleted = useMemo(() => rows.reduce((s, r) => s + r.treatments, 0), [rows])
+  const totalTreatmentValueCompleted = useMemo(() => rows.reduce((s, r) => s + r.value, 0), [rows])
 
   const maxCompleted = Math.max(1, ...rows.map((r) => r.completed))
   const busiest = [...rows].sort((a, b) => b.completed - a.completed)[0]
@@ -111,8 +166,8 @@ export const DoctorPerformancePage: React.FC = () => {
       <div className="rpt-tiles">
         <StatTile label="Visits completed" value={now.visitsCompleted} sub={busiest && busiest.completed > 0 ? `Most: ${busiest.name}` : undefined} tone="ok" compare={{ current: now.visitsCompleted, previous: before.visitsCompleted, kind: 'count', goodWhen: 'up' }} />
         <StatTile label="Patients seen" value={now.patientsTreated} compare={{ current: now.patientsTreated, previous: before.patientsTreated, kind: 'count', goodWhen: 'up' }} />
-        <StatTile label="Treatments completed" value={now.plansCompleted} compare={{ current: now.plansCompleted, previous: before.plansCompleted, kind: 'count', goodWhen: 'up' }} />
-        {canSeeMoney && <StatTile label="Treatment value completed" value={inr(now.plansCompletedValue)} compare={{ current: now.plansCompletedValue, previous: before.plansCompletedValue, kind: 'money', goodWhen: 'up' }} />}
+        <StatTile label="Treatments completed" value={totalTreatmentsCompleted} compare={{ current: totalTreatmentsCompleted, previous: before.plansCompleted, kind: 'count', goodWhen: 'up' }} />
+        {canSeeMoney && <StatTile label="Treatment value completed" value={inr(totalTreatmentValueCompleted)} compare={{ current: totalTreatmentValueCompleted, previous: before.plansCompletedValue, kind: 'money', goodWhen: 'up' }} />}
       </div>
 
       <div className="bill-table-wrap">

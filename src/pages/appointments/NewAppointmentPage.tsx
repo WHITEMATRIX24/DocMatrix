@@ -70,6 +70,8 @@ export const NewAppointmentPage: React.FC = () => {
   const [priority, setPriority] = useState<AppointmentPriority>('normal')
   const [notes, setNotes] = useState('')
   const [bookingSuccess, setBookingSuccess] = useState<string | null>(null)
+  const [bookingRef, setBookingRef] = useState<string | null>(null)
+  const [isBooking, setIsBooking] = useState(false)
 
   // Patient filter: search by Name OR Patient ID Number (NO phone number)
   const matchedPatients = useMemo(() => {
@@ -227,25 +229,44 @@ export const NewAppointmentPage: React.FC = () => {
     setPatientSearch('')
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isBooking || bookingSuccess) return
     if (!selectedPatientId) return
     if (!availability.available) return
 
-    const newAppt = bookAppointment({
-      patientId: selectedPatientId,
-      doctor: selectedDoctor,
-      chair: selectedDentist?.chair || 'Chair 1',
-      treatmentType: selectedTreatment?.name || 'General Dental Consultation',
-      visitType: selectedTreatment?.category || 'Consultation',
-      date: selectedDate,
-      time: selectedTime,
-      durationMinutes: selectedTreatment?.defaultDurationMinutes || 30,
-      priority,
-      notes
-    })
+    setIsBooking(true)
+    try {
+      const newAppt = bookAppointment({
+        patientId: selectedPatientId,
+        doctor: selectedDoctor,
+        chair: selectedDentist?.chair || 'Chair 1',
+        treatmentType: selectedTreatment?.name || 'General Dental Consultation',
+        visitType: selectedTreatment?.category || 'Consultation',
+        date: selectedDate,
+        time: selectedTime,
+        durationMinutes: selectedTreatment?.defaultDurationMinutes || 30,
+        priority,
+        notes
+      })
 
-    setBookingSuccess(newAppt.id)
+      const refCode = newAppt.bookingRef || newAppt.id
+      setBookingRef(refCode)
+      setBookingSuccess(newAppt.id)
+
+      const syncPromise = (newAppt as any)?._syncPromise
+      if (syncPromise && typeof syncPromise.then === 'function') {
+        syncPromise
+          .then((created: any) => {
+            if (created?.id) {
+              setBookingSuccess(created.id)
+            }
+          })
+          .catch(() => {})
+      }
+    } finally {
+      setIsBooking(false)
+    }
   }
 
   return (
@@ -278,7 +299,7 @@ export const NewAppointmentPage: React.FC = () => {
               <span className="confirmed-pill-badge">Booking Confirmed</span>
               <h2 className="confirmed-title">Appointment Confirmed!</h2>
               <p className="confirmed-subtitle">
-                Booking reference <strong className="confirmed-ref-code">{bookingSuccess}</strong> has been registered and added to the clinic schedule.
+                Booking reference <strong className="confirmed-ref-code">{bookingRef || bookingSuccess}</strong> has been registered and added to the clinic schedule.
               </p>
             </div>
 
@@ -352,7 +373,10 @@ export const NewAppointmentPage: React.FC = () => {
               <button
                 type="button"
                 className="btn-book-another-styled"
-                onClick={() => setBookingSuccess(null)}
+                onClick={() => {
+                  setBookingSuccess(null)
+                  setBookingRef(null)
+                }}
               >
                 <Plus size={16} />
                 <span>Book Another Appointment</span>
