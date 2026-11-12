@@ -1178,7 +1178,7 @@ export const CalendarPage: React.FC = () => {
       )}
 
       {/* 6. APPOINTMENT DETAIL MODAL (Requirements #4, #5, #6, #8) */}
-      {activeAppt && (
+      {activeAppt && !showRescheduleModal && !showCancelModal && !showWhatsAppModal && (
         <div className="calendar-modal-overlay" onClick={() => setActiveAppt(null)}>
           <div className="calendar-detail-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
