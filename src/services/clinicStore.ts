@@ -1562,6 +1562,8 @@ const NON_CLINICAL_NAMES = new Set([
   'clinic admin',
   'admin',
   'clinical staff',
+  'aashna jose alappattu',
+  'aashna jose',
 ]);
 
 const NON_CLINICAL_ROLES = new Set([
@@ -1592,8 +1594,8 @@ export const isClinicalDoctorName = (name?: string): boolean => {
           );
           if (matched?.role) {
             const roleUpper = String(matched.role).toUpperCase();
-            if (NON_CLINICAL_ROLES.has(roleUpper) && !/^dr\.?\s+/i.test(trimmed)) return false;
-            if (roleUpper === 'DOCTOR') return true;
+            if (roleUpper !== 'DOCTOR') return false;
+            return true;
           }
         }
       }
@@ -1606,7 +1608,7 @@ export const isClinicalDoctorName = (name?: string): boolean => {
         const currentUser = JSON.parse(rawUser);
         const currentName = String(currentUser?.fullName || currentUser?.name || '').trim().toLowerCase();
         const currentRole = String(currentUser?.role || '').toUpperCase();
-        if (currentName === lower && NON_CLINICAL_ROLES.has(currentRole) && !/^dr\.?\s+/i.test(trimmed)) {
+        if (currentName === lower && currentRole !== 'DOCTOR') {
           return false;
         }
       }

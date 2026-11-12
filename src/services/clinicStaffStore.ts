@@ -23,17 +23,16 @@ export function isClinicalStaffMember(p: { name?: string; fullName?: string; rol
     lower === 'attending dentist' ||
     lower === 'organization admin' ||
     lower === 'branch admin' ||
-    lower === 'clinic admin'
+    lower === 'clinic admin' ||
+    lower === 'aashna jose alappattu' ||
+    lower === 'aashna jose'
   ) {
     return false
   }
   const role = String(p?.role || '').toUpperCase()
-  if (role === 'RECEPTIONIST') return false
-  if (role === 'ORGANIZATION_ADMIN' || role === 'BRANCH_ADMIN' || role === 'ADMIN') {
-    return /^dr\.?\s+/i.test(rawName)
-  }
-  if (role === 'DOCTOR') return true
-  return /^dr\.?\s+/i.test(rawName)
+  // Requirement: Display only users whose role is exactly DOCTOR
+  if (role !== 'DOCTOR') return false
+  return true
 }
 
 export function getStoredStaff(): ClinicStaffDoctor[] {
@@ -48,7 +47,7 @@ export function getStoredStaff(): ClinicStaffDoctor[] {
           doctors.push({
             id: String(p.id || 'doc-' + Math.random().toString(36).slice(2)),
             name: String(p.fullName || p.name || 'Practitioner').trim(),
-            role: p.role || 'DOCTOR',
+            role: 'DOCTOR',
             email: p.email || ''
           })
         })
@@ -56,7 +55,7 @@ export function getStoredStaff(): ClinicStaffDoctor[] {
     }
   } catch {}
 
-  // Only include current logged-in user if they are an actual clinical doctor
+  // Only include current logged-in user if their role is exactly DOCTOR
   try {
     const authRaw =
       (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('docmatrix_auth_user') : null) ||
@@ -71,7 +70,7 @@ export function getStoredStaff(): ClinicStaffDoctor[] {
           doctors.unshift({
             id: String(authUser.id || 'admin-owner'),
             name: String(authUser.fullName).trim(),
-            role: authUser.role || 'DOCTOR',
+            role: 'DOCTOR',
             email: authUser.email || ''
           })
         }

@@ -710,24 +710,8 @@ export class ReportsService {
         });
       }
     }
-    for (const a of periodAppts) {
-      const name = (a.doctorName || a.doctor?.fullName || '').trim();
-      if (name && name !== 'Unassigned' && !doctorNames.has(name)) {
-        doctorNames.set(name, {
-          id: a.doctorId || undefined,
-          specialization: 'Clinic Doctor',
-        });
-      }
-    }
-    for (const p of periodPlans) {
-      const name = (p.doctorName || p.doctor?.fullName || '').trim();
-      if (name && name !== 'Unassigned' && !doctorNames.has(name)) {
-        doctorNames.set(name, {
-          id: p.doctorId || undefined,
-          specialization: 'Clinic Doctor',
-        });
-      }
-    }
+    // Only include users who are actual clinical doctors (role DOCTOR or valid registered doctors)
+    const validDoctorNames = new Set(Array.from(doctorNames.keys()));
 
     const rows = Array.from(doctorNames.entries())
       .map(([doctor, meta]) => {

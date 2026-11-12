@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ArrowDown, ArrowUp } from 'lucide-react'
+import { ArrowDown, ArrowUp, Info } from 'lucide-react'
 import { DENTISTS, isAuthenticatedClinic, isDemoSession, useClinicData } from '@/services/clinicStore'
 import { useClinicStaff } from '@/services/clinicStaffStore'
 import { reportsApi, type BackendDoctorRow } from '@/services/reportsApi'
@@ -7,7 +7,7 @@ import { inr } from '@/pages/billing/BillingShared'
 import { ReportActions, StatTile, inRange, previousSpan, useMoneyAccess, useReportRange } from './ReportsShared'
 import { computePeriod } from './reportMetrics'
 
-type SortKey = 'name' | 'completed' | 'patients' | 'missed' | 'treatments' | 'value' | 'pending'
+type SortKey = 'name' | 'completed' | 'patients' | 'missed' | 'pending'
 
 interface DoctorRow {
   name: string
@@ -16,8 +16,6 @@ interface DoctorRow {
   completed: number
   patients: number
   missed: number
-  treatments: number
-  value: number
   pending: number
 }
 
@@ -27,6 +25,7 @@ export const DoctorPerformancePage: React.FC = () => {
   const { patients, invoices, appointments, treatmentPlans } = useClinicData()
   const { doctors: staffDoctors } = useClinicStaff()
   const [backendDoctors, setBackendDoctors] = useState<BackendDoctorRow[] | null>(null)
+  const [showTooltip, setShowTooltip] = useState(false)
 
   useEffect(() => {
     if (isAuthenticatedClinic() && !isDemoSession()) {
@@ -49,15 +48,27 @@ export const DoctorPerformancePage: React.FC = () => {
 
   const rows = useMemo<DoctorRow[]>(() => {
     const isAuth = isAuthenticatedClinic() && !isDemoSession()
-    const names = new Set<string>(
-      isAuth
-        ? staffDoctors.map((d) => d.name).filter(Boolean)
-        : DENTISTS.map((d) => d.name)
+    // Explicitly filter for users whose role is strictly DOCTOR (or predefined clinical dentists)
+    const validStaffNames = new Set(
+      staffDoctors
+        .filter((d) => (d.role || '').toUpperCase() === 'DOCTOR')
+        .map((d) => d.name)
+        .filter(Boolean)
     )
-    appointments.forEach((a) => a.doctor && a.doctor !== 'Unassigned' && names.add(a.doctor))
-    treatmentPlans.forEach((p) => p.doctor && p.doctor !== 'Unassigned' && names.add(p.doctor))
+
+    const names = new Set<string>()
+    if (isAuth && validStaffNames.size > 0) {
+      validStaffNames.forEach((n) => names.add(n))
+    } else {
+      DENTISTS.forEach((d) => names.add(d.name))
+    }
+
     if (backendDoctors) {
-      backendDoctors.forEach((d) => d.doctor && d.doctor !== 'Unassigned' && names.add(d.doctor))
+      backendDoctors.forEach((d) => {
+        if (d.doctor && d.doctor !== 'Unassigned' && (validStaffNames.has(d.doctor) || !isAuth)) {
+          names.add(d.doctor)
+        }
+      })
     }
 
     return [...names].map((name) => {
@@ -70,51 +81,26 @@ export const DoctorPerformancePage: React.FC = () => {
         return doc.toLowerCase() === name.toLowerCase()
       })
 
-      // Active plans (excluding cancelled and rejected)
-      const validPlans = myPlans.filter((p) => p.status !== 'Cancelled' && p.status !== 'Rejected')
+      // Active plans (excluding completed, cancelled, and rejected)
+      const validPlans = myPlans.filter(
+        (p) => p.status !== 'Completed' && p.status !== 'Cancelled' && p.status !== 'Rejected'
+      )
 
-      // Completed treatments & treatment value done:
-      // Include:
-      // 1) Completed treatment plans in reporting date range
-      // 2) Completed items in active/in-progress plans
-      let treatmentsDone = 0
-      let treatmentValueDone = 0
       let pendingValue = 0
-
       validPlans.forEach((plan) => {
         const planCost = plan.cost || plan.totalEstimatedCost || 0
-        const isPlanCompleted = plan.status === 'Completed'
         const stages = plan.stages || []
         const allItems = stages.flatMap((st) => st.items || [])
+        let planCompletedItemsValue = 0
 
-        if (isPlanCompleted) {
-          if (inRange(plan.date, range)) {
-            const completedItemsCount = allItems.filter((i) => i.status !== 'CANCELLED').length
-            treatmentsDone += completedItemsCount > 0 ? completedItemsCount : 1
-            treatmentValueDone += planCost
+        allItems.forEach((it) => {
+          if (it.status === 'COMPLETED') {
+            planCompletedItemsValue += it.netFee || it.unitFee || 0
           }
-          // Completed plans have 0 still pending
-        } else {
-          // Unfinished or partially completed plan
-          let planCompletedItemsValue = 0
-          let planCompletedItemsCount = 0
+        })
 
-          allItems.forEach((it) => {
-            if (it.status === 'COMPLETED') {
-              planCompletedItemsCount += 1
-              planCompletedItemsValue += it.netFee || it.unitFee || 0
-            }
-          })
-
-          if (planCompletedItemsCount > 0 && inRange(plan.date, range)) {
-            treatmentsDone += planCompletedItemsCount
-            treatmentValueDone += planCompletedItemsValue
-          }
-
-          // Remaining pending value
-          const remaining = Math.max(0, planCost - planCompletedItemsValue)
-          pendingValue += remaining
-        }
+        const remaining = Math.max(0, planCost - planCompletedItemsValue)
+        pendingValue += remaining
       })
 
       return {
@@ -124,8 +110,6 @@ export const DoctorPerformancePage: React.FC = () => {
         completed: done.length,
         patients: new Set(done.map((a) => a.patientId)).size,
         missed: appts.filter((a) => a.status === 'cancelled' || a.status === 'no-show').length,
-        treatments: treatmentsDone,
-        value: treatmentValueDone,
         pending: pendingValue
       }
     })
@@ -137,9 +121,6 @@ export const DoctorPerformancePage: React.FC = () => {
       sort.key === 'name' ? a.name.localeCompare(b.name) * dir : ((a[sort.key] as number) - (b[sort.key] as number)) * dir || a.name.localeCompare(b.name)
     )
   }, [rows, sort])
-
-  const totalTreatmentsCompleted = useMemo(() => rows.reduce((s, r) => s + r.treatments, 0), [rows])
-  const totalTreatmentValueCompleted = useMemo(() => rows.reduce((s, r) => s + r.value, 0), [rows])
 
   const maxCompleted = Math.max(1, ...rows.map((r) => r.completed))
   const busiest = [...rows].sort((a, b) => b.completed - a.completed)[0]
@@ -158,16 +139,36 @@ export const DoctorPerformancePage: React.FC = () => {
       <div className="rpt-toolbar">
         <ReportActions
           filename="doctors"
-          headers={['Doctor', 'Visits completed', 'Patients seen', 'Cancelled or no-show', 'Treatments completed', ...(canSeeMoney ? ['Treatment value completed', 'Treatment still pending'] : [])]}
-          rows={sorted.map((r) => [r.name, r.completed, r.patients, r.missed, r.treatments, ...(canSeeMoney ? [r.value, r.pending] : [])])}
+          headers={[
+            'Doctor',
+            'Visits completed',
+            'Patients seen',
+            'Cancelled or no-show',
+            ...(canSeeMoney ? ['Still pending'] : [])
+          ]}
+          rows={sorted.map((r) => [
+            r.name,
+            r.completed,
+            r.patients,
+            r.missed,
+            ...(canSeeMoney ? [r.pending] : [])
+          ])}
         />
       </div>
 
-      <div className="rpt-tiles">
-        <StatTile label="Visits completed" value={now.visitsCompleted} sub={busiest && busiest.completed > 0 ? `Most: ${busiest.name}` : undefined} tone="ok" compare={{ current: now.visitsCompleted, previous: before.visitsCompleted, kind: 'count', goodWhen: 'up' }} />
-        <StatTile label="Patients seen" value={now.patientsTreated} compare={{ current: now.patientsTreated, previous: before.patientsTreated, kind: 'count', goodWhen: 'up' }} />
-        <StatTile label="Treatments completed" value={totalTreatmentsCompleted} compare={{ current: totalTreatmentsCompleted, previous: before.plansCompleted, kind: 'count', goodWhen: 'up' }} />
-        {canSeeMoney && <StatTile label="Treatment value completed" value={inr(totalTreatmentValueCompleted)} compare={{ current: totalTreatmentValueCompleted, previous: before.plansCompletedValue, kind: 'money', goodWhen: 'up' }} />}
+      <div className="rpt-tiles" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+        <StatTile
+          label="Visits completed"
+          value={now.visitsCompleted}
+          sub={busiest && busiest.completed > 0 ? `Most: ${busiest.name}` : undefined}
+          tone="ok"
+          compare={{ current: now.visitsCompleted, previous: before.visitsCompleted, kind: 'count', goodWhen: 'up' }}
+        />
+        <StatTile
+          label="Patients seen"
+          value={now.patientsTreated}
+          compare={{ current: now.patientsTreated, previous: before.patientsTreated, kind: 'count', goodWhen: 'up' }}
+        />
       </div>
 
       <div className="bill-table-wrap">
@@ -178,9 +179,73 @@ export const DoctorPerformancePage: React.FC = () => {
               {header('completed', 'Visits completed')}
               {header('patients', 'Patients seen')}
               {header('missed', 'Cancelled / no-show')}
-              {header('treatments', 'Treatments done')}
-              {canSeeMoney && header('value', 'Treatment value done')}
-              {canSeeMoney && header('pending', 'Still pending')}
+              {canSeeMoney && (
+                <th className="r" aria-sort={sort.key === 'pending' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                  <div className="rpt-th-with-tooltip" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                      type="button"
+                      className="rpt-sort"
+                      onClick={() => setSort((s) => ({ key: 'pending', dir: s.key === 'pending' && s.dir === 'desc' ? 'asc' : 'desc' }))}
+                    >
+                      Still pending
+                      {sort.key === 'pending' && (sort.dir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />)}
+                    </button>
+                    <div
+                      className="rpt-info-trigger-wrap"
+                      style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}
+                      onMouseEnter={() => setShowTooltip(true)}
+                      onMouseLeave={() => setShowTooltip(false)}
+                    >
+                      <button
+                        type="button"
+                        className="rpt-info-btn"
+                        aria-label="Still Pending Information"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setShowTooltip((prev) => !prev)
+                        }}
+                        style={{
+                          border: 'none',
+                          background: 'none',
+                          padding: '2px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          cursor: 'pointer',
+                          color: 'var(--text-muted, #64748b)'
+                        }}
+                      >
+                        <Info size={14} />
+                      </button>
+                      {showTooltip && (
+                        <div
+                          className="rpt-info-tooltip"
+                          role="tooltip"
+                          style={{
+                            position: 'absolute',
+                            bottom: 'calc(100% + 8px)',
+                            right: 0,
+                            width: '280px',
+                            padding: '10px 12px',
+                            background: '#0f172a',
+                            color: '#ffffff',
+                            borderRadius: '8px',
+                            fontSize: '12px',
+                            lineHeight: '1.45',
+                            fontWeight: 400,
+                            textAlign: 'left',
+                            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.25)',
+                            zIndex: 50,
+                            whiteSpace: 'normal',
+                            pointerEvents: 'none'
+                          }}
+                        >
+                          Represents the remaining value of unfinished or partially completed treatment plans assigned to this doctor. Completed and cancelled treatments are excluded.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -200,19 +265,12 @@ export const DoctorPerformancePage: React.FC = () => {
                 </td>
                 <td className="r">{r.patients}</td>
                 <td className="r">{r.missed}</td>
-                <td className="r">{r.treatments}</td>
-                {canSeeMoney && <td className="r">{inr(r.value)}</td>}
                 {canSeeMoney && <td className="r">{inr(r.pending)}</td>}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-
-      {canSeeMoney && <p className="rpt-footnote">
-        Treatment value comes from treatment plans marked completed in this period. Invoices are not linked to a doctor yet, so billing is
-        reported on the Revenue tab. “Still pending” is the value of each dentist’s unfinished treatment plans today.
-      </p>}
     </div>
   )
 }
