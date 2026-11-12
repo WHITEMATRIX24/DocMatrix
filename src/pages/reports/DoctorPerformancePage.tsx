@@ -125,8 +125,12 @@ export const DoctorPerformancePage: React.FC = () => {
   const maxCompleted = Math.max(1, ...rows.map((r) => r.completed))
   const busiest = [...rows].sort((a, b) => b.completed - a.completed)[0]
 
-  const header = (key: SortKey, label: string, right = true) => (
-    <th className={right ? 'r' : undefined} aria-sort={sort.key === key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+  const header = (key: SortKey, label: string, right = true, width?: string) => (
+    <th
+      className={right ? 'r' : undefined}
+      style={width ? { width } : undefined}
+      aria-sort={sort.key === key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
       <button type="button" className="rpt-sort" onClick={() => setSort((s) => ({ key, dir: s.key === key && s.dir === 'desc' ? 'asc' : 'desc' }))}>
         {label}
         {sort.key === key && (sort.dir === 'desc' ? <ArrowDown size={12} /> : <ArrowUp size={12} />)}
@@ -135,28 +139,26 @@ export const DoctorPerformancePage: React.FC = () => {
   )
 
   return (
-    <div className="rpt-page" data-testid="feature-page-rep.doctors">
-      <div className="rpt-toolbar">
-        <ReportActions
-          filename="doctors"
-          headers={[
-            'Doctor',
-            'Visits completed',
-            'Patients seen',
-            'Cancelled or no-show',
-            ...(canSeeMoney ? ['Still pending'] : [])
-          ]}
-          rows={sorted.map((r) => [
-            r.name,
-            r.completed,
-            r.patients,
-            r.missed,
-            ...(canSeeMoney ? [r.pending] : [])
-          ])}
-        />
-      </div>
+    <div className="rpt-page rpt-doctor-page" data-testid="feature-page-rep.doctors">
+      <ReportActions
+        filename="doctors"
+        headers={[
+          'Doctor',
+          'Visits completed',
+          'Patients seen',
+          'Cancelled or no-show',
+          ...(canSeeMoney ? ['Still pending'] : [])
+        ]}
+        rows={sorted.map((r) => [
+          r.name,
+          r.completed,
+          r.patients,
+          r.missed,
+          ...(canSeeMoney ? [r.pending] : [])
+        ])}
+      />
 
-      <div className="rpt-tiles" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+      <div className="rpt-tiles" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', alignItems: 'stretch' }}>
         <StatTile
           label="Visits completed"
           value={now.visitsCompleted}
@@ -171,17 +173,28 @@ export const DoctorPerformancePage: React.FC = () => {
         />
       </div>
 
-      <div className="bill-table-wrap">
-        <table className="bill-table rpt-doctor-table">
+      <div className="bill-table-wrap rpt-doctor-table-wrap">
+        <table className="bill-table rpt-doctor-table" style={{ tableLayout: 'fixed', width: '100%', minWidth: '680px' }}>
+          <colgroup>
+            <col style={{ width: canSeeMoney ? '32%' : '38%' }} />
+            <col style={{ width: canSeeMoney ? '22%' : '26%' }} />
+            <col style={{ width: canSeeMoney ? '15%' : '18%' }} />
+            <col style={{ width: canSeeMoney ? '15%' : '18%' }} />
+            {canSeeMoney && <col style={{ width: '16%' }} />}
+          </colgroup>
           <thead>
             <tr>
-              {header('name', 'Doctor', false)}
-              {header('completed', 'Visits completed')}
-              {header('patients', 'Patients seen')}
-              {header('missed', 'Cancelled / no-show')}
+              {header('name', 'Doctor', false, canSeeMoney ? '32%' : '38%')}
+              {header('completed', 'Visits completed', true, canSeeMoney ? '22%' : '26%')}
+              {header('patients', 'Patients seen', true, canSeeMoney ? '15%' : '18%')}
+              {header('missed', 'Cancelled / no-show', true, canSeeMoney ? '15%' : '18%')}
               {canSeeMoney && (
-                <th className="r" aria-sort={sort.key === 'pending' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
-                  <div className="rpt-th-with-tooltip" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <th
+                  className="r"
+                  style={{ width: '16%' }}
+                  aria-sort={sort.key === 'pending' ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                >
+                  <div className="rpt-th-with-tooltip" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', width: '100%' }}>
                     <button
                       type="button"
                       className="rpt-sort"
@@ -251,11 +264,17 @@ export const DoctorPerformancePage: React.FC = () => {
           <tbody>
             {sorted.map((r) => (
               <tr key={r.name}>
-                <td>
-                  <strong>{r.name}</strong>
-                  {r.specialization && <small className="bill-sub">{r.specialization}</small>}
+                <td style={{ width: canSeeMoney ? '32%' : '38%', overflow: 'hidden' }}>
+                  <div className="bill-ellipsis">
+                    <strong>{r.name}</strong>
+                  </div>
+                  {r.specialization && (
+                    <div className="bill-ellipsis">
+                      <small className="bill-sub">{r.specialization}</small>
+                    </div>
+                  )}
                 </td>
-                <td className="r">
+                <td className="r" style={{ width: canSeeMoney ? '22%' : '26%' }}>
                   <span className="rpt-inline-bar">
                     <span className="rpt-inline-bar-track" aria-hidden="true">
                       <span className="rpt-bar-fill" style={{ width: r.completed ? `${(r.completed / maxCompleted) * 100}%` : 0 }} />
@@ -263,9 +282,9 @@ export const DoctorPerformancePage: React.FC = () => {
                     <strong>{r.completed}</strong>
                   </span>
                 </td>
-                <td className="r">{r.patients}</td>
-                <td className="r">{r.missed}</td>
-                {canSeeMoney && <td className="r">{inr(r.pending)}</td>}
+                <td className="r" style={{ width: canSeeMoney ? '15%' : '18%' }}>{r.patients}</td>
+                <td className="r" style={{ width: canSeeMoney ? '15%' : '18%' }}>{r.missed}</td>
+                {canSeeMoney && <td className="r" style={{ width: '16%' }}>{inr(r.pending)}</td>}
               </tr>
             ))}
           </tbody>

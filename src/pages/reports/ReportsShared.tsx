@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ArrowDown, ArrowUp, Download, Printer } from 'lucide-react'
 import { FEATURE_REGISTRY } from '@/features/registry'
 import { inr, localDate } from '@/pages/billing/BillingShared'
@@ -107,6 +108,16 @@ export const ReportActions: React.FC<{ filename: string; headers: string[]; rows
   rows
 }) => {
   const range = useReportRange()
+  const [slot, setSlot] = useState<HTMLElement | null>(() =>
+    typeof document !== 'undefined' ? document.getElementById('rpt-actions-slot') : null
+  )
+
+  useEffect(() => {
+    if (!slot && typeof document !== 'undefined') {
+      setSlot(document.getElementById('rpt-actions-slot'))
+    }
+  }, [slot])
+
   const exportCsv = () => {
     const lines = [headers.map(csvCell).join(','), ...rows.map((r) => r.map(csvCell).join(','))]
     const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
@@ -116,7 +127,8 @@ export const ReportActions: React.FC<{ filename: string; headers: string[]; rows
     a.click()
     URL.revokeObjectURL(a.href)
   }
-  return (
+
+  const buttons = (
     <div className="rpt-actions">
       <button type="button" className="patient-intake-secondary" onClick={exportCsv} disabled={!rows.length}>
         <Download size={15} /> CSV
@@ -126,6 +138,12 @@ export const ReportActions: React.FC<{ filename: string; headers: string[]; rows
       </button>
     </div>
   )
+
+  if (slot) {
+    return createPortal(buttons, slot)
+  }
+
+  return buttons
 }
 
 /* ── Building blocks ─────────────────────────────────────────────────── */

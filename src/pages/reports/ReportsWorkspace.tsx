@@ -53,16 +53,6 @@ export default function ReportsWorkspace({ activeFeatureId, role, children }: { 
 
   return (
     <section className="appointments-workspace rpt-workspace">
-      <header className="appointments-workspace-header rpt-header">
-        <div className="appointments-workspace-title">
-          <span className="appointments-workspace-icon"><BarChart3 size={20} /></span>
-          <div>
-            <span className="appointments-workspace-eyebrow">Reports</span>
-            <h1>Clinic Reports</h1>
-          </div>
-        </div>
-      </header>
-
       <div className="rpt-range">
         <div className="bill-segment" role="group" aria-label="Report period">
           {RANGE_PRESETS.map((p) => (
@@ -83,26 +73,29 @@ export default function ReportsWorkspace({ activeFeatureId, role, children }: { 
 
       <ReportRangeProvider value={range}>
         <ReportMoneyProvider value={canSeeMoney}>
-      <nav className="appointments-workspace-tabs rpt-tabs" aria-label="Report sections">
-        {visibleTabs.map((tab) => {
-          const Icon = tab.icon
-          const active = activeFeatureId === tab.id
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              className={`appointments-workspace-tab${active ? ' is-active' : ''}`}
-              aria-current={active ? 'page' : undefined}
-              onClick={() => navigate({ pathname: tab.path, search: location.search })}
-            >
-              <Icon size={15} />
-              <span>{tab.label}</span>
-            </button>
-          )
-        })}
-      </nav>
+          <div className="rpt-nav-bar">
+            <nav className="appointments-workspace-tabs rpt-tabs" aria-label="Report sections">
+              {visibleTabs.map((tab) => {
+                const Icon = tab.icon
+                const active = activeFeatureId === tab.id
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className={`appointments-workspace-tab${active ? ' is-active' : ''}`}
+                    aria-current={active ? 'page' : undefined}
+                    onClick={() => navigate({ pathname: tab.path, search: location.search })}
+                  >
+                    <Icon size={15} />
+                    <span>{tab.label}</span>
+                  </button>
+                )
+              })}
+            </nav>
+            <div id="rpt-actions-slot" className="rpt-actions-slot" />
+          </div>
 
-      <div className="appointments-workspace-content rpt-content">{children}</div>
+          <div className="appointments-workspace-content rpt-content">{children}</div>
         </ReportMoneyProvider>
       </ReportRangeProvider>
     </section>
