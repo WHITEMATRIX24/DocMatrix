@@ -1,9 +1,15 @@
 node_modules
 # Keep environment variables out of version control
 .env
+.env.*
+!.env.example
 
 /generated/prisma
 .agents/
 skills-lock.json
 
 *.tsbuildinfo
+
+# Sensitive database backups and runtime audit storage
+prisma/backups/
+storage/

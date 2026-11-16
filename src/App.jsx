@@ -16,7 +16,7 @@ import AIAgentShortcut from './components/AIAgentShortcut'
 import Hero38 from './components/originkit/hero-38'
 import MeadowBlush from './components/originkit/ui/still-sunset-meadow'
 import { findDemoUserById, DEMO_USERS } from './mocks/auth'
-import { getCurrentUser, logout as authLogout } from './services/authService'
+import { getCurrentUser, logout as authLogout, clearAllClinicStores, initAllClinicStores } from './services/authService'
 import { syncWithBackend, clearClinicStore, initClinicSession } from './services/clinicStore'
 
 export function getSafeNextPath(rawNext) {
@@ -846,7 +846,7 @@ export default function App() {
     try {
       sessionStorage.setItem('docmatrix-demo-session', user.id)
     } catch { }
-    initClinicSession(user?.clinicId)
+    initAllClinicStores(user?.clinicId)
     syncWithBackend().catch(() => {})
     const params = new URLSearchParams(location.search)
     const rawNext = params.get('next')
@@ -857,7 +857,7 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentUser(null)
-    clearClinicStore()
+    clearAllClinicStores()
     authLogout()
     try {
       sessionStorage.removeItem('docmatrix-demo-session')

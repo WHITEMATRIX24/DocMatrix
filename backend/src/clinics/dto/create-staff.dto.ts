@@ -1,4 +1,5 @@
 import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { StaffRole } from '@prisma/client';
 
 export class CreateStaffDto {
@@ -15,6 +16,7 @@ export class CreateStaffDto {
   @MinLength(8, { message: 'Initial password must be at least 8 characters long.' })
   password!: string;
 
+  @Transform(({ value }) => (value === 'STAFF' ? StaffRole.NURSE : value))
   @IsEnum(StaffRole, { message: 'Invalid staff role provided.' })
   @IsNotEmpty()
   role!: StaffRole;
@@ -23,4 +25,3 @@ export class CreateStaffDto {
   @IsOptional()
   phone?: string;
 }
-

@@ -175,6 +175,7 @@ model Clinic {
   invoicePayments InvoicePayment[]
   serviceTariffs  ServiceTariff[]
   expenses        Expense[]
+  sessions        UserSession[]
 
   @@index([status])
   @@index([email])
@@ -210,11 +211,40 @@ model User {
   receivedPayments InvoicePayment[] @relation("StaffReceivedPayments")
   voidedInvoices   Invoice[]        @relation("InvoiceVoidedByStaff")
   paidExpenses     Expense[]        @relation("StaffPaidExpenses")
+  sessions         UserSession[]
 
   // Compound unique key enabling engine-level compound foreign key references
   @@unique([id, clinicId])
   @@index([clinicId, role])
   @@index([email])
+}
+
+// ------------------------------------------
+// User Session & Refresh Token Model (Phase 3)
+// ------------------------------------------
+
+model UserSession {
+  id                  String    @id @default(uuid())
+  userId              String
+  clinicId            String?
+  tokenHash           String    @unique
+  familyId            String
+  previousTokenHashes String[]  @default([])
+  isRevoked           Boolean   @default(false)
+  revocationReason    String?
+  expiresAt           DateTime
+  lastActiveAt        DateTime  @default(now())
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  userAgent           String?
+  ipAddress           String?
+
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clinic              Clinic?   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRevoked])
+  @@index([familyId])
+  @@index([expiresAt])
 }
 
 // ------------------------------------------

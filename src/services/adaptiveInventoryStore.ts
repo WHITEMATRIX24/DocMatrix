@@ -112,9 +112,27 @@ export interface AdaptiveInventoryState {
   deductionAuditLog: ConfirmedMaterialDeduction[]
 }
 
-const STORAGE_KEY = 'docmatrix_v3_live_inventory'
+export const getInventoryClinicId = (): string | null => {
+  try {
+    const raw =
+      (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('docmatrix_auth_user')) ||
+      (typeof localStorage !== 'undefined' && localStorage.getItem('docmatrix_auth_user'))
+    if (raw) {
+      return JSON.parse(raw)?.clinicId || null
+    }
+  } catch {}
+  return null
+}
 
-// Clear previous mock localStorage keys if present
+export const getInventoryStorageKey = (clinicId?: string): string => {
+  const cid = clinicId || getInventoryClinicId()
+  if (cid) {
+    return `docmatrix_inventory_${cid}`
+  }
+  return 'docmatrix_v3_live_inventory'
+}
+
+// Clear legacy mock localStorage keys if present
 if (typeof window !== 'undefined') {
   try {
     localStorage.removeItem('docmatrix_v2_adaptive_inventory')
@@ -123,6 +141,7 @@ if (typeof window !== 'undefined') {
 
 // 1. Initial inventory items: Clean slate (0 hardcoded items)
 export const INITIAL_INVENTORY_ITEMS: InventoryStockItem[] = []
+
 
 // 2. Standard Clinical Dental Procedure Templates
 export const INITIAL_TREATMENT_TEMPLATES: TreatmentMaterialTemplate[] = [
@@ -221,113 +240,83 @@ export const INITIAL_TREATMENT_TEMPLATES: TreatmentMaterialTemplate[] = [
 // 3. Initial Doctor Adaptive Preferences
 export const INITIAL_DOCTOR_PREFERENCES: DoctorAdaptivePreference[] = []
 
-// 4. Initial Deduction Audit Records (Clinical Treatment Movement Records)
-export const INITIAL_DEDUCTION_AUDIT: ConfirmedMaterialDeduction[] = [
-  {
-    id: 'AUD-2026-884',
-    treatmentId: 'trt-composite-104',
-    patientId: 'pat-1158',
-    patientName: 'Fatima Zahra',
-    doctorId: 'doc-104',
-    doctorName: 'Dr. Rajesh Nair',
-    procedureName: 'Direct Composite Restoration (Class II)',
-    procedureId: 'trt-restoration',
-    modeUsed: 'doctor-specific',
-    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    materials: [
-      { itemId: 'mat-composite', name: 'Universal Composite Resin', unit: 'syringes', suggestedQty: 1, confirmedQty: 1, wastageQty: 0, batchNumber: 'CR-2026-05', deductedTotal: 1 },
-      { itemId: 'mat-etchant', name: 'Dental Etchant Gel (37% Phosphoric)', unit: 'ml', suggestedQty: 1, confirmedQty: 1, wastageQty: 0, batchNumber: 'ETC-2026-01', deductedTotal: 1 },
-      { itemId: 'mat-bonding', name: 'Light-Cured Bonding Agent', unit: 'bottles', suggestedQty: 1, confirmedQty: 1, wastageQty: 0, batchNumber: 'BND-2026-04', deductedTotal: 1 },
-      { itemId: 'mat-gloves', name: 'Dental gloves (Nitrile)', unit: 'pairs', suggestedQty: 2, confirmedQty: 2, wastageQty: 1, batchNumber: 'GLV-2026-B2', deductedTotal: 3 }
-    ],
-    notes: 'Restoration completed on tooth 36. One glove torn during curing light adjustment and replaced.',
-    confirmedBy: 'Dr. Rajesh Nair'
-  },
-  {
-    id: 'AUD-2026-883',
-    treatmentId: 'trt-scaling-103',
-    patientId: 'pat-1120',
-    patientName: 'Anjali Verma',
-    doctorId: 'doc-owner',
-    doctorName: 'Aashna Jose Alappattu',
-    procedureName: 'Ultrasonic Scaling & Polishing',
-    procedureId: 'trt-scaling',
-    modeUsed: 'standard',
-    timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    materials: [
-      { itemId: 'mat-gloves', name: 'Dental gloves (Nitrile)', unit: 'pairs', suggestedQty: 2, confirmedQty: 2, wastageQty: 0, batchNumber: 'GLV-2026-B2', deductedTotal: 2 },
-      { itemId: 'mat-polishing-paste', name: 'Prophylaxis Polishing Paste', unit: 'cups', suggestedQty: 1, confirmedQty: 1, wastageQty: 0, batchNumber: 'PST-2026-02', deductedTotal: 1 },
-      { itemId: 'mat-saliva-ejector', name: 'Disposable Saliva Ejectors', unit: 'pieces', suggestedQty: 1, confirmedQty: 1, wastageQty: 0, batchNumber: 'SE-2026-07', deductedTotal: 1 }
-    ],
-    notes: 'Routine biannual prophylaxis completed with zero adverse reactions.',
-    confirmedBy: 'Aashna Jose Alappattu'
-  },
-  {
-    id: 'AUD-2026-882',
-    treatmentId: 'trt-extraction-102',
-    patientId: 'pat-1082',
-    patientName: 'Rahul Sharma',
-    doctorId: 'doc-104',
-    doctorName: 'Dr. Rajesh Nair',
-    procedureName: 'Tooth Extraction (Simple / Surgical)',
-    procedureId: 'trt-extraction',
-    modeUsed: 'standard',
-    timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    materials: [
-      { itemId: 'mat-anesthetic', name: 'Dental Anesthetic (Lidocaine 2%)', unit: 'cartridges', suggestedQty: 2, confirmedQty: 2, wastageQty: 0, batchNumber: 'LID-2026-03', deductedTotal: 2 },
-      { itemId: 'mat-needles', name: 'Dental Disposable Needles (27G Long)', unit: 'pieces', suggestedQty: 1, confirmedQty: 1, wastageQty: 0, batchNumber: 'NDL-2026-11', deductedTotal: 1 },
-      { itemId: 'mat-gauze', name: 'Surgical Gauze Sponges', unit: 'pieces', suggestedQty: 4, confirmedQty: 4, wastageQty: 0, batchNumber: 'GZ-2026-09', deductedTotal: 4 },
-      { itemId: 'mat-gloves', name: 'Dental gloves (Nitrile)', unit: 'pairs', suggestedQty: 2, confirmedQty: 2, wastageQty: 0, batchNumber: 'GLV-2026-B1', deductedTotal: 2 }
-    ],
-    notes: 'Atraumatic elevation of tooth 48. Hemostasis achieved promptly with pressure packs.',
-    confirmedBy: 'Dr. Rajesh Nair'
-  },
-  {
-    id: 'AUD-2026-881',
-    treatmentId: 'trt-rootcanal-101',
-    patientId: 'pat-1044',
-    patientName: 'Meera Nambiar',
-    doctorId: 'doc-owner',
-    doctorName: 'Aashna Jose Alappattu',
-    procedureName: 'Root Canal Treatment (Molar)',
-    procedureId: 'trt-root-canal',
-    modeUsed: 'doctor-specific',
-    timestamp: new Date(Date.now() - 28 * 60 * 60 * 1000).toISOString(),
-    materials: [
-      { itemId: 'mat-gloves', name: 'Dental gloves (Nitrile)', unit: 'pairs', suggestedQty: 2, confirmedQty: 2, wastageQty: 0, batchNumber: 'GLV-2026-B1', deductedTotal: 2 },
-      { itemId: 'mat-guttapercha', name: 'Gutta-percha (#25, .04 taper)', unit: 'cones', suggestedQty: 3, confirmedQty: 3, wastageQty: 1, batchNumber: 'LOT-2026-01', deductedTotal: 4 },
-      { itemId: 'mat-irrigation', name: 'Irrigation solution (NaOCl 3%)', unit: 'ml', suggestedQty: 5, confirmedQty: 5, wastageQty: 0, batchNumber: 'IRR-2026-04', deductedTotal: 5 },
-      { itemId: 'mat-files', name: 'Dental files (Rotary NiTi)', unit: 'sets', suggestedQty: 1, confirmedQty: 1, wastageQty: 0, batchNumber: 'DF-2026-X1', deductedTotal: 1 }
-    ],
-    notes: 'Biomechanical preparation completed for MB, DB, and Palatal canals. 1 GP cone trimmed and discarded during master cone fitting.',
-    confirmedBy: 'Aashna Jose Alappattu'
+// 4. Initial Deduction Audit Records (Clinical Treatment Movement Records): Clean slate for clinics
+export const INITIAL_DEDUCTION_AUDIT: ConfirmedMaterialDeduction[] = []
+
+const loadInitialInventoryState = (): AdaptiveInventoryState => {
+  const key = getInventoryStorageKey()
+  const loaded = loadFromStorage<AdaptiveInventoryState>(key, {
+    suggestionMode: 'standard',
+    items: INITIAL_INVENTORY_ITEMS,
+    templates: INITIAL_TREATMENT_TEMPLATES,
+    doctorPreferences: INITIAL_DOCTOR_PREFERENCES,
+    consumptionHistory: [],
+    deductionAuditLog: INITIAL_DEDUCTION_AUDIT
+  })
+
+  return {
+    suggestionMode: loaded?.suggestionMode || 'standard',
+    items: Array.isArray(loaded?.items) ? loaded.items : [],
+    templates: Array.isArray(loaded?.templates) && loaded.templates.length > 0 ? loaded.templates : INITIAL_TREATMENT_TEMPLATES,
+    doctorPreferences: Array.isArray(loaded?.doctorPreferences) ? loaded.doctorPreferences : [],
+    consumptionHistory: Array.isArray(loaded?.consumptionHistory) ? loaded.consumptionHistory : [],
+    deductionAuditLog: Array.isArray(loaded?.deductionAuditLog) ? loaded.deductionAuditLog : []
   }
-]
+}
 
 // In-memory state with localStorage sync
-let state: AdaptiveInventoryState = loadFromStorage<AdaptiveInventoryState>(STORAGE_KEY, {
-  suggestionMode: 'standard',
-  items: INITIAL_INVENTORY_ITEMS,
-  templates: INITIAL_TREATMENT_TEMPLATES,
-  doctorPreferences: INITIAL_DOCTOR_PREFERENCES,
-  consumptionHistory: [],
-  deductionAuditLog: INITIAL_DEDUCTION_AUDIT
-})
-
-// Auto-seed audit records if log is currently empty
-if (!state.deductionAuditLog || state.deductionAuditLog.length === 0) {
-  state = {
-    ...state,
-    deductionAuditLog: INITIAL_DEDUCTION_AUDIT
-  }
-  saveToStorage(STORAGE_KEY, state)
-}
+let state: AdaptiveInventoryState = loadInitialInventoryState()
 
 const listeners = new Set<() => void>()
 
 function emitChange() {
-  saveToStorage(STORAGE_KEY, state)
+  saveToStorage(getInventoryStorageKey(), state)
   listeners.forEach((listener) => listener())
+}
+
+/**
+ * Initialize or switch clinic inventory session.
+ */
+export function initInventorySession(clinicId?: string) {
+  const key = getInventoryStorageKey(clinicId)
+  const loaded = loadFromStorage<AdaptiveInventoryState>(key, {
+    suggestionMode: 'standard',
+    items: INITIAL_INVENTORY_ITEMS,
+    templates: INITIAL_TREATMENT_TEMPLATES,
+    doctorPreferences: INITIAL_DOCTOR_PREFERENCES,
+    consumptionHistory: [],
+    deductionAuditLog: []
+  })
+
+  state = {
+    suggestionMode: loaded?.suggestionMode || 'standard',
+    items: Array.isArray(loaded?.items) ? loaded.items : [],
+    templates: Array.isArray(loaded?.templates) && loaded.templates.length > 0 ? loaded.templates : INITIAL_TREATMENT_TEMPLATES,
+    doctorPreferences: Array.isArray(loaded?.doctorPreferences) ? loaded.doctorPreferences : [],
+    consumptionHistory: Array.isArray(loaded?.consumptionHistory) ? loaded.consumptionHistory : [],
+    deductionAuditLog: Array.isArray(loaded?.deductionAuditLog) ? loaded.deductionAuditLog : []
+  }
+  emitChange()
+}
+
+/**
+ * Clear clinic inventory store on logout or account switch.
+ */
+export function clearInventoryStore() {
+  const key = getInventoryStorageKey()
+  try {
+    localStorage.removeItem(key)
+    localStorage.removeItem('docmatrix_v3_live_inventory')
+  } catch {}
+  state = {
+    suggestionMode: 'standard',
+    items: [],
+    templates: INITIAL_TREATMENT_TEMPLATES,
+    doctorPreferences: [],
+    consumptionHistory: [],
+    deductionAuditLog: []
+  }
+  emitChange()
 }
 
 export function subscribeToAdaptiveInventory(listener: () => void) {
@@ -364,7 +353,7 @@ export async function syncInventoryWithBackend() {
 
   try {
     const backendAudits = await apiClient.get<ConfirmedMaterialDeduction[]>('/inventory/movements')
-    if (Array.isArray(backendAudits) && backendAudits.length > 0) {
+    if (Array.isArray(backendAudits)) {
       state = {
         ...state,
         deductionAuditLog: backendAudits
@@ -476,6 +465,8 @@ export function calculateProcedureSuggestions(
  * Confirm actual consumption, perform FEFO batch deductions, and write audit log
  */
 export function confirmConsumptionAndDeductStock(payload: {
+  operationId?: string
+  deductionId?: string
   treatmentId?: string
   appointmentId?: string
   patientId: string
@@ -497,7 +488,7 @@ export function confirmConsumptionAndDeductStock(payload: {
     batchNumber: string
   }[]
 }): ConfirmedMaterialDeduction {
-  const deductionId = `AUD-INV-${Date.now().toString().slice(-4)}`
+  const deductionId = payload.operationId || payload.deductionId || `AUD-INV-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
 
   // 1. Execute stock deductions across active batches
   const updatedItems = state.items.map((stockItem) => {
@@ -648,6 +639,8 @@ export function confirmConsumptionAndDeductStock(payload: {
   // Asynchronously synchronize confirmed deduction with backend database
   apiClient
     .post('/inventory/deduct', {
+      operationId: deductionId,
+      deductionId,
       treatmentId: payload.treatmentId,
       appointmentId: payload.appointmentId,
       patientId: payload.patientId,

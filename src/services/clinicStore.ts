@@ -192,6 +192,7 @@ export type PaymentMode = 'Cash' | 'Card' | 'UPI' | 'Net Banking' | 'Cheque'
 export interface InvoiceLineItem {
   id: string
   serviceId?: string
+  treatmentPlanItemId?: string
   name: string
   toothNumber?: string
   qty: number
@@ -213,6 +214,7 @@ export interface InvoiceRecord {
   id: string
   backendId?: string
   patientId: string
+  treatmentPlanId?: string
   description: string
   amount: number // grand total including GST
   status: 'Draft' | 'Unpaid' | 'Partial' | 'Paid' | 'Void'
@@ -336,6 +338,11 @@ export interface PatientDocumentRecord {
   uploadDate: string
   doctor?: string
   url?: string
+  downloadUrl?: string
+  previewUrl?: string
+  signedUrl?: string
+  contentBase64?: string
+  mimeType?: string
 }
 
 export interface PatientConsentRecord {
@@ -1182,7 +1189,7 @@ export const getActiveClinicId = (): string | null => {
       const parsed = JSON.parse(raw);
       return parsed?.clinicId || null;
     }
-  } catch {}
+  } catch { }
   return null;
 };
 
@@ -1200,7 +1207,7 @@ export const isDemoSession = (): boolean => {
       try {
         const u = JSON.parse(rawUser);
         if (u?.email && u.email.toLowerCase() === 'demo@docmatrix.com') return true;
-      } catch {}
+      } catch { }
     }
     return false;
   } catch {
@@ -1786,7 +1793,7 @@ export const syncWithBackend = async (): Promise<void> => {
   syncErrorState = null;
   emitChange();
 
-  const safeFetch = async <T>(promise: Promise<T>, fallback: T): Promise<T> => {
+  const safeApiCall = async <T>(promise: Promise<T>, fallback: T): Promise<T> => {
     try {
       return await promise;
     } catch (err: any) {
@@ -1820,14 +1827,14 @@ export const syncWithBackend = async (): Promise<void> => {
     ] = await Promise.all([
       apiClient.get<any[]>('/patients?includeArchived=true'),
       apiClient.get<any[]>('/appointments'),
-      safeFetch(apiClient.get<Record<string, Record<number, { condition: string; notes?: string }>>>('/clinical/tooth-charts'), {}),
-      safeFetch(apiClient.get<any[]>('/clinical/documents'), []),
-      safeFetch(apiClient.get<any[]>('/clinical/consents'), []),
-      safeFetch(apiClient.get<any[]>('/enquiries'), []),
-      safeFetch(apiClient.get<any[]>('/prescriptions'), []),
-      safeFetch(apiClient.get<any[]>('/clinical-notes'), []),
-      safeFetch(apiClient.get<any>('/treatment-plans'), { items: [] }),
-      safeFetch(billingApi.getInvoices({ limit: 500 }), { data: [] } as any),
+      safeApiCall(apiClient.get<Record<string, Record<number, { condition: string; notes?: string }>>>('/clinical/tooth-charts'), {}),
+      safeApiCall(apiClient.get<any[]>('/clinical/documents'), []),
+      safeApiCall(apiClient.get<any[]>('/clinical/consents'), []),
+      safeApiCall(apiClient.get<any[]>('/enquiries'), []),
+      safeApiCall(apiClient.get<any[]>('/prescriptions'), []),
+      safeApiCall(apiClient.get<any[]>('/clinical-notes'), []),
+      safeApiCall(apiClient.get<any>('/treatment-plans'), { items: [] }),
+      safeApiCall(billingApi.getInvoices({ limit: 500 }), { data: [] } as any),
     ]);
 
     // Also trigger master billing data sync (tariffs, expenses) in background
@@ -1873,170 +1880,174 @@ export const syncWithBackend = async (): Promise<void> => {
 
     const mappedDocs: PatientDocumentRecord[] = Array.isArray(remoteDocs)
       ? remoteDocs.map((d: any) => ({
-          id: d.id,
-          patientId: d.patientId,
-          title: d.title,
-          category: d.category,
-          fileName: d.fileName,
-          fileSize: d.fileSize,
-          uploadDate: d.uploadDate || d.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
-          doctor: d.doctor || 'Dr. Arun Kumar',
-          url: d.downloadUrl,
-        }))
+        id: d.id,
+        patientId: d.patientId,
+        title: d.title,
+        category: d.category,
+        fileName: d.fileName,
+        fileSize: d.fileSize,
+        uploadDate: d.uploadDate || d.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+        doctor: d.doctor || 'Dr. Arun Kumar',
+        url: d.signedUrl || d.previewUrl || d.downloadUrl,
+        downloadUrl: d.downloadUrl,
+        previewUrl: d.previewUrl,
+        signedUrl: d.signedUrl,
+        mimeType: d.mimeType,
+      }))
       : [];
 
     const mappedConsents: PatientConsentRecord[] = Array.isArray(remoteConsents)
       ? remoteConsents.map((c: any) => ({
-          id: c.id,
-          patientId: c.patientId,
-          consentType: c.consentType,
-          status: c.status || 'Signed',
-          dateRecorded: c.dateRecorded || c.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
-          recordedBy: c.recordedBy || 'Clinical Staff',
-          documentRef: c.documentRef || '',
-          notes: c.notes || '',
-        }))
+        id: c.id,
+        patientId: c.patientId,
+        consentType: c.consentType,
+        status: c.status || 'Signed',
+        dateRecorded: c.dateRecorded || c.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+        recordedBy: c.recordedBy || 'Clinical Staff',
+        documentRef: c.documentRef || '',
+        notes: c.notes || '',
+      }))
       : [];
 
     // Authoritative backend data: strictly assign (no dummy records retained)
     const mappedEnquiries: EnquiryRecord[] = Array.isArray(remoteEnquiries)
       ? remoteEnquiries.map((e: any) => ({
-          id: e.id,
-          name: e.name,
-          phone: e.phone || '',
-          email: e.email || '',
-          request: e.request,
-          status: (e.status || 'PENDING') as any,
-          notes: e.notes || '',
-          createdAt: e.createdAt || new Date().toISOString(),
-        }))
+        id: e.id,
+        name: e.name,
+        phone: e.phone || '',
+        email: e.email || '',
+        request: e.request,
+        status: (e.status || 'PENDING') as any,
+        notes: e.notes || '',
+        createdAt: e.createdAt || new Date().toISOString(),
+      }))
       : [];
 
     const mappedPrescriptions: PrescriptionRecord[] = Array.isArray(remotePrescriptions)
       ? remotePrescriptions.map((p: any) => ({
-          id: p.id,
-          clinicId: p.clinicId,
-          patientId: p.patientId,
-          doctorId: p.doctorId,
-          prescriptionNumber: p.prescriptionNumber,
-          diagnosis: p.diagnosis,
-          clinicalNotes: p.clinicalNotes || '',
-          status: p.status,
-          prescribedAt: p.prescribedAt || p.createdAt,
-          finalizedAt: p.finalizedAt,
-          finalizedById: p.finalizedById,
-          cancelledAt: p.cancelledAt,
-          cancelledById: p.cancelledById,
-          cancellationReason: p.cancellationReason,
-          createdAt: p.createdAt,
-          items: Array.isArray(p.items)
-            ? p.items.map((it: any) => ({
-                id: it.id,
-                prescriptionId: it.prescriptionId,
-                medicineName: it.medicineName,
-                strength: it.strength || '',
-                dosage: it.dosage,
-                route: it.route || 'Oral',
-                frequency: it.frequency,
-                duration: it.duration,
-                quantity: it.quantity,
-                instructions: it.instructions || '',
-              }))
-            : [],
-          patient: p.patient
-            ? {
-                id: p.patient.id,
-                patientCode: p.patient.patientCode,
-                firstName: p.patient.firstName,
-                lastName: p.patient.lastName,
-                gender: p.patient.gender,
-                dateOfBirth: p.patient.dateOfBirth,
-                mobile: p.patient.mobile,
-                medicalSafetyAlerts: Array.isArray(p.patient.medicalSafetyAlerts)
-                  ? p.patient.medicalSafetyAlerts
-                  : [],
-              }
-            : undefined,
-          doctor: p.doctor
-            ? {
-                id: p.doctor.id,
-                fullName: p.doctor.fullName,
-                email: p.doctor.email,
-                role: p.doctor.role,
-              }
-            : undefined,
-        }))
+        id: p.id,
+        clinicId: p.clinicId,
+        patientId: p.patientId,
+        doctorId: p.doctorId,
+        prescriptionNumber: p.prescriptionNumber,
+        diagnosis: p.diagnosis,
+        clinicalNotes: p.clinicalNotes || '',
+        status: p.status,
+        prescribedAt: p.prescribedAt || p.createdAt,
+        finalizedAt: p.finalizedAt,
+        finalizedById: p.finalizedById,
+        cancelledAt: p.cancelledAt,
+        cancelledById: p.cancelledById,
+        cancellationReason: p.cancellationReason,
+        createdAt: p.createdAt,
+        items: Array.isArray(p.items)
+          ? p.items.map((it: any) => ({
+            id: it.id,
+            prescriptionId: it.prescriptionId,
+            medicineName: it.medicineName,
+            strength: it.strength || '',
+            dosage: it.dosage,
+            route: it.route || 'Oral',
+            frequency: it.frequency,
+            duration: it.duration,
+            quantity: it.quantity,
+            instructions: it.instructions || '',
+          }))
+          : [],
+        patient: p.patient
+          ? {
+            id: p.patient.id,
+            patientCode: p.patient.patientCode,
+            firstName: p.patient.firstName,
+            lastName: p.patient.lastName,
+            gender: p.patient.gender,
+            dateOfBirth: p.patient.dateOfBirth,
+            mobile: p.patient.mobile,
+            medicalSafetyAlerts: Array.isArray(p.patient.medicalSafetyAlerts)
+              ? p.patient.medicalSafetyAlerts
+              : [],
+          }
+          : undefined,
+        doctor: p.doctor
+          ? {
+            id: p.doctor.id,
+            fullName: p.doctor.fullName,
+            email: p.doctor.email,
+            role: p.doctor.role,
+          }
+          : undefined,
+      }))
       : [];
 
     const mappedClinicalNotes: ClinicalNoteRecord[] = Array.isArray(remoteClinicalNotes)
       ? remoteClinicalNotes.map((n: any) => ({
-          id: n.id,
-          clinicId: n.clinicId,
-          patientId: n.patient?.patientCode || n.patientId,
-          appointmentId: n.appointmentId,
-          doctorId: n.doctorId,
-          noteNumber: n.noteNumber,
-          consultationDate: n.consultationDate,
-          consultationType: n.consultationType,
-          status: n.status,
-          finalizedAt: n.finalizedAt,
-          finalizedById: n.finalizedById,
-          finalizedByName: n.finalizedByName,
-          doctorName: n.doctor?.fullName || n.finalizedByName || 'Attending Doctor',
-          chiefComplaint: n.chiefComplaint,
-          symptoms: n.symptoms,
-          symptomDuration: n.symptomDuration,
-          painSeverity: n.painSeverity,
-          historyNotes: n.historyNotes,
-          extraoralFindings: n.extraoralFindings,
-          intraoralFindings: n.intraoralFindings,
-          toothSpecificFindings: n.toothSpecificFindings,
-          periodontalFindings: n.periodontalFindings,
-          examinationNotes: n.examinationNotes,
-          primaryDiagnosis: n.primaryDiagnosis,
-          additionalDiagnoses: n.additionalDiagnoses,
-          diagnosisNotes: n.diagnosisNotes,
-          treatmentPerformed: n.treatmentPerformed,
-          treatmentToothNumber: n.treatmentToothNumber,
-          treatmentDescription: n.treatmentDescription,
-          materialsUsed: n.materialsUsed,
-          treatmentOutcome: n.treatmentOutcome,
-          treatmentRecommendations: n.treatmentRecommendations,
-          referralNotes: n.referralNotes,
-          followUpRequired: n.followUpRequired,
-          followUpDate: n.followUpDate,
-          followUpInstructions: n.followUpInstructions,
-          patientAdvice: n.patientAdvice,
-          addenda: Array.isArray(n.addenda) ? n.addenda : [],
-          visitDate: n.consultationDate ? n.consultationDate.slice(0, 10) : (n.createdAt ? n.createdAt.slice(0, 10) : getTodayDateStr()),
-          complaint: n.chiefComplaint || '',
-          findings: n.examinationNotes || n.intraoralFindings || '',
-          plan: n.treatmentRecommendations || n.treatmentPerformed || '',
-          patient: n.patient
-            ? {
-                id: n.patient.id,
-                patientCode: n.patient.patientCode,
-                firstName: n.patient.firstName,
-                lastName: n.patient.lastName,
-                gender: n.patient.gender,
-                dateOfBirth: n.patient.dateOfBirth,
-                mobile: n.patient.mobile,
-                medicalSafetyAlerts: Array.isArray(n.patient.medicalSafetyAlerts)
-                  ? n.patient.medicalSafetyAlerts
-                  : [],
-              }
-            : undefined,
-          doctor: n.doctor
-            ? {
-                id: n.doctor.id,
-                fullName: n.doctor.fullName,
-                email: n.doctor.email,
-                role: n.doctor.role,
-              }
-            : undefined,
-          createdAt: n.createdAt || new Date().toISOString(),
-          updatedAt: n.updatedAt,
-        }))
+        id: n.id,
+        clinicId: n.clinicId,
+        patientId: n.patient?.patientCode || n.patientId,
+        appointmentId: n.appointmentId,
+        doctorId: n.doctorId,
+        noteNumber: n.noteNumber,
+        consultationDate: n.consultationDate,
+        consultationType: n.consultationType,
+        status: n.status,
+        finalizedAt: n.finalizedAt,
+        finalizedById: n.finalizedById,
+        finalizedByName: n.finalizedByName,
+        doctorName: n.doctor?.fullName || n.finalizedByName || 'Attending Doctor',
+        chiefComplaint: n.chiefComplaint,
+        symptoms: n.symptoms,
+        symptomDuration: n.symptomDuration,
+        painSeverity: n.painSeverity,
+        historyNotes: n.historyNotes,
+        extraoralFindings: n.extraoralFindings,
+        intraoralFindings: n.intraoralFindings,
+        toothSpecificFindings: n.toothSpecificFindings,
+        periodontalFindings: n.periodontalFindings,
+        examinationNotes: n.examinationNotes,
+        primaryDiagnosis: n.primaryDiagnosis,
+        additionalDiagnoses: n.additionalDiagnoses,
+        diagnosisNotes: n.diagnosisNotes,
+        treatmentPerformed: n.treatmentPerformed,
+        treatmentToothNumber: n.treatmentToothNumber,
+        treatmentDescription: n.treatmentDescription,
+        materialsUsed: n.materialsUsed,
+        treatmentOutcome: n.treatmentOutcome,
+        treatmentRecommendations: n.treatmentRecommendations,
+        referralNotes: n.referralNotes,
+        followUpRequired: n.followUpRequired,
+        followUpDate: n.followUpDate,
+        followUpInstructions: n.followUpInstructions,
+        patientAdvice: n.patientAdvice,
+        addenda: Array.isArray(n.addenda) ? n.addenda : [],
+        visitDate: n.consultationDate ? n.consultationDate.slice(0, 10) : (n.createdAt ? n.createdAt.slice(0, 10) : getTodayDateStr()),
+        complaint: n.chiefComplaint || '',
+        findings: n.examinationNotes || n.intraoralFindings || '',
+        plan: n.treatmentRecommendations || n.treatmentPerformed || '',
+        patient: n.patient
+          ? {
+            id: n.patient.id,
+            patientCode: n.patient.patientCode,
+            firstName: n.patient.firstName,
+            lastName: n.patient.lastName,
+            gender: n.patient.gender,
+            dateOfBirth: n.patient.dateOfBirth,
+            mobile: n.patient.mobile,
+            medicalSafetyAlerts: Array.isArray(n.patient.medicalSafetyAlerts)
+              ? n.patient.medicalSafetyAlerts
+              : [],
+          }
+          : undefined,
+        doctor: n.doctor
+          ? {
+            id: n.doctor.id,
+            fullName: n.doctor.fullName,
+            email: n.doctor.email,
+            role: n.doctor.role,
+          }
+          : undefined,
+        createdAt: n.createdAt || new Date().toISOString(),
+        updatedAt: n.updatedAt,
+      }))
       : [];
 
     const rawPlansList = Array.isArray(remoteTreatmentPlans)
@@ -2054,52 +2065,52 @@ export const syncWithBackend = async (): Promise<void> => {
 
       const stages: TreatmentPlanStageRecord[] = Array.isArray(tp.stages)
         ? tp.stages.map((st: any) => ({
-            id: st.id,
-            treatmentPlanId: st.treatmentPlanId,
-            stageNumber: st.stageNumber,
-            name: st.name,
-            status: st.status,
-            targetDate: st.targetDate ? st.targetDate.slice(0, 10) : undefined,
-            estimatedCost: Number(st.estimatedCost) || 0,
-            items: Array.isArray(st.items)
-              ? st.items.map((it: any) => ({
-                  id: it.id,
-                  stageId: it.stageId,
-                  procedureCode: it.procedureCode,
-                  procedureName: it.procedureName,
-                  category: it.category,
-                  toothNumber: it.toothNumber,
-                  surface: it.surface,
-                  quantity: it.quantity || 1,
-                  unitFee: Number(it.unitFee) || 0,
-                  discount: Number(it.discount) || 0,
-                  netFee: Number(it.netFee) || 0,
-                  status: it.status,
-                  notes: it.notes,
-                }))
-              : [],
-          }))
+          id: st.id,
+          treatmentPlanId: st.treatmentPlanId,
+          stageNumber: st.stageNumber,
+          name: st.name,
+          status: st.status,
+          targetDate: st.targetDate ? st.targetDate.slice(0, 10) : undefined,
+          estimatedCost: Number(st.estimatedCost) || 0,
+          items: Array.isArray(st.items)
+            ? st.items.map((it: any) => ({
+              id: it.id,
+              stageId: it.stageId,
+              procedureCode: it.procedureCode,
+              procedureName: it.procedureName,
+              category: it.category,
+              toothNumber: it.toothNumber,
+              surface: it.surface,
+              quantity: it.quantity || 1,
+              unitFee: Number(it.unitFee) || 0,
+              discount: Number(it.discount) || 0,
+              netFee: Number(it.netFee) || 0,
+              status: it.status,
+              notes: it.notes,
+            }))
+            : [],
+        }))
         : [];
 
       const estimateRevisions: TreatmentEstimateRevisionRecord[] = Array.isArray(tp.estimateRevisions)
         ? tp.estimateRevisions.map((rev: any) => ({
-            id: rev.id,
-            treatmentPlanId: rev.treatmentPlanId,
-            versionNumber: rev.versionNumber,
-            revisionReason: rev.revisionReason,
-            subtotal: Number(rev.subtotal) || 0,
-            discount: Number(rev.discount) || 0,
-            tax: Number(rev.tax) || 0,
-            totalEstimatedCost: Number(rev.totalEstimatedCost) || 0,
-            status: rev.status,
-            acceptedAt: rev.acceptedAt,
-            acceptedByName: rev.acceptedByName,
-            acceptanceMethod: rev.acceptanceMethod,
-            isStaffRecorded: rev.isStaffRecorded,
-            createdByName: rev.createdByName,
-            createdAt: rev.createdAt,
-            itemsSnapshot: rev.itemsSnapshot,
-          }))
+          id: rev.id,
+          treatmentPlanId: rev.treatmentPlanId,
+          versionNumber: rev.versionNumber,
+          revisionReason: rev.revisionReason,
+          subtotal: Number(rev.subtotal) || 0,
+          discount: Number(rev.discount) || 0,
+          tax: Number(rev.tax) || 0,
+          totalEstimatedCost: Number(rev.totalEstimatedCost) || 0,
+          status: rev.status,
+          acceptedAt: rev.acceptedAt,
+          acceptedByName: rev.acceptedByName,
+          acceptanceMethod: rev.acceptanceMethod,
+          isStaffRecorded: rev.isStaffRecorded,
+          createdByName: rev.createdByName,
+          createdAt: rev.createdAt,
+          itemsSnapshot: rev.itemsSnapshot,
+        }))
         : [];
 
       const primaryItem = stages[0]?.items[0];
@@ -2161,6 +2172,7 @@ export const syncWithBackend = async (): Promise<void> => {
       id: inv.invoiceNumber || inv.id,
       backendId: inv.id,
       patientId: inv.patient?.patientCode || inv.patientId,
+      treatmentPlanId: inv.treatmentPlanId || undefined,
       description:
         inv.description ||
         (Array.isArray(inv.items) && inv.items.length > 0
@@ -2177,15 +2189,16 @@ export const syncWithBackend = async (): Promise<void> => {
       notes: inv.notes || undefined,
       items: Array.isArray(inv.items)
         ? inv.items.map((it: any) => ({
-            id: it.id,
-            serviceId: it.serviceTariffId || undefined,
-            name: it.name,
-            toothNumber: it.toothNumber || undefined,
-            qty: Number(it.quantity) || 1,
-            unitPrice: Number(it.unitPrice) || 0,
-            discount: Number(it.discount) || 0,
-            gstRate: Number(it.gstRate) || 0,
-          }))
+          id: it.id,
+          serviceId: it.serviceTariffId || undefined,
+          treatmentPlanItemId: it.treatmentPlanItemId || undefined,
+          name: it.name,
+          toothNumber: it.toothNumber || undefined,
+          qty: Number(it.quantity) || 1,
+          unitPrice: Number(it.unitPrice) || 0,
+          discount: Number(it.discount) || 0,
+          gstRate: Number(it.gstRate) || 0,
+        }))
         : [],
       payments: Array.isArray(inv.payments)
         ? inv.payments.map((p: any) => ({
@@ -2806,7 +2819,7 @@ export const sendAppointmentReminder = (
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const savePatient = (data: Omit<PatientRecord, 'id' | 'createdAt'>): PatientRecord => {
-  const computedAge = computeAgeFromDob(data.dateOfBirth, data.age) || data.age || '30'
+  const computedAge = (data.dateOfBirth ? computeAgeFromDob(data.dateOfBirth) : '') || (data.age ? String(data.age).trim() : '') || '30'
   const newPatient: PatientRecord = {
     ...data,
     age: computedAge,
@@ -2978,10 +2991,10 @@ export function createItemisedInvoice(details: {
       upfrontPayment:
         details.upfrontPayment && details.upfrontPayment.amount > 0
           ? {
-              amount: details.upfrontPayment.amount,
-              mode: toBackendMode(details.upfrontPayment.mode as any),
-              reference: details.upfrontPayment.reference || undefined,
-            }
+            amount: details.upfrontPayment.amount,
+            mode: toBackendMode(details.upfrontPayment.mode as any),
+            reference: details.upfrontPayment.reference || undefined,
+          }
           : undefined,
     }
 
@@ -3043,13 +3056,13 @@ export function recordInvoicePayment(
     ? invoice.payments
     : invoice.status === 'Paid'
       ? [
-          {
-            id: `PAY-${invoice.id}`,
-            amount: invoice.amount,
-            mode: 'Cash' as PaymentMode,
-            receivedAt: invoice.createdAt,
-          },
-        ]
+        {
+          id: `PAY-${invoice.id}`,
+          amount: invoice.amount,
+          mode: 'Cash' as PaymentMode,
+          receivedAt: invoice.createdAt,
+        },
+      ]
       : []
 
   const updated: InvoiceRecord = {
@@ -3225,9 +3238,11 @@ export const updatePatient = (
 ): PatientRecord | null => {
   const index = patientsState.findIndex((p) => p.id === id)
   if (index === -1) return null
+  const computedAge = updates.dateOfBirth ? computeAgeFromDob(updates.dateOfBirth) : updates.age
   patientsState[index] = {
     ...patientsState[index],
-    ...updates
+    ...updates,
+    ...(computedAge ? { age: computedAge } : {})
   }
   patientsState = [...patientsState]
   emitChange()
@@ -3308,7 +3323,7 @@ export const addTreatmentPlan = (
             unitFee: data.cost,
             discount: 0,
             netFee: data.cost,
-            status: 'PENDING',
+            status: (it as any).status || 'PENDING',
           },
         ],
       },
@@ -3361,6 +3376,8 @@ export const createStructuredTreatmentPlan = async (
     doctorId?: string;
     doctorName?: string;
     title: string;
+    doctorId?: string;
+    doctorName?: string;
     notes?: string;
     taxRate?: number;
     stages: {
@@ -3402,7 +3419,7 @@ export const createStructuredTreatmentPlan = async (
         unitFee: it.unitFee,
         discount: disc,
         netFee: net,
-        status: 'PENDING',
+        status: (it as any).status || 'PENDING',
         notes: it.notes,
       };
     });
@@ -3523,6 +3540,123 @@ export const createStructuredTreatmentPlan = async (
   }
 
   return localPlan;
+};
+
+export const updateStructuredTreatmentPlan = async (
+  id: string,
+  dto: {
+    title?: string;
+    notes?: string;
+    status?: TreatmentPlanRecord['status'];
+    taxRate?: number;
+    stages?: any[];
+    revisionReason?: string;
+    doctorId?: string;
+    doctorName?: string;
+  }
+): Promise<TreatmentPlanRecord | null> => {
+  const plan = treatmentPlansState.find((p) => p.id === id || p.backendId === id);
+  if (!plan) return null;
+
+  let subtotal = plan.subtotal || plan.cost;
+  let totalDiscount = plan.discount || 0;
+  let stages = plan.stages || [];
+  let newVersion = plan.currentVersion || 1;
+
+  if (dto.stages && dto.stages.length > 0) {
+    stages = dto.stages;
+    subtotal = 0;
+    totalDiscount = 0;
+    stages.forEach((stg) => {
+      let stageCost = 0;
+      stg.items?.forEach((it: any) => {
+        const qty = it.quantity && it.quantity > 0 ? it.quantity : 1;
+        const gross = (it.unitFee || 0) * qty;
+        const disc = it.discount || 0;
+        const net = Math.max(0, gross - disc);
+        it.netFee = net;
+        stageCost += net;
+        totalDiscount += disc;
+      });
+      stg.estimatedCost = stageCost;
+      subtotal += stageCost;
+    });
+    newVersion += 1;
+  }
+
+  const tax = dto.taxRate !== undefined ? Math.round(subtotal * (dto.taxRate || 0)) / 100 : (plan.tax || 0);
+  const total = subtotal + tax;
+
+  const nextStatus =
+    dto.status ||
+    (newVersion > (plan.currentVersion || 1) && plan.status === 'Accepted'
+      ? 'Proposed'
+      : plan.status);
+
+  const updatedRevisions = plan.estimateRevisions ? [...plan.estimateRevisions] : [];
+  if (dto.stages && dto.stages.length > 0) {
+    updatedRevisions.unshift({
+      id: `rev-${Date.now()}`,
+      versionNumber: newVersion,
+      revisionReason: dto.revisionReason || `Estimate revision v${newVersion} - clinical adjustments`,
+      subtotal,
+      discount: totalDiscount,
+      tax,
+      totalEstimatedCost: total,
+      status: nextStatus.toUpperCase() as any,
+      isStaffRecorded: true,
+      createdByName: dto.doctorName || plan.doctor || 'Attending Doctor',
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  plan.title = dto.title || plan.title;
+  if (dto.notes !== undefined) plan.notes = dto.notes;
+  plan.status = nextStatus;
+  plan.subtotal = subtotal;
+  plan.discount = totalDiscount;
+  plan.tax = tax;
+  plan.totalEstimatedCost = total;
+  plan.cost = total;
+  plan.currentVersion = newVersion;
+  plan.stages = stages;
+  plan.estimateRevisions = updatedRevisions;
+  if (dto.doctorId) plan.doctorId = dto.doctorId;
+  if (dto.doctorName) plan.doctor = dto.doctorName;
+
+  treatmentPlansState = [...treatmentPlansState];
+  emitChange();
+
+  const targetId = plan.backendId || plan.id;
+  try {
+    const token =
+      typeof sessionStorage !== 'undefined'
+        ? sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token')
+        : null;
+    if (token && targetId && !targetId.startsWith('TRT-')) {
+      let backendStatus = 'PROPOSED';
+      if (nextStatus === 'Accepted') backendStatus = 'ACCEPTED';
+      else if (nextStatus === 'In Progress') backendStatus = 'IN_PROGRESS';
+      else if (nextStatus === 'Completed') backendStatus = 'COMPLETED';
+      else if (nextStatus === 'Pending') backendStatus = 'PENDING';
+      else if (nextStatus === 'Rejected') backendStatus = 'REJECTED';
+      else if (nextStatus === 'Cancelled') backendStatus = 'CANCELLED';
+
+      await apiClient.patch<any>(`/treatment-plans/${targetId}`, {
+        title: dto.title,
+        notes: dto.notes,
+        status: backendStatus,
+        taxRate: dto.taxRate,
+        stages: dto.stages,
+        revisionReason: dto.revisionReason,
+        doctorId: dto.doctorId,
+      });
+    }
+  } catch (err) {
+    console.warn('[clinicStore] updateStructuredTreatmentPlan backend error:', err);
+  }
+
+  return plan;
 };
 
 export const updateTreatmentPlanStatus = (
@@ -3746,18 +3880,31 @@ export const addPatientDocument = (
   emitChange()
 
   if (hasAuthToken()) {
+    const rawBase64 = data.contentBase64 || (data.url?.startsWith('data:') ? data.url.split(',')[1] : undefined)
+
     apiClient
-      .post(`/patients/${encodeURIComponent(data.patientId)}/documents`, {
+      .post<any>(`/patients/${encodeURIComponent(data.patientId)}/documents`, {
         title: data.title,
         category: data.category,
         fileName: data.fileName,
         fileSize: data.fileSize,
         doctorName: data.doctor,
+        mimeType: data.mimeType,
+        contentBase64: rawBase64,
       })
       .then((created) => {
         if (created?.id) {
           patientDocumentsState = patientDocumentsState.map((d) =>
-            d.id === tempId ? { ...d, id: created.id, url: created.downloadUrl } : d,
+            d.id === tempId
+              ? {
+                  ...d,
+                  id: created.id,
+                  url: created.signedUrl || created.previewUrl || created.downloadUrl || d.url,
+                  downloadUrl: created.downloadUrl,
+                  previewUrl: created.previewUrl,
+                  signedUrl: created.signedUrl,
+                }
+              : d,
           )
           emitChange()
         }
@@ -4058,7 +4205,7 @@ export const addPrescription = async (prescription: {
 }): Promise<PrescriptionRecord> => {
   const tempId = `rx-${Date.now()}`;
   const optimisticNumber = `RX-${1000 + prescriptionsState.length + 1}`;
-  
+
   // Find matching patient record for local preview
   const matchedPatient = patientsState.find(
     (p) => p.id === prescription.patientId || p.backendId === prescription.patientId
@@ -4086,15 +4233,15 @@ export const addPrescription = async (prescription: {
     })),
     patient: matchedPatient
       ? {
-          id: matchedPatient.backendId || matchedPatient.id,
-          patientCode: matchedPatient.id,
-          firstName: matchedPatient.firstName,
-          lastName: matchedPatient.lastName,
-          gender: matchedPatient.gender,
-          dateOfBirth: matchedPatient.dateOfBirth,
-          mobile: matchedPatient.mobile,
-          medicalSafetyAlerts: (matchedPatient as any).medicalAlerts || (matchedPatient.allergiesDetails ? [matchedPatient.allergiesDetails] : []),
-        }
+        id: matchedPatient.backendId || matchedPatient.id,
+        patientCode: matchedPatient.id,
+        firstName: matchedPatient.firstName,
+        lastName: matchedPatient.lastName,
+        gender: matchedPatient.gender,
+        dateOfBirth: matchedPatient.dateOfBirth,
+        mobile: matchedPatient.mobile,
+        medicalSafetyAlerts: (matchedPatient as any).medicalAlerts || (matchedPatient.allergiesDetails ? [matchedPatient.allergiesDetails] : []),
+      }
       : undefined,
   };
 
@@ -4117,15 +4264,15 @@ export const addPrescription = async (prescription: {
         prescriptionsState = prescriptionsState.map((rx) =>
           rx.id === tempId
             ? {
-                ...rx,
-                id: created.id,
-                prescriptionNumber: created.prescriptionNumber || rx.prescriptionNumber,
-                status: created.status || rx.status,
-                items: Array.isArray(created.items) ? created.items : rx.items,
-                patient: created.patient || rx.patient,
-                doctor: created.doctor || rx.doctor,
-                createdAt: created.createdAt,
-              }
+              ...rx,
+              id: created.id,
+              prescriptionNumber: created.prescriptionNumber || rx.prescriptionNumber,
+              status: created.status || rx.status,
+              items: Array.isArray(created.items) ? created.items : rx.items,
+              patient: created.patient || rx.patient,
+              doctor: created.doctor || rx.doctor,
+              createdAt: created.createdAt,
+            }
             : rx
         );
         emitChange();
@@ -4170,18 +4317,18 @@ export const updatePrescription = async (
       ...(patch.prescribedAt !== undefined ? { prescribedAt: patch.prescribedAt } : {}),
       ...(patch.items !== undefined
         ? {
-            items: patch.items.map((it, idx) => ({
-              id: `rxi-upd-${idx}`,
-              medicineName: it.medicineName.trim(),
-              strength: it.strength?.trim() || '',
-              dosage: it.dosage.trim(),
-              route: it.route?.trim() || 'Oral',
-              frequency: it.frequency.trim(),
-              duration: it.duration.trim(),
-              quantity: it.quantity,
-              instructions: it.instructions?.trim() || '',
-            })),
-          }
+          items: patch.items.map((it, idx) => ({
+            id: `rxi-upd-${idx}`,
+            medicineName: it.medicineName.trim(),
+            strength: it.strength?.trim() || '',
+            dosage: it.dosage.trim(),
+            route: it.route?.trim() || 'Oral',
+            frequency: it.frequency.trim(),
+            duration: it.duration.trim(),
+            quantity: it.quantity,
+            instructions: it.instructions?.trim() || '',
+          })),
+        }
         : {}),
     };
   });
@@ -4194,11 +4341,11 @@ export const updatePrescription = async (
         prescriptionsState = prescriptionsState.map((rx) =>
           rx.id === id
             ? {
-                ...rx,
-                diagnosis: updated.diagnosis || rx.diagnosis,
-                clinicalNotes: updated.clinicalNotes ?? rx.clinicalNotes,
-                items: Array.isArray(updated.items) ? updated.items : rx.items,
-              }
+              ...rx,
+              diagnosis: updated.diagnosis || rx.diagnosis,
+              clinicalNotes: updated.clinicalNotes ?? rx.clinicalNotes,
+              items: Array.isArray(updated.items) ? updated.items : rx.items,
+            }
             : rx
         );
         emitChange();
@@ -4223,13 +4370,13 @@ export const finalizePrescription = async (id: string): Promise<PrescriptionReco
     prescriptionsState = prescriptionsState.map((rx) =>
       rx.id === id
         ? {
-            ...rx,
-            status: 'FINALIZED',
-            finalizedAt: finalized?.finalizedAt || new Date().toISOString(),
-            finalizedById: finalized?.finalizedById,
-            doctor: finalized?.doctor || rx.doctor,
-            patient: finalized?.patient || rx.patient,
-          }
+          ...rx,
+          status: 'FINALIZED',
+          finalizedAt: finalized?.finalizedAt || new Date().toISOString(),
+          finalizedById: finalized?.finalizedById,
+          doctor: finalized?.doctor || rx.doctor,
+          patient: finalized?.patient || rx.patient,
+        }
         : rx
     );
     emitChange();
@@ -4241,10 +4388,10 @@ export const finalizePrescription = async (id: string): Promise<PrescriptionReco
     prescriptionsState = prescriptionsState.map((rx) =>
       rx.id === id
         ? {
-            ...rx,
-            status: 'FINALIZED',
-            finalizedAt: new Date().toISOString(),
-          }
+          ...rx,
+          status: 'FINALIZED',
+          finalizedAt: new Date().toISOString(),
+        }
         : rx
     );
     emitChange();
@@ -4265,12 +4412,12 @@ export const cancelPrescription = async (id: string, reason: string): Promise<vo
     prescriptionsState = prescriptionsState.map((rx) =>
       rx.id === id
         ? {
-            ...rx,
-            status: 'CANCELLED',
-            cancelledAt: cancelled?.cancelledAt || new Date().toISOString(),
-            cancelledById: cancelled?.cancelledById,
-            cancellationReason: reason.trim(),
-          }
+          ...rx,
+          status: 'CANCELLED',
+          cancelledAt: cancelled?.cancelledAt || new Date().toISOString(),
+          cancelledById: cancelled?.cancelledById,
+          cancellationReason: reason.trim(),
+        }
         : rx
     );
     emitChange();
@@ -4278,11 +4425,11 @@ export const cancelPrescription = async (id: string, reason: string): Promise<vo
     prescriptionsState = prescriptionsState.map((rx) =>
       rx.id === id
         ? {
-            ...rx,
-            status: 'CANCELLED',
-            cancelledAt: new Date().toISOString(),
-            cancellationReason: reason.trim(),
-          }
+          ...rx,
+          status: 'CANCELLED',
+          cancelledAt: new Date().toISOString(),
+          cancellationReason: reason.trim(),
+        }
         : rx
     );
     emitChange();
@@ -4312,39 +4459,39 @@ export const refreshPrescriptions = async (): Promise<void> => {
         createdAt: p.createdAt,
         items: Array.isArray(p.items)
           ? p.items.map((it: any) => ({
-              id: it.id,
-              prescriptionId: it.prescriptionId,
-              medicineName: it.medicineName,
-              strength: it.strength || '',
-              dosage: it.dosage,
-              route: it.route || 'Oral',
-              frequency: it.frequency,
-              duration: it.duration,
-              quantity: it.quantity,
-              instructions: it.instructions || '',
-            }))
+            id: it.id,
+            prescriptionId: it.prescriptionId,
+            medicineName: it.medicineName,
+            strength: it.strength || '',
+            dosage: it.dosage,
+            route: it.route || 'Oral',
+            frequency: it.frequency,
+            duration: it.duration,
+            quantity: it.quantity,
+            instructions: it.instructions || '',
+          }))
           : [],
         patient: p.patient
           ? {
-              id: p.patient.id,
-              patientCode: p.patient.patientCode,
-              firstName: p.patient.firstName,
-              lastName: p.patient.lastName,
-              gender: p.patient.gender,
-              dateOfBirth: p.patient.dateOfBirth,
-              mobile: p.patient.mobile,
-              medicalSafetyAlerts: Array.isArray(p.patient.medicalSafetyAlerts)
-                ? p.patient.medicalSafetyAlerts
-                : [],
-            }
+            id: p.patient.id,
+            patientCode: p.patient.patientCode,
+            firstName: p.patient.firstName,
+            lastName: p.patient.lastName,
+            gender: p.patient.gender,
+            dateOfBirth: p.patient.dateOfBirth,
+            mobile: p.patient.mobile,
+            medicalSafetyAlerts: Array.isArray(p.patient.medicalSafetyAlerts)
+              ? p.patient.medicalSafetyAlerts
+              : [],
+          }
           : undefined,
         doctor: p.doctor
           ? {
-              id: p.doctor.id,
-              fullName: p.doctor.fullName,
-              email: p.doctor.email,
-              role: p.doctor.role,
-            }
+            id: p.doctor.id,
+            fullName: p.doctor.fullName,
+            email: p.doctor.email,
+            role: p.doctor.role,
+          }
           : undefined,
       }));
       emitChange();
@@ -4449,25 +4596,25 @@ export const refreshClinicalNotes = async (): Promise<void> => {
         plan: n.treatmentRecommendations || n.treatmentPerformed || '',
         patient: n.patient
           ? {
-              id: n.patient.id,
-              patientCode: n.patient.patientCode,
-              firstName: n.patient.firstName,
-              lastName: n.patient.lastName,
-              gender: n.patient.gender,
-              dateOfBirth: n.patient.dateOfBirth,
-              mobile: n.patient.mobile,
-              medicalSafetyAlerts: Array.isArray(n.patient.medicalSafetyAlerts)
-                ? n.patient.medicalSafetyAlerts
-                : [],
-            }
+            id: n.patient.id,
+            patientCode: n.patient.patientCode,
+            firstName: n.patient.firstName,
+            lastName: n.patient.lastName,
+            gender: n.patient.gender,
+            dateOfBirth: n.patient.dateOfBirth,
+            mobile: n.patient.mobile,
+            medicalSafetyAlerts: Array.isArray(n.patient.medicalSafetyAlerts)
+              ? n.patient.medicalSafetyAlerts
+              : [],
+          }
           : undefined,
         doctor: n.doctor
           ? {
-              id: n.doctor.id,
-              fullName: n.doctor.fullName,
-              email: n.doctor.email,
-              role: n.doctor.role,
-            }
+            id: n.doctor.id,
+            fullName: n.doctor.fullName,
+            email: n.doctor.email,
+            role: n.doctor.role,
+          }
           : undefined,
         appointment: n.appointment,
         createdAt: n.createdAt || new Date().toISOString(),
@@ -4544,15 +4691,15 @@ export const addClinicalNote = (
     createdAt: new Date().toISOString(),
     patient: matchedPatient
       ? {
-          id: matchedPatient.id,
-          patientCode: matchedPatient.id,
-          firstName: matchedPatient.firstName,
-          lastName: matchedPatient.lastName,
-          gender: matchedPatient.gender,
-          dateOfBirth: matchedPatient.dateOfBirth,
-          mobile: matchedPatient.mobile,
-          medicalSafetyAlerts: (matchedPatient as any).medicalAlerts || (matchedPatient.allergiesDetails ? [matchedPatient.allergiesDetails] : []),
-        }
+        id: matchedPatient.id,
+        patientCode: matchedPatient.id,
+        firstName: matchedPatient.firstName,
+        lastName: matchedPatient.lastName,
+        gender: matchedPatient.gender,
+        dateOfBirth: matchedPatient.dateOfBirth,
+        mobile: matchedPatient.mobile,
+        medicalSafetyAlerts: (matchedPatient as any).medicalAlerts || (matchedPatient.allergiesDetails ? [matchedPatient.allergiesDetails] : []),
+      }
       : undefined,
   };
 
@@ -4600,19 +4747,19 @@ export const addClinicalNote = (
           clinicalNotesState = clinicalNotesState.map((cn) =>
             cn.id === tempId
               ? {
-                  ...cn,
-                  id: created.id,
-                  noteNumber: created.noteNumber || cn.noteNumber,
-                  status: created.status || cn.status,
-                  finalizedAt: created.finalizedAt || cn.finalizedAt,
-                  finalizedById: created.finalizedById || cn.finalizedById,
-                  finalizedByName: created.finalizedByName || cn.finalizedByName,
-                  doctorName: created.doctor?.fullName || created.finalizedByName || cn.doctorName,
-                  patient: created.patient || cn.patient,
-                  doctor: created.doctor || cn.doctor,
-                  appointment: created.appointment || cn.appointment,
-                  createdAt: created.createdAt || cn.createdAt,
-                }
+                ...cn,
+                id: created.id,
+                noteNumber: created.noteNumber || cn.noteNumber,
+                status: created.status || cn.status,
+                finalizedAt: created.finalizedAt || cn.finalizedAt,
+                finalizedById: created.finalizedById || cn.finalizedById,
+                finalizedByName: created.finalizedByName || cn.finalizedByName,
+                doctorName: created.doctor?.fullName || created.finalizedByName || cn.doctorName,
+                patient: created.patient || cn.patient,
+                doctor: created.doctor || cn.doctor,
+                appointment: created.appointment || cn.appointment,
+                createdAt: created.createdAt || cn.createdAt,
+              }
               : cn
           );
           emitChange();
@@ -4680,13 +4827,13 @@ export const updateClinicalNote = async (
         clinicalNotesState = clinicalNotesState.map((cn) =>
           cn.id === id
             ? {
-                ...cn,
-                ...updated,
-                visitDate: updated.consultationDate ? updated.consultationDate.slice(0, 10) : cn.visitDate,
-                complaint: updated.chiefComplaint || cn.complaint,
-                findings: updated.examinationNotes || updated.intraoralFindings || cn.findings,
-                plan: updated.treatmentRecommendations || updated.treatmentPerformed || cn.plan,
-              }
+              ...cn,
+              ...updated,
+              visitDate: updated.consultationDate ? updated.consultationDate.slice(0, 10) : cn.visitDate,
+              complaint: updated.chiefComplaint || cn.complaint,
+              findings: updated.examinationNotes || updated.intraoralFindings || cn.findings,
+              plan: updated.treatmentRecommendations || updated.treatmentPerformed || cn.plan,
+            }
             : cn
         );
         emitChange();
@@ -4711,13 +4858,13 @@ export const finalizeClinicalNote = async (id: string): Promise<ClinicalNoteReco
       clinicalNotesState = clinicalNotesState.map((cn) =>
         cn.id === id
           ? {
-              ...cn,
-              status: 'FINALIZED',
-              finalizedAt: finalized?.finalizedAt || new Date().toISOString(),
-              finalizedById: finalized?.finalizedById,
-              finalizedByName: finalized?.finalizedByName,
-              doctorName: finalized?.finalizedByName || cn.doctorName,
-            }
+            ...cn,
+            status: 'FINALIZED',
+            finalizedAt: finalized?.finalizedAt || new Date().toISOString(),
+            finalizedById: finalized?.finalizedById,
+            finalizedByName: finalized?.finalizedByName,
+            doctorName: finalized?.finalizedByName || cn.doctorName,
+          }
           : cn
       );
       emitChange();
@@ -4734,11 +4881,11 @@ export const finalizeClinicalNote = async (id: string): Promise<ClinicalNoteReco
     clinicalNotesState = clinicalNotesState.map((cn) =>
       cn.id === id
         ? {
-            ...cn,
-            status: 'FINALIZED',
-            finalizedAt: new Date().toISOString(),
-            finalizedByName: cn.doctorName || 'Attending Doctor',
-          }
+          ...cn,
+          status: 'FINALIZED',
+          finalizedAt: new Date().toISOString(),
+          finalizedByName: cn.doctorName || 'Attending Doctor',
+        }
         : cn
     );
     emitChange();

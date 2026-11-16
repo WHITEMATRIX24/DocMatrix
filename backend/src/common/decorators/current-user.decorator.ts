@@ -9,6 +9,7 @@ export class AuthenticatedUser {
   clinicId!: string | null;
   isPlatformAdmin!: boolean;
   isPrimaryContact!: boolean;
+  sessionId?: string;
 }
 
 export const CurrentUser = createParamDecorator(

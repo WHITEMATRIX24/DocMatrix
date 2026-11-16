@@ -15,6 +15,8 @@ import {
   type PatientRecord,
   type PaymentMode,
 } from '@/services/clinicStore'
+import { getCurrentUser } from '@/services/authService'
+import { canVoidInvoice, canCollectPayments } from '@/services/billingPermissions'
 import './billing.css'
 
 export const PAYMENT_MODES: { id: PaymentMode; icon: React.ComponentType<{ size?: number }> }[] = [
@@ -263,6 +265,10 @@ export const InvoiceDrawer: React.FC<{
   const balance = invoiceBalance(invoice)
   const items = invoice.items?.length ? invoice.items : null
 
+  const currentUser = getCurrentUser()
+  const canVoid = canVoidInvoice(currentUser?.role)
+  const canCollect = canCollectPayments(currentUser?.role)
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && !paying && !isVoiding && !refundingId && onClose()
     window.addEventListener('keydown', onKey)
@@ -385,12 +391,12 @@ export const InvoiceDrawer: React.FC<{
           <button type="button" className="patient-intake-secondary" onClick={() => printInvoice(invoice, patient)} disabled={isVoiding}>
             <Printer size={15} /> Print / PDF
           </button>
-          {invoice.status !== 'Void' && (
+          {canVoid && invoice.status !== 'Void' && (
             <button type="button" className="patient-intake-secondary" onClick={handleVoid} disabled={isVoiding} title="Void invoice">
               <Ban size={15} /> {isVoiding ? 'Voiding...' : 'Void'}
             </button>
           )}
-          {balance > 0 && invoice.status !== 'Void' && (
+          {canCollect && balance > 0 && invoice.status !== 'Void' && (
             <button type="button" className="patient-intake-primary" onClick={() => setPaying(true)} disabled={isVoiding}>
               Collect {inr(balance)}
             </button>

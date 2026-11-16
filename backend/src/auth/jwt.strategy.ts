@@ -2,9 +2,12 @@ import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { SessionService } from './session.service.js';
+import { getJwtSecret, JWT_ALGORITHM } from '../common/config/jwt.config.js';
 
 export interface JwtPayload {
   sub: string;
+  sessionId?: string;
   email: string;
   role: string;
   clinicId: string | null;
@@ -13,11 +16,15 @@ export interface JwtPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(@Inject(PrismaService) private prisma: PrismaService) {
+  constructor(
+    @Inject(PrismaService) private prisma: PrismaService,
+    @Inject(SessionService) private sessionService: SessionService,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET || 'docmatrix_jwt_development_secret_key_2026',
+      secretOrKey: getJwtSecret(),
+      algorithms: [JWT_ALGORITHM],
     });
   }
 
@@ -40,7 +47,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User account is inactive or no longer exists.');
     }
 
-    return user;
+    // If access token carries a sessionId, verify that the session has not been revoked or expired
+    if (payload.sessionId) {
+      const isValid = await this.sessionService.isSessionValid(payload.sessionId, user.id);
+      if (!isValid) {
+        throw new UnauthorizedException('Session has been revoked or expired. Please log in again.');
+      }
+    }
+
+    return {
+      ...user,
+      sessionId: payload.sessionId,
+    };
   }
 }
-

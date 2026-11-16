@@ -6,6 +6,23 @@
  */
 import { apiClient } from './apiClient';
 import { clearClinicStore, initClinicSession } from './clinicStore';
+import { clearInventoryStore, initInventorySession } from './adaptiveInventoryStore';
+import { clearClinicStaffStore, fetchAndSyncClinicStaff } from './clinicStaffStore';
+import { clearBillingStore, initBillingSession } from './billingStore';
+
+export function clearAllClinicStores() {
+  try { clearClinicStore(); } catch {}
+  try { clearInventoryStore(); } catch {}
+  try { clearClinicStaffStore(); } catch {}
+  try { clearBillingStore(); } catch {}
+}
+
+export function initAllClinicStores(clinicId) {
+  try { initClinicSession(clinicId); } catch {}
+  try { initInventorySession(clinicId); } catch {}
+  try { initBillingSession(clinicId); } catch {}
+  try { fetchAndSyncClinicStaff(); } catch {}
+}
 
 // Primary demo account credentials
 export const DEMO_CREDENTIALS = {
@@ -36,6 +53,7 @@ const DEMO_USERS = {
 
 export const STORAGE_KEYS = {
   TOKEN: 'docmatrix_auth_token',
+  REFRESH_TOKEN: 'docmatrix_refresh_token',
   USER: 'docmatrix_auth_user',
   REMEMBER_EMAIL: 'docmatrix_remember_email',
   LEGACY_SESSION: 'docmatrix-demo-session'
@@ -59,9 +77,7 @@ export async function login(email, password, rememberMe = false) {
     });
 
     if (res?.token && res?.user) {
-      try {
-        clearClinicStore();
-      } catch {}
+      clearAllClinicStores();
       const storage = rememberMe ? localStorage : sessionStorage;
       storage.setItem(STORAGE_KEYS.TOKEN, res.token);
       storage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.user));
@@ -75,9 +91,7 @@ export async function login(email, password, rememberMe = false) {
         localStorage.removeItem(STORAGE_KEYS.REMEMBER_EMAIL);
       }
 
-      try {
-        initClinicSession(res.user.clinicId);
-      } catch {}
+      initAllClinicStores(res.user.clinicId);
 
       return { user: res.user, token: res.token };
     }
@@ -156,17 +170,13 @@ export async function registerClinic(formData) {
     });
 
     if (res?.token && res?.user) {
-      try {
-        clearClinicStore();
-      } catch {}
+      clearAllClinicStores();
       sessionStorage.setItem(STORAGE_KEYS.TOKEN, res.token);
       sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.user));
       try {
         sessionStorage.setItem(STORAGE_KEYS.LEGACY_SESSION, res.user.id);
       } catch {}
-      try {
-        initClinicSession(res.user.clinicId);
-      } catch {}
+      initAllClinicStores(res.user.clinicId);
       return { user: res.user, token: res.token };
     }
   } catch (apiErr) {
@@ -262,15 +272,35 @@ export async function requestPasswordReset(email) {
 /**
  * Log out and clear all stored credentials
  */
-export function logout() {
+export async function logout() {
   try {
-    clearClinicStore();
+    await apiClient.post('/auth/logout', {});
   } catch {}
+
+  clearAllClinicStores();
   localStorage.removeItem(STORAGE_KEYS.TOKEN);
+  localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
   localStorage.removeItem(STORAGE_KEYS.USER);
   sessionStorage.removeItem(STORAGE_KEYS.TOKEN);
+  sessionStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
   sessionStorage.removeItem(STORAGE_KEYS.USER);
   sessionStorage.removeItem(STORAGE_KEYS.LEGACY_SESSION);
+}
+
+/**
+ * Manually trigger access token refresh using HttpOnly cookie session
+ */
+export async function refreshAccessToken() {
+  const res = await apiClient.post('/auth/refresh', {});
+  if (res?.token) {
+    const storage = localStorage.getItem(STORAGE_KEYS.TOKEN) ? localStorage : sessionStorage;
+    storage.setItem(STORAGE_KEYS.TOKEN, res.token);
+    if (res.user) {
+      storage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.user));
+    }
+    return res.token;
+  }
+  throw new Error('Refresh failed to return token');
 }
 
 /**

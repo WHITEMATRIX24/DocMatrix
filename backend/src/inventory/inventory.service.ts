@@ -251,55 +251,102 @@ export class InventoryService {
   }
 
   async confirmDeduction(clinicId: string, dto: ConfirmDeductionDto) {
-    for (const mat of dto.materials) {
-      const totalDeduct = (mat.confirmedQty || 0) + (mat.wastageQty || 0);
-      if (totalDeduct <= 0) continue;
+    const opId = dto.operationId || dto.deductionId;
 
-      const item = await this.prisma.inventoryItem.findFirst({
-        where: {
-          clinicId,
-          OR: [
-            { id: mat.itemId },
-            { sku: mat.itemId },
-            ...(mat.name ? [{ name: { equals: mat.name, mode: 'insensitive' as const } }] : []),
-          ],
-        },
+    if (opId) {
+      const existingAudit = await this.prisma.inventoryAudit.findFirst({
+        where: { clinicId, id: opId },
       });
-      if (item) {
-        await this.prisma.inventoryItem.update({
-          where: { id: item.id },
-          data: { totalStock: Math.max(0, item.totalStock - totalDeduct) },
-        });
-
-        const batch = await this.prisma.inventoryBatch.findFirst({
-          where: { clinicId, itemId: item.id, batchNumber: mat.batchNumber },
-        });
-        if (batch) {
-          await this.prisma.inventoryBatch.update({
-            where: { id: batch.id },
-            data: { quantity: Math.max(0, batch.quantity - totalDeduct) },
-          });
-        }
+      if (existingAudit) {
+        return {
+          ...existingAudit,
+          isDuplicate: true,
+          message: `Deduction operation "${opId}" has already been processed (idempotent replay).`,
+        };
       }
     }
 
-    const audit = await this.prisma.inventoryAudit.create({
-      data: {
-        clinicId,
-        treatmentId: dto.treatmentId,
-        appointmentId: dto.appointmentId,
-        patientId: dto.patientId,
-        patientName: dto.patientName,
-        doctorId: dto.doctorId,
-        doctorName: dto.doctorName,
-        procedureId: dto.procedureId,
-        procedureName: dto.procedureName,
-        modeUsed: dto.modeUsed || 'standard',
-        materials: dto.materials as any,
-        confirmedBy: dto.confirmedBy,
-      },
-    });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        if (opId) {
+          const existingInTx = await tx.inventoryAudit.findFirst({
+            where: { clinicId, id: opId },
+          });
+          if (existingInTx) {
+            return {
+              ...existingInTx,
+              isDuplicate: true,
+              message: `Deduction operation "${opId}" has already been processed (idempotent replay).`,
+            };
+          }
+        }
 
-    return audit;
+        for (const mat of dto.materials) {
+          const totalDeduct = (mat.confirmedQty || 0) + (mat.wastageQty || 0);
+          if (totalDeduct <= 0) continue;
+
+          const item = await tx.inventoryItem.findFirst({
+            where: {
+              clinicId,
+              OR: [
+                { id: mat.itemId },
+                { sku: mat.itemId },
+                ...(mat.name ? [{ name: { equals: mat.name, mode: 'insensitive' as const } }] : []),
+              ],
+            },
+          });
+          if (item) {
+            await tx.inventoryItem.update({
+              where: { id: item.id },
+              data: { totalStock: Math.max(0, item.totalStock - totalDeduct) },
+            });
+
+            const batch = await tx.inventoryBatch.findFirst({
+              where: { clinicId, itemId: item.id, batchNumber: mat.batchNumber },
+            });
+            if (batch) {
+              await tx.inventoryBatch.update({
+                where: { id: batch.id },
+                data: { quantity: Math.max(0, batch.quantity - totalDeduct) },
+              });
+            }
+          }
+        }
+
+        const audit = await tx.inventoryAudit.create({
+          data: {
+            id: opId || undefined,
+            clinicId,
+            treatmentId: dto.treatmentId,
+            appointmentId: dto.appointmentId,
+            patientId: dto.patientId,
+            patientName: dto.patientName,
+            doctorId: dto.doctorId,
+            doctorName: dto.doctorName,
+            procedureId: dto.procedureId,
+            procedureName: dto.procedureName,
+            modeUsed: dto.modeUsed || 'standard',
+            materials: dto.materials as any,
+            confirmedBy: dto.confirmedBy,
+          },
+        });
+
+        return audit;
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2002' && opId) {
+        const existing = await this.prisma.inventoryAudit.findFirst({
+          where: { clinicId, id: opId },
+        });
+        if (existing) {
+          return {
+            ...existing,
+            isDuplicate: true,
+            message: `Deduction operation "${opId}" has already been processed (idempotent replay).`,
+          };
+        }
+      }
+      throw err;
+    }
   }
 }

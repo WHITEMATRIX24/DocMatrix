@@ -70,6 +70,7 @@ export const TreatmentMaterialUsageModal: React.FC<TreatmentMaterialUsageModalPr
   const [items, setItems] = useState<EditableConsumptionItem[]>([])
   const [notes, setNotes] = useState('')
   const [isInteractiveOnly, setIsInteractiveOnly] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedAddItemId, setSelectedAddItemId] = useState('')
   const [addQty, setAddQty] = useState(1)
   const [confirmedAuditId, setConfirmedAuditId] = useState<string | null>(null)
@@ -79,6 +80,7 @@ export const TreatmentMaterialUsageModal: React.FC<TreatmentMaterialUsageModalPr
     if (!isOpen) return
 
     setConfirmedAuditId(null)
+    setIsSubmitting(false)
     const calculation = calculateProcedureSuggestions(procedureId, doctorId, selectedMode)
 
     const editableList: EditableConsumptionItem[] = calculation.materials.map((m) => {
@@ -188,6 +190,9 @@ export const TreatmentMaterialUsageModal: React.FC<TreatmentMaterialUsageModalPr
 
   // Confirm consumption workflow
   const handleConfirm = () => {
+    if (isSubmitting || confirmedAuditId) return
+    setIsSubmitting(true)
+
     if (isInteractiveOnly) {
       setConfirmedAuditId(`SIM-${Date.now().toString().slice(-4)}`)
       if (onConfirmed) {
@@ -611,22 +616,23 @@ export const TreatmentMaterialUsageModal: React.FC<TreatmentMaterialUsageModalPr
               type="button"
               className="pat-btn pat-btn-primary"
               onClick={handleConfirm}
+              disabled={isSubmitting || confirmedAuditId !== null}
               style={{
                 padding: '8px 20px',
-                background: 'var(--teal-primary, #0b8185)',
+                background: isSubmitting || confirmedAuditId !== null ? 'var(--text-muted, #94a3b8)' : 'var(--teal-primary, #0b8185)',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: '8px',
                 fontWeight: 600,
                 fontSize: '13.5px',
-                cursor: 'pointer',
+                cursor: isSubmitting || confirmedAuditId !== null ? 'not-allowed' : 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px'
               }}
             >
               <CheckCircle2 size={16} />
-              <span>Confirm Actual Consumption</span>
+              <span>{isSubmitting ? 'Confirming...' : 'Confirm Actual Consumption'}</span>
             </button>
           </div>
         </div>

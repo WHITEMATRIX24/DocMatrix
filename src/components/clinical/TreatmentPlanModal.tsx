@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   Plus,
@@ -9,12 +9,22 @@ import {
   Calendar,
   Lock,
   ChevronDown,
+  UserCheck,
+  Activity,
+  Smile,
 } from 'lucide-react';
 import {
   useClinicData,
   createStructuredTreatmentPlan,
+  updateStructuredTreatmentPlan,
   type PatientRecord,
+  type TreatmentPlanRecord,
+  type InvoiceRecord,
 } from '../../services/clinicStore';
+import { useBillingData } from '../../services/billingStore';
+import { fetchAndSyncClinicStaff, type ClinicStaffDoctor } from '../../services/clinicStaffStore';
+import { getCurrentUser } from '../../services/authService';
+import ToothChart from '../../pages/patients/ToothChart';
 import '../../pages/clinical/treatmentPlans.css';
 
 // Master ADA / CDT procedures catalogue
@@ -39,21 +49,10 @@ const STANDARD_PROCEDURES = [
   { code: 'D6010', name: 'Surgical Placement of Implant Body', category: 'Implantology', fee: 25000 },
 ];
 
-// FDI Permanent teeth
-const FDI_TEETH = [
-  // Upper Right
-  '18', '17', '16', '15', '14', '13', '12', '11',
-  // Upper Left
-  '21', '22', '23', '24', '25', '26', '27', '28',
-  // Lower Left
-  '38', '37', '36', '35', '34', '33', '32', '31',
-  // Lower Right
-  '41', '42', '43', '44', '45', '46', '47', '48',
-];
-
 const SURFACES = ['M', 'O', 'D', 'B', 'L', 'I'];
 
 interface ItemFormState {
+  id?: string;
   procedureCode?: string;
   procedureName: string;
   category: string;
@@ -63,6 +62,8 @@ interface ItemFormState {
   unitFee: number;
   discount: number;
   notes: string;
+  isLocked?: boolean;
+  lockReason?: string;
 }
 
 interface StageFormState {
@@ -76,6 +77,8 @@ interface TreatmentPlanModalProps {
   isOpen: boolean;
   onClose: () => void;
   lockedPatientId?: string; // If opened from patient profile
+  initialPatientId?: string;
+  planToEdit?: TreatmentPlanRecord | null;
   onSuccess?: (planNumber: string) => void;
 }
 
@@ -83,20 +86,93 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
   isOpen,
   onClose,
   lockedPatientId,
+  initialPatientId,
+  planToEdit,
   onSuccess,
 }) => {
-  const { patients = [] } = useClinicData();
+  const effectiveLockedPatientId = lockedPatientId || initialPatientId;
+  const { patients = [], invoices = [] } = useClinicData();
+  const { services: billingServices = [] } = useBillingData();
+  const currentUser = useMemo(() => getCurrentUser(), []);
+
+  const [clinicDoctors, setClinicDoctors] = useState<ClinicStaffDoctor[]>([]);
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
+
+  const isEditMode = Boolean(planToEdit);
+
+  // Map of billed items
+  const billedItemMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const inv of invoices as InvoiceRecord[]) {
+      if (inv.status === 'Void') continue;
+      for (const it of inv.items || []) {
+        if (it.treatmentPlanItemId) {
+          map.set(it.treatmentPlanItemId, inv.id);
+        }
+      }
+    }
+    return map;
+  }, [invoices]);
+
+  useEffect(() => {
+    let active = true;
+    fetchAndSyncClinicStaff().then((staff) => {
+      if (!active) return;
+      const eligible = staff.filter(
+        (s) =>
+          !s.role ||
+          s.role === 'DOCTOR' ||
+          s.role === 'DENTIST' ||
+          s.role === 'ORGANIZATION_ADMIN' ||
+          s.role === 'BRANCH_ADMIN'
+      );
+      setClinicDoctors(eligible);
+      if (eligible.length > 0) {
+        setSelectedDoctorId((prev) => {
+          if (prev) return prev;
+          if (planToEdit?.doctorId) {
+            const match = eligible.find((d) => d.id === planToEdit.doctorId);
+            if (match) return match.id;
+          }
+          const foundCurrent = eligible.find((d) => d.id === currentUser?.id);
+          return foundCurrent ? foundCurrent.id : eligible[0].id;
+        });
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [currentUser, planToEdit]);
 
   const [selectedPatientId, setSelectedPatientId] = useState<string>(
-    lockedPatientId || (patients[0]?.id || '')
+    effectiveLockedPatientId || planToEdit?.patientId || (patients[0]?.id || '')
   );
-  const [title, setTitle] = useState('Comprehensive Dental Treatment Plan');
-  const [notes, setNotes] = useState('');
-  const [taxRate, setTaxRate] = useState<number>(0);
+  const [title, setTitle] = useState(
+    planToEdit?.title || 'Comprehensive Dental Treatment Plan'
+  );
+  const [notes, setNotes] = useState(planToEdit?.notes || '');
+  const [taxRate, setTaxRate] = useState<number>(
+    planToEdit?.tax && planToEdit?.subtotal
+      ? Math.round((planToEdit.tax / planToEdit.subtotal) * 100)
+      : 0
+  );
+  const [revisionReason, setRevisionReason] = useState(
+    planToEdit
+      ? `Estimate revision v${(planToEdit.currentVersion || 1) + 1} - clinical adjustments`
+      : ''
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Initial stage state with 1 stage and 1 procedure
+  // Interactive Odontogram State
+  const [showOdontogram, setShowOdontogram] = useState(false);
+  const [activeOdontoRow, setActiveOdontoRow] = useState<{ stageIdx: number; itemIdx: number }>({
+    stageIdx: 0,
+    itemIdx: 0,
+  });
+  const [dentitionMode, setDentitionMode] = useState<'adult' | 'primary'>('adult');
+
+  // Stages state
   const [stages, setStages] = useState<StageFormState[]>([
     {
       stageNumber: 1,
@@ -117,6 +193,56 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
       ],
     },
   ]);
+
+  // Synchronize when editing an existing plan
+  useEffect(() => {
+    if (planToEdit) {
+      setSelectedPatientId(planToEdit.patientId);
+      if (planToEdit.doctorId) setSelectedDoctorId(planToEdit.doctorId);
+      setTitle(planToEdit.title || planToEdit.procedure || 'Comprehensive Dental Treatment Plan');
+      setNotes(planToEdit.notes || '');
+      const calcTax =
+        planToEdit.tax && planToEdit.subtotal
+          ? Math.round((planToEdit.tax / planToEdit.subtotal) * 100)
+          : 0;
+      setTaxRate(calcTax);
+      setRevisionReason(
+        `Estimate revision v${(planToEdit.currentVersion || 1) + 1} - clinical adjustments`
+      );
+
+      if (planToEdit.stages && planToEdit.stages.length > 0) {
+        setStages(
+          planToEdit.stages.map((st, sIdx) => ({
+            stageNumber: st.stageNumber || sIdx + 1,
+            name: st.name || `Stage ${sIdx + 1}`,
+            targetDate: st.targetDate ? st.targetDate.split('T')[0] : '',
+            items: (st.items || []).map((it) => {
+              const isBilled = billedItemMap.has(it.id);
+              const isCompleted = it.status === 'COMPLETED';
+              return {
+                id: it.id,
+                procedureCode: it.procedureCode || '',
+                procedureName: it.procedureName,
+                category: it.category || 'General',
+                toothNumber: it.toothNumber || '',
+                surface: it.surface || '',
+                quantity: it.quantity || 1,
+                unitFee: it.unitFee || 0,
+                discount: it.discount || 0,
+                notes: it.notes || '',
+                isLocked: isBilled || isCompleted,
+                lockReason: isBilled
+                  ? `Billed in ${billedItemMap.get(it.id)}`
+                  : isCompleted
+                  ? 'Completed procedure'
+                  : undefined,
+              };
+            }),
+          }))
+        );
+      }
+    }
+  }, [planToEdit, billedItemMap]);
 
   const selectedPatient = useMemo(() => {
     return (patients as PatientRecord[]).find(
@@ -193,6 +319,12 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
 
   const removeStage = (stageIdx: number) => {
     if (stages.length <= 1) return;
+    const stageToRemove = stages[stageIdx];
+    const hasLocked = stageToRemove.items.some((i) => i.isLocked);
+    if (hasLocked) {
+      setErrorMsg('Cannot remove a stage that contains completed or already-billed procedures.');
+      return;
+    }
     const updated = stages
       .filter((_, idx) => idx !== stageIdx)
       .map((st, idx) => ({ ...st, stageNumber: idx + 1 }));
@@ -231,20 +363,35 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
   const removeItemFromStage = (stageIdx: number, itemIdx: number) => {
     const updated = [...stages];
     if (updated[stageIdx].items.length <= 1) return;
+    if (updated[stageIdx].items[itemIdx].isLocked) {
+      setErrorMsg('Cannot delete a procedure that is completed or already billed.');
+      return;
+    }
     updated[stageIdx].items = updated[stageIdx].items.filter((_, idx) => idx !== itemIdx);
     setStages(updated);
   };
 
-  const handleProcedureSelect = (stageIdx: number, itemIdx: number, procCode: string) => {
-    const found = STANDARD_PROCEDURES.find((p) => p.code === procCode);
+  const handleProcedureSelect = (stageIdx: number, itemIdx: number, val: string) => {
     const updated = [...stages];
-    if (found) {
-      updated[stageIdx].items[itemIdx].procedureCode = found.code;
-      updated[stageIdx].items[itemIdx].procedureName = found.name;
-      updated[stageIdx].items[itemIdx].category = found.category;
-      updated[stageIdx].items[itemIdx].unitFee = found.fee;
+    if (val.startsWith('TARIFF:')) {
+      const tariffId = val.replace('TARIFF:', '');
+      const found = billingServices.find((s) => s.id === tariffId);
+      if (found) {
+        updated[stageIdx].items[itemIdx].procedureCode = found.id;
+        updated[stageIdx].items[itemIdx].procedureName = found.name;
+        updated[stageIdx].items[itemIdx].category = found.category || 'General';
+        updated[stageIdx].items[itemIdx].unitFee = found.offerPrice || found.price || 0;
+      }
     } else {
-      updated[stageIdx].items[itemIdx].procedureCode = '';
+      const found = STANDARD_PROCEDURES.find((p) => p.code === val);
+      if (found) {
+        updated[stageIdx].items[itemIdx].procedureCode = found.code;
+        updated[stageIdx].items[itemIdx].procedureName = found.name;
+        updated[stageIdx].items[itemIdx].category = found.category;
+        updated[stageIdx].items[itemIdx].unitFee = found.fee;
+      } else {
+        updated[stageIdx].items[itemIdx].procedureCode = '';
+      }
     }
     setStages(updated);
   };
@@ -261,7 +408,7 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
   };
 
   const handleToothToggle = (stageIdx: number, itemIdx: number, tooth: string) => {
-    const current = stages[stageIdx].items[itemIdx].toothNumber || '';
+    const current = stages[stageIdx]?.items[itemIdx]?.toothNumber || '';
     const teeth = current
       .split(/[,;\s]+/)
       .map((t) => t.trim())
@@ -277,7 +424,7 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
   };
 
   const handleSurfaceToggle = (stageIdx: number, itemIdx: number, surfaceChar: string) => {
-    const current = (stages[stageIdx].items[itemIdx].surface || '').toUpperCase();
+    const current = (stages[stageIdx]?.items[itemIdx]?.surface || '').toUpperCase();
     let nextSurface = '';
     if (current.includes(surfaceChar)) {
       nextSurface = current.replace(surfaceChar, '');
@@ -301,7 +448,6 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
       return;
     }
 
-    // Validate that every item has a name and fee
     for (const [sIdx, stage] of stages.entries()) {
       if (stage.items.length === 0) {
         setErrorMsg(`Stage ${sIdx + 1} must contain at least one dental procedure.`);
@@ -317,35 +463,73 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const created = await createStructuredTreatmentPlan({
-        patientId: selectedPatientId,
-        title: title.trim(),
-        notes: notes.trim(),
-        taxRate,
-        stages: stages.map((st) => ({
-          stageNumber: st.stageNumber,
-          name: st.name.trim(),
-          targetDate: st.targetDate || undefined,
-          items: st.items.map((it) => ({
-            procedureCode: it.procedureCode,
-            procedureName: it.procedureName.trim(),
-            category: it.category.trim() || 'General',
-            toothNumber: it.toothNumber.trim() || undefined,
-            surface: it.surface.trim() || undefined,
-            quantity: Number(it.quantity) || 1,
-            unitFee: Number(it.unitFee) || 0,
-            discount: Number(it.discount) || 0,
-            notes: it.notes.trim() || undefined,
-          })),
-        })),
-      });
+      const selectedDoc = clinicDoctors.find((d) => d.id === selectedDoctorId);
+      const doctorName = selectedDoc?.name || currentUser?.fullName || 'Dr. Attending Dentist';
 
-      if (onSuccess) {
-        onSuccess(created.planNumber || created.id);
+      if (planToEdit) {
+        const updated = await updateStructuredTreatmentPlan(planToEdit.id, {
+          title: title.trim(),
+          notes: notes.trim(),
+          taxRate,
+          doctorId: selectedDoctorId || undefined,
+          doctorName,
+          revisionReason: revisionReason.trim() || `Estimate revision v${(planToEdit.currentVersion || 1) + 1} - clinical adjustments`,
+          stages: stages.map((st) => ({
+            stageNumber: st.stageNumber,
+            name: st.name.trim(),
+            targetDate: st.targetDate || undefined,
+            items: st.items.map((it) => ({
+              id: it.id,
+              procedureCode: it.procedureCode,
+              procedureName: it.procedureName.trim(),
+              category: it.category.trim() || 'General',
+              toothNumber: it.toothNumber.trim() || undefined,
+              surface: it.surface.trim() || undefined,
+              quantity: Number(it.quantity) || 1,
+              unitFee: Number(it.unitFee) || 0,
+              discount: Number(it.discount) || 0,
+              notes: it.notes.trim() || undefined,
+            })),
+          })),
+        });
+
+        if (onSuccess) {
+          onSuccess(updated?.planNumber || updated?.id || planToEdit.id);
+        }
+        onClose();
+      } else {
+        const created = await createStructuredTreatmentPlan({
+          patientId: selectedPatientId,
+          doctorId: selectedDoctorId || undefined,
+          doctorName,
+          title: title.trim(),
+          notes: notes.trim(),
+          taxRate,
+          stages: stages.map((st) => ({
+            stageNumber: st.stageNumber,
+            name: st.name.trim(),
+            targetDate: st.targetDate || undefined,
+            items: st.items.map((it) => ({
+              procedureCode: it.procedureCode,
+              procedureName: it.procedureName.trim(),
+              category: it.category.trim() || 'General',
+              toothNumber: it.toothNumber.trim() || undefined,
+              surface: it.surface.trim() || undefined,
+              quantity: Number(it.quantity) || 1,
+              unitFee: Number(it.unitFee) || 0,
+              discount: Number(it.discount) || 0,
+              notes: it.notes.trim() || undefined,
+            })),
+          })),
+        });
+
+        if (onSuccess) {
+          onSuccess(created.planNumber || created.id);
+        }
+        onClose();
       }
-      onClose();
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to create treatment plan. Please check inputs.');
+      setErrorMsg(err.message || 'Failed to save treatment plan. Please check inputs.');
     } finally {
       setIsSubmitting(false);
     }
@@ -373,10 +557,14 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
             </div>
             <div>
               <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0 }}>
-                Create Dental Treatment Plan
+                {isEditMode
+                  ? `Edit Treatment Plan (${planToEdit?.planNumber || planToEdit?.id})`
+                  : 'Create Dental Treatment Plan'}
               </h2>
               <p style={{ margin: 0, fontSize: '12.5px', color: 'var(--text-muted, #64748b)' }}>
-                Multi-stage dental procedures, FDI tooth charting, and chairside cost estimates.
+                {isEditMode
+                  ? 'Revise clinical procedures, fees, or dentist. A new versioned estimate snapshot will be saved.'
+                  : 'Multi-stage dental procedures, FDI tooth charting, and chairside cost estimates.'}
               </p>
             </div>
           </div>
@@ -444,13 +632,13 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
               </div>
             )}
 
-            {/* Top Grid: Patient & Plan Info */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px' }}>
+            {/* Top Grid: Patient, Treating Dentist & Plan Info */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, marginBottom: '6px' }}>
                   Patient <span style={{ color: '#dc2626' }}>*</span>
                 </label>
-                {lockedPatientId ? (
+                {effectiveLockedPatientId || isEditMode ? (
                   <div
                     style={{
                       padding: '8px 12px',
@@ -468,7 +656,10 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                     <span>
                       {selectedPatient
                         ? `${selectedPatient.firstName} ${selectedPatient.lastName} (${selectedPatient.id})`
-                        : lockedPatientId}
+                        : selectedPatientId}
+                    </span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', marginLeft: 'auto' }}>
+                      (Locked)
                     </span>
                   </div>
                 ) : (
@@ -495,6 +686,45 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
 
               <div>
                 <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, marginBottom: '6px' }}>
+                  Treating Dentist <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                {clinicDoctors.length > 0 ? (
+                  <select
+                    value={selectedDoctorId}
+                    onChange={(e) => setSelectedDoctorId(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--line, #cbd5e1)',
+                      fontSize: '13.5px',
+                      background: 'var(--surface, #ffffff)',
+                    }}
+                  >
+                    {clinicDoctors.map((doc) => (
+                      <option key={doc.id} value={doc.id}>
+                        {doc.name} {doc.role ? `(${doc.role === 'DOCTOR' ? 'Dentist' : doc.role})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div
+                    style={{
+                      padding: '8px 12px',
+                      background: 'var(--surface-hover, #f8fafc)',
+                      border: '1px solid var(--line, #e2e8f0)',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      color: 'var(--text-muted, #64748b)',
+                    }}
+                  >
+                    {currentUser?.fullName ? `${currentUser.fullName} (Current Practitioner)` : 'Dr. Attending Dentist'}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, marginBottom: '6px' }}>
                   Treatment Plan Title <span style={{ color: '#dc2626' }}>*</span>
                 </label>
                 <input
@@ -512,7 +742,103 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                   }}
                 />
               </div>
+
+              {isEditMode && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, marginBottom: '6px' }}>
+                    Revision Reason / Changelog
+                  </label>
+                  <input
+                    type="text"
+                    value={revisionReason}
+                    onChange={(e) => setRevisionReason(e.target.value)}
+                    placeholder="e.g. Adjusted procedure fees and added Stage 2"
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--line, #cbd5e1)',
+                      fontSize: '13.5px',
+                      background: 'var(--surface, #ffffff)',
+                    }}
+                  />
+                </div>
+              )}
             </div>
+
+            {/* Interactive Odontogram Drawer / Toggle Banner */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                background: showOdontogram ? 'var(--tp-teal-light)' : 'var(--surface-hover, #f8fafc)',
+                border: '1px solid var(--line, #e2e8f0)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Smile size={18} color="var(--tp-teal)" />
+                <span style={{ fontSize: '13px', fontWeight: 600 }}>
+                  Interactive FDI Dental Chart & Odontogram
+                </span>
+                <span style={{ fontSize: '11.5px', color: 'var(--text-muted, #64748b)' }}>
+                  (Click any tooth to assign to active row)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowOdontogram(!showOdontogram)}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--tp-teal)',
+                  background: showOdontogram ? 'var(--tp-teal)' : 'var(--surface, #ffffff)',
+                  color: showOdontogram ? '#ffffff' : 'var(--tp-teal)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {showOdontogram ? 'Hide Odontogram' : 'Open Tooth Chart Picker'}
+              </button>
+            </div>
+
+            {showOdontogram && (
+              <div
+                style={{
+                  padding: '14px',
+                  borderRadius: '10px',
+                  border: '1px solid var(--tp-teal-border)',
+                  background: 'var(--surface, #ffffff)',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                }}
+              >
+                <div style={{ marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--tp-teal)' }}>
+                    Target: Stage {activeOdontoRow.stageIdx + 1}, Procedure #{activeOdontoRow.itemIdx + 1}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)' }}>
+                    Selected teeth: {stages[activeOdontoRow.stageIdx]?.items[activeOdontoRow.itemIdx]?.toothNumber || 'None'}
+                  </span>
+                </div>
+                <ToothChart
+                  conditions={{}}
+                  selectedTooth={
+                    parseInt(
+                      (stages[activeOdontoRow.stageIdx]?.items[activeOdontoRow.itemIdx]?.toothNumber || '').split(/[,;\s]+/)[0],
+                      10
+                    ) || null
+                  }
+                  onToothSelect={(num) => {
+                    handleToothToggle(activeOdontoRow.stageIdx, activeOdontoRow.itemIdx, String(num));
+                  }}
+                  dentitionMode={dentitionMode}
+                  onDentitionChange={setDentitionMode}
+                />
+              </div>
+            )}
 
             {/* Stage Builder */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -632,12 +958,39 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                         {stage.items.map((item, itemIdx) => {
                           const itemQty = item.quantity > 0 ? item.quantity : 1;
                           const netFee = Math.max(0, item.unitFee * itemQty - item.discount);
+                          const isRowActiveForChart =
+                            activeOdontoRow.stageIdx === stageIdx &&
+                            activeOdontoRow.itemIdx === itemIdx;
 
                           return (
-                            <tr key={itemIdx}>
+                            <tr
+                              key={item.id || itemIdx}
+                              style={{
+                                background: isRowActiveForChart ? 'rgba(0, 136, 145, 0.03)' : undefined,
+                              }}
+                            >
                               <td>
+                                {item.isLocked && (
+                                  <div
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      fontSize: '10px',
+                                      fontWeight: 700,
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      background: 'rgba(5, 150, 105, 0.1)',
+                                      color: '#059669',
+                                      marginBottom: '4px',
+                                    }}
+                                  >
+                                    <Lock size={10} /> {item.lockReason || 'Locked'}
+                                  </div>
+                                )}
                                 <select
                                   value={item.procedureCode || ''}
+                                  disabled={item.isLocked}
                                   onChange={(e) =>
                                     handleProcedureSelect(stageIdx, itemIdx, e.target.value)
                                   }
@@ -648,19 +1001,35 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                                     border: '1px solid var(--line, #cbd5e1)',
                                     fontSize: '12px',
                                     marginBottom: '4px',
-                                    background: 'var(--surface, #ffffff)',
+                                    background: item.isLocked
+                                      ? 'var(--surface-hover, #f1f5f9)'
+                                      : 'var(--surface, #ffffff)',
                                   }}
                                 >
                                   <option value="">Select CDT Procedure or Custom...</option>
-                                  {STANDARD_PROCEDURES.map((proc) => (
-                                    <option key={proc.code} value={proc.code}>
-                                      {proc.code} — {proc.name} (₹{proc.fee})
-                                    </option>
-                                  ))}
+                                  <optgroup label="Standard Dental Procedures (CDT / ADA)">
+                                    {STANDARD_PROCEDURES.map((proc) => (
+                                      <option key={proc.code} value={proc.code}>
+                                        {proc.code} — {proc.name} (₹{proc.fee})
+                                      </option>
+                                    ))}
+                                  </optgroup>
+                                  {billingServices.length > 0 && (
+                                    <optgroup label="Clinic Service Tariffs">
+                                      {billingServices
+                                        .filter((s) => s.active !== false)
+                                        .map((srv) => (
+                                          <option key={srv.id} value={`TARIFF:${srv.id}`}>
+                                            {srv.name} — {srv.category} (₹{srv.offerPrice || srv.price})
+                                          </option>
+                                        ))}
+                                    </optgroup>
+                                  )}
                                 </select>
                                 <input
                                   type="text"
                                   value={item.procedureName}
+                                  disabled={item.isLocked}
                                   onChange={(e) =>
                                     updateItemField(stageIdx, itemIdx, 'procedureName', e.target.value)
                                   }
@@ -671,31 +1040,63 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                                     borderRadius: '6px',
                                     border: '1px solid var(--line, #cbd5e1)',
                                     fontSize: '12px',
-                                    background: 'var(--surface, #ffffff)',
+                                    background: item.isLocked
+                                      ? 'var(--surface-hover, #f1f5f9)'
+                                      : 'var(--surface, #ffffff)',
                                   }}
                                 />
                               </td>
 
                               <td>
                                 {/* Tooth Input with FDI helper */}
-                                <input
-                                  type="text"
-                                  value={item.toothNumber}
-                                  onChange={(e) =>
-                                    updateItemField(stageIdx, itemIdx, 'toothNumber', e.target.value)
-                                  }
-                                  placeholder="FDI Tooth e.g. 16, 24"
-                                  style={{
-                                    width: '100%',
-                                    padding: '4px 8px',
-                                    borderRadius: '6px',
-                                    border: '1px solid var(--line, #cbd5e1)',
-                                    fontSize: '12px',
-                                    fontFamily: 'monospace',
-                                    marginBottom: '4px',
-                                    background: 'var(--surface, #ffffff)',
-                                  }}
-                                />
+                                <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '4px' }}>
+                                  <input
+                                    type="text"
+                                    value={item.toothNumber}
+                                    disabled={item.isLocked}
+                                    onFocus={() => {
+                                      setActiveOdontoRow({ stageIdx, itemIdx });
+                                    }}
+                                    onChange={(e) =>
+                                      updateItemField(stageIdx, itemIdx, 'toothNumber', e.target.value)
+                                    }
+                                    placeholder="FDI Tooth e.g. 16, 24"
+                                    style={{
+                                      flex: 1,
+                                      padding: '4px 8px',
+                                      borderRadius: '6px',
+                                      border: '1px solid var(--line, #cbd5e1)',
+                                      fontSize: '12px',
+                                      fontFamily: 'monospace',
+                                      background: item.isLocked
+                                        ? 'var(--surface-hover, #f1f5f9)'
+                                        : 'var(--surface, #ffffff)',
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    title="Pick tooth on Odontogram"
+                                    disabled={item.isLocked}
+                                    onClick={() => {
+                                      setActiveOdontoRow({ stageIdx, itemIdx });
+                                      setShowOdontogram(true);
+                                    }}
+                                    style={{
+                                      padding: '4px 6px',
+                                      borderRadius: '6px',
+                                      border: '1px solid var(--tp-teal)',
+                                      background: isRowActiveForChart && showOdontogram
+                                        ? 'var(--tp-teal)'
+                                        : 'var(--tp-teal-light)',
+                                      color: isRowActiveForChart && showOdontogram ? '#ffffff' : 'var(--tp-teal)',
+                                      cursor: item.isLocked ? 'not-allowed' : 'pointer',
+                                      fontSize: '11px',
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    Chart
+                                  </button>
+                                </div>
                                 {/* Surface Checkbox Pills */}
                                 <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                                   {SURFACES.map((surf) => {
@@ -704,13 +1105,14 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                                       <button
                                         key={surf}
                                         type="button"
+                                        disabled={item.isLocked}
                                         onClick={() => handleSurfaceToggle(stageIdx, itemIdx, surf)}
                                         style={{
                                           padding: '2px 6px',
                                           borderRadius: '4px',
                                           fontSize: '10.5px',
                                           fontWeight: 700,
-                                          cursor: 'pointer',
+                                          cursor: item.isLocked ? 'not-allowed' : 'pointer',
                                           background: isSelected ? 'var(--tp-teal)' : 'var(--surface-hover, #f1f5f9)',
                                           color: isSelected ? '#ffffff' : 'var(--text-muted, #64748b)',
                                           border: '1px solid var(--line, #cbd5e1)',
@@ -728,6 +1130,7 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                                   type="number"
                                   min="1"
                                   value={item.quantity}
+                                  disabled={item.isLocked}
                                   onChange={(e) =>
                                     updateItemField(stageIdx, itemIdx, 'quantity', parseInt(e.target.value, 10) || 1)
                                   }
@@ -737,7 +1140,9 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                                     borderRadius: '6px',
                                     border: '1px solid var(--line, #cbd5e1)',
                                     fontSize: '12.5px',
-                                    background: 'var(--surface, #ffffff)',
+                                    background: item.isLocked
+                                      ? 'var(--surface-hover, #f1f5f9)'
+                                      : 'var(--surface, #ffffff)',
                                   }}
                                 />
                               </td>
@@ -747,6 +1152,7 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                                   type="number"
                                   min="0"
                                   value={item.unitFee}
+                                  disabled={item.isLocked}
                                   onChange={(e) =>
                                     updateItemField(stageIdx, itemIdx, 'unitFee', parseFloat(e.target.value) || 0)
                                   }
@@ -756,7 +1162,9 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                                     borderRadius: '6px',
                                     border: '1px solid var(--line, #cbd5e1)',
                                     fontSize: '12.5px',
-                                    background: 'var(--surface, #ffffff)',
+                                    background: item.isLocked
+                                      ? 'var(--surface-hover, #f1f5f9)'
+                                      : 'var(--surface, #ffffff)',
                                   }}
                                 />
                               </td>
@@ -766,6 +1174,7 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                                   type="number"
                                   min="0"
                                   value={item.discount}
+                                  disabled={item.isLocked}
                                   onChange={(e) =>
                                     updateItemField(stageIdx, itemIdx, 'discount', parseFloat(e.target.value) || 0)
                                   }
@@ -775,7 +1184,9 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                                     borderRadius: '6px',
                                     border: '1px solid var(--line, #cbd5e1)',
                                     fontSize: '12.5px',
-                                    background: 'var(--surface, #ffffff)',
+                                    background: item.isLocked
+                                      ? 'var(--surface-hover, #f1f5f9)'
+                                      : 'var(--surface, #ffffff)',
                                   }}
                                 />
                               </td>
@@ -785,7 +1196,7 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                               </td>
 
                               <td>
-                                {stage.items.length > 1 && (
+                                {stage.items.length > 1 && !item.isLocked && (
                                   <button
                                     type="button"
                                     onClick={() => removeItemFromStage(stageIdx, itemIdx)}
@@ -907,7 +1318,15 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
           {/* Modal Footer */}
           <div className="tp-modal-footer">
             <span style={{ fontSize: '12.5px', color: 'var(--text-muted, #64748b)' }}>
-              Initial estimate will be saved as <strong>PROPOSED (v1)</strong>.
+              {isEditMode ? (
+                <>
+                  Updating will record <strong>v{(planToEdit?.currentVersion || 1) + 1}</strong> estimate revision.
+                </>
+              ) : (
+                <>
+                  Initial estimate will be saved as <strong>PROPOSED (v1)</strong>.
+                </>
+              )}
             </span>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button
@@ -929,6 +1348,7 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
               <button
                 type="submit"
                 disabled={isSubmitting}
+                data-testid="save-treatment-plan-btn"
                 style={{
                   padding: '8px 20px',
                   borderRadius: '8px',
@@ -941,7 +1361,11 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                   opacity: isSubmitting ? 0.7 : 1,
                 }}
               >
-                {isSubmitting ? 'Saving Plan...' : 'Save & Propose Treatment Plan'}
+                {isSubmitting
+                  ? 'Saving Plan...'
+                  : isEditMode
+                  ? 'Save Plan Revisions'
+                  : 'Save & Propose Treatment Plan'}
               </button>
             </div>
           </div>

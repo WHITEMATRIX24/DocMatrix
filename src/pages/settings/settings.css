@@ -1,0 +1,86 @@
+/* =====================================================================
+   DocMatrix Settings Module — Theme & Semantic Layout Stylesheet
+   Adapts automatically to [data-theme="light"] and [data-theme="dark"]
+   ===================================================================== */
+
+[data-testid^="feature-page-set."],
+.settings-page-root {
+  --settings-surface: var(--surface-raised);
+  --settings-surface-alt: var(--surface-alt);
+  --settings-surface-sunken: var(--surface-sunken);
+  --settings-border: var(--line);
+  --settings-border-strong: var(--line-strong);
+  --settings-text-title: var(--text-strong);
+  --settings-text-body: var(--text);
+  --settings-text-muted: var(--text-muted);
+  --settings-text-faint: var(--text-faint);
+  --settings-teal: var(--teal-primary);
+  --settings-teal-tint: var(--teal-tint);
+
+  color: var(--settings-text-body);
+}
+
+/* Ensure all input, select, and textarea controls inside Settings have proper backgrounds and text */
+[data-testid^="feature-page-set."] input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+[data-testid^="feature-page-set."] select,
+[data-testid^="feature-page-set."] textarea {
+  background-color: var(--surface-sunken) !important;
+  color: var(--text-strong) !important;
+  border: 1px solid var(--line-strong) !important;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+[data-testid^="feature-page-set."] input:focus,
+[data-testid^="feature-page-set."] select:focus,
+[data-testid^="feature-page-set."] textarea:focus {
+  outline: none;
+  border-color: var(--teal-primary) !important;
+  box-shadow: var(--ring) !important;
+}
+
+[data-testid^="feature-page-set."] input::placeholder,
+[data-testid^="feature-page-set."] textarea::placeholder {
+  color: var(--text-faint) !important;
+}
+
+[data-testid^="feature-page-set."] select option {
+  background-color: var(--surface-raised, #141f20) !important;
+  color: var(--text-strong, #eef6f5) !important;
+}
+
+/* Modals portaled or rendered in Settings */
+[data-testid^="feature-page-set."] .settings-modal-card {
+  background-color: var(--surface-raised) !important;
+  border: 1px solid var(--line-strong) !important;
+  color: var(--text-strong) !important;
+  box-shadow: var(--shadow-lg) !important;
+}
+
+/* Tables in Settings */
+[data-testid^="feature-page-set."] table th {
+  background-color: var(--surface-alt) !important;
+  color: var(--text-muted) !important;
+  border-bottom: 1px solid var(--line) !important;
+}
+
+[data-testid^="feature-page-set."] table td {
+  border-bottom: 1px solid var(--line) !important;
+  color: var(--text) !important;
+}
+
+[data-testid^="feature-page-set."] table tbody tr:hover {
+  background-color: var(--surface-alt) !important;
+}
+
+/* Dark mode specific fine-tuning */
+:root[data-theme="dark"] [data-testid^="feature-page-set."] {
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"] [data-testid^="feature-page-set."] input,
+:root[data-theme="dark"] [data-testid^="feature-page-set."] select,
+:root[data-theme="dark"] [data-testid^="feature-page-set."] textarea {
+  color-scheme: dark;
+}
+

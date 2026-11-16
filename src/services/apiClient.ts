@@ -1,7 +1,7 @@
 /**
  * Centralized API Client for DocMatrix Backend
  * Connects to NestJS Backend at VITE_API_BASE_URL (defaults to http://localhost:3000)
- * Uses dynamic transport dispatch to support full browser HTTP communication.
+ * Uses dynamic transport dispatch with automatic token refresh, concurrency protection, and CSRF defense.
  */
 
 const getBaseUrl = (): string => {
@@ -24,7 +24,63 @@ interface RequestOptions {
   headers?: Record<string, string>;
   params?: Record<string, any>;
   signal?: AbortSignal;
+  _isRetry?: boolean;
 }
+
+// Concurrency mutex to ensure only one refresh request runs at any time
+let activeRefreshPromise: Promise<string | null> | null = null;
+
+const requestNewAccessToken = async (): Promise<string | null> => {
+  if (activeRefreshPromise) return activeRefreshPromise;
+
+  activeRefreshPromise = (async () => {
+    try {
+      const httpFn = (globalThis as any)['fetch'];
+      const url = `${getBaseUrl()}/auth/refresh`;
+
+      const response = await httpFn(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'include',
+        body: JSON.stringify({}),
+      });
+
+      if (!response.ok) {
+        // Refresh token has expired, been revoked, or is invalid
+        try {
+          localStorage.removeItem('docmatrix_auth_token');
+          localStorage.removeItem('docmatrix_refresh_token');
+          localStorage.removeItem('docmatrix_auth_user');
+          sessionStorage.removeItem('docmatrix_auth_token');
+          sessionStorage.removeItem('docmatrix_refresh_token');
+          sessionStorage.removeItem('docmatrix_auth_user');
+        } catch {}
+        return null;
+      }
+
+      const data = await response.json();
+      if (data?.token) {
+        const storage = localStorage.getItem('docmatrix_auth_token') ? localStorage : sessionStorage;
+        storage.setItem('docmatrix_auth_token', data.token);
+        if (data.user) {
+          storage.setItem('docmatrix_auth_user', JSON.stringify(data.user));
+        }
+        return data.token;
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      activeRefreshPromise = null;
+    }
+  })();
+
+  return activeRefreshPromise;
+};
 
 class ApiClient {
   private get transport() {
@@ -63,6 +119,7 @@ class ApiClient {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options?.headers || {}),
     };
@@ -71,6 +128,7 @@ class ApiClient {
       method,
       headers,
       signal: options?.signal,
+      credentials: 'include',
     };
 
     if (body !== undefined && method !== 'GET') {
@@ -87,6 +145,22 @@ class ApiClient {
       response = await httpFn(url, reqConfig);
     } catch (netErr: any) {
       throw new Error(`Failed to connect to DocMatrix API server (${url}): ${netErr.message || 'Network unreachable'}`);
+    }
+
+    // Auto-refresh token handling on 401
+    const isAuthEndpoint = endpoint.includes('/auth/login') || endpoint.includes('/auth/refresh');
+    if (response.status === 401 && !isAuthEndpoint && !options?._isRetry) {
+      const newToken = await requestNewAccessToken();
+      if (newToken) {
+        return this.request<T>(endpoint, method, body, {
+          ...options,
+          headers: {
+            ...(options?.headers || {}),
+            Authorization: `Bearer ${newToken}`,
+          },
+          _isRetry: true,
+        });
+      }
     }
 
     if (!response.ok) {
@@ -136,4 +210,3 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient();
-

@@ -1,164 +1,235 @@
-import React, { useState, useEffect } from 'react'
-import { Users, UserPlus, Shield, Mail, Phone, CheckCircle2, AlertCircle } from 'lucide-react'
+import React, { useState, useEffect, useMemo } from 'react'
+import {
+  Users, UserPlus, Search, Filter, Shield, MoreVertical,
+  CheckCircle2, AlertCircle, Edit2, Trash2, Power, X, RefreshCw
+} from 'lucide-react'
 import { apiClient } from '@/services/apiClient'
-import { notifyStaffUpdated } from '@/services/clinicStaffStore'
+import { isDemoSession } from '@/services/clinicStore'
 
 interface StaffMember {
   id: string
   fullName: string
   email: string
   phone?: string
-  role: string
+  role: 'ORGANIZATION_ADMIN' | 'BRANCH_ADMIN' | 'DOCTOR' | 'RECEPTIONIST' | 'ACCOUNTANT' | 'STAFF' | 'NURSE'
   isActive: boolean
   isPrimaryContact?: boolean
-  createdAt: string
+  createdAt?: string
 }
+
+const ROLES = [
+  { value: 'ORGANIZATION_ADMIN', label: 'Organization Admin' },
+  { value: 'BRANCH_ADMIN', label: 'Branch Admin' },
+  { value: 'DOCTOR', label: 'Dentist / Practitioner' },
+  { value: 'RECEPTIONIST', label: 'Front Desk / Reception' },
+  { value: 'ACCOUNTANT', label: 'Billing / Accountant' },
+  { value: 'NURSE', label: 'Dental Assistant / Staff' }
+]
 
 export const StaffManagementPage: React.FC = () => {
   const [staff, setStaff] = useState<StaffMember[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedRole, setSelectedRole] = useState<string>('ALL')
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL')
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
+
+  // Add Staff Modal State
   const [showAddModal, setShowAddModal] = useState(false)
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
-    password: '',
     phone: '',
-    role: 'DOCTOR'
+    role: 'DOCTOR' as StaffMember['role'],
+    password: ''
   })
   const [submitting, setSubmitting] = useState(false)
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
-  const loadStaff = async () => {
+  // Edit Staff Modal State
+  const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null)
+  const [editFormData, setEditFormData] = useState({
+    fullName: '',
+    phone: '',
+    role: 'DOCTOR' as StaffMember['role']
+  })
+
+  // Fetch staff list
+  const fetchStaff = async () => {
     try {
       setLoading(true)
       const res = await apiClient.get<StaffMember[]>('/clinics/my-clinic/staff')
-      if (Array.isArray(res) && res.length > 0) {
+      if (Array.isArray(res)) {
         setStaff(res)
-        try {
-          localStorage.setItem('docmatrix_clinic_staff', JSON.stringify(res))
-        } catch {}
-        notifyStaffUpdated()
-        return
       }
     } catch {
-      // Backend is offline, gracefully read from cache
+      if (isDemoSession()) {
+        // Fallback sample data strictly in offline demo session
+        setStaff([
+          {
+            id: 'staff-1',
+            fullName: 'Dr. Arun Kumar',
+            email: 'arun@docmatrix.dental',
+            phone: '+91 98765 00001',
+            role: 'ORGANIZATION_ADMIN',
+            isActive: true,
+            isPrimaryContact: true
+          },
+          {
+            id: 'staff-2',
+            fullName: 'Dr. Neha Sharma',
+            email: 'neha.sharma@docmatrix.dental',
+            phone: '+91 98765 00002',
+            role: 'DOCTOR',
+            isActive: true
+          },
+          {
+            id: 'staff-3',
+            fullName: 'Priya Verma',
+            email: 'priya.reception@docmatrix.dental',
+            phone: '+91 98765 00003',
+            role: 'RECEPTIONIST',
+            isActive: true
+          }
+        ])
+      } else {
+        setStaff([])
+      }
     } finally {
       setLoading(false)
     }
-
-    try {
-      const cached = localStorage.getItem('docmatrix_clinic_staff')
-      if (cached) {
-        const parsed = JSON.parse(cached)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setStaff(parsed)
-          return
-        }
-      }
-    } catch {}
-
-    // Check logged-in user from session/local storage to display clinic owner
-    try {
-      const authRaw =
-        (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('docmatrix_auth_user') : null) ||
-        (typeof localStorage !== 'undefined' ? localStorage.getItem('docmatrix_auth_user') : null)
-      if (authRaw) {
-        const user = JSON.parse(authRaw)
-        if (user && user.fullName) {
-          const ownerMember: StaffMember = {
-            id: user.id || 'owner-admin',
-            fullName: user.fullName,
-            email: user.email || 'owner@docmatrix.local',
-            phone: user.phone || '',
-            role: user.role || 'ORGANIZATION_ADMIN',
-            isActive: true,
-            isPrimaryContact: true,
-            createdAt: new Date().toISOString()
-          }
-          setStaff([ownerMember])
-          try {
-            localStorage.setItem('docmatrix_clinic_staff', JSON.stringify([ownerMember]))
-          } catch {}
-          notifyStaffUpdated()
-          return
-        }
-      }
-    } catch {}
-
-    setStaff([])
   }
 
   useEffect(() => {
-    loadStaff()
+    fetchStaff()
   }, [])
 
   const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.fullName || !formData.email || !formData.password) {
-      setFeedback({ type: 'error', message: 'Full name, email, and password are required.' })
-      return
-    }
-
-    const localMember: StaffMember = {
-      id: 'staff-' + Date.now().toString(36),
-      fullName: formData.fullName,
-      email: formData.email,
-      phone: formData.phone || '',
-      role: formData.role,
-      isActive: true,
-      createdAt: new Date().toISOString()
-    }
+    setSubmitting(true)
+    setFeedback(null)
 
     try {
-      setSubmitting(true)
-      setFeedback(null)
-      const newStaff = await apiClient.post<StaffMember>('/clinics/my-clinic/staff', formData)
-      const added = newStaff?.id ? newStaff : localMember
-      setStaff((prev) => {
-        const next = [added, ...prev]
-        try {
-          localStorage.setItem('docmatrix_clinic_staff', JSON.stringify(next))
-        } catch {}
-        notifyStaffUpdated()
-        return next
-      })
-      setFeedback({ type: 'success', message: `${formData.fullName} added successfully.` })
+      const res = await apiClient.post<StaffMember>('/clinics/my-clinic/staff', formData)
       setShowAddModal(false)
-      setFormData({ fullName: '', email: '', password: '', phone: '', role: 'DOCTOR' })
-    } catch {
-      // Offline fallback: save locally so practitioner is usable across the entire app
-      setStaff((prev) => {
-        const next = [localMember, ...prev]
-        try {
-          localStorage.setItem('docmatrix_clinic_staff', JSON.stringify(next))
-        } catch {}
-        notifyStaffUpdated()
-        return next
-      })
+      setFormData({ fullName: '', email: '', phone: '', role: 'DOCTOR', password: '' })
+      setFeedback({ type: 'success', message: `Staff member "${formData.fullName}" added successfully.` })
+      fetchStaff()
+    } catch (err: any) {
       setFeedback({
-        type: 'success',
-        message: `${formData.fullName} registered successfully.`
+        type: 'error',
+        message: err?.message || 'Failed to create staff member. Verify that the email is unique.'
       })
-      setShowAddModal(false)
-      setFormData({ fullName: '', email: '', password: '', phone: '', role: 'DOCTOR' })
     } finally {
       setSubmitting(false)
     }
   }
 
+  const handleStartEdit = (member: StaffMember) => {
+    setEditingStaff(member)
+    setEditFormData({
+      fullName: member.fullName,
+      phone: member.phone || '',
+      role: member.role
+    })
+  }
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingStaff) return
+    setSubmitting(true)
+    setFeedback(null)
+
+    try {
+      await apiClient.patch(`/clinics/my-clinic/staff/${editingStaff.id}`, editFormData)
+      setEditingStaff(null)
+      setFeedback({ type: 'success', message: 'Staff member details updated successfully.' })
+      fetchStaff()
+    } catch (err: any) {
+      setFeedback({
+        type: 'error',
+        message: err?.message || 'Failed to update staff member.'
+      })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleToggleActive = async (member: StaffMember) => {
+    if (member.isPrimaryContact) {
+      setFeedback({ type: 'error', message: 'Cannot deactivate the primary clinic owner account.' })
+      return
+    }
+
+    try {
+      setActionLoadingId(member.id)
+      await apiClient.patch(`/clinics/my-clinic/staff/${member.id}`, {
+        isActive: !member.isActive
+      })
+      setFeedback({
+        type: 'success',
+        message: `Staff member ${member.fullName} marked as ${!member.isActive ? 'Active' : 'Inactive'}.`
+      })
+      fetchStaff()
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err?.message || 'Failed to change staff active status.' })
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  const handleDeleteStaff = async (member: StaffMember) => {
+    if (member.isPrimaryContact) {
+      setFeedback({ type: 'error', message: 'The primary clinic owner account cannot be deleted.' })
+      return
+    }
+
+    const confirmDelete = window.confirm(`Are you sure you want to remove ${member.fullName} from your clinic staff?`)
+    if (!confirmDelete) return
+
+    try {
+      setActionLoadingId(member.id)
+      await apiClient.delete(`/clinics/my-clinic/staff/${member.id}`)
+      setFeedback({ type: 'success', message: `Staff member ${member.fullName} removed successfully.` })
+      fetchStaff()
+    } catch (err: any) {
+      setFeedback({ type: 'error', message: err?.message || 'Failed to delete staff member.' })
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  const filteredStaff = useMemo(() => {
+    return staff.filter((m) => {
+      if (selectedRole !== 'ALL' && m.role !== selectedRole) return false
+      if (statusFilter === 'ACTIVE' && !m.isActive) return false
+      if (statusFilter === 'INACTIVE' && m.isActive) return false
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase()
+        const matchName = m.fullName.toLowerCase().includes(q)
+        const matchEmail = m.email.toLowerCase().includes(q)
+        const matchPhone = m.phone ? m.phone.toLowerCase().includes(q) : false
+        if (!matchName && !matchEmail && !matchPhone) return false
+      }
+
+      return true
+    })
+  }, [staff, searchQuery, selectedRole, statusFilter])
+
   return (
-    <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '32px 24px', fontFamily: 'inherit' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
+    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px 24px', fontFamily: 'inherit' }} data-testid="feature-page-set.staff">
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0d9488', fontSize: '12px', fontWeight: 700, letterSpacing: '0.05em' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--teal-primary, #008891)', fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
             <Users size={16} />
-            <span>CLINICAL TEAM</span>
+            <span>CLINICAL TEAM &amp; PERMISSIONS</span>
           </div>
-          <h1 style={{ fontSize: '28px', fontWeight: 800, color: '#134e4a', margin: '6px 0 8px' }}>
-            Staff &amp; Doctor Management
+          <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-strong, #0f172a)', margin: '4px 0' }}>
+            Staff &amp; Practitioner Management
           </h1>
-          <p style={{ color: '#4b5563', fontSize: '14px', maxWidth: '640px' }}>
-            Manage dental practitioners, operatory chair permissions, receptionists, and role-based access for your clinic.
+          <p style={{ color: 'var(--text-muted, #64748b)', fontSize: '14px', margin: 0 }}>
+            Manage dental practitioners, receptionists, access privileges, and account active statuses.
           </p>
         </div>
 
@@ -169,9 +240,9 @@ export const StaffManagementPage: React.FC = () => {
             display: 'inline-flex',
             alignItems: 'center',
             gap: '8px',
-            background: '#0d9488',
+            background: 'var(--teal-primary, #008891)',
             color: '#ffffff',
-            padding: '10px 18px',
+            padding: '9px 18px',
             borderRadius: '8px',
             fontSize: '14px',
             fontWeight: 600,
@@ -190,9 +261,9 @@ export const StaffManagementPage: React.FC = () => {
           borderRadius: '8px',
           marginBottom: '20px',
           fontSize: '14px',
-          background: feedback.type === 'success' ? '#ecfdf5' : '#fef2f2',
-          border: `1px solid ${feedback.type === 'success' ? '#a7f3d0' : '#fecaca'}`,
-          color: feedback.type === 'success' ? '#065f46' : '#991b1b',
+          background: feedback.type === 'success' ? 'rgba(5, 150, 105, 0.12)' : 'rgba(220, 38, 38, 0.12)',
+          border: `1px solid ${feedback.type === 'success' ? 'rgba(5, 150, 105, 0.3)' : 'rgba(220, 38, 38, 0.3)'}`,
+          color: feedback.type === 'success' ? 'var(--tone-green, #065f46)' : 'var(--tone-red, #991b1b)',
           display: 'flex',
           alignItems: 'center',
           gap: '8px'
@@ -202,79 +273,220 @@ export const StaffManagementPage: React.FC = () => {
         </div>
       )}
 
+      {/* Filter and Search Bar */}
+      <div style={{
+        background: 'var(--surface-raised, #ffffff)',
+        border: '1px solid var(--line, #e2e8f0)',
+        borderRadius: '10px',
+        padding: '14px 18px',
+        marginBottom: '20px',
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 260px' }}>
+          <Search size={16} color="var(--text-muted, #94a3b8)" />
+          <input
+            type="text"
+            placeholder="Search by name, email, or phone..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ width: '100%', border: 'none', outline: 'none', fontSize: '13.5px', background: 'transparent', color: 'var(--text-strong)' }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '12.5px', color: 'var(--text-muted, #64748b)', fontWeight: 500 }}>Role:</span>
+            <select
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(e.target.value)}
+              style={{
+                padding: '6px 10px',
+                borderRadius: '6px',
+                border: '1px solid var(--line-strong, #cbd5e1)',
+                fontSize: '13px',
+                background: 'var(--surface-sunken, #fff)',
+                color: 'var(--text-strong, #0f172a)'
+              }}
+            >
+              <option value="ALL">All Roles ({staff.length})</option>
+              {ROLES.map(r => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '12.5px', color: 'var(--text-muted, #64748b)', fontWeight: 500 }}>Status:</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+              style={{
+                padding: '6px 10px',
+                borderRadius: '6px',
+                border: '1px solid var(--line-strong, #cbd5e1)',
+                fontSize: '13px',
+                background: 'var(--surface-sunken, #fff)',
+                color: 'var(--text-strong, #0f172a)'
+              }}
+            >
+              <option value="ALL">All Status</option>
+              <option value="ACTIVE">Active Only</option>
+              <option value="INACTIVE">Inactive Only</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
       {/* Staff Table */}
       <div style={{
         background: 'var(--surface-raised, #ffffff)',
-        border: '1px solid var(--line, #e5e7eb)',
+        border: '1px solid var(--line, #e2e8f0)',
         borderRadius: '12px',
         overflow: 'hidden',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+        boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
       }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13.5px' }}>
           <thead>
-            <tr style={{ background: 'var(--surface-alt, #f9fafb)', borderBottom: '1px solid var(--line, #e5e7eb)', color: 'var(--text-muted, #4b5563)', fontSize: '12px', textTransform: 'uppercase' }}>
-              <th style={{ padding: '14px 20px' }}>Staff Member</th>
-              <th style={{ padding: '14px 20px' }}>Role</th>
-              <th style={{ padding: '14px 20px' }}>Contact</th>
-              <th style={{ padding: '14px 20px' }}>Status</th>
+            <tr style={{ background: 'var(--surface-alt, #f8fafc)', borderBottom: '1px solid var(--line, #e2e8f0)', color: 'var(--text-muted, #64748b)', fontSize: '12px', textTransform: 'uppercase' }}>
+              <th style={{ padding: '12px 18px' }}>Staff Member</th>
+              <th style={{ padding: '12px 18px' }}>Role</th>
+              <th style={{ padding: '12px 18px' }}>Contact</th>
+              <th style={{ padding: '12px 18px' }}>Status</th>
+              <th style={{ padding: '12px 18px', textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {staff.map((member) => (
-              <tr key={member.id} style={{ borderBottom: '1px solid var(--line, #f3f4f6)' }}>
-                <td style={{ padding: '14px 20px' }}>
-                  <div style={{ fontWeight: 600, color: 'var(--text-strong, #111827)' }}>
-                    {member.fullName}
-                    {member.isPrimaryContact && (
-                      <span style={{
-                        marginLeft: '8px',
-                        background: 'rgba(59, 130, 246, 0.15)',
-                        color: 'var(--teal-primary, #1e40af)',
-                        fontSize: '11px',
-                        padding: '2px 8px',
-                        borderRadius: '9999px',
-                        fontWeight: 600
-                      }}>
-                        Owner
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td style={{ padding: '14px 20px' }}>
-                  <span style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    background: member.role === 'DOCTOR' ? 'var(--teal-tint, #ccfbf1)' : 'var(--surface-sunken, #f3f4f6)',
-                    color: member.role === 'DOCTOR' ? 'var(--teal-primary, #0f766e)' : 'var(--text, #374151)',
-                    fontSize: '12px',
-                    padding: '3px 10px',
-                    borderRadius: '6px',
-                    fontWeight: 600
-                  }}>
-                    <Shield size={12} />
-                    {member.role.replace('_', ' ')}
-                  </span>
-                </td>
-                <td style={{ padding: '14px 20px' }}>
-                  <div style={{ color: 'var(--text, #4b5563)', fontSize: '13px' }}>{member.email}</div>
-                  {member.phone && <div style={{ color: 'var(--text-muted, #9ca3af)', fontSize: '12px' }}>{member.phone}</div>}
-                </td>
-                <td style={{ padding: '14px 20px' }}>
-                  <span style={{
-                    display: 'inline-block',
-                    width: '8px',
-                    height: '8px',
-                    borderRadius: '50%',
-                    background: member.isActive ? '#10b981' : '#9ca3af',
-                    marginRight: '6px'
-                  }} />
-                  <span style={{ fontSize: '13px', color: member.isActive ? 'var(--tone-green, #065f46)' : 'var(--text-muted, #6b7280)' }}>
-                    {member.isActive ? 'Active' : 'Inactive'}
-                  </span>
+            {filteredStaff.length === 0 ? (
+              <tr>
+                <td colSpan={5} style={{ padding: '36px', textAlign: 'center', color: 'var(--text-faint, #94a3b8)' }}>
+                  {loading ? 'Loading clinic team...' : 'No staff members match the current filter criteria.'}
                 </td>
               </tr>
-            ))}
+            ) : (
+              filteredStaff.map((member) => (
+                <tr key={member.id} style={{ borderBottom: '1px solid var(--line, #f1f5f9)', opacity: member.isActive ? 1 : 0.65 }}>
+                  <td style={{ padding: '14px 18px' }}>
+                    <div style={{ fontWeight: 600, color: 'var(--text-strong, #0f172a)' }}>
+                      {member.fullName}
+                      {member.isPrimaryContact && (
+                        <span style={{
+                          marginLeft: '8px',
+                          background: 'var(--teal-tint, rgba(0, 136, 145, 0.12))',
+                          border: '1px solid var(--teal-border, rgba(0, 136, 145, 0.25))',
+                          color: 'var(--teal-primary, #0369a1)',
+                          fontSize: '11px',
+                          padding: '2px 8px',
+                          borderRadius: '9999px',
+                          fontWeight: 600
+                        }}>
+                          Owner
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td style={{ padding: '14px 18px' }}>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: member.role === 'DOCTOR' ? 'var(--teal-tint, #f0fdfa)' : 'var(--surface-alt, #f1f5f9)',
+                      color: member.role === 'DOCTOR' ? 'var(--teal-primary, #0f766e)' : 'var(--text, #475569)',
+                      border: '1px solid var(--line, #e2e8f0)',
+                      fontSize: '12px',
+                      padding: '3px 10px',
+                      borderRadius: '6px',
+                      fontWeight: 600
+                    }}>
+                      <Shield size={12} />
+                      {member.role === 'NURSE' || member.role === 'STAFF' ? 'Dental Assistant' : member.role.replace('_', ' ')}
+                    </span>
+                  </td>
+                  <td style={{ padding: '14px 18px' }}>
+                    <div style={{ color: 'var(--text-strong, #334155)', fontSize: '13px' }}>{member.email}</div>
+                    {member.phone && <div style={{ color: 'var(--text-muted, #94a3b8)', fontSize: '12px' }}>{member.phone}</div>}
+                  </td>
+                  <td style={{ padding: '14px 18px' }}>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      fontSize: '12.5px',
+                      fontWeight: 500,
+                      color: member.isActive ? 'var(--tone-green, #065f46)' : 'var(--text-muted, #64748b)'
+                    }}>
+                      <span style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        background: member.isActive ? 'var(--tone-green, #10b981)' : 'var(--text-muted, #cbd5e1)'
+                      }} />
+                      {member.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        type="button"
+                        title="Edit details"
+                        onClick={() => handleStartEdit(member)}
+                        style={{
+                          padding: '6px',
+                          borderRadius: '6px',
+                          background: 'var(--surface-sunken, #f8fafc)',
+                          border: '1px solid var(--line-strong, #cbd5e1)',
+                          color: 'var(--text-strong, #475569)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Edit2 size={14} />
+                      </button>
+
+                      {!member.isPrimaryContact && (
+                        <>
+                          <button
+                            type="button"
+                            title={member.isActive ? 'Deactivate staff' : 'Activate staff'}
+                            disabled={actionLoadingId === member.id}
+                            onClick={() => handleToggleActive(member)}
+                            style={{
+                              padding: '6px',
+                              borderRadius: '6px',
+                              background: member.isActive ? 'rgba(245, 158, 11, 0.12)' : 'rgba(5, 150, 105, 0.12)',
+                              border: `1px solid ${member.isActive ? 'rgba(245, 158, 11, 0.3)' : 'rgba(5, 150, 105, 0.3)'}`,
+                              color: member.isActive ? 'var(--tone-amber, #92400e)' : 'var(--tone-green, #065f46)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Power size={14} />
+                          </button>
+
+                          <button
+                            type="button"
+                            title="Remove staff member"
+                            disabled={actionLoadingId === member.id}
+                            onClick={() => handleDeleteStaff(member)}
+                            style={{
+                              padding: '6px',
+                              borderRadius: '6px',
+                              background: 'rgba(220, 38, 38, 0.12)',
+                              border: '1px solid rgba(220, 38, 38, 0.3)',
+                              color: 'var(--tone-red, #b91c1c)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -287,7 +499,7 @@ export const StaffManagementPage: React.FC = () => {
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(0, 0, 0, 0.55)',
+          background: 'rgba(0, 0, 0, 0.65)',
           backdropFilter: 'blur(4px)',
           display: 'flex',
           alignItems: 'center',
@@ -297,21 +509,30 @@ export const StaffManagementPage: React.FC = () => {
         }}>
           <div style={{
             background: 'var(--surface-raised, #ffffff)',
-            border: '1px solid var(--line, #e5e7eb)',
-            color: 'var(--text-strong, #111827)',
+            border: '1px solid var(--line-strong, #e2e8f0)',
             borderRadius: '16px',
             maxWidth: '480px',
             width: '100%',
             padding: '28px',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.25)'
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.4)'
           }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-strong, #111827)', margin: '0 0 16px' }}>
-              Add Clinic Staff Member
-            </h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-strong, #0f172a)', margin: 0 }}>
+                Add New Staff Member
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted, #94a3b8)', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
             <form onSubmit={handleAddStaff} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text, #374151)', marginBottom: '4px' }}>
-                  Full Name
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
+                  Full Name *
                 </label>
                 <input
                   type="text"
@@ -319,76 +540,186 @@ export const StaffManagementPage: React.FC = () => {
                   placeholder="e.g. Dr. Kavitha Rajan"
                   value={formData.fullName}
                   onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--line, #d1d5db)', background: 'var(--surface-sunken, #ffffff)', color: 'var(--text-strong, #111827)' }}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text, #374151)', marginBottom: '4px' }}>
-                  Email Address (Login)
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
+                  Email Address (Login) *
                 </label>
                 <input
                   type="email"
                   required
-                  placeholder="e.g. dr.kavitha@example.com"
+                  placeholder="doctor@docmatrix.com"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--line, #d1d5db)', background: 'var(--surface-sunken, #ffffff)', color: 'var(--text-strong, #111827)' }}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text, #374151)', marginBottom: '4px' }}>
-                  Initial Password
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
+                  Temporary Password *
                 </label>
                 <input
                   type="password"
                   required
-                  placeholder="At least 8 characters"
+                  placeholder="Minimum 8 characters"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--line, #d1d5db)', background: 'var(--surface-sunken, #ffffff)', color: 'var(--text-strong, #111827)' }}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
                 />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text, #374151)', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  placeholder="+91 98765 00000"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
                   Role &amp; Permissions
                 </label>
                 <select
                   value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--line, #d1d5db)', background: 'var(--surface-sunken, #ffffff)', color: 'var(--text-strong, #111827)' }}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
                 >
-                  <option value="DOCTOR">Doctor / Dental Surgeon</option>
-                  <option value="RECEPTIONIST">Receptionist / Front Desk</option>
-                  <option value="NURSE">Dental Assistant / Nurse</option>
-                  <option value="BRANCH_ADMIN">Branch Administrator</option>
+                  {ROLES.map(r => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
                 </select>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+              <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  style={{ padding: '8px 16px', borderRadius: '6px', border: '1px solid var(--line, #d1d5db)', background: 'var(--surface, #ffffff)', color: 'var(--text, #374151)', cursor: 'pointer' }}
+                  style={{ flex: 1, padding: '9px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken, #f8fafc)', color: 'var(--text-strong, #475569)', cursor: 'pointer' }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  style={{
-                    padding: '8px 18px',
-                    borderRadius: '6px',
-                    background: 'var(--teal-primary, #0d9488)',
-                    color: '#ffffff',
-                    border: 'none',
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
+                  style={{ flex: 1, padding: '9px', borderRadius: '6px', border: 'none', background: 'var(--teal-primary, #008891)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
                 >
-                  {submitting ? 'Adding...' : 'Save Staff Member'}
+                  {submitting ? 'Creating...' : 'Create Account'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Staff Modal */}
+      {editingStaff && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px'
+        }}>
+          <div style={{
+            background: 'var(--surface-raised, #ffffff)',
+            border: '1px solid var(--line-strong, #e2e8f0)',
+            borderRadius: '16px',
+            maxWidth: '460px',
+            width: '100%',
+            padding: '28px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.4)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-strong, #0f172a)', margin: 0 }}>
+                Edit Staff Member
+              </h2>
+              <button
+                type="button"
+                onClick={() => setEditingStaff(null)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted, #94a3b8)', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editFormData.fullName}
+                  onChange={(e) => setEditFormData({ ...editFormData, fullName: e.target.value })}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={editFormData.phone}
+                  onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
+                  Role &amp; Permissions
+                </label>
+                <select
+                  disabled={editingStaff.isPrimaryContact}
+                  value={editFormData.role}
+                  onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value as any })}
+                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
+                >
+                  {ROLES.map(r => (
+                    <option key={r.value} value={r.value}>{r.label}</option>
+                  ))}
+                </select>
+                {editingStaff.isPrimaryContact && (
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', marginTop: '4px', display: 'block' }}>
+                    Owner role cannot be changed.
+                  </span>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setEditingStaff(null)}
+                  style={{ flex: 1, padding: '9px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken, #f8fafc)', color: 'var(--text-strong, #475569)', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  style={{ flex: 1, padding: '9px', borderRadius: '6px', border: 'none', background: 'var(--teal-primary, #008891)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  {submitting ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>

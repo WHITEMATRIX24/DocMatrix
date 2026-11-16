@@ -1,11 +1,21 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowDown, ArrowUp, Info } from 'lucide-react'
 import { DENTISTS, isAuthenticatedClinic, isDemoSession, useClinicData } from '@/services/clinicStore'
 import { useClinicStaff } from '@/services/clinicStaffStore'
-import { reportsApi, type BackendDoctorRow } from '@/services/reportsApi'
+import { reportsApi, type BackendDoctorRow, type DoctorPerformanceResponse } from '@/services/reportsApi'
 import { inr } from '@/pages/billing/BillingShared'
-import { ReportActions, StatTile, inRange, previousSpan, useMoneyAccess, useReportRange } from './ReportsShared'
+import {
+  ReportActions,
+  ReportErrorState,
+  ReportLoadingState,
+  StatTile,
+  inRange,
+  previousSpan,
+  useMoneyAccess,
+  useReportRange
+} from './ReportsShared'
 import { computePeriod } from './reportMetrics'
+import { reportsApi, type DoctorPerformanceResponse } from '@/services/reportsApi'
 
 type SortKey = 'name' | 'completed' | 'patients' | 'missed' | 'pending'
 
@@ -24,29 +34,73 @@ export const DoctorPerformancePage: React.FC = () => {
   const canSeeMoney = useMoneyAccess()
   const { patients, invoices, appointments, treatmentPlans } = useClinicData()
   const { doctors: staffDoctors } = useClinicStaff()
-  const [backendDoctors, setBackendDoctors] = useState<BackendDoctorRow[] | null>(null)
   const [showTooltip, setShowTooltip] = useState(false)
+  const [backendData, setBackendData] = useState<DoctorPerformanceResponse | null>(null)
+  const [loading, setLoading] = useState<boolean>(false)
+  const [error, setError] = useState<string | null>(null)
+  const [isAuthError, setIsAuthError] = useState<boolean>(false)
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'completed', dir: 'desc' })
 
-  useEffect(() => {
-    if (isAuthenticatedClinic() && !isDemoSession()) {
-      reportsApi
-        .getDoctorsReport({ fromDate: range.from, toDate: range.to })
-        .then((res) => {
-          if (Array.isArray(res?.doctors)) setBackendDoctors(res.doctors)
-        })
-        .catch((err) => console.warn('[DoctorPerformancePage] getDoctorsReport error:', err))
-    } else {
-      setBackendDoctors(null)
+  const loadData = useCallback(() => {
+    if (!isAuthenticatedClinic()) {
+      setLoading(false)
+      setError(null)
+      return () => {}
+    }
+
+    let active = true
+    setLoading(true)
+    setError(null)
+    setIsAuthError(false)
+
+    reportsApi.getDoctorPerformance(range.from, range.to)
+      .then((data) => {
+        if (active && data) {
+          setBackendData(data)
+        }
+      })
+      .catch((err: any) => {
+        if (!active) return
+        const isAuth =
+          err?.status === 401 ||
+          err?.status === 403 ||
+          err?.message?.includes('401') ||
+          err?.message?.includes('403') ||
+          err?.message?.toLowerCase().includes('unauthorized') ||
+          err?.message?.toLowerCase().includes('forbidden')
+        setIsAuthError(isAuth)
+        setError(err?.message || 'Failed to fetch doctor performance report from server')
+        setBackendData(null)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
     }
   }, [range.from, range.to])
 
-  const { now, before } = useMemo(() => {
+  useEffect(() => {
+    const cancel = loadData()
+    return cancel
+  }, [loadData])
+
+  const isAuthClinic = isAuthenticatedClinic()
+
+  const fallbackPeriod = useMemo(() => {
     const data = { patients, invoices, appointments, treatmentPlans }
     return { now: computePeriod(data, range), before: computePeriod(data, previousSpan(range)) }
   }, [patients, invoices, appointments, treatmentPlans, range])
-  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'completed', dir: 'desc' })
 
-  const rows = useMemo<DoctorRow[]>(() => {
+  const now = backendData?.now
+    ? { ...fallbackPeriod.now, ...backendData.now }
+    : fallbackPeriod.now
+  const before = backendData?.before
+    ? { ...fallbackPeriod.before, ...backendData.before }
+    : fallbackPeriod.before
+
+  const fallbackRows = useMemo<DoctorRow[]>(() => {
     const isAuth = isAuthenticatedClinic() && !isDemoSession()
     // Explicitly filter for users whose role is strictly DOCTOR (or predefined clinical dentists)
     const validStaffNames = new Set(
@@ -63,10 +117,11 @@ export const DoctorPerformancePage: React.FC = () => {
       DENTISTS.forEach((d) => names.add(d.name))
     }
 
-    if (backendDoctors) {
-      backendDoctors.forEach((d) => {
-        if (d.doctor && d.doctor !== 'Unassigned' && (validStaffNames.has(d.doctor) || !isAuth)) {
-          names.add(d.doctor)
+    if (backendData?.doctors) {
+      backendData.doctors.forEach((d: any) => {
+        const docName = d.name || d.doctor
+        if (docName && docName !== 'Unassigned' && (validStaffNames.has(docName) || !isAuth)) {
+          names.add(docName)
         }
       })
     }
@@ -113,7 +168,22 @@ export const DoctorPerformancePage: React.FC = () => {
         pending: pendingValue
       }
     })
-  }, [appointments, treatmentPlans, range, staffDoctors, backendDoctors])
+  }, [appointments, treatmentPlans, range, staffDoctors, backendData])
+
+  const rows = useMemo<DoctorRow[]>(() => {
+    if (backendData?.doctors && backendData.doctors.length > 0) {
+      return backendData.doctors.map((d: any) => ({
+        name: d.name || d.doctor || '',
+        specialization: d.specialization || DENTISTS.find((dent) => dent.name === (d.name || d.doctor))?.specialization || '',
+        scheduled: d.scheduled ?? d.appointments ?? 0,
+        completed: d.completed ?? 0,
+        patients: d.patients ?? 0,
+        missed: d.missed ?? (d.noShows || 0) + (d.cancelled || 0),
+        pending: d.pending ?? d.planValue ?? 0
+      }))
+    }
+    return fallbackRows
+  }, [backendData, fallbackRows])
 
   const sorted = useMemo(() => {
     const dir = sort.dir === 'asc' ? 1 : -1
@@ -137,6 +207,22 @@ export const DoctorPerformancePage: React.FC = () => {
       </button>
     </th>
   )
+
+  if (error && isAuthClinic) {
+    return (
+      <div className="rpt-page" data-testid="feature-page-rep.doctors">
+        <ReportErrorState error={error} onRetry={loadData} isAuthError={isAuthError} />
+      </div>
+    )
+  }
+
+  if (loading && !backendData && isAuthClinic) {
+    return (
+      <div className="rpt-page" data-testid="feature-page-rep.doctors">
+        <ReportLoadingState label="Loading doctor performance metrics..." />
+      </div>
+    )
+  }
 
   return (
     <div className="rpt-page rpt-doctor-page" data-testid="feature-page-rep.doctors">

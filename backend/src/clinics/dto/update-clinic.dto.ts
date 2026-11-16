@@ -7,11 +7,23 @@ export class UpdateClinicDto {
 
   @IsString()
   @IsOptional()
+  displayName?: string;
+
+  @IsString()
+  @IsOptional()
   phone?: string;
 
   @IsString()
   @IsOptional()
   email?: string;
+
+  @IsString()
+  @IsOptional()
+  website?: string;
+
+  @IsString()
+  @IsOptional()
+  logoUrl?: string;
 
   @IsString()
   @IsOptional()
@@ -35,6 +47,14 @@ export class UpdateClinicDto {
 
   @IsString()
   @IsOptional()
+  registrationNumber?: string;
+
+  @IsString()
+  @IsOptional()
+  gstin?: string;
+
+  @IsString()
+  @IsOptional()
   timezone?: string;
 
   @IsString()
@@ -44,5 +64,19 @@ export class UpdateClinicDto {
   @IsString()
   @IsOptional()
   practiceType?: string;
-}
 
+  @IsOptional()
+  workingHours?: {
+    weekdays: string;
+    saturday: string;
+    sunday: string;
+  };
+
+  @IsString()
+  @IsOptional()
+  retentionAdult?: string;
+
+  @IsString()
+  @IsOptional()
+  retentionMinor?: string;
+}

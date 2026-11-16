@@ -3,14 +3,16 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { FEATURE_REGISTRY } from '@/features/registry'
 import { getActiveFeatureForPath, resolveFeatureRoute } from '@/features/navigationMatcher'
 import ClinicDashboard from '@/pages/dashboard/ClinicDashboard'
-import ThemeToggle from '@/components/ThemeToggle'
+import ThemeToggle, { applyTheme, getThemePreference } from '@/components/ThemeToggle'
 import {
   Calendar, Users, Stethoscope, Receipt, BookOpen, Package, MessageSquare, Globe,
   BarChart3, Settings, LayoutDashboard, LogOut, Menu, X, ChevronRight, ChevronDown,
   Check, ShieldAlert, Search, Bell, CircleAlert, PackageOpen, FlaskConical,
-  RefreshCw, AlertCircle
+  RefreshCw, AlertCircle,
+  Sun, Moon, Monitor
 } from 'lucide-react'
 import { useClinicData, retrySync, isDemoSession } from '@/services/clinicStore'
+import { useAdaptiveInventory } from '@/services/adaptiveInventoryStore'
 
 function SyncStatusIndicator() {
   const { syncStatus, syncError } = useClinicData()
@@ -169,9 +171,13 @@ export default function StaffPortal({
   const [headerSearch, setHeaderSearch] = useState('')
   const [headerSearchOpen, setHeaderSearchOpen] = useState(false)
   const headerSearchRef = useRef(null)
-  const { patients = [] } = useClinicData() || {}
   const [searchTerm, setSearchTerm] = useState('')
   const [currentTime, setCurrentTime] = useState('11:20 AM')
+  const [themePref, setThemePref] = useState(getThemePreference)
+
+  const isDemo = isDemoSession()
+  const { patients = [] } = useClinicData() || {}
+  const { items: inventoryItems = [] } = useAdaptiveInventory()
 
   const headerMatchedPatients = useMemo(() => {
     const list = Array.isArray(patients) ? patients : []
@@ -189,6 +195,44 @@ export default function StaffPortal({
       )
     })
   }, [patients, headerSearch])
+
+  const liveNotifications = useMemo(() => {
+    if (isDemo) {
+      return NOTIFICATIONS
+    }
+    const notifs = []
+    const allergyPatients = (Array.isArray(patients) ? patients : []).filter((p) => p.allergies === 'yes' || p.conditions === 'yes')
+    for (const p of allergyPatients.slice(0, 3)) {
+      notifs.push({
+        tone: 'red',
+        icon: CircleAlert,
+        title: `Medical Alert: ${p.firstName} ${p.lastName}`,
+        body: p.allergiesDetails || p.conditionsDetails || 'Allergies noted in medical record.',
+        time: 'Active'
+      })
+    }
+    const lowStock = inventoryItems.filter((i) => i.totalStock <= i.reorderLevel)
+    for (const it of lowStock.slice(0, 3)) {
+      notifs.push({
+        tone: 'amber',
+        icon: PackageOpen,
+        title: `Low Stock: ${it.name}`,
+        body: `Only ${it.totalStock} ${it.unit} left (reorder threshold: ${it.reorderLevel}).`,
+        time: 'Stock alert'
+      })
+    }
+    return notifs
+  }, [isDemo, patients, inventoryItems])
+
+  useEffect(() => {
+    const handleThemeChange = (e) => {
+      if (e.detail?.preference) {
+        setThemePref(e.detail.preference)
+      }
+    }
+    window.addEventListener('docmatrix-theme-changed', handleThemeChange)
+    return () => window.removeEventListener('docmatrix-theme-changed', handleThemeChange)
+  }, [])
 
   // Close popovers on click outside or Escape
   useEffect(() => {
@@ -635,28 +679,39 @@ export default function StaffPortal({
                 aria-expanded={notificationsOpen}
               >
                 <Bell size={16} />
-                <span className="dmx-badge">3</span>
+                {liveNotifications.length > 0 && (
+                  <span className="dmx-badge">{liveNotifications.length}</span>
+                )}
               </button>
 
               {notificationsOpen && (
                 <div className="dmx-popover dmx-notifications notifications-box">
                   <div className="dmx-popover-head">
                     <strong>Notifications</strong>
-                    <span className="dmx-pill dmx-pill-alert">3 urgent</span>
+                    {liveNotifications.length > 0 && (
+                      <span className="dmx-pill dmx-pill-alert">{liveNotifications.length} alerts</span>
+                    )}
                   </div>
-                  {NOTIFICATIONS.map((n) => {
-                    const Icon = n.icon
-                    return (
-                      <div key={n.title} className={`dmx-notification tone-${n.tone}`}>
-                        <span className="dmx-reminder-icon"><Icon size={15} /></span>
-                        <div>
-                          <strong>{n.title}</strong>
-                          <p>{n.body}</p>
+                  {liveNotifications.length === 0 ? (
+                    <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <Check size={24} style={{ color: 'var(--teal-primary, #008891)', margin: '0 auto 8px', display: 'block' }} />
+                      <p style={{ margin: 0, fontSize: '13px' }}>All clear! No pending clinical alerts or inventory warnings.</p>
+                    </div>
+                  ) : (
+                    liveNotifications.map((n, idx) => {
+                      const Icon = n.icon
+                      return (
+                        <div key={n.title + idx} className={`dmx-notification tone-${n.tone}`}>
+                          <span className="dmx-reminder-icon"><Icon size={15} /></span>
+                          <div>
+                            <strong>{n.title}</strong>
+                            <p>{n.body}</p>
+                          </div>
+                          <time>{n.time}</time>
                         </div>
-                        <time>{n.time}</time>
-                      </div>
-                    )
-                  })}
+                      )
+                    })
+                  )}
                 </div>
               )}
             </div>
@@ -685,20 +740,67 @@ export default function StaffPortal({
 
               {roleDropdownOpen && (
                 <div className="dmx-popover dmx-role-menu role-box">
-                  <div className="dmx-popover-label">Switch demo staff role</div>
-                  {DEMO_STAFF_ROLES.map((r) => (
+                  {isDemo ? (
+                    <>
+                      <div className="dmx-popover-label">Switch demo staff role</div>
+                      {DEMO_STAFF_ROLES.map((r) => (
+                        <button
+                          key={r.role}
+                          onClick={() => handleRoleSelect(r)}
+                          className={`dmx-role-item ${currentUser.role === r.role ? 'is-active' : ''}`}
+                        >
+                          <span>
+                            <strong>{r.name}</strong>
+                            <small>{r.role.replace(/_/g, ' ').toLowerCase()}</small>
+                          </span>
+                          {currentUser.role === r.role && <Check size={14} />}
+                        </button>
+                      ))}
+                      <div className="dmx-popover-divider" />
+                    </>
+                  ) : (
+                    <div style={{ padding: '10px 14px 6px' }}>
+                      <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-main)' }}>{displayName}</div>
+                      <div style={{ fontSize: '11.5px', color: 'var(--teal-primary)', fontWeight: 600 }}>{roleLabel}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>{currentUser.clinicName || 'Clinic Workspace'}</div>
+                      <div className="dmx-popover-divider" style={{ margin: '8px 0 4px' }} />
+                    </div>
+                  )}
+                  <div className="dmx-popover-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '4px' }}>
+                    <span>Theme Appearance</span>
+                    <span style={{ fontSize: '10px', textTransform: 'none', fontWeight: 600, color: 'var(--teal-primary)' }}>
+                      {themePref === 'system' ? 'System Default' : themePref === 'dark' ? 'Dark Mode' : 'Bright Mode'}
+                    </span>
+                  </div>
+                  <div className="dmx-theme-options-grid">
                     <button
-                      key={r.role}
-                      onClick={() => handleRoleSelect(r)}
-                      className={`dmx-role-item ${currentUser.role === r.role ? 'is-active' : ''}`}
+                      type="button"
+                      onClick={() => applyTheme('system')}
+                      className={`dmx-theme-option-btn ${themePref === 'system' ? 'is-active' : ''}`}
+                      title="Follow System OS Default (Dark / Bright)"
                     >
-                      <span>
-                        <strong>{r.name}</strong>
-                        <small>{r.role.replace(/_/g, ' ').toLowerCase()}</small>
-                      </span>
-                      {currentUser.role === r.role && <Check size={14} />}
+                      <Monitor size={12} />
+                      <span>System</span>
                     </button>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={() => applyTheme('light')}
+                      className={`dmx-theme-option-btn ${themePref === 'light' ? 'is-active' : ''}`}
+                      title="Bright / Light Mode"
+                    >
+                      <Sun size={12} />
+                      <span>Bright</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyTheme('dark')}
+                      className={`dmx-theme-option-btn ${themePref === 'dark' ? 'is-active' : ''}`}
+                      title="Dark Mode"
+                    >
+                      <Moon size={12} />
+                      <span>Dark</span>
+                    </button>
+                  </div>
                   <div className="dmx-popover-divider" />
                   <button
                     className="dmx-role-item dmx-logout"

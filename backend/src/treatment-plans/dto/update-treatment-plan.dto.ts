@@ -38,5 +38,9 @@ export class UpdateTreatmentPlanDto {
   @IsOptional()
   @IsString()
   revisionReason?: string;
+
+  @IsOptional()
+  @IsString()
+  doctorId?: string;
 }
 

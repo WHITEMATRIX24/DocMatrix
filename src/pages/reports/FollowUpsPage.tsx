@@ -1,12 +1,26 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarPlus, Check, CheckCircle2, Clock, MessageCircle, Phone, ShieldAlert, Undo2, UserX, XCircle } from 'lucide-react'
 import { isAuthenticatedClinic, isDemoSession, useClinicData, type PatientRecord } from '@/services/clinicStore'
 import { isRecentlyContacted, markContacted, syncFollowUpContactsWithBackend, undoContacted, useContactLog } from '@/services/followUpStore'
-import { reportsApi } from '@/services/reportsApi'
 import { inr, prettyDate } from '@/pages/billing/BillingShared'
-import { RankedBars, ReportActions, StatTile, digitsOnly, inRange, pct, plural, previousSpan, useMoneyAccess, useReportRange, type RankedItem } from './ReportsShared'
+import {
+  RankedBars,
+  ReportActions,
+  ReportErrorState,
+  ReportLoadingState,
+  StatTile,
+  digitsOnly,
+  inRange,
+  pct,
+  plural,
+  previousSpan,
+  useMoneyAccess,
+  useReportRange,
+  type RankedItem
+} from './ReportsShared'
 import { computePeriod, contactList, type ContactReason, type ContactRow } from './reportMetrics'
+import { reportsApi, type FollowUpsResponse } from '@/services/reportsApi'
 
 const OPEN_STATUSES = ['scheduled', 'confirmed', 'checked-in', 'in-progress']
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -64,6 +78,57 @@ export const FollowUpsPage: React.FC = () => {
   const { patients, appointments, treatmentPlans, invoices } = useClinicData()
   const contactLog = useContactLog()
   const [filter, setFilter] = useState<Filter>('all')
+  const [backendData, setBackendData] = useState<FollowUpsResponse | null>(null)
+  const [loading, setLoading] = useState<boolean>(false)
+  const [error, setError] = useState<string | null>(null)
+  const [isAuthError, setIsAuthError] = useState<boolean>(false)
+
+  const loadData = useCallback(() => {
+    if (!isAuthenticatedClinic()) {
+      setLoading(false)
+      setError(null)
+      return () => {}
+    }
+
+    let active = true
+    setLoading(true)
+    setError(null)
+    setIsAuthError(false)
+
+    reportsApi.getFollowUps(range.from, range.to)
+      .then((data) => {
+        if (active && data) {
+          setBackendData(data)
+        }
+      })
+      .catch((err: any) => {
+        if (!active) return
+        const isAuth =
+          err?.status === 401 ||
+          err?.status === 403 ||
+          err?.message?.includes('401') ||
+          err?.message?.includes('403') ||
+          err?.message?.toLowerCase().includes('unauthorized') ||
+          err?.message?.toLowerCase().includes('forbidden')
+        setIsAuthError(isAuth)
+        setError(err?.message || 'Failed to fetch follow-ups report from server')
+        setBackendData(null)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [range.from, range.to])
+
+  useEffect(() => {
+    const cancel = loadData()
+    return cancel
+  }, [loadData])
+
+  const isAuthClinic = isAuthenticatedClinic()
 
   useEffect(() => {
     if (isAuthenticatedClinic() && !isDemoSession()) {
@@ -72,7 +137,40 @@ export const FollowUpsPage: React.FC = () => {
   }, [range.from, range.to])
 
   const data = useMemo(() => ({ patients, appointments, treatmentPlans, invoices }), [patients, appointments, treatmentPlans, invoices])
-  const rows = useMemo(() => contactList(data, range), [data, range])
+  const fallbackRows = useMemo(() => contactList(data, range), [data, range])
+
+  const rows = useMemo(() => {
+    if (!backendData?.contacts || backendData.contacts.length === 0) return fallbackRows
+    return backendData.contacts.map((c) => {
+      const p = patients.find((pt) => pt.id === c.patientId) || ({
+        id: c.patientId,
+        firstName: c.patientName.split(' ')[0] || '',
+        lastName: c.patientName.split(' ').slice(1).join(' ') || '',
+        mobile: c.mobile,
+        countryCode: '+91'
+      } as PatientRecord)
+      return {
+        patientId: c.patientId,
+        patient: p,
+        reasons: c.reasons,
+        missedVisits: c.missedVisits.map((mv) => ({
+          id: `mv-${mv.date}`,
+          patientId: c.patientId,
+          date: mv.date,
+          treatmentType: mv.treatmentType,
+          visitType: mv.treatmentType,
+          status: 'no-show',
+          time: '10:00'
+        })),
+        plans: [],
+        plansCount: c.plansCount,
+        value: c.value,
+        lastVisit: c.lastVisit,
+        since: c.since
+      } as unknown as ContactRow
+    })
+  }, [backendData, fallbackRows, patients])
+
   const toContact = rows.filter((r) => !isRecentlyContacted(contactLog[r.patientId]))
   const contacted = rows.filter((r) => isRecentlyContacted(contactLog[r.patientId]))
 
@@ -83,10 +181,12 @@ export const FollowUpsPage: React.FC = () => {
     { id: 'contacted', label: 'Contacted', count: contacted.length }
   ]
 
-  const { now, before } = useMemo(
+  const fallbackPeriod = useMemo(
     () => ({ now: computePeriod(data, range), before: computePeriod(data, previousSpan(range)) }),
     [data, range]
   )
+  const now = backendData?.now ?? fallbackPeriod.now
+  const before = backendData?.before ?? fallbackPeriod.before
   const canCompare = Boolean(now.withOutcome && before.withOutcome)
   const visits = useMemo(() => appointments.filter((a) => inRange(a.date, range)), [appointments, range])
   const openVisits = visits.filter((a) => OPEN_STATUSES.includes(a.status)).length
@@ -118,6 +218,22 @@ export const FollowUpsPage: React.FC = () => {
     const ids = new Set(appointments.filter((a) => a.status === 'completed' && inRange(a.date, range)).map((a) => a.patientId))
     return patients.filter((p) => ids.has(p.id) && alertText(p))
   }, [appointments, patients, range])
+
+  if (error && isAuthClinic) {
+    return (
+      <div className="rpt-page" data-testid="feature-page-rep.followups">
+        <ReportErrorState error={error} onRetry={loadData} isAuthError={isAuthError} />
+      </div>
+    )
+  }
+
+  if (loading && !backendData && isAuthClinic) {
+    return (
+      <div className="rpt-page" data-testid="feature-page-rep.followups">
+        <ReportLoadingState label="Loading patient follow-ups and recall lists..." />
+      </div>
+    )
+  }
 
   const nameOf = (row: ContactRow) => (row.patient ? `${row.patient.firstName} ${row.patient.lastName}`.trim() : 'Unknown patient')
   const waitingValue = toContact.reduce((s, r) => s + r.value, 0)

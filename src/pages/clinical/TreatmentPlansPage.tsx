@@ -34,7 +34,8 @@ type PlanStatusFilter =
   | 'In Progress'
   | 'Pending'
   | 'Completed'
-  | 'Rejected';
+  | 'Rejected'
+  | 'Cancelled';
 
 export const TreatmentPlansPage: React.FC = () => {
   const { treatmentPlans = [], patients = [] } = useClinicData();
@@ -106,6 +107,7 @@ export const TreatmentPlansPage: React.FC = () => {
       Pending: plans.filter((p) => p.status === 'Pending').length,
       Completed: plans.filter((p) => p.status === 'Completed').length,
       Rejected: plans.filter((p) => p.status === 'Rejected').length,
+      Cancelled: plans.filter((p) => p.status === 'Cancelled').length,
     };
   }, [treatmentPlans]);
 
@@ -300,7 +302,7 @@ export const TreatmentPlansPage: React.FC = () => {
         </div>
 
         <div className="pat-filter-chips">
-          {(['All', 'Proposed', 'Accepted', 'In Progress', 'Pending', 'Completed', 'Rejected'] as PlanStatusFilter[]).map(
+          {(['All', 'Proposed', 'Accepted', 'In Progress', 'Pending', 'Completed', 'Rejected', 'Cancelled'] as PlanStatusFilter[]).map(
             (status) => (
               <button
                 key={status}

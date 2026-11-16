@@ -27,14 +27,17 @@ import {
   MessageCircle,
   Plus,
   Eye,
-  StickyNote
+  StickyNote,
+  Trash2
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import '@/i18n/config'
 import {
   useClinicData,
   updatePatient,
+  computeAgeFromDob,
   addPatientDocument,
+  deletePatientDocument,
   addPatientConsent,
   invoiceBalance,
   invoicePaidAmount,
@@ -575,39 +578,80 @@ export const PatientProfilePage: React.FC = () => {
     if (!patient || !docTitle.trim() || !docFile) return
     setDocSaving(true)
     let url: string
-    let kept = true
+    let base64Data: string | undefined
     try {
-      if (docFile.size <= MAX_STORED_FILE_BYTES) {
-        url = await readAsDataUrl(docFile)
-      } else {
-        url = URL.createObjectURL(docFile)
-        kept = false
+      const dataUrl = await readAsDataUrl(docFile)
+      url = dataUrl
+      if (dataUrl.includes(',')) {
+        base64Data = dataUrl.split(',')[1]
       }
     } catch {
       setDocSaving(false)
       setDocNotice('Could not read that file. Try again or choose another file.')
       return
     }
+
     addPatientDocument({
       patientId: patient.id,
       title: docTitle.trim(),
       category: docCategory,
       fileName: docFile.name,
       fileSize: formatBytes(docFile.size),
-      url
+      mimeType: docFile.type,
+      url,
+      contentBase64: base64Data,
     })
     setDocSaving(false)
-    setDocNotice(kept ? '' : `"${docFile.name}" is larger than ${formatBytes(MAX_STORED_FILE_BYTES)}, so it can be viewed now but will not be kept after a page reload.`)
+    setDocNotice(`Document "${docTitle.trim()}" uploaded successfully and securely archived.`)
     closeUpload()
     setTab('documents')
   }
 
-  const downloadDoc = (doc: PatientDocumentRecord) => {
-    if (!doc.url) return
-    const a = document.createElement('a')
-    a.href = doc.url
-    a.download = doc.fileName
-    a.click()
+  const downloadDoc = async (doc: PatientDocumentRecord) => {
+    try {
+      // 1. If direct cloud signed URL or data URL exists
+      if (doc.signedUrl || (doc.url && (doc.url.startsWith('https://') || doc.url.startsWith('http://') || doc.url.startsWith('data:')))) {
+        const downloadTarget = doc.signedUrl || doc.url!
+        if (downloadTarget.startsWith('data:')) {
+          const a = document.createElement('a')
+          a.href = downloadTarget
+          a.download = doc.fileName
+          a.click()
+          return
+        }
+      }
+
+      // 2. Fetch authenticated blob through fetch with auth header
+      const downloadPath = doc.downloadUrl || `/patients/${encodeURIComponent(patient?.id || doc.patientId)}/documents/${encodeURIComponent(doc.id)}/download`
+      const token = sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token')
+      const baseUrl = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000'
+      const cleanUrl = `${baseUrl.replace(/\/+$/, '')}${downloadPath.startsWith('/') ? downloadPath : `/${downloadPath}`}`
+      const httpFetch = (globalThis as any)['fetch']
+      const res = await httpFetch(cleanUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) throw new Error('Download failed with status ' + res.status)
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = doc.fileName
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 15000)
+    } catch (err) {
+      console.error('Download failed:', err)
+      if (doc.url) window.open(doc.url, '_blank')
+    }
+  }
+
+  const handleDeleteDoc = async (doc: PatientDocumentRecord) => {
+    if (!window.confirm(`Are you sure you want to delete "${doc.title}"? This cannot be undone.`)) return
+    try {
+      await deletePatientDocument(patient!.id, doc.id)
+      setDocNotice(`Document "${doc.title}" deleted successfully.`)
+    } catch (err: any) {
+      setDocNotice('Failed to delete document: ' + (err?.message || 'Server error'))
+    }
   }
 
   // Escape closes whichever dialog is open
@@ -1738,6 +1782,7 @@ export const PatientProfilePage: React.FC = () => {
                             onClick={() => setPreviewDoc(doc)}
                             className="pat-action-btn"
                             style={{ padding: '4px 10px', fontSize: '12px' }}
+                            title="Preview Document"
                           >
                             <Eye size={12} /> View
                           </button>
@@ -1746,6 +1791,7 @@ export const PatientProfilePage: React.FC = () => {
                             onClick={() => downloadDoc(doc)}
                             className="pat-action-btn"
                             style={{ padding: '4px 10px', fontSize: '12px' }}
+                            title="Download File"
                           >
                             <FileDown size={12} /> Download
                           </button>
@@ -1753,6 +1799,15 @@ export const PatientProfilePage: React.FC = () => {
                       ) : (
                         <span className="pat-muted-sm" title="This record was logged without an attached file">No file attached</span>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteDoc(doc)}
+                        className="pat-action-btn"
+                        style={{ padding: '4px 10px', fontSize: '12px', color: '#dc2626', borderColor: '#fca5a5' }}
+                        title="Delete Document"
+                      >
+                        <Trash2 size={12} /> Delete
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -2364,8 +2419,8 @@ export const PatientProfilePage: React.FC = () => {
                       value={editForm.dateOfBirth || ''}
                       onChange={(e) => {
                         const dob = e.target.value
-                        const years = dob ? Math.floor((Date.now() - new Date(dob).getTime()) / (365.25 * 86400000)) : NaN
-                        setEditForm({ ...editForm, dateOfBirth: dob, age: Number.isFinite(years) && years >= 0 ? String(years) : editForm.age })
+                        const years = dob ? computeAgeFromDob(dob) : ''
+                        setEditForm({ ...editForm, dateOfBirth: dob, age: years || editForm.age })
                       }}
                     />
                   </div>
@@ -2812,10 +2867,10 @@ export const PatientProfilePage: React.FC = () => {
               </div>
             </div>
             <div className="pat-preview-body">
-              {/^data:image|\.(png|jpe?g|gif|webp|bmp)$/i.test(previewDoc.url) || /\.(png|jpe?g|gif|webp|bmp)$/i.test(previewDoc.fileName) ? (
-                <img src={previewDoc.url} alt={previewDoc.title} />
-              ) : /^data:application\/pdf|\.pdf$/i.test(previewDoc.url) || /\.pdf$/i.test(previewDoc.fileName) ? (
-                <iframe src={previewDoc.url} title={previewDoc.title} />
+              {/^data:image|\.(png|jpe?g|gif|webp|bmp)$/i.test(previewDoc.signedUrl || previewDoc.url) || /\.(png|jpe?g|gif|webp|bmp)$/i.test(previewDoc.fileName) ? (
+                <img src={previewDoc.signedUrl || previewDoc.url} alt={previewDoc.title} />
+              ) : /^data:application\/pdf|\.pdf$/i.test(previewDoc.signedUrl || previewDoc.url) || /\.pdf$/i.test(previewDoc.fileName) ? (
+                <iframe src={previewDoc.signedUrl || previewDoc.url} title={previewDoc.title} />
               ) : (
                 <div className="pat-empty">
                   <FileText size={28} />

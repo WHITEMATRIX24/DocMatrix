@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react'
 import { Pencil, Plus, Search, X } from 'lucide-react'
 import { effectivePrice, gstRateFor, saveService, toggleServiceActive, useBillingData, type GstClass, type ServicePrice } from '@/services/billingStore'
+import { getCurrentUser } from '@/services/authService'
+import { canManageTariffs } from '@/services/billingPermissions'
 import { inr } from './BillingShared'
 
 type Draft = { id?: string; name: string; category: string; price: string; offerPrice: string; gstClass: GstClass; active: boolean }
@@ -24,6 +26,9 @@ export const PriceListPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const categories = useMemo(() => [...new Set(services.map((s) => s.category))].sort(), [services])
+
+  const currentUser = getCurrentUser()
+  const canManage = canManageTariffs(currentUser?.role)
 
   const grouped = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -69,7 +74,11 @@ export const PriceListPage: React.FC = () => {
           <Search size={15} />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search services" />
         </label>
-        <button className="patient-intake-primary" onClick={() => setDraft({ ...blank })}><Plus size={15} /> Add service</button>
+        {canManage && (
+          <button className="patient-intake-primary" onClick={() => setDraft({ ...blank })}>
+            <Plus size={15} /> Add service
+          </button>
+        )}
       </div>
 
       {draft && (
@@ -123,13 +132,15 @@ export const PriceListPage: React.FC = () => {
                     <strong>{inr(price)}</strong>
                     {rate > 0 && <small className="bill-sub">{inr(price * (1 + rate / 100))} incl. GST</small>}
                   </span>
-                  <span className="bill-price-actions">
-                    <button className="bill-icon-btn" onClick={() => setDraft(toDraft(s))} aria-label={`Edit ${s.name}`}><Pencil size={14} /></button>
-                    <label className="bill-switch" title={s.active ? 'Shown when billing' : 'Hidden from billing'}>
-                      <input type="checkbox" checked={s.active} onChange={() => toggleServiceActive(s.id)} aria-label={`${s.name} available for billing`} />
-                      <span />
-                    </label>
-                  </span>
+                  {canManage && (
+                    <span className="bill-price-actions">
+                      <button className="bill-icon-btn" onClick={() => setDraft(toDraft(s))} aria-label={`Edit ${s.name}`}><Pencil size={14} /></button>
+                      <label className="bill-switch" title={s.active ? 'Shown when billing' : 'Hidden from billing'}>
+                        <input type="checkbox" checked={s.active} onChange={() => toggleServiceActive(s.id)} aria-label={`${s.name} available for billing`} />
+                        <span />
+                      </label>
+                    </span>
+                  )}
                 </li>
               )
             })}

@@ -405,6 +405,18 @@ export class TreatmentPlansService {
       let tax = existing.tax;
       let totalEstimatedCost = existing.totalEstimatedCost;
       let newVersion = existing.currentVersion;
+      let doctorId = existing.doctorId;
+      let doctorName = existing.doctorName;
+
+      if (dto.doctorId && dto.doctorId !== existing.doctorId) {
+        const assignedDoctor = await tx.user.findFirst({
+          where: { id: dto.doctorId, clinicId },
+        });
+        if (assignedDoctor) {
+          doctorId = assignedDoctor.id;
+          doctorName = assignedDoctor.fullName || (assignedDoctor as any).name || doctorName;
+        }
+      }
 
       // If stages are provided, calculate new totals and create a new estimate revision
       if (dto.stages && dto.stages.length > 0) {
@@ -527,6 +539,8 @@ export class TreatmentPlansService {
           tax,
           totalEstimatedCost,
           currentVersion: newVersion,
+          doctorId,
+          doctorName,
         },
       });
 

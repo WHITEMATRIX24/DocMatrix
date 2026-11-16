@@ -19,6 +19,10 @@ export class CreateDocumentDto {
 
   @IsString()
   @IsOptional()
+  mimeType?: string;
+
+  @IsString()
+  @IsOptional()
   doctorName?: string;
 
   @IsString()
@@ -29,4 +33,3 @@ export class CreateDocumentDto {
   @IsOptional()
   contentBase64?: string;
 }
-

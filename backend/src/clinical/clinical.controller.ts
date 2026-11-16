@@ -7,9 +7,13 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ClinicalService } from './clinical.service.js';
 import {
   SaveToothConditionDto,
@@ -90,12 +94,14 @@ export class ClinicalController {
   }
 
   @Post('patients/:patientId/documents')
+  @UseInterceptors(FileInterceptor('file'))
   async createDocument(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
     @Body() dto: CreateDocumentDto,
+    @UploadedFile() file?: any,
   ) {
-    return this.clinicalService.createDocument(user.clinicId!, patientId, dto);
+    return this.clinicalService.createDocument(user.clinicId!, patientId, dto, file);
   }
 
   @Get('patients/:patientId/documents/:docId')
@@ -107,21 +113,59 @@ export class ClinicalController {
     return this.clinicalService.getDocument(user.clinicId!, patientId, docId);
   }
 
+  @Get('patients/:patientId/documents/:docId/signed-url')
+  async getDocumentSignedUrl(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('patientId') patientId: string,
+    @Param('docId') docId: string,
+  ) {
+    return this.clinicalService.getDocumentSignedUrl(user.clinicId!, patientId, docId);
+  }
+
   @Get('patients/:patientId/documents/:docId/download')
   async downloadDocument(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
     @Param('docId') docId: string,
+    @Query('redirect') redirect: string,
     @Res() res: Response,
   ) {
-    const { fileName, mimeType, buffer } = await this.clinicalService.downloadDocument(
+    const { fileName, mimeType, buffer, signedUrl } = await this.clinicalService.downloadDocument(
       user.clinicId!,
       patientId,
       docId,
     );
 
+    if (redirect === 'true' && signedUrl) {
+      return res.redirect(signedUrl);
+    }
+
     res.setHeader('Content-Type', mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
+  }
+
+  @Get('patients/:patientId/documents/:docId/preview')
+  async previewDocument(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('patientId') patientId: string,
+    @Param('docId') docId: string,
+    @Query('redirect') redirect: string,
+    @Res() res: Response,
+  ) {
+    const { fileName, mimeType, buffer, signedUrl } = await this.clinicalService.downloadDocument(
+      user.clinicId!,
+      patientId,
+      docId,
+    );
+
+    if (redirect === 'true' && signedUrl) {
+      return res.redirect(signedUrl);
+    }
+
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
     res.setHeader('Content-Length', buffer.length);
     res.end(buffer);
   }

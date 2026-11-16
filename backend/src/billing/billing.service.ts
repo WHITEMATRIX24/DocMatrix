@@ -4,7 +4,9 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  Optional,
 } from '@nestjs/common';
+import { AuditLogService } from '../common/services/audit-log.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator.js';
 import { BillingCalculationService, ComputedLineItem } from './billing-calculation.service.js';
@@ -37,6 +39,7 @@ export class BillingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly calc: BillingCalculationService,
+    @Optional() private readonly auditLog?: AuditLogService,
   ) {}
 
   /**
@@ -747,7 +750,7 @@ export class BillingService {
       );
     }
 
-    return this.prisma.invoice.update({
+    const voided = await this.prisma.invoice.update({
       where: { id: invoice.id },
       data: {
         status: InvoiceStatus.VOID,
@@ -764,6 +767,19 @@ export class BillingService {
         },
       },
     });
+
+    this.auditLog?.recordEvent({
+      clinicId,
+      module: 'Billing',
+      action: 'BILLING_INVOICE_VOID',
+      actorId: user.id,
+      actorName: user.name || user.fullName,
+      actorRole: user.role,
+      description: `Invoice ${invoice.invoiceNumber} voided. Reason: ${dto.reason}`,
+      severity: 'warn',
+    });
+
+    return voided;
   }
 
   // ==========================================

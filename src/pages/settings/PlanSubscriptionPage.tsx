@@ -37,6 +37,7 @@ export const PlanSubscriptionPage: React.FC = () => {
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [upgradeNotice, setUpgradeNotice] = useState<string | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -45,18 +46,58 @@ export const PlanSubscriptionPage: React.FC = () => {
       try {
         setLoading(true)
         const [subRes, plansRes] = await Promise.all([
-          apiClient.get<Subscription>('/subscriptions/current').catch(() => null),
-          apiClient.get<Plan[]>('/plans').catch(() => null)
+          apiClient.get<any>('/subscriptions/current').catch(() => null),
+          apiClient.get<any[]>('/plans').catch(() => null)
         ])
 
         if (mounted) {
-          if (subRes && subRes.id) {
-            setSubscription(subRes)
-          } else {
-            setSubscription(null)
+          if (subRes) {
+            if (subRes.subscription) {
+              setSubscription({
+                ...subRes.subscription,
+                plan: subRes.plan ? {
+                  id: subRes.plan.id,
+                  name: subRes.plan.name,
+                  slug: subRes.plan.slug,
+                  description: subRes.plan.description,
+                  tier: subRes.plan.name,
+                  monthlyPriceInr: Number(subRes.subscription.lockedPrice || 0),
+                  annualPriceInr: Math.round(Number(subRes.subscription.lockedPrice || 0) * 10),
+                  maxDoctors: subRes.plan.maxUsers || 1,
+                  maxChairs: subRes.plan.maxUsers || 1,
+                  planFeatures: (subRes.features || []).map((f: any) => ({
+                    featureKey: f.featureKey,
+                    name: f.featureKey.replace(/_/g, ' '),
+                    included: f.isEnabled,
+                    limitValue: f.limitValue
+                  }))
+                } : undefined
+              })
+            } else if (subRes.id) {
+              setSubscription(subRes)
+            } else {
+              setSubscription(null)
+            }
           }
           if (Array.isArray(plansRes)) {
-            setPlans(plansRes)
+            const mapped = plansRes.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              slug: p.slug,
+              description: p.description,
+              tier: p.name,
+              monthlyPriceInr: Number(p.basePrice || p.monthlyPriceInr || 0),
+              annualPriceInr: Number(p.annualPriceInr || Math.round(Number(p.basePrice || 0) * 10)),
+              maxDoctors: Number(p.maxUsers || p.maxDoctors || 1),
+              maxChairs: Number(p.maxUsers || p.maxChairs || 1),
+              planFeatures: (p.features || p.planFeatures || []).map((f: any) => ({
+                featureKey: f.featureKey || f.name,
+                name: f.name || f.featureKey?.replace(/_/g, ' ') || 'Feature',
+                included: f.isEnabled !== undefined ? f.isEnabled : (f.included ?? true),
+                limitValue: f.limitValue
+              }))
+            }))
+            setPlans(mapped)
           } else {
             setPlans([])
           }
@@ -78,27 +119,50 @@ export const PlanSubscriptionPage: React.FC = () => {
     }
   }, [])
 
+  const handleUpgradeClick = (planName: string) => {
+    setUpgradeNotice(`To upgrade your clinic to the ${planName} edition or add operatory chairs, please contact DocMatrix Enterprise Onboarding (+91 98765 00000 or support@docmatrix.dental).`)
+    setTimeout(() => setUpgradeNotice(null), 7000)
+  }
+
   const displayPlans = plans
 
   return (
-    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px 24px', fontFamily: 'inherit' }}>
+    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '32px 24px', fontFamily: 'inherit' }} data-testid="feature-page-set.plan">
       <header style={{ marginBottom: '32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0d9488', fontSize: '12px', fontWeight: 700, letterSpacing: '0.05em' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--teal-primary, #008891)', fontSize: '12px', fontWeight: 700, letterSpacing: '0.05em' }}>
           <ShieldCheck size={16} />
           <span>SUBSCRIPTION &amp; BILLING</span>
         </div>
-        <h1 style={{ fontSize: '28px', fontWeight: 800, color: '#134e4a', margin: '6px 0 8px' }}>
+        <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-strong, #0f172a)', margin: '6px 0 8px' }}>
           Plans &amp; Subscription Management
         </h1>
-        <p style={{ color: '#4b5563', fontSize: '14px', maxWidth: '680px' }}>
+        <p style={{ color: 'var(--text-muted, #64748b)', fontSize: '14px', maxWidth: '680px' }}>
           Review your clinic&apos;s active subscription tier, manage operatory chair entitlements, and explore upgraded capabilities.
         </p>
       </header>
 
+      {upgradeNotice && (
+        <div style={{
+          padding: '12px 18px',
+          borderRadius: '8px',
+          background: 'rgba(0, 136, 145, 0.1)',
+          border: '1px solid var(--teal-primary, #008891)',
+          color: 'var(--text-strong, #0f172a)',
+          fontSize: '13.5px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px'
+        }}>
+          <Sparkles size={18} color="var(--teal-primary, #008891)" />
+          <span>{upgradeNotice}</span>
+        </div>
+      )}
+
       {/* Active Subscription Status Card */}
       <section style={{
-        background: 'linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%)',
-        border: '1px solid #a7f3d0',
+        background: 'linear-gradient(135deg, var(--surface-raised, #ffffff) 0%, var(--surface-alt, #f8fafc) 100%)',
+        border: '1px solid var(--teal-border, rgba(0, 136, 145, 0.3))',
         borderRadius: '16px',
         padding: '24px 28px',
         marginBottom: '40px',
@@ -108,7 +172,7 @@ export const PlanSubscriptionPage: React.FC = () => {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{
-                background: '#059669',
+                background: 'var(--teal-primary, #008891)',
                 color: '#ffffff',
                 padding: '4px 10px',
                 borderRadius: '9999px',
@@ -119,21 +183,21 @@ export const PlanSubscriptionPage: React.FC = () => {
               }}>
                 {subscription?.status || 'TRIALING (DocMatrix Cloud)'}
               </span>
-              <span style={{ color: '#065f46', fontSize: '13px', fontWeight: 600 }}>
+              <span style={{ color: 'var(--teal-primary, #008891)', fontSize: '13px', fontWeight: 600 }}>
                 {subscription?.billingInterval ? `${subscription.billingInterval} CYCLE` : '30-DAY FREE CLINICAL TRIAL'}
               </span>
             </div>
-            <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#064e3b', margin: '12px 0 6px' }}>
+            <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--text-strong, #0f172a)', margin: '12px 0 6px' }}>
               {subscription?.plan?.name || 'DocMatrix Solo Practice Edition'}
             </h2>
-            <p style={{ color: '#047857', fontSize: '14px', margin: 0 }}>
+            <p style={{ color: 'var(--text-muted, #64748b)', fontSize: '14px', margin: 0 }}>
               Full access to Electronic Dental Records, Odontogram Tooth Charting, Live Queue, and Patient SMS Reminders.
             </p>
           </div>
 
           <div style={{
-            background: 'var(--surface-raised, #ffffff)',
-            border: '1px solid var(--line, #d1fae5)',
+            background: 'var(--surface-sunken, #ffffff)',
+            border: '1px solid var(--line-strong, #d1fae5)',
             borderRadius: '12px',
             padding: '14px 20px',
             minWidth: '220px'
@@ -175,14 +239,14 @@ export const PlanSubscriptionPage: React.FC = () => {
                 key={plan.id}
                 style={{
                   background: 'var(--surface-raised, #ffffff)',
-                  border: isCurrent ? '2px solid var(--teal-primary, #0d9488)' : '1px solid var(--line, #e5e7eb)',
+                  border: isCurrent ? '2px solid var(--teal-primary, #008891)' : '1px solid var(--line, #e5e7eb)',
                   borderRadius: '16px',
                   padding: '24px',
                   position: 'relative',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  boxShadow: isCurrent ? '0 10px 15px -3px rgba(13, 148, 136, 0.1)' : '0 1px 3px rgba(0,0,0,0.05)'
+                  boxShadow: isCurrent ? '0 10px 15px -3px rgba(0, 136, 145, 0.15)' : '0 1px 3px rgba(0,0,0,0.05)'
                 }}
               >
                 {isCurrent && (
@@ -190,7 +254,7 @@ export const PlanSubscriptionPage: React.FC = () => {
                     position: 'absolute',
                     top: '-12px',
                     right: '20px',
-                    background: 'var(--teal-primary, #0d9488)',
+                    background: 'var(--teal-primary, #008891)',
                     color: '#ffffff',
                     padding: '2px 10px',
                     borderRadius: '9999px',
@@ -210,31 +274,31 @@ export const PlanSubscriptionPage: React.FC = () => {
                   </p>
 
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '20px' }}>
-                    <span style={{ fontSize: '28px', fontWeight: 800, color: 'var(--teal-primary, #0d9488)' }}>
-                      ₹{plan.monthlyPriceInr.toLocaleString('en-IN')}
+                    <span style={{ fontSize: '28px', fontWeight: 800, color: 'var(--teal-primary, #008891)' }}>
+                      ₹{(plan.monthlyPriceInr || 0).toLocaleString('en-IN')}
                     </span>
                     <span style={{ color: 'var(--text-muted, #6b7280)', fontSize: '13px' }}>/ month</span>
                   </div>
 
                   <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text, #374151)' }}>
-                      <Check size={16} color="var(--teal-primary, #0d9488)" />
-                      <span><strong>{plan.maxDoctors}</strong> Doctor Seat{plan.maxDoctors > 1 ? 's' : ''} Included</span>
+                      <Check size={16} color="var(--teal-primary, #008891)" />
+                      <span><strong style={{ color: 'var(--text-strong)' }}>{plan.maxDoctors || 1}</strong> Doctor Seat{(plan.maxDoctors || 1) > 1 ? 's' : ''} Included</span>
                     </li>
                     <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text, #374151)' }}>
-                      <Check size={16} color="var(--teal-primary, #0d9488)" />
-                      <span><strong>{plan.maxChairs}</strong> Operatory Chair{plan.maxChairs > 1 ? 's' : ''}</span>
+                      <Check size={16} color="var(--teal-primary, #008891)" />
+                      <span><strong style={{ color: 'var(--text-strong)' }}>{plan.maxChairs || 1}</strong> Operatory Chair{(plan.maxChairs || 1) > 1 ? 's' : ''}</span>
                     </li>
                     <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text, #374151)' }}>
-                      <Check size={16} color="var(--teal-primary, #0d9488)" />
+                      <Check size={16} color="var(--teal-primary, #008891)" />
                       <span>Smart Live Queue &amp; Check-In</span>
                     </li>
                     <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text, #374151)' }}>
-                      <Check size={16} color="var(--teal-primary, #0d9488)" />
+                      <Check size={16} color="var(--teal-primary, #008891)" />
                       <span>Interactive Odontogram Charting</span>
                     </li>
-                    <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#374151' }}>
-                      <Check size={16} color="#0d9488" />
+                    <li style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: 'var(--text, #374151)' }}>
+                      <Check size={16} color="var(--teal-primary, #008891)" />
                       <span>WhatsApp &amp; SMS Recall Notifications</span>
                     </li>
                   </ul>
@@ -243,6 +307,7 @@ export const PlanSubscriptionPage: React.FC = () => {
                 <button
                   type="button"
                   disabled={isCurrent}
+                  onClick={() => !isCurrent && handleUpgradeClick(plan.name)}
                   style={{
                     width: '100%',
                     padding: '10px 16px',
@@ -250,9 +315,9 @@ export const PlanSubscriptionPage: React.FC = () => {
                     fontSize: '14px',
                     fontWeight: 600,
                     cursor: isCurrent ? 'default' : 'pointer',
-                    background: isCurrent ? '#f3f4f6' : '#0d9488',
-                    color: isCurrent ? '#9ca3af' : '#ffffff',
-                    border: 'none',
+                    background: isCurrent ? 'var(--surface-sunken, #f3f4f6)' : 'var(--teal-primary, #008891)',
+                    color: isCurrent ? 'var(--text-muted, #9ca3af)' : '#ffffff',
+                    border: isCurrent ? '1px solid var(--line-strong)' : 'none',
                     transition: 'transform 0.2s, opacity 0.2s, color 0.2s, background-color 0.2s, border-color 0.2s, box-shadow 0.2s, filter 0.2s, width 0.2s'
                   }}
                 >

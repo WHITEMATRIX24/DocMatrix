@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react'
-import { registerPatient, type PatientRecord } from '@/services/clinicStore'
+import { registerPatient, computeAgeFromDob, type PatientRecord } from '@/services/clinicStore'
 
 const steps = [
   { title: 'Personal identification', subtitle: 'Patient identity and contact details' },
@@ -50,6 +50,25 @@ export const NewPatientPage: React.FC = () => {
   const [registeredPatient, setRegisteredPatient] = useState<PatientRecord | null>(null)
   const stepContent = useRef<HTMLDivElement>(null)
 
+  const handleDobChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newDob = event.target.value
+    setDob(newDob)
+    event.target.setCustomValidity('')
+    if (newDob) {
+      const calculatedAge = computeAgeFromDob(newDob)
+      if (calculatedAge) {
+        setAge(calculatedAge)
+        stepContent.current?.querySelector<HTMLInputElement>('input[name="dateOfBirth"]')?.setCustomValidity('')
+      }
+    }
+  }
+
+  const handleAgeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newAge = event.target.value
+    setAge(newAge)
+    stepContent.current?.querySelector<HTMLInputElement>('input[name="dateOfBirth"]')?.setCustomValidity('')
+  }
+
   const validateCurrentStep = () => {
     if (!stepContent.current) return false
     const activePanel = stepContent.current.querySelector<HTMLElement>(`.patient-intake-step-panel[data-step="${step}"]`)
@@ -74,14 +93,32 @@ export const NewPatientPage: React.FC = () => {
     if (!validateCurrentStep()) return
     const values = new FormData(event.currentTarget)
     const value = (key: string) => String(values.get(key) || '').trim()
+    const enteredDob = value('dateOfBirth') || dob
+    // Directly calculate age from DOB if DOB is provided
+    const finalAge = (enteredDob ? computeAgeFromDob(enteredDob) : '') || value('age') || age || '30'
+
     setRegisteredPatient(registerPatient({
-      firstName: value('firstName'), lastName: value('lastName'), age: value('age'), dateOfBirth: value('dateOfBirth'),
-      gender: value('gender'), mobile: value('mobile'), countryCode: value('countryCode'), email: value('email'),
-      language: value('language'), city: value('city'), state: value('state'), postalCode: value('postalCode'),
-      address: value('address'), emergencyName: value('emergencyName'), emergencyPhone: value('emergencyPhone'),
-      relationship: value('relationship'), allergies: value('allergies') as PatientRecord['allergies'],
-      allergiesDetails: value('allergiesDetails'), medications: value('medications') as PatientRecord['medications'],
-      medicationsDetails: value('medicationsDetails'), conditions: value('conditions') as PatientRecord['conditions'],
+      firstName: value('firstName'),
+      lastName: value('lastName'),
+      age: finalAge,
+      dateOfBirth: enteredDob,
+      gender: value('gender'),
+      mobile: value('mobile'),
+      countryCode: value('countryCode'),
+      email: value('email'),
+      language: value('language'),
+      city: value('city'),
+      state: value('state'),
+      postalCode: value('postalCode'),
+      address: value('address'),
+      emergencyName: value('emergencyName'),
+      emergencyPhone: value('emergencyPhone'),
+      relationship: value('relationship'),
+      allergies: value('allergies') as PatientRecord['allergies'],
+      allergiesDetails: value('allergiesDetails'),
+      medications: value('medications') as PatientRecord['medications'],
+      medicationsDetails: value('medicationsDetails'),
+      conditions: value('conditions') as PatientRecord['conditions'],
       conditionsDetails: value('conditionsDetails')
     }))
   }
@@ -131,10 +168,10 @@ export const NewPatientPage: React.FC = () => {
                 <div className="patient-intake-grid">
                   <label className="patient-intake-field"><span>First name <b>*</b></span><input name="firstName" autoComplete="given-name" placeholder="Enter first name" required /></label>
                   <label className="patient-intake-field"><span>Last name / surname</span><input name="lastName" autoComplete="family-name" placeholder="Enter last name" /></label>
-                  <div className="patient-intake-field patient-intake-field-wide"><span>Age or date of birth <b>*</b></span><div className="patient-intake-inline-inputs">
-                    <input name="dateOfBirth" type="date" aria-label="Date of birth" max={new Date().toISOString().slice(0, 10)} value={dob} onChange={(event) => { setDob(event.target.value); event.target.setCustomValidity('') }} />
-                    <input name="age" type="number" min="0" max="130" aria-label="Age in years" placeholder="Age in years" value={age} onChange={(event) => { setAge(event.target.value); stepContent.current?.querySelector<HTMLInputElement>('input[name="dateOfBirth"]')?.setCustomValidity('') }} />
-                  </div><small>Enter either date of birth or age.</small></div>
+                  <div className="patient-intake-field patient-intake-field-wide"><span>Date of birth & Age <b>*</b></span><div className="patient-intake-inline-inputs">
+                    <input name="dateOfBirth" type="date" aria-label="Date of birth" max={new Date().toISOString().slice(0, 10)} value={dob} onChange={handleDobChange} />
+                    <input name="age" type="number" min="0" max="130" aria-label="Age in years" placeholder="Age in years" value={age} onChange={handleAgeChange} readOnly={Boolean(dob)} title={dob ? 'Age is directly calculated from Date of Birth' : 'Age in years'} style={dob ? { backgroundColor: 'var(--surface-subtle, #f8fafc)' } : undefined} />
+                  </div><small>{dob && age ? `Age: ${age} years (directly calculated from Date of Birth)` : 'Enter date of birth (age is calculated automatically) or enter age.'}</small></div>
                   <label className="patient-intake-field"><span>Gender <b>*</b></span><select name="gender" defaultValue="" required><option value="" disabled>Select gender</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select></label>
                   <label className="patient-intake-field"><span>Primary mobile number <b>*</b></span><div className="patient-intake-inline-inputs patient-intake-phone"><select aria-label="Country calling code" name="countryCode" defaultValue="+91"><option value="+91">+91 (IN)</option><option value="+1">+1</option><option value="+44">+44</option><option value="+971">+971</option></select><input name="mobile" type="tel" autoComplete="tel-national" placeholder="Enter mobile number" required /></div></label>
                   <label className="patient-intake-field"><span>Email address <small>Optional</small></span><input name="email" type="email" autoComplete="email" placeholder="name@example.com" /></label>

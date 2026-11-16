@@ -8,7 +8,25 @@ export interface ClinicStaffDoctor {
   email?: string
 }
 
-const STAFF_STORAGE_KEY = 'docmatrix_clinic_staff'
+export function getStaffClinicId(): string | null {
+  try {
+    const raw =
+      (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('docmatrix_auth_user') : null) ||
+      (typeof localStorage !== 'undefined' ? localStorage.getItem('docmatrix_auth_user') : null)
+    if (raw) {
+      return JSON.parse(raw)?.clinicId || null
+    }
+  } catch {}
+  return null
+}
+
+export function getStaffStorageKey(clinicId?: string): string {
+  const cid = clinicId || getStaffClinicId()
+  if (cid) {
+    return `docmatrix_clinic_staff_${cid}`
+  }
+  return 'docmatrix_clinic_staff'
+}
 
 const listeners = new Set<() => void>()
 
@@ -37,8 +55,9 @@ export function isClinicalStaffMember(p: { name?: string; fullName?: string; rol
 
 export function getStoredStaff(): ClinicStaffDoctor[] {
   const doctors: ClinicStaffDoctor[] = []
+  const key = getStaffStorageKey()
   try {
-    const raw = localStorage.getItem(STAFF_STORAGE_KEY)
+    const raw = localStorage.getItem(key)
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed)) {
@@ -119,9 +138,9 @@ export function useClinicStaff() {
 export async function fetchAndSyncClinicStaff(): Promise<ClinicStaffDoctor[]> {
   try {
     const res = await apiClient.get<any[]>('/clinics/my-clinic/staff')
-    if (Array.isArray(res) && res.length > 0) {
+    if (Array.isArray(res)) {
       try {
-        localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(res))
+        localStorage.setItem(getStaffStorageKey(), JSON.stringify(res))
       } catch {}
       const mapped = res
         .filter((s) => isClinicalStaffMember(s))
@@ -144,6 +163,15 @@ export async function fetchAndSyncClinicStaff(): Promise<ClinicStaffDoctor[]> {
   return staffCache
 }
 
+export function clearClinicStaffStore() {
+  try {
+    localStorage.removeItem(getStaffStorageKey())
+    localStorage.removeItem('docmatrix_clinic_staff')
+  } catch {}
+  staffCache = []
+  notify()
+}
+
 export async function addClinicDoctor(
   fullName: string,
   role: string = 'DOCTOR',
@@ -162,7 +190,7 @@ export async function addClinicDoctor(
   try {
     const existing = getStoredStaff()
     localStorage.setItem(
-      STAFF_STORAGE_KEY,
+      getStaffStorageKey(),
       JSON.stringify([
         {
           id: newDoctor.id,
@@ -193,6 +221,7 @@ export async function addClinicDoctor(
 
   return newDoctor
 }
+
 
 // Initial fetch on module load
 if (typeof window !== 'undefined') {

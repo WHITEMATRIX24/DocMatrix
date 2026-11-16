@@ -23,7 +23,23 @@ describe('AuthService', () => {
       sign: vi.fn().mockReturnValue('mock-jwt-token-xyz'),
     };
 
-    service = new AuthService(mockPrisma, mockJwt);
+    const mockSession = {
+      id: 'session-123',
+      userId: 'usr-1',
+      tokenHash: 'hash-abc',
+      familyId: 'family-1',
+      isRevoked: false,
+    };
+    const mockSessionService = {
+      createSession: vi.fn().mockResolvedValue({ session: mockSession, refreshToken: 'refresh-token-xyz' }),
+      rotateRefreshToken: vi.fn(),
+      isSessionValid: vi.fn().mockReturnValue(true),
+      revokeSession: vi.fn(),
+      revokeSessionByRefreshToken: vi.fn(),
+      revokeAllUserSessions: vi.fn().mockReturnValue(1),
+    };
+
+    service = new AuthService(mockPrisma, mockJwt, mockSessionService as any);
   });
 
   it('rejects login if user is not found', async () => {
@@ -72,6 +88,37 @@ describe('AuthService', () => {
     expect(response.user.email).toBe('dr.arun@docmatrix.com');
     expect(response.user.role).toBe('ORGANIZATION_ADMIN');
     expect(response.user.clinicName).toBe('Apollo Dental');
+  });
+
+  describe('changePassword', () => {
+    it('successfully changes password when current password matches', async () => {
+      const salt = await bcrypt.genSalt(10);
+      const hash = await bcrypt.hash('OldPassword123!', salt);
+
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'usr-1',
+        passwordHash: hash,
+      });
+      mockPrisma.user.update = vi.fn().mockResolvedValue({ id: 'usr-1' });
+
+      const res = await service.changePassword('usr-1', 'OldPassword123!', 'NewPassword456!');
+      expect(res.success).toBe(true);
+      expect(mockPrisma.user.update).toHaveBeenCalled();
+    });
+
+    it('rejects password change when current password is wrong', async () => {
+      const salt = await bcrypt.genSalt(10);
+      const hash = await bcrypt.hash('RealPassword123!', salt);
+
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'usr-1',
+        passwordHash: hash,
+      });
+
+      await expect(
+        service.changePassword('usr-1', 'WrongPassword!', 'NewPassword456!'),
+      ).rejects.toThrow();
+    });
   });
 });
 

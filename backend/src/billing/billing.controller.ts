@@ -13,6 +13,9 @@ import {
 import { BillingService } from './billing.service.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { TenantGuard } from '../common/guards/tenant.guard.js';
+import { BillingPermissionGuard } from './guards/billing-permission.guard.js';
+import { RequireBillingPermissions } from './decorators/billing-permission.decorator.js';
+import { BillingPermission } from './billing-permissions.policy.js';
 import {
   AuthenticatedUser,
   CurrentUser,
@@ -34,7 +37,7 @@ import { UpdateExpenseDto } from './dto/update-expense.dto.js';
 import { ExpenseQueryDto } from './dto/expense-query.dto.js';
 import { InvoiceFromTreatmentPlanDto } from './dto/invoice-from-treatment-plan.dto.js';
 
-@UseGuards(JwtAuthGuard, TenantGuard)
+@UseGuards(JwtAuthGuard, TenantGuard, BillingPermissionGuard)
 @Controller('billing')
 export class BillingController {
   constructor(
@@ -46,6 +49,7 @@ export class BillingController {
   // DASHBOARD
   // ==========================================
 
+  @RequireBillingPermissions(BillingPermission.INVOICE_READ)
   @Get('dashboard')
   async getDashboard(@CurrentUser() user: AuthenticatedUser) {
     return this.billingService.getDashboardOverview(user.clinicId!);
@@ -55,6 +59,7 @@ export class BillingController {
   // INVOICES
   // ==========================================
 
+  @RequireBillingPermissions(BillingPermission.INVOICE_CREATE)
   @Post('invoices/draft')
   async createDraftInvoice(
     @CurrentUser() user: AuthenticatedUser,
@@ -63,6 +68,7 @@ export class BillingController {
     return this.billingService.createDraftInvoice(user.clinicId!, user, dto);
   }
 
+  @RequireBillingPermissions(BillingPermission.INVOICE_CREATE)
   @Post('invoices/issue')
   async createAndIssueInvoice(
     @CurrentUser() user: AuthenticatedUser,
@@ -71,6 +77,7 @@ export class BillingController {
     return this.billingService.createAndIssueInvoice(user.clinicId!, user, dto);
   }
 
+  @RequireBillingPermissions(BillingPermission.INVOICE_CREATE)
   @Post('invoices/from-treatment-plan')
   async createFromTreatmentPlan(
     @CurrentUser() user: AuthenticatedUser,
@@ -83,6 +90,7 @@ export class BillingController {
     );
   }
 
+  @RequireBillingPermissions(BillingPermission.INVOICE_READ)
   @Get('invoices')
   async getInvoices(
     @CurrentUser() user: AuthenticatedUser,
@@ -91,6 +99,7 @@ export class BillingController {
     return this.billingService.getInvoices(user.clinicId!, query);
   }
 
+  @RequireBillingPermissions(BillingPermission.INVOICE_READ)
   @Get('invoices/:id')
   async getInvoiceById(
     @CurrentUser() user: AuthenticatedUser,
@@ -99,6 +108,7 @@ export class BillingController {
     return this.billingService.getInvoiceById(user.clinicId!, id);
   }
 
+  @RequireBillingPermissions(BillingPermission.INVOICE_UPDATE)
   @Patch('invoices/:id/draft')
   async updateDraftInvoice(
     @CurrentUser() user: AuthenticatedUser,
@@ -108,6 +118,7 @@ export class BillingController {
     return this.billingService.updateDraftInvoice(user.clinicId!, user, id, dto);
   }
 
+  @RequireBillingPermissions(BillingPermission.INVOICE_CREATE)
   @Post('invoices/:id/issue')
   async issueDraftInvoice(
     @CurrentUser() user: AuthenticatedUser,
@@ -116,6 +127,7 @@ export class BillingController {
     return this.billingService.issueDraftInvoice(user.clinicId!, user, id);
   }
 
+  @RequireBillingPermissions(BillingPermission.INVOICE_VOID)
   @Post('invoices/:id/void')
   async voidInvoice(
     @CurrentUser() user: AuthenticatedUser,
@@ -129,6 +141,7 @@ export class BillingController {
   // PAYMENTS & REFUNDS
   // ==========================================
 
+  @RequireBillingPermissions(BillingPermission.PAYMENT_COLLECT)
   @Post('invoices/:id/payments')
   async recordPayment(
     @CurrentUser() user: AuthenticatedUser,
@@ -138,6 +151,7 @@ export class BillingController {
     return this.billingService.recordPayment(user.clinicId!, user, invoiceId, dto);
   }
 
+  @RequireBillingPermissions(BillingPermission.REFUND_ISSUE)
   @Post('payments/:id/refund')
   async refundPayment(
     @CurrentUser() user: AuthenticatedUser,
@@ -151,6 +165,7 @@ export class BillingController {
   // PENDING DUES & AGING
   // ==========================================
 
+  @RequireBillingPermissions(BillingPermission.INVOICE_READ)
   @Get('dues')
   async getPendingDues(
     @CurrentUser() user: AuthenticatedUser,
@@ -159,6 +174,7 @@ export class BillingController {
     return this.billingService.getPendingDues(user.clinicId!, query);
   }
 
+  @RequireBillingPermissions(BillingPermission.INVOICE_READ)
   @Get('dues/patient-wise')
   async getPatientWiseDues(@CurrentUser() user: AuthenticatedUser) {
     return this.billingService.getPatientWiseDues(user.clinicId!);
@@ -168,6 +184,7 @@ export class BillingController {
   // COLLECTIONS
   // ==========================================
 
+  @RequireBillingPermissions(BillingPermission.INVOICE_READ)
   @Get('collections/daily')
   async getDailyCollections(
     @CurrentUser() user: AuthenticatedUser,
@@ -180,6 +197,7 @@ export class BillingController {
   // SERVICE TARIFFS
   // ==========================================
 
+  @RequireBillingPermissions(BillingPermission.TARIFF_MANAGE)
   @Post('tariffs')
   async createTariff(
     @CurrentUser() user: AuthenticatedUser,
@@ -188,6 +206,7 @@ export class BillingController {
     return this.billingService.createTariff(user.clinicId!, dto);
   }
 
+  @RequireBillingPermissions(BillingPermission.TARIFF_READ)
   @Get('tariffs')
   async getTariffs(
     @CurrentUser() user: AuthenticatedUser,
@@ -196,6 +215,7 @@ export class BillingController {
     return this.billingService.getTariffs(user.clinicId!, query);
   }
 
+  @RequireBillingPermissions(BillingPermission.TARIFF_READ)
   @Get('tariffs/:id')
   async getTariffById(
     @CurrentUser() user: AuthenticatedUser,
@@ -204,6 +224,7 @@ export class BillingController {
     return this.billingService.getTariffById(user.clinicId!, id);
   }
 
+  @RequireBillingPermissions(BillingPermission.TARIFF_MANAGE)
   @Patch('tariffs/:id')
   async updateTariff(
     @CurrentUser() user: AuthenticatedUser,
@@ -213,6 +234,7 @@ export class BillingController {
     return this.billingService.updateTariff(user.clinicId!, id, dto);
   }
 
+  @RequireBillingPermissions(BillingPermission.TARIFF_MANAGE)
   @Patch('tariffs/:id/toggle-active')
   async toggleTariffActive(
     @CurrentUser() user: AuthenticatedUser,
@@ -221,6 +243,7 @@ export class BillingController {
     return this.billingService.toggleTariffActive(user.clinicId!, id);
   }
 
+  @RequireBillingPermissions(BillingPermission.TARIFF_MANAGE)
   @Delete('tariffs/:id')
   async deleteTariff(
     @CurrentUser() user: AuthenticatedUser,
@@ -233,6 +256,7 @@ export class BillingController {
   // EXPENSES
   // ==========================================
 
+  @RequireBillingPermissions(BillingPermission.EXPENSE_MANAGE)
   @Post('expenses')
   async createExpense(
     @CurrentUser() user: AuthenticatedUser,
@@ -241,6 +265,7 @@ export class BillingController {
     return this.billingService.createExpense(user.clinicId!, user, dto);
   }
 
+  @RequireBillingPermissions(BillingPermission.EXPENSE_READ)
   @Get('expenses')
   async getExpenses(
     @CurrentUser() user: AuthenticatedUser,
@@ -249,11 +274,13 @@ export class BillingController {
     return this.billingService.getExpenses(user.clinicId!, query);
   }
 
+  @RequireBillingPermissions(BillingPermission.EXPENSE_READ)
   @Get('expenses/summary')
   async getExpenseSummary(@CurrentUser() user: AuthenticatedUser) {
     return this.billingService.getExpenseSummary(user.clinicId!);
   }
 
+  @RequireBillingPermissions(BillingPermission.EXPENSE_READ)
   @Get('expenses/:id')
   async getExpenseById(
     @CurrentUser() user: AuthenticatedUser,
@@ -262,6 +289,7 @@ export class BillingController {
     return this.billingService.getExpenseById(user.clinicId!, id);
   }
 
+  @RequireBillingPermissions(BillingPermission.EXPENSE_MANAGE)
   @Patch('expenses/:id')
   async updateExpense(
     @CurrentUser() user: AuthenticatedUser,
@@ -271,6 +299,7 @@ export class BillingController {
     return this.billingService.updateExpense(user.clinicId!, id, dto);
   }
 
+  @RequireBillingPermissions(BillingPermission.EXPENSE_MANAGE)
   @Delete('expenses/:id')
   async deleteExpense(
     @CurrentUser() user: AuthenticatedUser,
@@ -279,4 +308,3 @@ export class BillingController {
     return this.billingService.deleteExpense(user.clinicId!, id);
   }
 }
-

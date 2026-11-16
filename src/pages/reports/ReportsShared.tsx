@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowDown, ArrowUp, Download, Printer } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, Download, Loader2, Printer, RotateCcw } from 'lucide-react'
 import { FEATURE_REGISTRY } from '@/features/registry'
 import { inr, localDate } from '@/pages/billing/BillingShared'
 import { inSpan, percent, type DateSpan } from './reportMetrics'
@@ -318,3 +318,51 @@ export const ColumnChart: React.FC<{ points: ColumnPoint[]; title: string; value
 }
 
 export const digitsOnly = (value: string) => value.replace(/[^\d]/g, '')
+
+export const ReportErrorState: React.FC<{
+  error?: string
+  onRetry?: () => void
+  isAuthError?: boolean
+}> = ({ error, onRetry, isAuthError }) => (
+  <div className="bill-card rpt-error-card" style={{ padding: '2.5rem', textAlign: 'center', margin: '1.5rem 0' }}>
+    <div
+      style={{
+        display: 'inline-flex',
+        padding: '14px',
+        background: isAuthError ? 'rgba(234, 179, 8, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+        color: isAuthError ? '#ca8a04' : '#ef4444',
+        borderRadius: '50%',
+        marginBottom: '14px',
+      }}
+    >
+      <AlertTriangle size={28} />
+    </div>
+    <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-main, #0f172a)', margin: '0 0 8px 0' }}>
+      {isAuthError ? 'Authentication Required' : 'Failed to Load Live Report Data'}
+    </h3>
+    <p style={{ color: 'var(--text-muted, #64748b)', fontSize: '13.5px', maxWidth: '440px', margin: '0 auto 18px auto', lineHeight: 1.5 }}>
+      {isAuthError
+        ? 'You must be logged in with authorized financial permissions to view this clinic report.'
+        : error || 'Unable to connect to the backend reporting service. Please check your network connection and retry.'}
+    </p>
+    {onRetry && (
+      <button
+        type="button"
+        onClick={onRetry}
+        className="btn-bill-primary"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', margin: '0 auto', padding: '8px 16px' }}
+      >
+        <RotateCcw size={14} /> Retry Request
+      </button>
+    )}
+  </div>
+)
+
+export const ReportLoadingState: React.FC<{ label?: string }> = ({ label = 'Loading authoritative report data...' }) => (
+  <div className="bill-card" style={{ padding: '3.5rem 2rem', textAlign: 'center', margin: '1.5rem 0' }}>
+    <div style={{ display: 'inline-flex', animation: 'spin 1s linear infinite', color: 'var(--brand-teal, #0d9488)', marginBottom: '12px' }}>
+      <Loader2 size={30} />
+    </div>
+    <p style={{ color: 'var(--text-muted, #64748b)', fontSize: '14px', margin: 0, fontWeight: 500 }}>{label}</p>
+  </div>
+)

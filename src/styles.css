@@ -4808,11 +4808,14 @@ img {
   grid-template-columns: 90px minmax(0, 1fr);
 }
 
+/* Emergency contact person section */
 .patient-intake-emergency {
-  padding: 17px;
-  background: #fffdf7;
-  border: 1px solid var(--line);
-  border-radius: 11px;
+  padding: 18px 20px;
+  background: var(--surface-sunken, #f8fafc);
+  border: 1px solid var(--line, #e2e8f0);
+  border-left: 3px solid var(--teal-primary, #008891);
+  border-radius: 12px;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .patient-intake-emergency h3 {
@@ -4820,21 +4823,199 @@ img {
   align-items: center;
   gap: 8px;
   margin: 0;
-  color: #7d4c10;
+  color: var(--teal-primary, #008891);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 750;
   text-transform: uppercase;
-  letter-spacing: .025em;
+  letter-spacing: .03em;
 }
 
 .patient-intake-emergency h3 svg {
-  color: #b57513;
+  color: var(--teal-primary, #008891);
+  flex-shrink: 0;
 }
 
-.patient-intake-emergency>p {
+.patient-intake-emergency > p {
   margin: 6px 0 14px;
-  color: var(--text-muted);
+  color: var(--text-muted, #64748b);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.patient-intake-emergency .patient-intake-field {
+  color: var(--text-strong, #0f172a);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.patient-intake-emergency .patient-intake-field > span {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.patient-intake-emergency .patient-intake-field b {
+  color: var(--tone-red, #dc2626);
+  font-weight: 700;
+  margin-left: 2px;
+}
+
+.patient-intake-emergency .patient-intake-field small {
+  color: var(--text-muted, #64748b);
   font-size: 10px;
+  font-weight: 500;
+}
+
+.patient-intake-emergency .patient-intake-field input,
+.patient-intake-emergency .patient-intake-field select {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 8px 12px;
+  color: var(--text-strong, #0f172a);
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 8px;
+  outline: none;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 450;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.patient-intake-emergency .patient-intake-field input::placeholder {
+  color: var(--text-muted, #94a3b8);
+  opacity: 0.85;
+}
+
+.patient-intake-emergency .patient-intake-field input:hover,
+.patient-intake-emergency .patient-intake-field select:hover {
+  border-color: var(--teal-primary, #008891);
+}
+
+.patient-intake-emergency .patient-intake-field input:focus,
+.patient-intake-emergency .patient-intake-field select:focus {
+  border-color: var(--teal-primary, #008891);
+  box-shadow: 0 0 0 3px var(--teal-tint, rgba(0, 136, 145, 0.16));
+}
+
+.patient-intake-emergency .patient-intake-field input:focus:invalid,
+.patient-intake-emergency .patient-intake-field select:focus:invalid {
+  border-color: var(--tone-red, #dc2626);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.18);
+}
+
+.patient-intake-emergency .patient-intake-field input:disabled,
+.patient-intake-emergency .patient-intake-field select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--surface-sunken, #f1f5f9);
+}
+
+.patient-intake-emergency .patient-intake-field select option {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+/* Dark mode theme harmony for emergency contact section */
+:root[data-theme="dark"] .dmx-shell .patient-intake-emergency,
+:root[data-theme="dark"] .patient-intake-emergency,
+[data-theme="dark"] .patient-intake-emergency {
+  background: rgba(16, 26, 27, 0.72);
+  border-color: rgba(220, 245, 240, 0.12);
+  border-left-color: var(--teal-primary, #2cbdb7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 4px 16px -4px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme="dark"] .dmx-shell .patient-intake-emergency h3,
+:root[data-theme="dark"] .patient-intake-emergency h3,
+[data-theme="dark"] .patient-intake-emergency h3 {
+  color: var(--teal-bright, #5fe0d8);
+}
+
+:root[data-theme="dark"] .dmx-shell .patient-intake-emergency h3 svg,
+:root[data-theme="dark"] .patient-intake-emergency h3 svg,
+[data-theme="dark"] .patient-intake-emergency h3 svg {
+  color: var(--teal-primary, #2cbdb7);
+}
+
+:root[data-theme="dark"] .dmx-shell .patient-intake-emergency > p,
+:root[data-theme="dark"] .patient-intake-emergency > p,
+[data-theme="dark"] .patient-intake-emergency > p {
+  color: var(--text-muted, #879a97);
+}
+
+:root[data-theme="dark"] .dmx-shell .patient-intake-emergency .patient-intake-field,
+:root[data-theme="dark"] .patient-intake-emergency .patient-intake-field,
+[data-theme="dark"] .patient-intake-emergency .patient-intake-field {
+  color: var(--text-strong, #eef6f5);
+}
+
+:root[data-theme="dark"] .dmx-shell .patient-intake-emergency .patient-intake-field b,
+:root[data-theme="dark"] .patient-intake-emergency .patient-intake-field b,
+[data-theme="dark"] .patient-intake-emergency .patient-intake-field b {
+  color: var(--tone-red, #ff8077);
+}
+
+:root[data-theme="dark"] .dmx-shell .patient-intake-emergency .patient-intake-field small,
+:root[data-theme="dark"] .patient-intake-emergency .patient-intake-field small,
+[data-theme="dark"] .patient-intake-emergency .patient-intake-field small {
+  color: var(--text-muted, #879a97);
+}
+
+:root[data-theme="dark"] .dmx-shell .patient-intake-emergency .patient-intake-field input,
+:root[data-theme="dark"] .dmx-shell .patient-intake-emergency .patient-intake-field select,
+:root[data-theme="dark"] .patient-intake-emergency .patient-intake-field input,
+:root[data-theme="dark"] .patient-intake-emergency .patient-intake-field select,
+[data-theme="dark"] .patient-intake-emergency .patient-intake-field input,
+[data-theme="dark"] .patient-intake-emergency .patient-intake-field select {
+  background: rgba(18, 28, 29, 0.95);
+  border-color: rgba(220, 245, 240, 0.16);
+  color: var(--text-strong, #eef6f5);
+}
+
+:root[data-theme="dark"] .dmx-shell .patient-intake-emergency .patient-intake-field input::placeholder,
+:root[data-theme="dark"] .patient-intake-emergency .patient-intake-field input::placeholder,
+[data-theme="dark"] .patient-intake-emergency .patient-intake-field input::placeholder {
+  color: var(--text-muted, #879a97);
+  opacity: 0.8;
+}
+
+:root[data-theme="dark"] .dmx-shell .patient-intake-emergency .patient-intake-field input:hover,
+:root[data-theme="dark"] .dmx-shell .patient-intake-emergency .patient-intake-field select:hover,
+:root[data-theme="dark"] .patient-intake-emergency .patient-intake-field input:hover,
+:root[data-theme="dark"] .patient-intake-emergency .patient-intake-field select:hover,
+[data-theme="dark"] .patient-intake-emergency .patient-intake-field input:hover,
+[data-theme="dark"] .patient-intake-emergency .patient-intake-field select:hover {
+  border-color: var(--teal-primary, #2cbdb7);
+}
+
+:root[data-theme="dark"] .dmx-shell .patient-intake-emergency .patient-intake-field input:focus,
+:root[data-theme="dark"] .dmx-shell .patient-intake-emergency .patient-intake-field select:focus,
+:root[data-theme="dark"] .patient-intake-emergency .patient-intake-field input:focus,
+:root[data-theme="dark"] .patient-intake-emergency .patient-intake-field select:focus,
+[data-theme="dark"] .patient-intake-emergency .patient-intake-field input:focus,
+[data-theme="dark"] .patient-intake-emergency .patient-intake-field select:focus {
+  border-color: var(--teal-bright, #5fe0d8);
+  box-shadow: 0 0 0 3px var(--teal-tint-strong, rgba(44, 189, 183, 0.22));
+}
+
+:root[data-theme="dark"] .dmx-shell .patient-intake-emergency .patient-intake-field input:focus:invalid,
+:root[data-theme="dark"] .dmx-shell .patient-intake-emergency .patient-intake-field select:focus:invalid,
+:root[data-theme="dark"] .patient-intake-emergency .patient-intake-field input:focus:invalid,
+:root[data-theme="dark"] .patient-intake-emergency .patient-intake-field select:focus:invalid,
+[data-theme="dark"] .patient-intake-emergency .patient-intake-field input:focus:invalid,
+[data-theme="dark"] .patient-intake-emergency .patient-intake-field select:focus:invalid {
+  border-color: var(--tone-red, #ff8077);
+  box-shadow: 0 0 0 3px rgba(255, 128, 119, 0.22);
+}
+
+:root[data-theme="dark"] .dmx-shell .patient-intake-emergency .patient-intake-field select option,
+:root[data-theme="dark"] .patient-intake-emergency .patient-intake-field select option,
+[data-theme="dark"] .patient-intake-emergency .patient-intake-field select option {
+  background: #0f1819;
+  color: #eef6f5;
 }
 
 .patient-intake-clinical-note {

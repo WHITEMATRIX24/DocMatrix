@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react'
 import { Plus, Trash2, WalletCards } from 'lucide-react'
 import type { PaymentMode } from '@/services/clinicStore'
 import { EXPENSE_CATEGORIES, addExpense, deleteExpense, useBillingData, type ExpenseCategory } from '@/services/billingStore'
+import { getCurrentUser } from '@/services/authService'
+import { canManageExpenses } from '@/services/billingPermissions'
 import { PAYMENT_MODES, inr, localDate, prettyDate } from './BillingShared'
 
 export const ExpensesPage: React.FC = () => {
@@ -15,6 +17,9 @@ export const ExpensesPage: React.FC = () => {
   const [mode, setMode] = useState<PaymentMode>('Cash')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const currentUser = getCurrentUser()
+  const canManage = canManageExpenses(currentUser?.role)
 
   const monthRows = useMemo(() => expenses.filter((e) => e.date.startsWith(month)).sort((a, b) => b.date.localeCompare(a.date)), [expenses, month])
   const monthTotal = monthRows.reduce((s, e) => s + e.amount, 0)
@@ -54,36 +59,38 @@ export const ExpensesPage: React.FC = () => {
 
   return (
     <div className="bill-page" data-testid="feature-page-bill.expenses">
-      <form className="bill-card bill-expense-form" onSubmit={submit}>
-        <h2 className="bill-section-title">Add expense</h2>
-        <div className="bill-form-grid">
-          <label className="bill-field">Date<input type="date" value={date} max={localDate()} onChange={(e) => setDate(e.target.value)} required /></label>
-          <label className="bill-field">Category
-            <select value={category} onChange={(e) => setCategory(e.target.value as ExpenseCategory)}>
-              {EXPENSE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-            </select>
-          </label>
-          <label className="bill-field bill-span-2">What for<input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Composite kit refill" required /></label>
-          <label className="bill-field">Paid to <span className="bill-optional">optional</span><input value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="Vendor / lab" /></label>
-          <label className="bill-field">Amount ₹<input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required /></label>
-          <div className="bill-field">Paid by
-            <div className="bill-mode-group">
-              {PAYMENT_MODES.map(({ id, icon: Icon }) => (
-                <label key={id} className={`bill-mode${mode === id ? ' is-on' : ''}`}>
-                  <input type="radio" name="expmode" checked={mode === id} onChange={() => setMode(id)} />
-                  <Icon size={14} /> {id}
-                </label>
-              ))}
+      {canManage && (
+        <form className="bill-card bill-expense-form" onSubmit={submit}>
+          <h2 className="bill-section-title">Add expense</h2>
+          <div className="bill-form-grid">
+            <label className="bill-field">Date<input type="date" value={date} max={localDate()} onChange={(e) => setDate(e.target.value)} required /></label>
+            <label className="bill-field">Category
+              <select value={category} onChange={(e) => setCategory(e.target.value as ExpenseCategory)}>
+                {EXPENSE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+              </select>
+            </label>
+            <label className="bill-field bill-span-2">What for<input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Composite kit refill" required /></label>
+            <label className="bill-field">Paid to <span className="bill-optional">optional</span><input value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="Vendor / lab" /></label>
+            <label className="bill-field">Amount ₹<input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required /></label>
+            <div className="bill-field">Paid by
+              <div className="bill-mode-group">
+                {PAYMENT_MODES.map(({ id, icon: Icon }) => (
+                  <label key={id} className={`bill-mode${mode === id ? ' is-on' : ''}`}>
+                    <input type="radio" name="expmode" checked={mode === id} onChange={() => setMode(id)} />
+                    <Icon size={14} /> {id}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="bill-field bill-form-submit">
+              {error && <p className="bill-error">{error}</p>}
+              <button type="submit" className="patient-intake-primary" disabled={isSubmitting}>
+                <Plus size={15} /> {isSubmitting ? 'Adding...' : 'Add expense'}
+              </button>
             </div>
           </div>
-          <div className="bill-field bill-form-submit">
-            {error && <p className="bill-error">{error}</p>}
-            <button type="submit" className="patient-intake-primary" disabled={isSubmitting}>
-              <Plus size={15} /> {isSubmitting ? 'Adding...' : 'Add expense'}
-            </button>
-          </div>
-        </div>
-      </form>
+        </form>
+      )}
 
       <div className="bill-toolbar">
         <label className="bill-month">
@@ -117,9 +124,11 @@ export const ExpensesPage: React.FC = () => {
                   <td>{e.mode}</td>
                   <td className="r"><strong>{inr(e.amount)}</strong></td>
                   <td className="r">
-                    <button className="bill-icon-btn" aria-label={`Delete ${e.description}`} onClick={() => handleDelete(e.id, e.description, e.amount)}>
-                      <Trash2 size={15} />
-                    </button>
+                    {canManage && (
+                      <button className="bill-icon-btn" aria-label={`Delete ${e.description}`} onClick={() => handleDelete(e.id, e.description, e.amount)}>
+                        <Trash2 size={15} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

@@ -9,9 +9,13 @@ export class PatientsService {
   constructor(private prisma: PrismaService) {}
 
   private calculateAge(dob: Date): number {
-    const diffMs = Date.now() - dob.getTime();
-    const ageDate = new Date(diffMs);
-    return Math.abs(ageDate.getUTCFullYear() - 1970);
+    const now = new Date();
+    let years = now.getFullYear() - dob.getFullYear();
+    const monthDiff = now.getMonth() - dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dob.getDate())) {
+      years -= 1;
+    }
+    return Math.max(0, years);
   }
 
   private serializePatient(patient: any) {

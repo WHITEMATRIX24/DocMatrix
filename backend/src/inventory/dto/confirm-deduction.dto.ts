@@ -13,6 +13,14 @@ export class DeductedMaterialItemDto {
 export class ConfirmDeductionDto {
   @IsOptional()
   @IsString()
+  operationId?: string;
+
+  @IsOptional()
+  @IsString()
+  deductionId?: string;
+
+  @IsOptional()
+  @IsString()
   treatmentId?: string;
 
   @IsOptional()

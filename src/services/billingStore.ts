@@ -387,3 +387,39 @@ export async function deleteExpense(id: string) {
     }
   }
 }
+
+/**
+ * Initialize or switch clinic billing session
+ */
+export function initBillingSession(clinicId?: string) {
+  const key = clinicId ? `docmatrix_billing_${clinicId}` : storageKey()
+  const loaded = loadFromStorage<{ services?: ServicePrice[]; expenses?: ExpenseRecord[] } | null>(
+    key,
+    null
+  )
+  snapshot = {
+    services: Array.isArray(loaded?.services) ? loaded!.services : getSeedServices(),
+    expenses: Array.isArray(loaded?.expenses) ? loaded!.expenses : [],
+    isLoading: false,
+    error: null,
+  }
+  listeners.forEach((l) => l())
+}
+
+/**
+ * Clear clinic billing store on logout or account switch
+ */
+export function clearBillingStore() {
+  try {
+    localStorage.removeItem(storageKey())
+    localStorage.removeItem('docmatrix_v1_billing')
+  } catch {}
+  snapshot = {
+    services: getSeedServices(),
+    expenses: [],
+    isLoading: false,
+    error: null,
+  }
+  listeners.forEach((l) => l())
+}
+

@@ -1,8 +1,12 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { FileText, Users, ArrowRight, ShieldCheck } from 'lucide-react'
+import { FileText, Users, ArrowRight, ShieldCheck, UserPlus } from 'lucide-react'
+import { useClinicData, isDemoSession } from '@/services/clinicStore'
 
 export const OrdersPage: React.FC = () => {
+  const isDemo = isDemoSession()
+  const { patients = [] } = useClinicData()
+  const firstPatient = patients.length > 0 ? patients[0] : null
   return (
     <section className="clinic-record-page" data-testid="feature-page-clin.orders" style={{ padding: '32px' }}>
       <header className="clinic-record-header" style={{ marginBottom: '20px' }}>
@@ -83,24 +87,64 @@ export const OrdersPage: React.FC = () => {
             <Users size={15} /> Select Patient Record
           </Link>
 
-          <Link
-            to="/patients/pt-1001?tab=documents"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '9px 18px',
-              borderRadius: '8px',
-              border: '1px solid var(--line, #e2e8f0)',
-              background: 'var(--surface, #ffffff)',
-              color: 'var(--text-main, #0f172a)',
-              fontSize: '13px',
-              fontWeight: 600,
-              textDecoration: 'none'
-            }}
-          >
-            Open Sample Patient X-rays <ArrowRight size={14} />
-          </Link>
+          {isDemo ? (
+            <Link
+              to="/patients/pt-1001?tab=documents"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '9px 18px',
+                borderRadius: '8px',
+                border: '1px solid var(--line, #e2e8f0)',
+                background: 'var(--surface, #ffffff)',
+                color: 'var(--text-main, #0f172a)',
+                fontSize: '13px',
+                fontWeight: 600,
+                textDecoration: 'none'
+              }}
+            >
+              Open Sample Patient X-rays <ArrowRight size={14} />
+            </Link>
+          ) : firstPatient ? (
+            <Link
+              to={`/patients/${firstPatient.id}?tab=documents`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '9px 18px',
+                borderRadius: '8px',
+                border: '1px solid var(--line, #e2e8f0)',
+                background: 'var(--surface, #ffffff)',
+                color: 'var(--text-main, #0f172a)',
+                fontSize: '13px',
+                fontWeight: 600,
+                textDecoration: 'none'
+              }}
+            >
+              Open {firstPatient.firstName}&apos;s X-rays <ArrowRight size={14} />
+            </Link>
+          ) : (
+            <Link
+              to="/patients/new"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '9px 18px',
+                borderRadius: '8px',
+                border: '1px solid var(--line, #e2e8f0)',
+                background: 'var(--surface, #ffffff)',
+                color: 'var(--text-main, #0f172a)',
+                fontSize: '13px',
+                fontWeight: 600,
+                textDecoration: 'none'
+              }}
+            >
+              <UserPlus size={14} /> Register First Patient
+            </Link>
+          )}
         </div>
       </div>
     </section>

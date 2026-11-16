@@ -12,6 +12,7 @@ import {
 import { CreateDocumentDto } from './dto/create-document.dto.js';
 import { CreateConsentDto } from './dto/create-consent.dto.js';
 import { UpdateConsentDto } from './dto/update-consent.dto.js';
+import { StorageService } from '../storage/storage.service.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -20,7 +21,10 @@ import * as crypto from 'crypto';
 export class ClinicalService {
   private readonly storageRoot = path.resolve(process.cwd(), 'storage', 'documents');
 
-  constructor(private prisma: PrismaService) {
+  constructor(
+    private prisma: PrismaService,
+    private storageService?: StorageService,
+  ) {
     try {
       if (!fs.existsSync(this.storageRoot)) {
         fs.mkdirSync(this.storageRoot, { recursive: true });
@@ -208,22 +212,26 @@ export class ClinicalService {
   // 2. PATIENT DOCUMENTS
   // =========================================================================
 
-  private serializeDocument(doc: any, patientCode?: string) {
+  private serializeDocument(doc: any, patientCode?: string, signedUrl?: string | null) {
+    const code = patientCode || doc.patient?.patientCode || doc.patientId;
     return {
       id: doc.id,
-      patientId: patientCode || doc.patient?.patientCode || doc.patientId,
+      patientId: code,
       title: doc.title,
       category: doc.category,
       fileName: doc.fileName,
       fileSize: doc.fileSize,
+      mimeType: doc.mimeType || 'application/octet-stream',
       uploadDate: (doc.createdAt instanceof Date ? doc.createdAt : new Date(doc.createdAt))
         .toISOString()
         .slice(0, 10),
       doctor: doc.doctorName || 'Dr. Arun Kumar',
       notes: doc.notes || undefined,
-      downloadUrl: `/patients/${patientCode || doc.patient?.patientCode || doc.patientId}/documents/${doc.id}/download`,
-      createdAt: doc.createdAt.toISOString(),
-      updatedAt: doc.updatedAt.toISOString(),
+      downloadUrl: `/patients/${code}/documents/${doc.id}/download`,
+      previewUrl: `/patients/${code}/documents/${doc.id}/preview`,
+      signedUrl: signedUrl || undefined,
+      createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : new Date(doc.createdAt).toISOString(),
+      updatedAt: doc.updatedAt instanceof Date ? doc.updatedAt.toISOString() : new Date(doc.updatedAt).toISOString(),
     };
   }
 
@@ -238,7 +246,17 @@ export class ClinicalService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return docs.map((d) => this.serializeDocument(d, patient.patientCode));
+    return Promise.all(
+      docs.map(async (d) => {
+        let signedUrl: string | null = null;
+        if (this.storageService && this.storageService.isCloudStorageEnabled()) {
+          try {
+            signedUrl = await this.storageService.getSignedDownloadUrl(d.fileKey, d.fileName, 900);
+          } catch {}
+        }
+        return this.serializeDocument(d, patient.patientCode, signedUrl);
+      }),
+    );
   }
 
   async createDocument(
@@ -249,23 +267,47 @@ export class ClinicalService {
   ) {
     const patient = await this.resolvePatient(clinicId, patientIdOrCode);
 
-    const ext = file?.originalname ? path.extname(file.originalname) : (dto.fileName ? path.extname(dto.fileName) : '.dcm');
-    const safeKey = `${crypto.randomUUID()}${ext}`;
-    const origFileName = file?.originalname || dto.fileName || `${dto.title.trim().toLowerCase().replace(/\s+/g, '_')}${ext}`;
-    const fileSizeStr = file ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` : (dto.fileSize || '3.5 MB');
+    let fileBuffer: Buffer | null = null;
+    const originalName = file?.originalname || dto.fileName || `${dto.title.trim().toLowerCase().replace(/\s+/g, '_')}.bin`;
+    const claimedMime = file?.mimetype || dto.mimeType;
 
-    // Secure isolated physical storage per clinic
-    if (file?.buffer || dto.contentBase64) {
-      const clinicDir = path.join(this.storageRoot, clinicId);
-      if (!fs.existsSync(clinicDir)) {
-        fs.mkdirSync(clinicDir, { recursive: true });
+    if (file?.buffer) {
+      fileBuffer = file.buffer;
+    } else if (dto.contentBase64) {
+      fileBuffer = Buffer.from(dto.contentBase64, 'base64');
+    }
+
+    let fileKey: string;
+    let finalFileName = originalName;
+    let finalFileSize = dto.fileSize || '1.0 MB';
+    let finalMimeType = claimedMime || 'application/octet-stream';
+
+    if (fileBuffer && fileBuffer.length > 0) {
+      if (this.storageService) {
+        const uploadResult = await this.storageService.uploadPatientDocument({
+          clinicId,
+          patientId: patient.id,
+          category: dto.category,
+          buffer: fileBuffer,
+          originalFilename: originalName,
+          claimedMimeType: claimedMime,
+          doctorName: dto.doctorName,
+        });
+        fileKey = uploadResult.fileKey;
+        finalFileName = uploadResult.fileName;
+        finalFileSize = uploadResult.fileSize;
+        finalMimeType = uploadResult.mimeType;
+      } else {
+        const ext = path.extname(originalName) || '.dcm';
+        fileKey = `clinics/${clinicId}/patients/${patient.id}/${Date.now()}-${crypto.randomUUID()}${ext}`;
+        const clinicDir = path.join(this.storageRoot, clinicId);
+        if (!fs.existsSync(clinicDir)) fs.mkdirSync(clinicDir, { recursive: true });
+        fs.writeFileSync(path.join(clinicDir, path.basename(fileKey)), fileBuffer);
+        finalFileSize = `${(fileBuffer.length / (1024 * 1024)).toFixed(1)} MB`;
       }
-      const targetFilePath = path.join(clinicDir, safeKey);
-      if (file?.buffer) {
-        fs.writeFileSync(targetFilePath, file.buffer);
-      } else if (dto.contentBase64) {
-        fs.writeFileSync(targetFilePath, Buffer.from(dto.contentBase64, 'base64'));
-      }
+    } else {
+      const ext = path.extname(originalName) || '.dcm';
+      fileKey = `clinics/${clinicId}/patients/${patient.id}/${Date.now()}-${crypto.randomUUID()}${ext}`;
     }
 
     const doc = await this.prisma.patientDocument.create({
@@ -274,16 +316,23 @@ export class ClinicalService {
         patientId: patient.id,
         title: dto.title.trim(),
         category: dto.category.trim(),
-        fileName: origFileName,
-        fileSize: fileSizeStr,
-        fileKey: safeKey,
-        mimeType: file?.mimetype || 'application/octet-stream',
+        fileName: finalFileName,
+        fileSize: finalFileSize,
+        fileKey,
+        mimeType: finalMimeType,
         doctorName: dto.doctorName?.trim() || null,
         notes: dto.notes?.trim() || null,
       },
     });
 
-    return this.serializeDocument(doc, patient.patientCode);
+    let signedUrl: string | null = null;
+    if (this.storageService && fileBuffer && this.storageService.isCloudStorageEnabled()) {
+      try {
+        signedUrl = await this.storageService.getSignedDownloadUrl(fileKey, finalFileName, 900);
+      } catch {}
+    }
+
+    return this.serializeDocument(doc, patient.patientCode, signedUrl);
   }
 
   async getDocument(clinicId: string, patientIdOrCode: string, docId: string) {
@@ -301,7 +350,14 @@ export class ClinicalService {
       throw new NotFoundException(`Document "${docId}" not found for this patient.`);
     }
 
-    return this.serializeDocument(doc, patient.patientCode);
+    let signedUrl: string | null = null;
+    if (this.storageService && this.storageService.isCloudStorageEnabled()) {
+      try {
+        signedUrl = await this.storageService.getSignedDownloadUrl(doc.fileKey, doc.fileName, 900);
+      } catch {}
+    }
+
+    return this.serializeDocument(doc, patient.patientCode, signedUrl);
   }
 
   async deleteDocument(clinicId: string, patientIdOrCode: string, docId: string) {
@@ -323,9 +379,14 @@ export class ClinicalService {
       where: { id: doc.id },
     });
 
-    // Remove file from disk if present
+    if (this.storageService) {
+      try {
+        await this.storageService.deleteDocument(doc.fileKey);
+      } catch {}
+    }
+
     try {
-      const filePath = path.join(this.storageRoot, clinicId, doc.fileKey);
+      const filePath = path.join(this.storageRoot, clinicId, path.basename(doc.fileKey));
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
@@ -349,20 +410,75 @@ export class ClinicalService {
       throw new NotFoundException(`Document "${docId}" not found.`);
     }
 
-    const filePath = path.join(this.storageRoot, clinicId, doc.fileKey);
     let buffer: Buffer;
+    let mimeType = doc.mimeType || 'application/octet-stream';
+    let signedUrl: string | null = null;
 
-    if (fs.existsSync(filePath)) {
-      buffer = fs.readFileSync(filePath);
+    if (this.storageService) {
+      if (this.storageService.isCloudStorageEnabled()) {
+        try {
+          signedUrl = await this.storageService.getSignedDownloadUrl(doc.fileKey, doc.fileName, 900);
+        } catch {}
+      }
+
+      try {
+        const result = await this.storageService.getDocumentBuffer(doc.fileKey);
+        buffer = result.buffer;
+        mimeType = result.mimeType || mimeType;
+      } catch (err) {
+        const filePath = path.join(this.storageRoot, clinicId, path.basename(doc.fileKey));
+        if (fs.existsSync(filePath)) {
+          buffer = fs.readFileSync(filePath);
+        } else {
+          buffer = Buffer.from(`DocMatrix Clinical Record: ${doc.title} (${doc.fileName})`);
+        }
+      }
     } else {
-      // Clean fallback dummy content for testing/preview when physical storage is mocked
-      buffer = Buffer.from(`DocMatrix Clinical Record: ${doc.title} (${doc.fileName})`);
+      const filePath = path.join(this.storageRoot, clinicId, path.basename(doc.fileKey));
+      if (fs.existsSync(filePath)) {
+        buffer = fs.readFileSync(filePath);
+      } else {
+        buffer = Buffer.from(`DocMatrix Clinical Record: ${doc.title} (${doc.fileName})`);
+      }
     }
 
     return {
       fileName: doc.fileName,
-      mimeType: doc.mimeType || 'application/octet-stream',
+      mimeType,
       buffer,
+      signedUrl,
+    };
+  }
+
+  async getDocumentSignedUrl(clinicId: string, patientIdOrCode: string, docId: string) {
+    const patient = await this.resolvePatient(clinicId, patientIdOrCode);
+
+    const doc = await this.prisma.patientDocument.findFirst({
+      where: {
+        id: docId,
+        clinicId,
+        patientId: patient.id,
+      },
+    });
+
+    if (!doc) {
+      throw new NotFoundException(`Document "${docId}" not found.`);
+    }
+
+    let signedUrl: string | null = null;
+    if (this.storageService && this.storageService.isCloudStorageEnabled()) {
+      try {
+        signedUrl = await this.storageService.getSignedDownloadUrl(doc.fileKey, doc.fileName, 900);
+      } catch {}
+    }
+
+    return {
+      id: doc.id,
+      fileName: doc.fileName,
+      mimeType: doc.mimeType || 'application/octet-stream',
+      signedUrl,
+      fallbackUrl: `/patients/${patient.patientCode}/documents/${doc.id}/download`,
+      previewUrl: `/patients/${patient.patientCode}/documents/${doc.id}/preview`,
     };
   }
 

@@ -197,7 +197,7 @@ describe('DocMatrix — Phase 2: GUI Workflow Verification (Treatment Plans & Es
       ],
     });
 
-    render(
+    const { unmount } = render(
       <TreatmentPlanDetailsModal
         plan={plan}
         isOpen={true}
@@ -213,6 +213,8 @@ describe('DocMatrix — Phase 2: GUI Workflow Verification (Treatment Plans & Es
     // Update procedure 1 status to COMPLETED
     const item1 = plan.stages[0].items[0];
     await updateTreatmentPlanItemStatus(plan.id, item1.id, 'COMPLETED');
+
+    unmount();
 
     // Simulate updated plan with 1 item completed
     const updatedPlan = {

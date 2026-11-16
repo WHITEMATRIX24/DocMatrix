@@ -32,6 +32,10 @@
   --tp-pending: #d97706;
   --tp-pending-bg: rgba(217, 119, 6, 0.1);
   --tp-pending-border: rgba(217, 119, 6, 0.25);
+
+  --tp-cancelled: #64748b;
+  --tp-cancelled-bg: rgba(100, 116, 139, 0.1);
+  --tp-cancelled-border: rgba(100, 116, 139, 0.25);
 }
 
 :root[data-theme="dark"] .tp-workspace,
@@ -64,6 +68,10 @@
   --tp-pending: #fbbf24;
   --tp-pending-bg: rgba(251, 191, 36, 0.15);
   --tp-pending-border: rgba(251, 191, 36, 0.3);
+
+  --tp-cancelled: #94a3b8;
+  --tp-cancelled-bg: rgba(148, 163, 184, 0.15);
+  --tp-cancelled-border: rgba(148, 163, 184, 0.3);
 }
 
 /* Modal Overlay */
@@ -103,6 +111,7 @@
     opacity: 0;
     transform: scale(0.98) translateY(6px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
@@ -183,6 +192,12 @@
   background: var(--tp-rejected-bg);
   color: var(--tp-rejected);
   border-color: var(--tp-rejected-border);
+}
+
+.tp-status-cancelled {
+  background: var(--tp-cancelled-bg);
+  color: var(--tp-cancelled);
+  border-color: var(--tp-cancelled-border);
 }
 
 /* Stage Card */
@@ -287,10 +302,12 @@
   body * {
     visibility: hidden;
   }
+
   .tp-print-container,
   .tp-print-container * {
     visibility: visible;
   }
+
   .tp-print-container {
     position: absolute;
     left: 0;
@@ -302,8 +319,8 @@
     color: #000000 !important;
     font-size: 12pt;
   }
+
   .no-print {
     display: none !important;
   }
 }
-

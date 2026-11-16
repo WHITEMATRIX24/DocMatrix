@@ -66,6 +66,7 @@ import {
   addClinicDoctor
 } from '@/services/clinicStaffStore'
 import { TreatmentMaterialUsageModal } from '@/components/inventory/TreatmentMaterialUsageModal'
+import { useClinicData } from '@/services/clinicStore'
 import './adaptiveInventory.css'
 
 export interface TerminalItem {
@@ -182,6 +183,8 @@ function ActiveLotItemRow({ batch, item, onAdjust, onUpdateBatch }: ActiveLotIte
 
 export const ItemsPage: React.FC = () => {
   const inventory = useAdaptiveInventory()
+  const { patients = [] } = useClinicData()
+  const activePatient = patients.length > 0 ? patients[0] : null
   const location = useLocation()
   const initialTab = useMemo(() => {
     const params = new URLSearchParams(location.search)
@@ -1908,8 +1911,8 @@ export const ItemsPage: React.FC = () => {
         procedureName={activeTemplate.procedureName}
         doctorId={selectedDoctorId}
         doctorName={activeDoctor.name}
-        patientId="pt-1001"
-        patientName="Meera Nambiar"
+        patientId={activePatient?.id || 'walk-in'}
+        patientName={activePatient ? `${activePatient.firstName} ${activePatient.lastName}`.trim() : 'Walk-in Consultation'}
       />
     </section>
   )

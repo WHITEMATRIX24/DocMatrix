@@ -15,10 +15,13 @@ import { PrescriptionsModule } from './prescriptions/prescriptions.module.js';
 import { ClinicalNotesModule } from './clinical-notes/clinical-notes.module.js';
 import { TreatmentPlansModule } from './treatment-plans/treatment-plans.module.js';
 import { BillingModule } from './billing/billing.module.js';
+import { StorageModule } from './storage/storage.module.js';
 import { ReportsModule } from './reports/reports.module.js';
+import { CommonModule } from './common/common.module.js';
 
 @Module({
   imports: [
+    CommonModule,
     PrismaModule,
     AuthModule,
     ClinicsModule,
@@ -33,6 +36,7 @@ import { ReportsModule } from './reports/reports.module.js';
     ClinicalNotesModule,
     TreatmentPlansModule,
     BillingModule,
+    StorageModule,
     ReportsModule,
   ],
   controllers: [AppController],

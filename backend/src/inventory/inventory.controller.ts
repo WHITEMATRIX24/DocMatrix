@@ -6,7 +6,6 @@ import {
   Param,
   Patch,
   Post,
-  Req,
   UseGuards,
 } from '@nestjs/common';
 import { InventoryService } from './inventory.service.js';
@@ -14,80 +13,66 @@ import { CreateItemDto } from './dto/create-item.dto.js';
 import { AddBatchDto } from './dto/add-batch.dto.js';
 import { AdjustStockDto } from './dto/adjust-stock.dto.js';
 import { ConfirmDeductionDto } from './dto/confirm-deduction.dto.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
+import { TenantGuard } from '../common/guards/tenant.guard.js';
+import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator.js';
 
+@UseGuards(JwtAuthGuard, TenantGuard)
 @Controller('inventory')
 export class InventoryController {
-  constructor(
-    private readonly inventoryService: InventoryService,
-    private readonly prisma: PrismaService,
-  ) {}
-
-  private async resolveClinicId(req: any): Promise<string> {
-    if (req.user?.clinicId) {
-      return req.user.clinicId;
-    }
-    const defaultClinic = await this.prisma.clinic.findFirst({
-      orderBy: { createdAt: 'asc' },
-    });
-    return defaultClinic?.id || '32278b68-f8a3-4944-ba51-d3caddcc8ac6';
-  }
+  constructor(private readonly inventoryService: InventoryService) {}
 
   @Get('items')
-  async getItems(@Req() req: any) {
-    const clinicId = await this.resolveClinicId(req);
-    return this.inventoryService.getItems(clinicId);
+  async getItems(@CurrentUser() user: AuthenticatedUser) {
+    return this.inventoryService.getItems(user.clinicId!);
   }
 
   @Post('items')
-  async createItem(@Req() req: any, @Body() dto: CreateItemDto) {
-    const clinicId = await this.resolveClinicId(req);
-    return this.inventoryService.createItem(clinicId, dto);
+  async createItem(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateItemDto) {
+    return this.inventoryService.createItem(user.clinicId!, dto);
   }
 
   @Patch('items/:id')
-  async updateItem(@Req() req: any, @Param('id') id: string, @Body() dto: any) {
-    const clinicId = await this.resolveClinicId(req);
-    return this.inventoryService.updateItem(clinicId, id, dto);
+  async updateItem(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: any,
+  ) {
+    return this.inventoryService.updateItem(user.clinicId!, id, dto);
   }
 
   @Delete('items/:id')
-  async deleteItem(@Req() req: any, @Param('id') id: string) {
-    const clinicId = await this.resolveClinicId(req);
-    return this.inventoryService.deleteItem(clinicId, id);
+  async deleteItem(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.inventoryService.deleteItem(user.clinicId!, id);
   }
 
   @Post('batches')
-  async receiveBatch(@Req() req: any, @Body() dto: AddBatchDto) {
-    const clinicId = await this.resolveClinicId(req);
-    return this.inventoryService.receiveBatch(clinicId, dto);
+  async receiveBatch(@CurrentUser() user: AuthenticatedUser, @Body() dto: AddBatchDto) {
+    return this.inventoryService.receiveBatch(user.clinicId!, dto);
   }
 
   @Patch('batches')
   async updateBatch(
-    @Req() req: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() dto: { itemId: string; batchNumber: string; newBatchNumber?: string; expiryDate?: string; quantity?: number },
   ) {
-    const clinicId = await this.resolveClinicId(req);
-    return this.inventoryService.updateBatch(clinicId, dto);
+    return this.inventoryService.updateBatch(user.clinicId!, dto);
   }
 
   @Post('adjust')
-  async adjustStock(@Req() req: any, @Body() dto: AdjustStockDto) {
-    const clinicId = await this.resolveClinicId(req);
-    return this.inventoryService.adjustStock(clinicId, dto);
+  async adjustStock(@CurrentUser() user: AuthenticatedUser, @Body() dto: AdjustStockDto) {
+    return this.inventoryService.adjustStock(user.clinicId!, dto);
   }
 
   @Get('movements')
-  async getMovements(@Req() req: any) {
-    const clinicId = await this.resolveClinicId(req);
-    return this.inventoryService.getAudits(clinicId);
+  async getMovements(@CurrentUser() user: AuthenticatedUser) {
+    return this.inventoryService.getAudits(user.clinicId!);
   }
 
   @Post('deduct')
-  async confirmDeduction(@Req() req: any, @Body() dto: ConfirmDeductionDto) {
-    const clinicId = await this.resolveClinicId(req);
-    return this.inventoryService.confirmDeduction(clinicId, dto);
+  async confirmDeduction(@CurrentUser() user: AuthenticatedUser, @Body() dto: ConfirmDeductionDto) {
+    return this.inventoryService.confirmDeduction(user.clinicId!, dto);
   }
 }
+
 
