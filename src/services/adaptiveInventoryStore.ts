@@ -1006,19 +1006,7 @@ export function seedDemoInventoryForTesting() {
       }
     ],
     templates: INITIAL_TREATMENT_TEMPLATES,
-    doctorPreferences: [
-      {
-        doctorId: 'doc-2',
-        doctorName: 'Dr. Priya Nair',
-        procedureId: 'trt-root-canal',
-        itemId: 'mat-files',
-        suggestedQty: 2,
-        confidence: 94,
-        sampleSize: 26,
-        standardQty: 1,
-        historicalAverage: 2.1
-      }
-    ],
+    doctorPreferences: [],
     consumptionHistory: [],
     deductionAuditLog: []
   }

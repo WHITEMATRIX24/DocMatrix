@@ -204,23 +204,9 @@ export const FeaturePlaceholder: React.FC<FeaturePlaceholderProps> = ({ id }) =>
 
               {feature.area === 'Appointments' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {[
-                    { token: 'T-01', time: '10:00 AM', name: 'Meera Nambiar', proc: 'Root Canal Treatment (Session 2/3)', dr: 'Dr. Arun Kumar', status: 'In Consultation' },
-                    { token: 'T-02', time: '10:30 AM', name: 'Rahul Krishnan', proc: 'Crown Seating', dr: 'Dr. Tariq Antoun', status: 'Waiting' },
-                    { token: 'T-03', time: '11:00 AM', name: 'Fatima Zahra', proc: 'Scaling & Polish', dr: 'Dr. Priya Nair', status: 'Arrived' }
-                  ].map((row, idx) => (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--surface-alt, #f4f6f5)', borderRadius: '8px', fontSize: '12px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ fontWeight: '800', color: 'var(--teal-primary)' }}>{row.token}</span>
-                        <span style={{ fontWeight: '700' }}>{row.name}</span>
-                        <span style={{ color: 'var(--charcoal-muted)' }}>({row.proc})</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ color: 'var(--charcoal-body)' }}>{row.dr}</span>
-                        <span style={{ padding: '2px 8px', borderRadius: '999px', background: 'var(--success-tint)', color: '#047857', fontWeight: '750', fontSize: '10.5px' }}>{row.status}</span>
-                      </div>
-                    </div>
-                  ))}
+                  <div style={{ padding: '16px', textAlign: 'center', color: 'var(--charcoal-muted)', fontSize: '12px' }}>
+                    No pending live queue tokens for this feature.
+                  </div>
                 </div>
               ) : feature.area === 'Patients' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

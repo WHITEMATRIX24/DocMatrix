@@ -39,7 +39,8 @@ export class RateLimitGuard implements CanActivate {
     const path = req.path || req.url || '';
 
     // Check brute-force status on login route
-    if (path.includes('/auth/login') && req.method === 'POST') {
+    const isLogin = path.includes('/auth/login') || path.includes('/auth/platform-login');
+    if (isLogin && req.method === 'POST') {
       const email = req.body?.email;
       if (email && typeof email === 'string') {
         const lockStatus = await this.rateLimiter.isLoginLocked(ip, email);
@@ -70,7 +71,7 @@ export class RateLimitGuard implements CanActivate {
     let ttlSeconds = this.rateLimiter.defaultTtlSeconds;
 
     const isSensitiveAuth =
-      path.includes('/auth/login') ||
+      isLogin ||
       path.includes('/auth/register-clinic') ||
       path.includes('/auth/refresh') ||
       path.includes('/auth/change-password');

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { StaffRole } from '@prisma/client';
 import { ClinicsService } from './clinics.service.js';
 import { UpdateClinicDto } from './dto/update-clinic.dto.js';
@@ -13,7 +13,7 @@ import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-use
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 @Controller('clinics')
 export class ClinicsController {
-  constructor(private clinicsService: ClinicsService) {}
+  constructor(@Inject(ClinicsService) private clinicsService: ClinicsService) {}
 
   @Get('my-clinic')
   async getMyClinic(@CurrentUser() user: AuthenticatedUser) {
@@ -26,15 +26,27 @@ export class ClinicsController {
     return this.clinicsService.updateClinic(user.clinicId!, dto);
   }
 
+  @Get('my-clinic/practitioners')
+  getClinicPractitioners(@CurrentUser() user: AuthenticatedUser) {
+    return this.clinicsService.getClinicPractitioners(user.clinicId!);
+  }
+
+  @Roles(StaffRole.ORGANIZATION_ADMIN, StaffRole.BRANCH_ADMIN)
   @Get('my-clinic/staff')
   async getMyClinicStaff(@CurrentUser() user: AuthenticatedUser) {
     return this.clinicsService.getClinicStaff(user.clinicId!);
   }
 
   @Roles(StaffRole.ORGANIZATION_ADMIN, StaffRole.BRANCH_ADMIN)
+  @Get('my-clinic/staff/roles')
+  getAssignableStaffRoles(@CurrentUser() user: AuthenticatedUser) {
+    return this.clinicsService.getAssignableStaffRoles(user.clinicId!, user);
+  }
+
+  @Roles(StaffRole.ORGANIZATION_ADMIN, StaffRole.BRANCH_ADMIN)
   @Post('my-clinic/staff')
   async addStaff(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateStaffDto) {
-    return this.clinicsService.addStaff(user.clinicId!, dto);
+    return this.clinicsService.addStaff(user.clinicId!, dto, user);
   }
 
   @Roles(StaffRole.ORGANIZATION_ADMIN, StaffRole.BRANCH_ADMIN)
@@ -44,7 +56,7 @@ export class ClinicsController {
     @Param('id') id: string,
     @Body() dto: UpdateStaffDto,
   ) {
-    return this.clinicsService.updateStaff(user.clinicId!, id, dto);
+    return this.clinicsService.updateStaff(user.clinicId!, id, dto, user);
   }
 
   @Roles(StaffRole.ORGANIZATION_ADMIN, StaffRole.BRANCH_ADMIN)
@@ -53,7 +65,7 @@ export class ClinicsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {
-    return this.clinicsService.deleteStaff(user.clinicId!, id);
+    return this.clinicsService.deleteStaff(user.clinicId!, id, user);
   }
 
   @Get('my-clinic/clinical-config')

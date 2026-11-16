@@ -152,7 +152,7 @@ export const PrescriptionDetailsModal: React.FC<PrescriptionDetailsModalProps> =
             </div>
             <div className="rx-meta-item">
               <h5>Prescriber Clinician</h5>
-              <p>{doctor?.fullName || 'Dr. Arun Kumar'}</p>
+              <p>{doctor?.fullName || 'Attending Doctor'}</p>
               <p className="rx-meta-sub">Dental Surgeon & Clinical Consultant</p>
             </div>
           </div>

@@ -4,7 +4,7 @@ import path from 'path';
 
 export interface AuditEventParams {
   clinicId?: string | null;
-  module: 'Security' | 'Billing' | 'Clinical' | 'Inventory' | 'Settings' | 'Auth';
+  module: 'Security' | 'Billing' | 'Clinical' | 'Inventory' | 'Settings' | 'Auth' | 'Staff';
   action: string;
   actorId?: string;
   actorName?: string;

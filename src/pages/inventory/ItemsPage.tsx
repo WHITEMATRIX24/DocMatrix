@@ -212,7 +212,7 @@ export const ItemsPage: React.FC = () => {
 
 
   // Selected doctor & procedure for the interactive simulator / consumption engine
-  const [selectedDoctorId, setSelectedDoctorId] = useState('doc-2') // Default to Dr. Priya Nair (Doctor B)
+  const [selectedDoctorId, setSelectedDoctorId] = useState('doc-1')
   const [selectedProcedureId, setSelectedProcedureId] = useState('trt-root-canal')
   const [searchStock, setSearchStock] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('All')

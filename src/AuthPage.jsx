@@ -372,7 +372,7 @@ export default function AuthPage({
                     id="signup-name"
                     name="fullName"
                     type="text"
-                    placeholder="Dr. Arun Kumar"
+                    placeholder="e.g. Dr. Jane Smith"
                     className="auth-input"
                     value={signupForm.fullName}
                     onChange={(e) => {

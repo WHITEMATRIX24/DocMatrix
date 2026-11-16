@@ -73,6 +73,23 @@ export class AuthController {
   }
 
   @Public()
+  @Post('platform-login')
+  @HttpCode(HttpStatus.OK)
+  async platformLogin(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+    @Body() loginDto: LoginDto,
+  ) {
+    const result = await this.authService.login(loginDto, {
+      userAgent: req.headers['user-agent'],
+      ipAddress: req.ip || req.socket.remoteAddress,
+    }, true);
+    if (result.refreshToken) setRefreshCookie(res, result.refreshToken);
+    const { refreshToken, ...responseBody } = result;
+    return responseBody;
+  }
+
+  @Public()
   @Post('register-clinic')
   @HttpCode(HttpStatus.CREATED)
   async registerClinic(

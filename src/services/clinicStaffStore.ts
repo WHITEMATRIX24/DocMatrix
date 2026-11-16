@@ -30,23 +30,10 @@ export function getStaffStorageKey(clinicId?: string): string {
 
 const listeners = new Set<() => void>()
 
-export function isClinicalStaffMember(p: { name?: string; fullName?: string; role?: string }): boolean {
+export function isClinicalStaffMember(p: { name?: string; fullName?: string; role?: string; isActive?: boolean }): boolean {
   const rawName = String(p?.fullName || p?.name || '').trim()
   if (!rawName) return false
-  const lower = rawName.toLowerCase()
-  if (
-    lower === 'reception staff' ||
-    lower === 'unassigned' ||
-    lower === 'dr. attending dentist' ||
-    lower === 'attending dentist' ||
-    lower === 'organization admin' ||
-    lower === 'branch admin' ||
-    lower === 'clinic admin' ||
-    lower === 'aashna jose alappattu' ||
-    lower === 'aashna jose'
-  ) {
-    return false
-  }
+  if (p.isActive === false) return false
   const role = String(p?.role || '').toUpperCase()
   // Requirement: Display only users whose role is exactly DOCTOR
   if (role !== 'DOCTOR') return false
@@ -119,10 +106,7 @@ export function subscribeStaff(listener: () => void) {
 }
 
 export function getClinicStaffDoctors(): ClinicStaffDoctor[] {
-  const fresh = getStoredStaff()
-  if (fresh.length > 0) {
-    staffCache = fresh
-  }
+  staffCache = getStoredStaff()
   return staffCache
 }
 
@@ -135,13 +119,19 @@ export function useClinicStaff() {
   return { doctors }
 }
 
+export function cacheClinicStaff(staff: unknown[], clinicId = getStaffClinicId()): void {
+  if (clinicId !== getStaffClinicId()) return
+  try { localStorage.setItem(getStaffStorageKey(clinicId || undefined), JSON.stringify(staff)) } catch {}
+  notifyStaffUpdated()
+}
+
 export async function fetchAndSyncClinicStaff(): Promise<ClinicStaffDoctor[]> {
+  const clinicId = getStaffClinicId()
   try {
-    const res = await apiClient.get<any[]>('/clinics/my-clinic/staff')
+    const res = await apiClient.get<any[]>('/clinics/my-clinic/practitioners')
     if (Array.isArray(res)) {
-      try {
-        localStorage.setItem(getStaffStorageKey(), JSON.stringify(res))
-      } catch {}
+      if (clinicId !== getStaffClinicId()) return []
+      cacheClinicStaff(res, clinicId)
       const mapped = res
         .filter((s) => isClinicalStaffMember(s))
         .map((s) => ({
@@ -177,49 +167,9 @@ export async function addClinicDoctor(
   role: string = 'DOCTOR',
   email?: string
 ): Promise<ClinicStaffDoctor> {
-  const newId = 'doc-' + Date.now().toString(36)
-  const newDoctor: ClinicStaffDoctor = {
-    id: newId,
-    name: fullName.trim(),
-    role,
-    email: email || `${fullName.toLowerCase().replace(/[^a-z0-9]/g, '')}@clinic.local`
-  }
-
-  // Update memory and local storage immediately
-  staffCache = [newDoctor, ...staffCache]
-  try {
-    const existing = getStoredStaff()
-    localStorage.setItem(
-      getStaffStorageKey(),
-      JSON.stringify([
-        {
-          id: newDoctor.id,
-          fullName: newDoctor.name,
-          role: newDoctor.role,
-          email: newDoctor.email,
-          isActive: true,
-          createdAt: new Date().toISOString()
-        },
-        ...existing
-      ])
-    )
-  } catch {}
-
-  notify()
-
-  // Asynchronously attempt to sync with backend database
-  try {
-    await apiClient.post('/clinics/my-clinic/staff', {
-      fullName: newDoctor.name,
-      role: newDoctor.role,
-      email: newDoctor.email,
-      password: 'TempPassword123!'
-    })
-  } catch {
-    // Graceful offline fallback
-  }
-
-  return newDoctor
+  // Keep this legacy entry point fail-closed: it cannot provision secure
+  // credentials and must never create a local-only or shared-password account.
+  throw new Error('Create staff accounts in Settings → Staff Management with a unique initial password.')
 }
 
 

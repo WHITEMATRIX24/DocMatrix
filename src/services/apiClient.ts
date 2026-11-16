@@ -4,6 +4,8 @@
  * Uses dynamic transport dispatch with automatic token refresh, concurrency protection, and CSRF defense.
  */
 
+import { notifyAuthSessionChanged } from './authSession';
+
 const getBaseUrl = (): string => {
   const envUrl = (import.meta as any).env?.VITE_API_BASE_URL;
   if (envUrl && typeof envUrl === 'string') {
@@ -34,6 +36,7 @@ const requestNewAccessToken = async (): Promise<string | null> => {
   if (activeRefreshPromise) return activeRefreshPromise;
 
   activeRefreshPromise = (async () => {
+    const tokenAtStart = getStoredToken();
     try {
       const httpFn = (globalThis as any)['fetch'];
       const url = `${getBaseUrl()}/auth/refresh`;
@@ -49,6 +52,8 @@ const requestNewAccessToken = async (): Promise<string | null> => {
         body: JSON.stringify({}),
       });
 
+      if (getStoredToken() !== tokenAtStart) return null;
+
       if (!response.ok) {
         // Refresh token has expired, been revoked, or is invalid
         try {
@@ -58,16 +63,20 @@ const requestNewAccessToken = async (): Promise<string | null> => {
           sessionStorage.removeItem('docmatrix_auth_token');
           sessionStorage.removeItem('docmatrix_refresh_token');
           sessionStorage.removeItem('docmatrix_auth_user');
+          sessionStorage.removeItem('docmatrix-demo-session');
         } catch {}
+        notifyAuthSessionChanged();
         return null;
       }
 
       const data = await response.json();
+      if (getStoredToken() !== tokenAtStart) return null;
       if (data?.token) {
         const storage = localStorage.getItem('docmatrix_auth_token') ? localStorage : sessionStorage;
         storage.setItem('docmatrix_auth_token', data.token);
         if (data.user) {
           storage.setItem('docmatrix_auth_user', JSON.stringify(data.user));
+          notifyAuthSessionChanged();
         }
         return data.token;
       }
@@ -148,7 +157,7 @@ class ApiClient {
     }
 
     // Auto-refresh token handling on 401
-    const isAuthEndpoint = endpoint.includes('/auth/login') || endpoint.includes('/auth/refresh');
+    const isAuthEndpoint = endpoint.includes('/auth/login') || endpoint.includes('/auth/platform-login') || endpoint.includes('/auth/refresh') || endpoint.includes('/auth/logout');
     if (response.status === 401 && !isAuthEndpoint && !options?._isRetry) {
       const newToken = await requestNewAccessToken();
       if (newToken) {

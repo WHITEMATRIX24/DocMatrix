@@ -225,7 +225,7 @@ export class ClinicalService {
       uploadDate: (doc.createdAt instanceof Date ? doc.createdAt : new Date(doc.createdAt))
         .toISOString()
         .slice(0, 10),
-      doctor: doc.doctorName || 'Dr. Arun Kumar',
+      doctor: doc.doctorName || null,
       notes: doc.notes || undefined,
       downloadUrl: `/patients/${code}/documents/${doc.id}/download`,
       previewUrl: `/patients/${code}/documents/${doc.id}/preview`,

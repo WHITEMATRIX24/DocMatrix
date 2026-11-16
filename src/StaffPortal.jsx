@@ -118,16 +118,16 @@ const NOTIFICATIONS = [
   { tone: 'green', icon: FlaskConical, title: 'DentArt Kerala lab delivery', body: 'Zirconia crown for Fatima Zahra received at the front desk.', time: '1h' }
 ]
 
-// 8 Demo Staff Roles (Decision D1 & D5)
+// Staff Roles
 const DEMO_STAFF_ROLES = [
-  { id: 'usr-101', role: 'ORGANIZATION_ADMIN', name: 'Dr. Arun Kumar (Owner)', phone: '+910000000101' },
-  { id: 'usr-102', role: 'BRANCH_ADMIN', name: 'Priya Menon (Branch Mgr)', phone: '+910000000102' },
-  { id: 'usr-103', role: 'RECEPTIONIST', name: 'Ananya S (Front Desk)', phone: '+910000000103' },
-  { id: 'usr-104', role: 'DOCTOR', name: 'Dr. Rajesh Nair (Doctor)', phone: '+910000000104' },
-  { id: 'usr-105', role: 'NURSE', name: 'Suma Joseph (Clinic Nurse)', phone: '+910000000105' },
-  { id: 'usr-106', role: 'LAB_TECHNICIAN', name: 'Rahul V (Lab Tech)', phone: '+910000000106' },
-  { id: 'usr-107', role: 'PHARMACIST', name: 'Deepa K (Pharmacist)', phone: '+910000000107' },
-  { id: 'usr-108', role: 'ACCOUNTANT', name: 'Manoj Pillai (Accounts)', phone: '+910000000108' }
+  { id: 'usr-101', role: 'ORGANIZATION_ADMIN', name: 'Clinic Administrator', phone: '+910000000101' },
+  { id: 'usr-102', role: 'BRANCH_ADMIN', name: 'Branch Manager', phone: '+910000000102' },
+  { id: 'usr-103', role: 'RECEPTIONIST', name: 'Receptionist / Front Desk', phone: '+910000000103' },
+  { id: 'usr-104', role: 'DOCTOR', name: 'Attending Doctor', phone: '+910000000104' },
+  { id: 'usr-105', role: 'NURSE', name: 'Clinic Nurse', phone: '+910000000105' },
+  { id: 'usr-106', role: 'LAB_TECHNICIAN', name: 'Lab Technician', phone: '+910000000106' },
+  { id: 'usr-107', role: 'PHARMACIST', name: 'Pharmacist', phone: '+910000000107' },
+  { id: 'usr-108', role: 'ACCOUNTANT', name: 'Accountant', phone: '+910000000108' }
 ]
 
 // All 55 Launch Features directly from single-source-of-truth registry
@@ -150,7 +150,7 @@ const AREA_ICONS = {
 const SINGLE_LINK_AREAS = new Set(['Billing', 'Reports'])
 
 export default function StaffPortal({
-  user = { id: 'usr-104', name: 'Dr. Arun Kumar', role: 'DOCTOR', clinicName: 'DocMatrix Dental Care' },
+  user = { id: 'usr-staff', name: 'Clinic Staff', role: 'DOCTOR', clinicName: 'DocMatrix Clinic' },
   onUserChange,
   onLogout,
   onReturnToWebsite,
@@ -277,59 +277,6 @@ export default function StaffPortal({
     const interval = setInterval(updateTime, 30000)
     return () => clearInterval(interval)
   }, [])
-
-  // Interactive Patients State
-  const [patientsList, setPatientsList] = useState([
-    { id: 'DM-2026-001', name: 'Meera Nambiar', age: 34, gender: 'F', phone: '+91 94471 23456', doctor: 'Dr. Arun Kumar', alerts: 'Penicillin Allergy', lastVisit: 'Today', treatment: 'Root Canal Treatment (Session 2/3)', balance: '₹0' },
-    { id: 'DM-2026-002', name: 'Rahul Krishnan', age: 28, gender: 'M', phone: '+91 98460 54321', doctor: 'Dr. Arun Kumar', alerts: 'None', lastVisit: 'Today', treatment: 'Ultrasonic Scaling & Polishing', balance: '₹0' },
-    { id: 'DM-2026-003', name: 'Fatima Zahra', age: 41, gender: 'F', phone: '+91 97455 11223', doctor: 'Dr. Tariq Antoun', alerts: 'Hypertension', lastVisit: '12 Oct 2026', treatment: 'E-Max Crown Cementation', balance: '₹3,000' },
-    { id: 'DM-2026-004', name: 'George Mathew', age: 56, gender: 'M', phone: '+91 94470 98765', doctor: 'Dr. Arun Kumar', alerts: 'Diabetic (Type 2)', lastVisit: '08 Oct 2026', treatment: 'Extraction Socket Healing', balance: '₹1,800' },
-    { id: 'DM-2026-005', name: 'Ananya Pillai', age: 22, gender: 'F', phone: '+91 98472 33445', doctor: 'Dr. Tariq Antoun', alerts: 'None', lastVisit: '01 Oct 2026', treatment: 'Clear Aligner Scan & Plan', balance: '₹0' }
-  ])
-
-  // 4 Operatories Monitor State
-  const [operatoryChairs, setOperatoryChairs] = useState([
-    {
-      id: 'chair-1',
-      operatory: 'Operatory 1 • Endodontics Suite',
-      doctor: 'Dr. Arun Kumar',
-      patient: 'Meera Nambiar',
-      proc: 'Root Canal Treatment (Session 2/3)',
-      status: 'In Chair',
-      elapsed: '18 min elapsed',
-      type: 'occupied'
-    },
-    {
-      id: 'chair-2',
-      operatory: 'Operatory 2 • Ortho & Esthetics',
-      doctor: 'Dr. Tariq Antoun',
-      patient: 'Rahul Krishnan',
-      proc: 'Ceramic Crown Cementation',
-      status: 'Next In Chair',
-      elapsed: 'Arrived 10:00 AM',
-      type: 'waiting'
-    },
-    {
-      id: 'chair-3',
-      operatory: 'Operatory 3 • Hygiene & Periodontics',
-      doctor: 'Dr. Priya Nair',
-      patient: 'George Mathew',
-      proc: 'Ultrasonic Scaling & Polish',
-      status: 'Sanitizing Bay',
-      elapsed: 'Ready in 3 min',
-      type: 'sanitizing'
-    },
-    {
-      id: 'chair-4',
-      operatory: 'Operatory 4 • Surgical Implant Bay',
-      doctor: 'Consultant Surgeon',
-      patient: 'Next: Fatima Zahra (11:15 AM)',
-      proc: 'Implant Impression & Torque Test',
-      status: 'Sterilized & Ready',
-      elapsed: 'Ready for Patient',
-      type: 'ready'
-    }
-  ])
 
   // Keep route synced with browser address bar
   useEffect(() => {
@@ -833,8 +780,6 @@ export default function StaffPortal({
             <ClinicDashboard
               currentUser={currentUser}
               navigateTo={navigateTo}
-              chairs={operatoryChairs}
-              patients={patientsList}
             />
           ) : (
             <div className="dmx-page" key={location.pathname}>

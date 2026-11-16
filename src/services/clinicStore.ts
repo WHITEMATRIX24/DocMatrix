@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { loadFromStorage, saveToStorage, removeFromStorage, STORAGE_KEYS } from './storageService'
 import { apiClient } from './apiClient'
-import { billingApi, toFrontendStatus, toFrontendMode, toBackendMode } from './billingApi'
+import { billingApi, toFrontendStatus, toFrontendMode, toBackendMode, type BackendInvoice } from './billingApi'
 
 export type MedicalAnswer = 'yes' | 'no' | 'unknown'
 
@@ -324,6 +324,7 @@ export interface TreatmentPlanRecord {
   rejectionReason?: string
   origin?: string
   stages?: TreatmentPlanStageRecord[]
+  history?: { id: string; action: string; createdAt: string; userName?: string }[]
   estimateRevisions?: TreatmentEstimateRevisionRecord[]
   patient?: any
 }
@@ -388,61 +389,96 @@ export interface TreatmentType {
   standardFee: number
 }
 
-// Predefined Dentists
-export const DENTISTS: DentistSchedule[] = [
-  {
-    id: 'doc-1',
-    name: 'Dr. Arun Kumar',
-    specialization: 'Orthodontics & Aligners',
-    chair: 'Chair 1',
-    color: '#0ea5e9',
-    workingDays: [1, 2, 3, 4, 5, 6],
-    shiftStart: '09:00',
-    shiftEnd: '18:00',
-    lunchStart: '13:00',
-    lunchEnd: '14:00',
-    leaveDates: []
+export const getTodayDateStr = (): string => {
+  const d = new Date()
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+  return d.toISOString().slice(0, 10)
+}
+
+const DENTIST_COLORS = ['#0ea5e9', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#6366f1'];
+
+export function getActiveDentists(): DentistSchedule[] {
+  try {
+    const authRaw = typeof sessionStorage !== 'undefined'
+      ? (sessionStorage.getItem('docmatrix_auth_user') || localStorage.getItem('docmatrix_auth_user'))
+      : null;
+    let clinicUser: any = null;
+    if (authRaw) {
+      try { clinicUser = JSON.parse(authRaw); } catch {}
+    }
+    const clinicId = clinicUser?.clinicId;
+    const storedStaffKey = clinicId ? `docmatrix_clinic_staff_${clinicId}` : 'docmatrix_clinic_staff';
+    const rawStaff = typeof localStorage !== 'undefined' ? localStorage.getItem(storedStaffKey) : null;
+    let staffList: any[] = [];
+    if (rawStaff) {
+      try { staffList = JSON.parse(rawStaff); } catch {}
+    }
+
+    const doctors = staffList.filter((s: any) => s.role === 'DOCTOR' && s.isActive !== false);
+
+    if (clinicUser && (clinicUser.role === 'DOCTOR' || clinicUser.role === 'ORGANIZATION_ADMIN')) {
+      const alreadyIncluded = doctors.some((d: any) =>
+        d.id === clinicUser.id || (d.fullName && d.fullName.toLowerCase() === clinicUser.fullName?.toLowerCase())
+      );
+      if (!alreadyIncluded && clinicUser.fullName) {
+        doctors.unshift({
+          id: clinicUser.id || 'owner-practitioner',
+          fullName: clinicUser.fullName,
+          role: clinicUser.role,
+          email: clinicUser.email,
+        });
+      }
+    }
+
+    if (doctors.length > 0) {
+      return doctors.map((doc: any, index: number) => ({
+        id: doc.id || `doc-${index + 1}`,
+        name: doc.fullName || doc.name || 'Attending Doctor',
+        specialization: doc.specialization || 'General Dentistry',
+        chair: `Chair ${index + 1}`,
+        color: DENTIST_COLORS[index % DENTIST_COLORS.length],
+        workingDays: [1, 2, 3, 4, 5, 6],
+        shiftStart: '09:00',
+        shiftEnd: '18:00',
+        lunchStart: '13:00',
+        lunchEnd: '14:00',
+        leaveDates: [],
+      }));
+    }
+  } catch {}
+
+  return [
+    {
+      id: 'doc-main',
+      name: 'Attending Doctor',
+      specialization: 'General Dentistry',
+      chair: 'Chair 1',
+      color: '#008891',
+      workingDays: [1, 2, 3, 4, 5, 6],
+      shiftStart: '09:00',
+      shiftEnd: '18:00',
+      lunchStart: '13:00',
+      lunchEnd: '14:00',
+      leaveDates: [],
+    },
+  ];
+}
+
+// Predefined Dentists (dynamically backed by real clinic practitioners)
+export const DENTISTS: DentistSchedule[] = new Proxy([] as DentistSchedule[], {
+  get(target, prop) {
+    const list = getActiveDentists();
+    if (prop === 'length') return list.length;
+    if (typeof prop === 'string' && !isNaN(Number(prop))) {
+      return list[Number(prop)];
+    }
+    const val = (list as any)[prop];
+    if (typeof val === 'function') {
+      return val.bind(list);
+    }
+    return val;
   },
-  {
-    id: 'doc-2',
-    name: 'Dr. Priya Nair',
-    specialization: 'Endodontics & Root Canal',
-    chair: 'Chair 2',
-    color: '#10b981',
-    workingDays: [1, 2, 3, 4, 5],
-    shiftStart: '09:30',
-    shiftEnd: '17:30',
-    lunchStart: '13:00',
-    lunchEnd: '14:00',
-    leaveDates: []
-  },
-  {
-    id: 'doc-3',
-    name: 'Dr. Tariq Antoun',
-    specialization: 'Oral & Maxillofacial Surgery',
-    chair: 'Chair 3',
-    color: '#8b5cf6',
-    workingDays: [2, 3, 4, 5, 6],
-    shiftStart: '10:00',
-    shiftEnd: '19:00',
-    lunchStart: '14:00',
-    lunchEnd: '15:00',
-    leaveDates: []
-  },
-  {
-    id: 'doc-4',
-    name: 'Dr. Sarah Thomas',
-    specialization: 'Pediatric & Preventive Dentistry',
-    chair: 'Chair 4',
-    color: '#f59e0b',
-    workingDays: [1, 3, 5, 6],
-    shiftStart: '09:00',
-    shiftEnd: '16:00',
-    lunchStart: '12:30',
-    lunchEnd: '13:30',
-    leaveDates: []
-  }
-]
+});
 
 // Predefined Treatments
 export const DENTAL_TREATMENTS: TreatmentType[] = [
@@ -470,686 +506,77 @@ export const CLINIC_CONFIG = {
   clinicAddress: 'Suite 401, MedTech Health City'
 }
 
-// Initial seed data
-const initialPatients: PatientRecord[] = [
-  {
-    id: 'pt-1001',
-    firstName: 'Meera',
-    lastName: 'Nambiar',
-    age: '34',
-    dateOfBirth: '1990-04-12',
-    gender: 'female',
-    mobile: '9447123456',
-    countryCode: '+91',
-    email: 'meera.nambiar@example.com',
-    language: 'English, Malayalam',
-    city: 'Kochi',
-    state: 'Kerala',
-    postalCode: '682001',
-    address: '42 Orchid Park, Marine Drive',
-    emergencyName: 'Suresh Nambiar',
-    emergencyPhone: '9447123457',
-    relationship: 'Spouse',
-    allergies: 'yes',
-    allergiesDetails: 'Penicillin allergy, Latex sensitivity',
-    medications: 'yes',
-    medicationsDetails: 'Amoxicillin contraindicated; Paracetamol as needed',
-    conditions: 'yes',
-    conditionsDetails: 'Mild Asthma',
-    createdAt: '2026-01-10T10:00:00.000Z'
-  },
-  {
-    id: 'PAT-1001',
-    firstName: 'Aarav',
-    lastName: 'Sharma',
-    age: '32',
-    dateOfBirth: '1992-05-14',
-    gender: 'male',
-    mobile: '9845012345',
-    countryCode: '+91',
-    email: 'aarav.sharma@example.com',
-    language: 'English, Hindi',
-    city: 'Kochi',
-    state: 'Kerala',
-    postalCode: '682001',
-    address: '14/2 Palm Meadows',
-    emergencyName: 'Meera Sharma',
-    emergencyPhone: '9845012346',
-    relationship: 'Spouse',
-    allergies: 'yes',
-    allergiesDetails: 'Penicillin, Latex gloves',
-    medications: 'no',
-    medicationsDetails: '',
-    conditions: 'no',
-    conditionsDetails: '',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'PAT-1002',
-    firstName: 'Devika',
-    lastName: 'Menon',
-    age: '28',
-    dateOfBirth: '1996-08-22',
-    gender: 'female',
-    mobile: '9744123456',
-    countryCode: '+91',
-    email: 'devika.menon@example.com',
-    language: 'Malayalam, English',
-    city: 'Ernakulam',
-    state: 'Kerala',
-    postalCode: '682016',
-    address: '8B Sky High Towers',
-    emergencyName: 'Ramesh Menon',
-    emergencyPhone: '9744123457',
-    relationship: 'Father',
-    allergies: 'no',
-    allergiesDetails: '',
-    medications: 'no',
-    medicationsDetails: '',
-    conditions: 'no',
-    conditionsDetails: '',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'PAT-1003',
-    firstName: 'Marcus',
-    lastName: 'Vance',
-    age: '45',
-    dateOfBirth: '1979-11-03',
-    gender: 'male',
-    mobile: '9655234567',
-    countryCode: '+91',
-    email: 'marcus.v@example.com',
-    language: 'English',
-    city: 'Kochi',
-    state: 'Kerala',
-    postalCode: '682020',
-    address: 'Seaside Villa 4',
-    emergencyName: 'Linda Vance',
-    emergencyPhone: '9655234568',
-    relationship: 'Spouse',
-    allergies: 'no',
-    allergiesDetails: '',
-    medications: 'yes',
-    medicationsDetails: 'Blood pressure medication (Amlodipine 5mg)',
-    conditions: 'yes',
-    conditionsDetails: 'Hypertension',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'PAT-1004',
-    firstName: 'Ananya',
-    lastName: 'Iyer',
-    age: '19',
-    dateOfBirth: '2005-02-17',
-    gender: 'female',
-    mobile: '9446345678',
-    countryCode: '+91',
-    email: 'ananya.iyer@example.com',
-    language: 'Tamil, English',
-    city: 'Kochi',
-    state: 'Kerala',
-    postalCode: '682035',
-    address: 'College Road, Lane 2',
-    emergencyName: 'Suresh Iyer',
-    emergencyPhone: '9446345679',
-    relationship: 'Father',
-    allergies: 'no',
-    allergiesDetails: '',
-    medications: 'no',
-    medicationsDetails: '',
-    conditions: 'no',
-    conditionsDetails: '',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'PAT-1005',
-    firstName: 'Rohit',
-    lastName: 'Verma',
-    age: '37',
-    dateOfBirth: '1987-07-30',
-    gender: 'male',
-    mobile: '9123456789',
-    countryCode: '+91',
-    email: 'rohit.v@example.com',
-    language: 'Hindi, English',
-    city: 'Kochi',
-    state: 'Kerala',
-    postalCode: '682011',
-    address: 'Green Park View, Apt 304',
-    emergencyName: 'Pooja Verma',
-    emergencyPhone: '9123456780',
-    relationship: 'Spouse',
-    allergies: 'no',
-    allergiesDetails: '',
-    medications: 'no',
-    medicationsDetails: '',
-    conditions: 'no',
-    conditionsDetails: '',
-    createdAt: new Date().toISOString()
-  }
-]
-
-const getTodayDateStr = () => {
-  const d = new Date()
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
-  return d.toISOString().slice(0, 10)
-}
-
-const initialAppointments: AppointmentRecord[] = [
-  {
-    id: 'APT-1001',
-    patientId: 'pt-1001',
-    doctor: 'Dr. Arun Kumar',
-    chair: 'Chair 1',
-    treatmentType: 'Root Canal Treatment (Session 2/3)',
-    visitType: 'Dental procedure',
-    date: getTodayDateStr(),
-    time: '11:00',
-    durationMinutes: 45,
-    status: 'in-progress',
-    priority: 'urgent',
-    notes: 'Access opening completed. Bio-mechanical preparation and irrigation with NaOCl. Temp Cavit placed.',
-    checkInTime: '10:45',
-    consultationStartTime: '11:02',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'APT-1000',
-    patientId: 'pt-1001',
-    doctor: 'Dr. Arun Kumar',
-    chair: 'Chair 1',
-    treatmentType: 'Emergency Pain Relief Consultation',
-    visitType: 'Consultation',
-    date: '2026-10-24',
-    time: '14:30',
-    durationMinutes: 30,
-    status: 'completed',
-    priority: 'urgent',
-    notes: 'Acute irreversible pulpitis in #46. Emergency pulpectomy performed.',
-    completedTime: '15:15',
-    createdAt: '2026-10-24T09:00:00.000Z'
-  },
-  {
-    id: 'APT-2001',
-    patientId: 'PAT-1001',
-    doctor: 'Dr. Arun Kumar',
-    chair: 'Chair 1',
-    treatmentType: 'Orthodontic Bracket Adjustment',
-    visitType: 'Follow-up',
-    date: getTodayDateStr(),
-    time: '09:30',
-    durationMinutes: 30,
-    status: 'in-progress',
-    priority: 'normal',
-    notes: 'Upper archwire activation and check bracket alignment on 14, 24.',
-    checkInTime: '09:20',
-    consultationStartTime: '09:32',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'APT-2002',
-    patientId: 'PAT-1002',
-    doctor: 'Dr. Priya Nair',
-    chair: 'Chair 2',
-    treatmentType: 'Root Canal Treatment (Single Sitting)',
-    visitType: 'Dental treatment',
-    date: getTodayDateStr(),
-    time: '10:00',
-    durationMinutes: 60,
-    status: 'checked-in',
-    priority: 'urgent',
-    notes: 'Severe pain on lower right first molar (#46). Pulpitis test positive.',
-    checkInTime: '09:50',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'APT-2003',
-    patientId: 'PAT-1003',
-    doctor: 'Dr. Tariq Antoun',
-    chair: 'Chair 3',
-    treatmentType: 'Surgical Wisdom Tooth Removal',
-    visitType: 'Consultation',
-    date: getTodayDateStr(),
-    time: '11:30',
-    durationMinutes: 60,
-    status: 'scheduled',
-    priority: 'normal',
-    notes: 'Pre-op evaluation for impacted third molar extraction.',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'APT-2004',
-    patientId: 'PAT-1004',
-    doctor: 'Dr. Arun Kumar',
-    chair: 'Chair 1',
-    treatmentType: 'Clear Aligner Scan & Assessment',
-    visitType: 'Check-up',
-    date: getTodayDateStr(),
-    time: '14:00',
-    durationMinutes: 45,
-    status: 'confirmed',
-    priority: 'normal',
-    notes: 'iTero digital scan for Invisalign treatment plan stage 1.',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'APT-2005',
-    patientId: 'PAT-1005',
-    doctor: 'Dr. Sarah Thomas',
-    chair: 'Chair 4',
-    treatmentType: 'Ultrasonic Scaling & Polishing',
-    visitType: 'Cleaning',
-    date: getTodayDateStr(),
-    time: '15:30',
-    durationMinutes: 45,
-    status: 'scheduled',
-    priority: 'normal',
-    notes: 'Routine 6-month prophylaxis and calculus removal.',
-    createdAt: new Date().toISOString()
-  }
-]
-
-
-const initialClinicalNotes: ClinicalNoteRecord[] = [
-  {
-    id: 'NOT-1001',
-    noteNumber: 'CN-1001',
-    patientId: 'pt-1001',
-    doctorId: 'doc-001',
-    doctorName: 'Dr. Sarah Mitchell',
-    consultationDate: '2026-10-24T15:00:00.000Z',
-    consultationType: 'EMERGENCY',
-    status: 'FINALIZED',
-    finalizedAt: '2026-10-24T15:30:00.000Z',
-    finalizedByName: 'Dr. Sarah Mitchell',
-    chiefComplaint: 'Severe throbbing pain in lower right posterior quadrant radiating to ear for 2 days.',
-    symptoms: 'Spontaneous pain, heightened at night, aggravated by hot fluids.',
-    symptomDuration: '48 hours',
-    painSeverity: 8,
-    historyNotes: 'Patient took OTC Ibuprofen with transient minimal relief.',
-    extraoralFindings: 'No visible facial asymmetry or extraoral lymphadenopathy.',
-    intraoralFindings: 'Deep disto-occlusal caries on tooth #46 involving pulp. Tenderness on vertical percussion positive.',
-    toothSpecificFindings: 'Tooth 46: Non-vital response to thermal testing, percussion sensitive.',
-    periodontalFindings: 'Probing depths 2-3mm, normal physiological mobility Grade 0.',
-    examinationNotes: 'Deep occlusal caries on tooth #46 involving pulp. Tenderness on vertical percussion positive. Cold test elicited prolonged lingering pain.',
-    primaryDiagnosis: 'Symptomatic Irreversible Pulpitis with Acute Apical Periodontitis (#46)',
-    treatmentPerformed: 'Pulpectomy and Emergency Access Opening on #46',
-    treatmentToothNumber: '46',
-    treatmentDescription: 'Local anesthesia administered (2% Lignocaine with 1:80000 adrenaline). Rubber dam isolation achieved. Caries excavated, pulp chamber de-roofed, coronal pulp extirpated. Working length established. Formocresol pellet and Cavit temporary seal placed.',
-    materialsUsed: 'Rubber Dam, Cavit, Lignocaine 2%, EDTA gel',
-    treatmentOutcome: 'Immediate alleviation of pressure; patient comfortable post-op.',
-    treatmentRecommendations: 'Complete 2nd sitting Root Canal Treatment followed by core build-up and full coverage zirconia crown.',
-    followUpRequired: true,
-    followUpDate: '2026-10-28',
-    followUpInstructions: 'Soft diet on right side, avoid hard/sticky food. Return if swelling develops.',
-    patientAdvice: 'Avoid chewing on right side until definitive restoration is bonded.',
-    visitDate: '2026-10-24',
-    complaint: 'Severe throbbing pain in lower right posterior quadrant radiating to ear for 2 days.',
-    findings: 'Deep occlusal caries on tooth #46 involving pulp. Tenderness on vertical percussion positive. Cold test elicited prolonged lingering pain.',
-    plan: 'Single/two sitting Root Canal Treatment on #46 followed by full coverage crown. Patient allergic to Penicillin; prescribed Erythromycin.',
-    createdAt: '2026-10-24T15:00:00.000Z'
-  },
-  {
-    id: 'NOT-1002',
-    noteNumber: 'CN-1002',
-    patientId: 'pt-1001',
-    doctorId: 'doc-001',
-    doctorName: 'Dr. Sarah Mitchell',
-    consultationDate: new Date().toISOString(),
-    consultationType: 'FOLLOW_UP',
-    status: 'FINALIZED',
-    finalizedAt: new Date().toISOString(),
-    finalizedByName: 'Dr. Sarah Mitchell',
-    chiefComplaint: 'Follow-up for second sitting RCT on #46.',
-    symptoms: 'Asymptomatic. Patient reports complete resolution of throbbing pain.',
-    painSeverity: 0,
-    intraoralFindings: 'Temporary restoration intact, gingiva surrounding #46 healthy without sinus tract.',
-    toothSpecificFindings: 'Tooth 46: Percussion negative, palpation negative.',
-    examinationNotes: 'Symptom-free. Temporary filling intact. Working length confirmed at 21mm MB, 21mm ML, 20.5mm Distal via RVG.',
-    primaryDiagnosis: 'Previously Initiated Root Canal Therapy (#46)',
-    treatmentPerformed: 'Biomechanical Preparation and Calcium Hydroxide Dressing (#46)',
-    treatmentToothNumber: '46',
-    treatmentDescription: 'Canals negotiated and shaped with ProTaper Gold rotary files up to F2. 3% NaOCl and 17% EDTA irrigation with sonic activation. Canals dried with paper points. Calcium hydroxide placed. Cavit sealed.',
-    materialsUsed: 'ProTaper Gold, NaOCl 3%, EDTA 17%, Calcipex, Cavit',
-    treatmentOutcome: 'Canals thoroughly prepared and dried.',
-    treatmentRecommendations: 'Obturation with gutta-percha and bioceramic sealer at next visit.',
-    followUpRequired: true,
-    followUpDate: '2026-11-08',
-    followUpInstructions: 'Continue routine oral hygiene. Schedule appointment for obturation.',
-    visitDate: getTodayDateStr(),
-    complaint: 'Follow-up for second sitting RCT on #46.',
-    findings: 'Symptom-free. Temporary filling intact. Working length confirmed at 21mm MB, 21mm ML, 20.5mm Distal via RVG.',
-    plan: 'Canal biomechanical preparation with ProTaper Gold rotary files. Calcium hydroxide intracanal medicament. Next: Obturation.',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'NOT-1003',
-    noteNumber: 'CN-1003',
-    patientId: 'PAT-1001',
-    doctorId: 'doc-002',
-    doctorName: 'Dr. Alex Vance',
-    consultationDate: '2026-10-18T11:00:00.000Z',
-    consultationType: 'ROUTINE_CHECKUP',
-    status: 'DRAFT',
-    chiefComplaint: 'Routine 6-month orthodontic bracket review and check-up.',
-    symptoms: 'Mild tightness after previous archwire change.',
-    painSeverity: 1,
-    intraoralFindings: 'Alignment progressing well. Mild supra-gingival calculus on lower anteriors.',
-    examinationNotes: 'Alignment progressing well. Mild supra-gingival calculus on lower anteriors.',
-    primaryDiagnosis: 'Class I Malocclusion with mild anterior crowding; Generalized mild gingivitis',
-    treatmentPerformed: 'Orthodontic Wire Adjustment & Bracket Inspection',
-    treatmentDescription: '0.016x0.022 NiTi upper and lower archwires engaged. Ligatures replaced.',
-    treatmentRecommendations: 'Full mouth ultrasonic scaling and prophy scheduled.',
-    followUpRequired: true,
-    followUpDate: '2026-11-20',
-    followUpInstructions: 'Maintain interdental brushing around brackets.',
-    visitDate: '2026-10-18',
-    complaint: 'Routine 6-month orthodontic bracket review and check-up.',
-    findings: 'Alignment progressing well. Mild supra-gingival calculus on lower anteriors.',
-    plan: '0.016x0.022 NiTi archwire engaged. Ultrasonic scaling scheduled.',
-    createdAt: '2026-10-18T11:00:00.000Z'
-  }
-]
-
-const initialInvoices: InvoiceRecord[] = [
-  {
-    id: 'INV-1001',
-    patientId: 'pt-1001',
-    description: 'Root Canal Treatment (#46) - Sitting 1 & 2',
-    amount: 3500,
-    status: 'Paid',
-    createdAt: '2026-10-24T15:15:00.000Z',
-    payments: [{ id: 'PAY-1001', amount: 3500, mode: 'UPI', reference: 'UPI-448210', receivedAt: '2026-10-24T15:20:00.000Z' }]
-  },
-  {
-    id: 'INV-1002',
-    patientId: 'pt-1001',
-    description: 'Zirconia Monolithic Crown (Post-RCT restoration)',
-    amount: 6000,
-    status: 'Unpaid',
-    createdAt: new Date().toISOString()
-  }
-]
-
-const initialTreatmentPlans: TreatmentPlanRecord[] = [
-  {
-    id: 'TRT-1001',
-    patientId: 'pt-1001',
-    procedure: 'Root Canal Treatment & Rotary Shaping',
-    category: 'Endodontics',
-    toothNumber: '46',
-    status: 'In Progress',
-    cost: 4500,
-    doctor: 'Dr. Arun Kumar',
-    notes: 'Working length established. Second sitting underway.',
-    date: '2026-10-24'
-  },
-  {
-    id: 'TRT-1002',
-    patientId: 'pt-1001',
-    procedure: 'CAD/CAM Zirconia Crown Restoration',
-    category: 'Prosthodontics',
-    toothNumber: '46',
-    status: 'Pending',
-    cost: 6500,
-    doctor: 'Dr. Arun Kumar',
-    notes: 'Scheduled post-obturation. Tooth preparation and digital optical scan pending.',
-    date: '2026-10-24'
-  },
-  {
-    id: 'TRT-1003',
-    patientId: 'pt-1001',
-    procedure: 'Comprehensive Ultrasonic Scaling & Polishing',
-    category: 'Preventive',
-    toothNumber: 'Full Mouth',
-    status: 'Accepted',
-    cost: 1200,
-    doctor: 'Dr. Priya Nair',
-    notes: 'Mild calculus accumulation.',
-    date: '2026-10-24'
-  },
-  {
-    id: 'TRT-1004',
-    patientId: 'PAT-1001',
-    procedure: 'Clear Aligner Assessment & Refinement Scan',
-    category: 'Orthodontics',
-    toothNumber: 'Upper & Lower',
-    status: 'In Progress',
-    cost: 3000,
-    doctor: 'Dr. Arun Kumar',
-    notes: 'Tray 14 of 20 evaluation.',
-    date: '2026-10-15'
-  },
-  {
-    id: 'TRT-1005',
-    patientId: 'PAT-1002',
-    procedure: 'Single Sitting Root Canal (#36)',
-    category: 'Endodontics',
-    toothNumber: '36',
-    status: 'Proposed',
-    cost: 4500,
-    doctor: 'Dr. Priya Nair',
-    notes: 'Awaiting patient approval.',
-    date: getTodayDateStr()
-  },
-  {
-    id: 'TRT-1006',
-    patientId: 'PAT-1003',
-    procedure: 'Surgical Wisdom Tooth Removal (#38)',
-    category: 'Oral Surgery',
-    toothNumber: '38',
-    status: 'Pending',
-    cost: 5000,
-    doctor: 'Dr. Tariq Antoun',
-    notes: 'Impaction class II position B. Pre-op bloods required.',
-    date: '2026-10-20'
-  }
-]
-
-const initialPatientDocuments: PatientDocumentRecord[] = [
-  {
-    id: 'DOC-1001',
-    patientId: 'pt-1001',
-    title: 'Diagnostic Digital RVG X-Ray (#46 Periapical)',
-    category: 'Radiology',
-    fileName: 'RVG_46_pre_op_periapical.dcm',
-    fileSize: '4.2 MB',
-    uploadDate: '2026-10-24',
-    doctor: 'Dr. Arun Kumar',
-    url: '/records/xray-sample.png'
-  },
-  {
-    id: 'DOC-1002',
-    patientId: 'pt-1001',
-    title: 'Full Mouth Orthopantomogram (OPG Scan)',
-    category: 'Radiology',
-    fileName: 'OPG_panoramic_nambiar_meera.jpg',
-    fileSize: '8.7 MB',
-    uploadDate: '2026-10-24',
-    doctor: 'Dr. Arun Kumar',
-    url: '/records/opg-sample.png'
-  },
-  {
-    id: 'DOC-1003',
-    patientId: 'pt-1001',
-    title: 'Working Length Determination Radiograph (#46)',
-    category: 'Radiology',
-    fileName: 'RVG_46_working_length_21mm.dcm',
-    fileSize: '3.9 MB',
-    uploadDate: getTodayDateStr(),
-    doctor: 'Dr. Arun Kumar'
-  }
-]
-
-const initialPatientConsents: PatientConsentRecord[] = [
-  {
-    id: 'CNS-1001',
-    patientId: 'pt-1001',
-    consentType: 'Informed Consent for Endodontic Root Canal Therapy',
-    status: 'Signed',
-    dateRecorded: '2026-10-24',
-    recordedBy: 'Dr. Arun Kumar',
-    documentRef: 'DMX-CONSENT-RCT-2026-089',
-    notes: 'Procedure risks, alternative treatment (extraction), and post-op crown necessity explained. Patient signed digitally.'
-  },
-  {
-    id: 'CNS-1002',
-    patientId: 'pt-1001',
-    consentType: 'Local Anesthesia Administration Consent',
-    status: 'Signed',
-    dateRecorded: '2026-10-24',
-    recordedBy: 'Dr. Arun Kumar',
-    documentRef: 'DMX-CONSENT-LA-2026-089',
-    notes: 'Lignocaine 2% with 1:80000 adrenaline verified safe with medical history.'
-  },
-  {
-    id: 'CNS-1003',
-    patientId: 'pt-1001',
-    consentType: 'CAD/CAM Prosthetic Restoration Consent',
-    status: 'Pending',
-    dateRecorded: getTodayDateStr(),
-    recordedBy: 'Dr. Arun Kumar',
-    documentRef: 'DMX-CONSENT-PROS-2026-114',
-    notes: 'Awaiting digital signature upon final margin preparation.'
-  }
-]
-
-const initialToothCharts: ClinicToothCharts = {
-  'pt-1001': {
-    46: { condition: 'RCT', notes: 'Pulpitis. Second sitting RCT underway. Bio-mechanical preparation completed.' },
-    36: { condition: 'Caries', notes: 'Occlusal pit and fissure caries. Composite restoration recommended.' },
-    16: { condition: 'Restored', notes: 'Occlusal composite restoration placed 2025.' },
-    24: { condition: 'Healthy', notes: 'Normal vitality and intact margins.' }
-  }
-}
-
-
+// Initial seed data (empty by default for real clinics)
 export interface PrescriptionItemRecord {
-  id: string
-  prescriptionId?: string
-  medicineName: string
-  strength?: string
-  dosage: string
-  route?: string
-  frequency: string
-  duration: string
-  quantity?: number
-  instructions?: string
+  id: string;
+  prescriptionId?: string;
+  medicineName: string;
+  strength?: string;
+  dosage: string;
+  route?: string;
+  frequency: string;
+  duration: string;
+  quantity?: number;
+  instructions?: string;
 }
 
 export interface PrescriptionRecord {
-  id: string
-  clinicId?: string
-  patientId: string
-  doctorId: string
-  prescriptionNumber: string
-  diagnosis: string
-  clinicalNotes?: string
-  status: 'DRAFT' | 'FINALIZED' | 'CANCELLED'
-  prescribedAt: string
-  finalizedAt?: string
-  finalizedById?: string
-  cancelledAt?: string
-  cancelledById?: string
-  cancellationReason?: string
-  createdAt?: string
-  items: PrescriptionItemRecord[]
+  id: string;
+  clinicId?: string;
+  patientId: string;
+  doctorId: string;
+  prescriptionNumber: string;
+  diagnosis: string;
+  clinicalNotes?: string;
+  status: 'DRAFT' | 'FINALIZED' | 'CANCELLED';
+  prescribedAt: string;
+  finalizedAt?: string;
+  finalizedById?: string;
+  cancelledAt?: string;
+  cancelledById?: string;
+  cancellationReason?: string;
+  createdAt?: string;
+  items: PrescriptionItemRecord[];
   patient?: {
-    id: string
-    patientCode?: string
-    firstName: string
-    lastName: string
-    gender?: string
-    dateOfBirth?: string
-    mobile?: string
-    medicalSafetyAlerts?: string[]
-  }
+    id: string;
+    patientCode?: string;
+    firstName: string;
+    lastName: string;
+    gender?: string;
+    dateOfBirth?: string;
+    mobile?: string;
+    medicalSafetyAlerts?: string[];
+  };
   doctor?: {
-    id: string
-    fullName: string
-    email?: string
-    role?: string
-  }
+    id: string;
+    fullName: string;
+    email?: string;
+    role?: string;
+  };
 }
-
-export const initialPrescriptions: PrescriptionRecord[] = [
-  {
-    id: 'rx-demo-001',
-    patientId: 'pt-1001',
-    doctorId: 'doc-001',
-    prescriptionNumber: 'RX-1001',
-    diagnosis: 'Acute Periapical Abscess (Tooth 16)',
-    clinicalNotes: 'Initiated endodontic emergency relief. Warm saline rinses recommended.',
-    status: 'FINALIZED',
-    prescribedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-    finalizedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-    items: [
-      {
-        id: 'rxi-1',
-        medicineName: 'Amoxicillin + Clavulanic Acid',
-        strength: '625 mg',
-        dosage: '1 tablet',
-        route: 'Oral',
-        frequency: '1-0-1 (Twice daily)',
-        duration: '5 days',
-        quantity: 10,
-        instructions: 'Take immediately after food with plenty of water',
-      },
-      {
-        id: 'rxi-2',
-        medicineName: 'Ibuprofen + Paracetamol',
-        strength: '400mg / 325mg',
-        dosage: '1 tablet',
-        route: 'Oral',
-        frequency: '1-0-1 (Twice daily)',
-        duration: '3 days',
-        quantity: 6,
-        instructions: 'Take strictly after meals for inflammatory pain',
-      },
-    ],
-  },
-  {
-    id: 'rx-demo-002',
-    patientId: 'pt-1002',
-    doctorId: 'doc-001',
-    prescriptionNumber: 'RX-1002',
-    diagnosis: 'Generalized Chronic Marginal Gingivitis',
-    clinicalNotes: 'Post ultrasonic scaling. Advised soft bristled toothbrush technique.',
-    status: 'DRAFT',
-    prescribedAt: new Date().toISOString(),
-    items: [
-      {
-        id: 'rxi-3',
-        medicineName: 'Chlorhexidine Gluconate Mouthwash',
-        strength: '0.2% w/v',
-        dosage: '10 ml',
-        route: 'Topical Oral Rinse',
-        frequency: '0-1-1 (Twice daily)',
-        duration: '14 days',
-        quantity: 1,
-        instructions: 'Rinse undiluted for 30 seconds after brushing. Avoid food/drink for 30 minutes.',
-      },
-    ],
-  },
-]
 
 export interface EnquiryRecord {
-  id: string
-  name: string
-  phone?: string
-  email?: string
-  request: string
-  status: 'PENDING' | 'CONTACTED' | 'CONVERTED' | 'DISMISSED'
-  notes?: string
-  createdAt: string
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  request: string;
+  status: 'PENDING' | 'CONTACTED' | 'CONVERTED' | 'DISMISSED';
+  notes?: string;
+  createdAt: string;
 }
 
-export const initialEnquiries: EnquiryRecord[] = [
-  { id: 'enq-001', name: 'Ananya Pillai', phone: '+91 98472 33445', request: 'New patient · Cleaning', status: 'PENDING', createdAt: 'Today, 9:42 AM' },
-  { id: 'enq-002', name: 'Vivek Menon', phone: '+91 98460 54321', request: 'Existing patient · Tooth pain', status: 'PENDING', createdAt: 'Today, 9:18 AM' },
-  { id: 'enq-003', name: 'Sara Thomas', phone: '+91 97455 11223', request: 'New patient · Consultation', status: 'PENDING', createdAt: 'Yesterday, 5:36 PM' },
-]
+const initialPatients: PatientRecord[] = [];
+const initialAppointments: AppointmentRecord[] = [];
+const initialToothConditions: ToothCondition[] = [];
+const initialClinicalNotes: ClinicalNoteRecord[] = [];
+const initialInvoices: InvoiceRecord[] = [];
+const initialTreatmentPlans: TreatmentPlanRecord[] = [];
+const initialPatientDocuments: PatientDocumentRecord[] = [];
+const initialPatientConsents: PatientConsentRecord[] = [];
+const initialToothCharts: ClinicToothCharts = {};
+export const initialPrescriptions: PrescriptionRecord[] = [];
+export const initialEnquiries: EnquiryRecord[] = [];
 
 interface StoredClinicSnapshot {
   enquiries?: EnquiryRecord[]
@@ -1686,7 +1113,7 @@ export const resolvePlanDoctor = (
     if (dentistByCat) return dentistByCat.name;
   }
 
-  return DENTISTS[0]?.name || 'Dr. Arun Kumar';
+  return DENTISTS[0]?.name || 'Unassigned';
 };
 
 export const mapRemoteAppointment = (a: any): AppointmentRecord => {
@@ -1696,7 +1123,7 @@ export const mapRemoteAppointment = (a: any): AppointmentRecord => {
     ? a.doctor
     : (a.doctorName && a.doctorName !== 'Unassigned' && isClinicalDoctorName(a.doctorName))
       ? a.doctorName
-      : (dentistByChair ? dentistByChair.name : (a.doctor || 'Dr. Arun Kumar'));
+      : (dentistByChair ? dentistByChair.name : (a.doctor || a.doctorName || 'Unassigned'));
   const existing = appointmentsState.find(
     (entry) => entry.id === a.id || entry.backendId === a.id
   );
@@ -1887,7 +1314,7 @@ export const syncWithBackend = async (): Promise<void> => {
         fileName: d.fileName,
         fileSize: d.fileSize,
         uploadDate: d.uploadDate || d.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
-        doctor: d.doctor || 'Dr. Arun Kumar',
+        doctor: d.doctor || d.doctorName || 'Unassigned',
         url: d.signedUrl || d.previewUrl || d.downloadUrl,
         downloadUrl: d.downloadUrl,
         previewUrl: d.previewUrl,
@@ -2160,6 +1587,7 @@ export const syncWithBackend = async (): Promise<void> => {
         origin: tp.origin,
         stages,
         estimateRevisions,
+        history: tp.history || [],
         patient: tp.patient,
       };
     });
@@ -2168,49 +1596,7 @@ export const syncWithBackend = async (): Promise<void> => {
       ? remoteInvoices.data
       : (Array.isArray(remoteInvoices) ? remoteInvoices : []);
 
-    const mappedInvoices: InvoiceRecord[] = rawInvoicesList.map((inv: any) => ({
-      id: inv.invoiceNumber || inv.id,
-      backendId: inv.id,
-      patientId: inv.patient?.patientCode || inv.patientId,
-      treatmentPlanId: inv.treatmentPlanId || undefined,
-      description:
-        inv.description ||
-        (Array.isArray(inv.items) && inv.items.length > 0
-          ? inv.items.map((i: any) => i.name).join(', ')
-          : 'Dental Treatment'),
-      amount: Number(inv.totalAmount) || 0,
-      subtotal: Number(inv.subtotal) || 0,
-      discountTotal: Number(inv.discountTotal) || 0,
-      taxTotal: Number(inv.taxTotal) || 0,
-      status: toFrontendStatus(inv.status),
-      createdAt: inv.createdAt || new Date().toISOString(),
-      dueDate: inv.dueDate || undefined,
-      appointmentId: inv.appointmentId || undefined,
-      notes: inv.notes || undefined,
-      items: Array.isArray(inv.items)
-        ? inv.items.map((it: any) => ({
-          id: it.id,
-          serviceId: it.serviceTariffId || undefined,
-          treatmentPlanItemId: it.treatmentPlanItemId || undefined,
-          name: it.name,
-          toothNumber: it.toothNumber || undefined,
-          qty: Number(it.quantity) || 1,
-          unitPrice: Number(it.unitPrice) || 0,
-          discount: Number(it.discount) || 0,
-          gstRate: Number(it.gstRate) || 0,
-        }))
-        : [],
-      payments: Array.isArray(inv.payments)
-        ? inv.payments.map((p: any) => ({
-            id: p.id,
-            amount: p.type === 'REFUND' ? -Math.abs(Number(p.amount) || 0) : (Number(p.amount) || 0),
-            mode: toFrontendMode(p.mode) as PaymentMode,
-            reference: p.reference || undefined,
-            receivedAt: p.receivedAt || new Date().toISOString(),
-            type: p.type || 'PAYMENT',
-          }))
-        : [],
-    }));
+    const mappedInvoices: InvoiceRecord[] = rawInvoicesList.map(normalizeBackendInvoice);
 
     const inFlightAppts = appointmentsState.filter(
       (a) => (a as any)._syncing && !mappedAppts.some((m) => matchesAppointmentId(m, a.id) || (a.bookingRef && matchesAppointmentId(m, a.bookingRef)))
@@ -2881,6 +2267,60 @@ export const savePatient = (data: Omit<PatientRecord, 'id' | 'createdAt'>): Pati
 
 // Clinical notes creation moved to end of file (addClinicalNote / saveClinicalNote)
 
+export function normalizeBackendInvoice(inv: BackendInvoice): InvoiceRecord {
+  return {
+      id: inv.invoiceNumber || inv.id,
+      backendId: inv.id,
+      patientId: inv.patient?.patientCode || inv.patientId,
+      treatmentPlanId: inv.treatmentPlanId || undefined,
+      description:
+        inv.description ||
+        (Array.isArray(inv.items) && inv.items.length > 0
+          ? inv.items.map((i: any) => i.name).join(', ')
+          : 'Dental Treatment'),
+      amount: Number(inv.totalAmount) || 0,
+      subtotal: Number(inv.subtotal) || 0,
+      discountTotal: Number(inv.discountTotal) || 0,
+      taxTotal: Number(inv.taxTotal) || 0,
+      status: toFrontendStatus(inv.status),
+      createdAt: inv.createdAt || new Date().toISOString(),
+      dueDate: inv.dueDate || undefined,
+      appointmentId: inv.appointmentId || undefined,
+      notes: inv.notes || undefined,
+      items: Array.isArray(inv.items)
+        ? inv.items.map((it: any) => ({
+          id: it.id,
+          serviceId: it.serviceTariffId || undefined,
+          treatmentPlanItemId: it.treatmentPlanItemId || undefined,
+          name: it.name,
+          toothNumber: it.toothNumber || undefined,
+          qty: Number(it.quantity) || 1,
+          unitPrice: Number(it.unitPrice) || 0,
+          discount: Number(it.discount) || 0,
+          gstRate: Number(it.gstRate) || 0,
+        }))
+        : [],
+      payments: Array.isArray(inv.payments)
+        ? inv.payments.map((p: any) => ({
+            id: p.id,
+            amount: p.type === 'REFUND' ? -Math.abs(Number(p.amount) || 0) : (Number(p.amount) || 0),
+            mode: toFrontendMode(p.mode) as PaymentMode,
+            reference: p.reference || undefined,
+            receivedAt: p.receivedAt || new Date().toISOString(),
+            type: p.type || 'PAYMENT',
+          }))
+        : [],
+
+  };
+}
+
+export function cacheBackendInvoice(invoice: BackendInvoice): InvoiceRecord {
+  const record = normalizeBackendInvoice(invoice);
+  invoicesState = [record, ...invoicesState.filter(i => i.backendId !== record.backendId && i.id !== record.id)];
+  emitChange();
+  return record;
+}
+
 export function createInvoice(details: Omit<InvoiceRecord, 'id' | 'status' | 'createdAt'>) {
   const record: InvoiceRecord = {
     ...details,
@@ -3324,7 +2764,7 @@ export const addTreatmentPlan = (
             unitFee: data.cost,
             discount: 0,
             netFee: data.cost,
-            status: (it as any).status || 'PENDING',
+            status: 'PENDING',
           },
         ],
       },
@@ -3377,8 +2817,6 @@ export const createStructuredTreatmentPlan = async (
     doctorId?: string;
     doctorName?: string;
     title: string;
-    doctorId?: string;
-    doctorName?: string;
     notes?: string;
     taxRate?: number;
     stages: {
@@ -3558,6 +2996,7 @@ export const updateStructuredTreatmentPlan = async (
 ): Promise<TreatmentPlanRecord | null> => {
   const plan = treatmentPlansState.find((p) => p.id === id || p.backendId === id);
   if (!plan) return null;
+  const previousPlan: TreatmentPlanRecord = JSON.parse(JSON.stringify(plan));
 
   let subtotal = plan.subtotal || plan.cost;
   let totalDiscount = plan.discount || 0;
@@ -3654,7 +3093,9 @@ export const updateStructuredTreatmentPlan = async (
       });
     }
   } catch (err) {
-    console.warn('[clinicStore] updateStructuredTreatmentPlan backend error:', err);
+    treatmentPlansState = treatmentPlansState.map(p => p === plan ? previousPlan : p);
+    emitChange();
+    throw err;
   }
 
   return plan;
@@ -3702,6 +3143,19 @@ export const updateTreatmentPlanStatus = (
   } catch { /* ignore */ }
 
   return true
+}
+
+export async function cancelTreatmentPlan(id: string, reason: string): Promise<boolean> {
+  if (!reason.trim()) throw new Error('A cancellation reason is required.');
+  const plan = treatmentPlansState.find(p => p.id === id || p.backendId === id);
+  if (!plan) throw new Error('Treatment plan not found.');
+  if (hasAuthToken()) {
+    await apiClient.patch(`/treatment-plans/${plan.backendId || plan.id}/status`, { status: 'CANCELLED', reason: reason.trim() });
+  }
+  plan.status = 'Cancelled';
+  treatmentPlansState = [...treatmentPlansState];
+  emitChange();
+  return true;
 }
 
 export const recordTreatmentPlanAcceptance = async (
@@ -3782,6 +3236,7 @@ export const updateTreatmentPlanItemStatus = async (
 ): Promise<boolean> => {
   const plan = treatmentPlansState.find((p) => p.id === planId || p.backendId === planId || p.planNumber === planId);
   if (!plan || !plan.stages) return false;
+  const previousPlan: TreatmentPlanRecord = JSON.parse(JSON.stringify(plan));
 
   plan.stages = plan.stages.map((stage) => {
     const updatedItems = (stage.items || []).map((it) => {
@@ -3824,7 +3279,9 @@ export const updateTreatmentPlanItemStatus = async (
       await apiClient.patch(`/treatment-plans/${targetId}/items/${itemId}`, { status, notes });
     }
   } catch (err) {
-    console.warn('[clinicStore] updateTreatmentPlanItemStatus failed on backend:', err);
+    treatmentPlansState = treatmentPlansState.map(p => p === plan ? previousPlan : p);
+    emitChange();
+    throw err;
   }
 
   return true;

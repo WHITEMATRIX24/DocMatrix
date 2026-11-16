@@ -11,9 +11,11 @@ import PrivacySettingsPage from '@/pages/settings/PrivacySettingsPage'
 import DataExchangePage from '@/pages/settings/DataExchangePage'
 import ActivityLogPage from '@/pages/settings/ActivityLogPage'
 import PlanSubscriptionPage from '@/pages/settings/PlanSubscriptionPage'
+import { apiClient } from '@/services/apiClient'
 
 describe('DocMatrix — Complete Settings & Configuration Module Suite', () => {
   beforeEach(() => {
+    vi.restoreAllMocks()
     localStorage.clear()
     sessionStorage.clear()
     vi.clearAllMocks()
@@ -40,6 +42,7 @@ describe('DocMatrix — Complete Settings & Configuration Module Suite', () => {
   })
 
   it('2. StaffManagementPage renders practitioner team, search, role filters, and add modal', async () => {
+    vi.spyOn(apiClient, 'get').mockImplementation(async path => path.endsWith('/roles') ? [{ value: 'DOCTOR', label: 'Dentist / Practitioner' }] : [])
     render(
       <MemoryRouter>
         <StaffManagementPage />
@@ -51,10 +54,11 @@ describe('DocMatrix — Complete Settings & Configuration Module Suite', () => {
 
     const addStaffBtn = screen.getByRole('button', { name: /Add Staff Member/i })
     expect(addStaffBtn).toBeInTheDocument()
+    await waitFor(() => expect(addStaffBtn).toBeEnabled())
     fireEvent.click(addStaffBtn)
 
     expect(screen.getByRole('heading', { name: /Add New Staff Member/i })).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/Minimum 8 characters/i)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Minimum 12 characters/i)).toBeInTheDocument()
   })
 
   it('3. ClinicalConfigPage renders master picklists, tabs, and custom item creation', async () => {

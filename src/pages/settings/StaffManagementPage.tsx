@@ -4,30 +4,25 @@ import {
   CheckCircle2, AlertCircle, Edit2, Trash2, Power, X, RefreshCw
 } from 'lucide-react'
 import { apiClient } from '@/services/apiClient'
-import { isDemoSession } from '@/services/clinicStore'
+import type { StaffRole } from '@/mocks/auth'
+import { cacheClinicStaff, getStaffClinicId } from '@/services/clinicStaffStore'
 
 interface StaffMember {
   id: string
   fullName: string
   email: string
   phone?: string
-  role: 'ORGANIZATION_ADMIN' | 'BRANCH_ADMIN' | 'DOCTOR' | 'RECEPTIONIST' | 'ACCOUNTANT' | 'STAFF' | 'NURSE'
+  role: StaffRole
   isActive: boolean
   isPrimaryContact?: boolean
   createdAt?: string
 }
 
-const ROLES = [
-  { value: 'ORGANIZATION_ADMIN', label: 'Organization Admin' },
-  { value: 'BRANCH_ADMIN', label: 'Branch Admin' },
-  { value: 'DOCTOR', label: 'Dentist / Practitioner' },
-  { value: 'RECEPTIONIST', label: 'Front Desk / Reception' },
-  { value: 'ACCOUNTANT', label: 'Billing / Accountant' },
-  { value: 'NURSE', label: 'Dental Assistant / Staff' }
-]
+interface AssignableRole { value: StaffRole; label: string }
 
 export const StaffManagementPage: React.FC = () => {
   const [staff, setStaff] = useState<StaffMember[]>([])
+  const [assignableRoles, setAssignableRoles] = useState<AssignableRole[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedRole, setSelectedRole] = useState<string>('ALL')
@@ -56,45 +51,23 @@ export const StaffManagementPage: React.FC = () => {
 
   // Fetch staff list
   const fetchStaff = async () => {
+    const clinicId = getStaffClinicId()
     try {
       setLoading(true)
-      const res = await apiClient.get<StaffMember[]>('/clinics/my-clinic/staff')
+      const [res, roles] = await Promise.all([
+        apiClient.get<StaffMember[]>('/clinics/my-clinic/staff'),
+        apiClient.get<AssignableRole[]>('/clinics/my-clinic/staff/roles')
+      ])
+      if (clinicId !== getStaffClinicId()) return
+      setAssignableRoles(Array.isArray(roles) ? roles : [])
       if (Array.isArray(res)) {
         setStaff(res)
+        cacheClinicStaff(res, clinicId)
       }
-    } catch {
-      if (isDemoSession()) {
-        // Fallback sample data strictly in offline demo session
-        setStaff([
-          {
-            id: 'staff-1',
-            fullName: 'Dr. Arun Kumar',
-            email: 'arun@docmatrix.dental',
-            phone: '+91 98765 00001',
-            role: 'ORGANIZATION_ADMIN',
-            isActive: true,
-            isPrimaryContact: true
-          },
-          {
-            id: 'staff-2',
-            fullName: 'Dr. Neha Sharma',
-            email: 'neha.sharma@docmatrix.dental',
-            phone: '+91 98765 00002',
-            role: 'DOCTOR',
-            isActive: true
-          },
-          {
-            id: 'staff-3',
-            fullName: 'Priya Verma',
-            email: 'priya.reception@docmatrix.dental',
-            phone: '+91 98765 00003',
-            role: 'RECEPTIONIST',
-            isActive: true
-          }
-        ])
-      } else {
-        setStaff([])
-      }
+    } catch (err: any) {
+      setStaff([])
+      setAssignableRoles([])
+      setFeedback({ type: 'error', message: err?.message || 'Could not load staff management. Please retry.' })
     } finally {
       setLoading(false)
     }
@@ -104,17 +77,24 @@ export const StaffManagementPage: React.FC = () => {
     fetchStaff()
   }, [])
 
+  const closeAddModal = () => {
+    setShowAddModal(false)
+    setFormData({ fullName: '', email: '', phone: '', role: 'DOCTOR', password: '' })
+  }
+  const canManageMember = (member: StaffMember) => assignableRoles.some(r => r.value === member.role)
+  const roleFilters = [...new Set(staff.map(s => s.role).concat(assignableRoles.map(r => r.value)))]
+
   const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (submitting || !assignableRoles.some(r => r.value === formData.role)) return
     setSubmitting(true)
     setFeedback(null)
 
     try {
       const res = await apiClient.post<StaffMember>('/clinics/my-clinic/staff', formData)
-      setShowAddModal(false)
-      setFormData({ fullName: '', email: '', phone: '', role: 'DOCTOR', password: '' })
+      closeAddModal()
       setFeedback({ type: 'success', message: `Staff member "${formData.fullName}" added successfully.` })
-      fetchStaff()
+      await fetchStaff()
     } catch (err: any) {
       setFeedback({
         type: 'error',
@@ -136,7 +116,7 @@ export const StaffManagementPage: React.FC = () => {
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!editingStaff) return
+    if (!editingStaff || submitting || !canManageMember(editingStaff)) return
     setSubmitting(true)
     setFeedback(null)
 
@@ -144,7 +124,7 @@ export const StaffManagementPage: React.FC = () => {
       await apiClient.patch(`/clinics/my-clinic/staff/${editingStaff.id}`, editFormData)
       setEditingStaff(null)
       setFeedback({ type: 'success', message: 'Staff member details updated successfully.' })
-      fetchStaff()
+      await fetchStaff()
     } catch (err: any) {
       setFeedback({
         type: 'error',
@@ -156,6 +136,7 @@ export const StaffManagementPage: React.FC = () => {
   }
 
   const handleToggleActive = async (member: StaffMember) => {
+    if (actionLoadingId || !canManageMember(member)) return
     if (member.isPrimaryContact) {
       setFeedback({ type: 'error', message: 'Cannot deactivate the primary clinic owner account.' })
       return
@@ -170,7 +151,7 @@ export const StaffManagementPage: React.FC = () => {
         type: 'success',
         message: `Staff member ${member.fullName} marked as ${!member.isActive ? 'Active' : 'Inactive'}.`
       })
-      fetchStaff()
+      await fetchStaff()
     } catch (err: any) {
       setFeedback({ type: 'error', message: err?.message || 'Failed to change staff active status.' })
     } finally {
@@ -179,6 +160,7 @@ export const StaffManagementPage: React.FC = () => {
   }
 
   const handleDeleteStaff = async (member: StaffMember) => {
+    if (actionLoadingId || !canManageMember(member)) return
     if (member.isPrimaryContact) {
       setFeedback({ type: 'error', message: 'The primary clinic owner account cannot be deleted.' })
       return
@@ -190,8 +172,8 @@ export const StaffManagementPage: React.FC = () => {
     try {
       setActionLoadingId(member.id)
       await apiClient.delete(`/clinics/my-clinic/staff/${member.id}`)
-      setFeedback({ type: 'success', message: `Staff member ${member.fullName} removed successfully.` })
-      fetchStaff()
+      setFeedback({ type: 'success', message: `Access removed for ${member.fullName}. Historical records are retained.` })
+      await fetchStaff()
     } catch (err: any) {
       setFeedback({ type: 'error', message: err?.message || 'Failed to delete staff member.' })
     } finally {
@@ -235,6 +217,7 @@ export const StaffManagementPage: React.FC = () => {
 
         <button
           type="button"
+          disabled={loading || !assignableRoles.length || submitting}
           onClick={() => setShowAddModal(true)}
           style={{
             display: 'inline-flex',
@@ -256,7 +239,7 @@ export const StaffManagementPage: React.FC = () => {
       </header>
 
       {feedback && (
-        <div style={{
+        <div role={feedback.type === 'error' ? 'alert' : 'status'} style={{
           padding: '12px 16px',
           borderRadius: '8px',
           marginBottom: '20px',
@@ -270,6 +253,7 @@ export const StaffManagementPage: React.FC = () => {
         }}>
           {feedback.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
           <span>{feedback.message}</span>
+          {feedback.type === 'error' && <button type="button" onClick={fetchStaff}>Reload staff</button>}
         </div>
       )}
 
@@ -313,8 +297,8 @@ export const StaffManagementPage: React.FC = () => {
               }}
             >
               <option value="ALL">All Roles ({staff.length})</option>
-              {ROLES.map(r => (
-                <option key={r.value} value={r.value}>{r.label}</option>
+              {roleFilters.map(role => (
+                <option key={role} value={role}>{assignableRoles.find(r => r.value === role)?.label || role.replace(/_/g, ' ')}</option>
               ))}
             </select>
           </div>
@@ -402,7 +386,7 @@ export const StaffManagementPage: React.FC = () => {
                       fontWeight: 600
                     }}>
                       <Shield size={12} />
-                      {member.role === 'NURSE' || member.role === 'STAFF' ? 'Dental Assistant' : member.role.replace('_', ' ')}
+                      {member.role === 'NURSE' ? 'Dental Assistant' : member.role.replace(/_/g, ' ')}
                     </span>
                   </td>
                   <td style={{ padding: '14px 18px' }}>
@@ -432,6 +416,7 @@ export const StaffManagementPage: React.FC = () => {
                       <button
                         type="button"
                         title="Edit details"
+                        disabled={!canManageMember(member) || Boolean(actionLoadingId) || submitting}
                         onClick={() => handleStartEdit(member)}
                         style={{
                           padding: '6px',
@@ -445,12 +430,12 @@ export const StaffManagementPage: React.FC = () => {
                         <Edit2 size={14} />
                       </button>
 
-                      {!member.isPrimaryContact && (
+                      {!member.isPrimaryContact && canManageMember(member) && (
                         <>
                           <button
                             type="button"
                             title={member.isActive ? 'Deactivate staff' : 'Activate staff'}
-                            disabled={actionLoadingId === member.id}
+                            disabled={Boolean(actionLoadingId) || submitting}
                             onClick={() => handleToggleActive(member)}
                             style={{
                               padding: '6px',
@@ -467,7 +452,7 @@ export const StaffManagementPage: React.FC = () => {
                           <button
                             type="button"
                             title="Remove staff member"
-                            disabled={actionLoadingId === member.id}
+                            disabled={Boolean(actionLoadingId) || submitting}
                             onClick={() => handleDeleteStaff(member)}
                             style={{
                               padding: '6px',
@@ -522,14 +507,15 @@ export const StaffManagementPage: React.FC = () => {
               </h2>
               <button
                 type="button"
-                onClick={() => setShowAddModal(false)}
+                onClick={closeAddModal}
+                disabled={submitting}
                 style={{ background: 'transparent', border: 'none', color: 'var(--text-muted, #94a3b8)', cursor: 'pointer' }}
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleAddStaff} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <form role="dialog" aria-label="Add staff member" onSubmit={handleAddStaff} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
                   Full Name *
@@ -538,6 +524,8 @@ export const StaffManagementPage: React.FC = () => {
                   type="text"
                   required
                   placeholder="e.g. Dr. Kavitha Rajan"
+                  aria-label="Full name"
+                  maxLength={150}
                   value={formData.fullName}
                   onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
@@ -552,6 +540,9 @@ export const StaffManagementPage: React.FC = () => {
                   type="email"
                   required
                   placeholder="doctor@docmatrix.com"
+                  aria-label="Email"
+                  autoComplete="off"
+                  maxLength={254}
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
@@ -560,12 +551,16 @@ export const StaffManagementPage: React.FC = () => {
 
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
-                  Temporary Password *
+                  Initial Password *
                 </label>
                 <input
                   type="password"
                   required
-                  placeholder="Minimum 8 characters"
+                  placeholder="Minimum 12 characters"
+                  aria-label="Initial password"
+                  autoComplete="new-password"
+                  minLength={12}
+                  maxLength={72}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
@@ -591,10 +586,11 @@ export const StaffManagementPage: React.FC = () => {
                 </label>
                 <select
                   value={formData.role}
+                  aria-label="Staff role"
                   onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
                 >
-                  {ROLES.map(r => (
+                  {assignableRoles.map(r => (
                     <option key={r.value} value={r.value}>{r.label}</option>
                   ))}
                 </select>
@@ -603,14 +599,15 @@ export const StaffManagementPage: React.FC = () => {
               <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={closeAddModal}
+                  disabled={submitting}
                   style={{ flex: 1, padding: '9px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken, #f8fafc)', color: 'var(--text-strong, #475569)', cursor: 'pointer' }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || !assignableRoles.some(r => r.value === formData.role)}
                   style={{ flex: 1, padding: '9px', borderRadius: '6px', border: 'none', background: 'var(--teal-primary, #008891)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
                 >
                   {submitting ? 'Creating...' : 'Create Account'}
@@ -659,7 +656,7 @@ export const StaffManagementPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <form role="dialog" aria-label="Edit staff member" onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
                   Full Name *
@@ -668,6 +665,8 @@ export const StaffManagementPage: React.FC = () => {
                   type="text"
                   required
                   value={editFormData.fullName}
+                  aria-label="Full name"
+                  maxLength={150}
                   onChange={(e) => setEditFormData({ ...editFormData, fullName: e.target.value })}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
                 />
@@ -691,11 +690,12 @@ export const StaffManagementPage: React.FC = () => {
                 </label>
                 <select
                   disabled={editingStaff.isPrimaryContact}
+                  aria-label="Staff role"
                   value={editFormData.role}
                   onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value as any })}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
                 >
-                  {ROLES.map(r => (
+                  {assignableRoles.map(r => (
                     <option key={r.value} value={r.value}>{r.label}</option>
                   ))}
                 </select>

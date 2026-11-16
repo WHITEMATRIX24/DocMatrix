@@ -9,6 +9,7 @@ import { clearClinicStore, initClinicSession } from './clinicStore';
 import { clearInventoryStore, initInventorySession } from './adaptiveInventoryStore';
 import { clearClinicStaffStore, fetchAndSyncClinicStaff } from './clinicStaffStore';
 import { clearBillingStore, initBillingSession } from './billingStore';
+import { notifyAuthSessionChanged } from './authSession';
 
 export function clearAllClinicStores() {
   try { clearClinicStore(); } catch {}
@@ -34,7 +35,7 @@ export const DEMO_CREDENTIALS = {
 const DEMO_USERS = {
   'demo@docmatrix.com': {
     id: 'usr-101',
-    name: 'Dr. Arun Kumar (Demo Admin)',
+    name: 'Clinic Administrator',
     email: 'demo@docmatrix.com',
     role: 'ORGANIZATION_ADMIN',
     clinicName: 'Demo Dental Clinic',
@@ -150,10 +151,28 @@ export async function login(email, password, rememberMe = false) {
 }
 
 /**
- * Register a new clinic and primary owner
- * @param {object} formData
- * @returns {Promise<{ user: object, token: string }>}
+ * Authenticate through the platform-only backend login without demo fallback
+ * or initializing tenant stores.
  */
+export async function loginPlatformAdmin(email, password) {
+  const res = await apiClient.post('/auth/platform-login', { email: email.trim().toLowerCase(), password });
+  if (!res?.token || res?.user?.isPlatformAdmin !== true) {
+    throw Object.assign(new Error('Platform administrator access is required.'), { status: 403 });
+  }
+  clearAllClinicStores();
+  for (const storage of [localStorage, sessionStorage]) {
+    storage.removeItem(STORAGE_KEYS.TOKEN);
+    storage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+    storage.removeItem(STORAGE_KEYS.USER);
+  }
+  sessionStorage.removeItem(STORAGE_KEYS.LEGACY_SESSION);
+  sessionStorage.setItem(STORAGE_KEYS.TOKEN, res.token);
+  sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.user));
+  notifyAuthSessionChanged();
+  return res.user;
+}
+
+/** Register a new clinic and primary owner. */
 export async function registerClinic(formData) {
   try {
     const res = await apiClient.post('/auth/register-clinic', {
@@ -223,12 +242,28 @@ export async function restoreSession() {
 
   try {
     const res = await apiClient.get('/auth/me');
+    const activeToken = sessionStorage.getItem(STORAGE_KEYS.TOKEN) || localStorage.getItem(STORAGE_KEYS.TOKEN);
+    if (activeToken !== token) return getCurrentUser();
     if (res?.id) {
       const storage = localStorage.getItem(STORAGE_KEYS.TOKEN) ? localStorage : sessionStorage;
       storage.setItem(STORAGE_KEYS.USER, JSON.stringify(res));
+      notifyAuthSessionChanged();
       return res;
     }
-  } catch {
+  } catch (error) {
+    const activeToken = sessionStorage.getItem(STORAGE_KEYS.TOKEN) || localStorage.getItem(STORAGE_KEYS.TOKEN);
+    if (activeToken !== token) return getCurrentUser();
+    if (error?.status === 401 || error?.status === 403) {
+      clearAllClinicStores();
+      for (const storage of [localStorage, sessionStorage]) {
+        storage.removeItem(STORAGE_KEYS.TOKEN);
+        storage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+        storage.removeItem(STORAGE_KEYS.USER);
+      }
+      sessionStorage.removeItem(STORAGE_KEYS.LEGACY_SESSION);
+      notifyAuthSessionChanged();
+      return null;
+    }
     // Return cached user if offline
   }
 
@@ -273,9 +308,9 @@ export async function requestPasswordReset(email) {
  * Log out and clear all stored credentials
  */
 export async function logout() {
-  try {
-    await apiClient.post('/auth/logout', {});
-  } catch {}
+  // Start revocation while the bearer token is available, then clear local
+  // credentials immediately even if the server is slow or unavailable.
+  const revocation = apiClient.post('/auth/logout', {}).catch(() => {});
 
   clearAllClinicStores();
   localStorage.removeItem(STORAGE_KEYS.TOKEN);
@@ -285,6 +320,8 @@ export async function logout() {
   sessionStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
   sessionStorage.removeItem(STORAGE_KEYS.USER);
   sessionStorage.removeItem(STORAGE_KEYS.LEGACY_SESSION);
+  notifyAuthSessionChanged();
+  await revocation;
 }
 
 /**
@@ -297,6 +334,7 @@ export async function refreshAccessToken() {
     storage.setItem(STORAGE_KEYS.TOKEN, res.token);
     if (res.user) {
       storage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.user));
+      notifyAuthSessionChanged();
     }
     return res.token;
   }

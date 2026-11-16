@@ -304,7 +304,7 @@ export const reportsApi = {
   },
 
   getRevenueReport: async (fromOrParams?: string | ReportQueryParams, to?: string): Promise<any> => {
-    const params = typeof fromOrParams === 'string' ? { fromDate: fromOrParams, toDate: to, from: fromOrParams, to } : fromOrParams
+    const params = typeof fromOrParams === 'string' ? { fromDate: fromOrParams, toDate: to } : fromOrParams
     return apiClient.get<BackendRevenueReportResponse>(
       '/reports/revenue',
       params as Record<string, string | number | boolean | undefined>
@@ -319,7 +319,7 @@ export const reportsApi = {
   },
 
   getDoctorPerformance: async (fromOrParams?: string | ReportQueryParams, to?: string): Promise<any> => {
-    const params = typeof fromOrParams === 'string' ? { fromDate: fromOrParams, toDate: to, from: fromOrParams, to } : fromOrParams
+    const params = typeof fromOrParams === 'string' ? { fromDate: fromOrParams, toDate: to } : fromOrParams
     return apiClient.get(
       '/reports/doctors',
       params as Record<string, string | number | boolean | undefined>
@@ -334,7 +334,7 @@ export const reportsApi = {
   },
 
   getTreatmentBreakdown: async (fromOrParams?: string | ReportQueryParams, to?: string): Promise<any> => {
-    const params = typeof fromOrParams === 'string' ? { fromDate: fromOrParams, toDate: to, from: fromOrParams, to } : fromOrParams
+    const params = typeof fromOrParams === 'string' ? { fromDate: fromOrParams, toDate: to } : fromOrParams
     return apiClient.get(
       '/reports/treatments',
       params as Record<string, string | number | boolean | undefined>
@@ -349,7 +349,7 @@ export const reportsApi = {
   },
 
   getFollowUps: async (fromOrParams?: string | ReportQueryParams, to?: string): Promise<any> => {
-    const params = typeof fromOrParams === 'string' ? { fromDate: fromOrParams, toDate: to, from: fromOrParams, to } : fromOrParams
+    const params = typeof fromOrParams === 'string' ? { fromDate: fromOrParams, toDate: to } : fromOrParams
     return apiClient.get(
       '/reports/follow-ups',
       params as Record<string, string | number | boolean | undefined>

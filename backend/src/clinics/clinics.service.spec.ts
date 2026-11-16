@@ -8,6 +8,7 @@ describe('ClinicsService', () => {
   let mockPrisma: any;
 
   const mockClinicId = 'clinic-uuid-1';
+  const owner: any = { id: 'owner-id', clinicId: mockClinicId, role: StaffRole.ORGANIZATION_ADMIN, fullName: 'Owner' };
 
   beforeEach(() => {
     mockPrisma = {
@@ -48,7 +49,9 @@ describe('ClinicsService', () => {
       },
     };
 
-    service = new ClinicsService(mockPrisma);
+    mockPrisma.userSession = { updateMany: vi.fn().mockResolvedValue({ count: 1 }) };
+    mockPrisma.$transaction = vi.fn((fn: any) => fn(mockPrisma));
+    service = new ClinicsService(mockPrisma, { recordEvent: vi.fn() } as any);
   });
 
   describe('getClinic & updateClinic', () => {
@@ -124,7 +127,7 @@ describe('ClinicsService', () => {
         email: 'dr.neha@example.com',
         password: 'Password123!',
         role: StaffRole.DOCTOR,
-      });
+      }, owner);
 
       expect(newStaff.fullName).toBe('Dr. Neha Verma');
       expect(mockPrisma.user.create).toHaveBeenCalled();
@@ -138,7 +141,7 @@ describe('ClinicsService', () => {
       });
 
       await expect(
-        service.updateStaff(mockClinicId, 'owner-id', { isActive: false }),
+        service.updateStaff(mockClinicId, 'owner-id', { isActive: false }, owner),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -151,7 +154,7 @@ describe('ClinicsService', () => {
       });
 
       await expect(
-        service.updateStaff(mockClinicId, 'owner-id', { role: StaffRole.DOCTOR }),
+        service.updateStaff(mockClinicId, 'owner-id', { role: StaffRole.DOCTOR }, owner),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -170,7 +173,7 @@ describe('ClinicsService', () => {
       const res = await service.updateStaff(mockClinicId, 'staff-2', {
         role: StaffRole.BRANCH_ADMIN,
         isActive: false,
-      });
+      }, owner);
 
       expect(res.role).toBe(StaffRole.BRANCH_ADMIN);
       expect(res.isActive).toBe(false);

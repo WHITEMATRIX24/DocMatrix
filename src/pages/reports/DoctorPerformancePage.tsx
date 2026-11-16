@@ -15,7 +15,6 @@ import {
   useReportRange
 } from './ReportsShared'
 import { computePeriod } from './reportMetrics'
-import { reportsApi, type DoctorPerformanceResponse } from '@/services/reportsApi'
 
 type SortKey = 'name' | 'completed' | 'patients' | 'missed' | 'pending'
 

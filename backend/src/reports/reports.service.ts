@@ -121,11 +121,14 @@ export class ReportsService {
     const today = todayOverride || this.localDate();
     let span: DateSpan;
 
-    if (query.fromDate && query.toDate) {
+    const fromDate = query.fromDate || query.from;
+    const toDate = query.toDate || query.to;
+
+    if (fromDate && toDate) {
       span =
-        query.fromDate <= query.toDate
-          ? { from: query.fromDate, to: query.toDate }
-          : { from: query.toDate, to: query.fromDate };
+        fromDate <= toDate
+          ? { from: fromDate, to: toDate }
+          : { from: toDate, to: fromDate };
     } else {
       switch (query.range) {
         case 'today':

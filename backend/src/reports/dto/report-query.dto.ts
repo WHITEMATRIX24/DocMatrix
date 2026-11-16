@@ -10,6 +10,14 @@ export class ReportQueryDto {
   toDate?: string;
 
   @IsOptional()
+  @IsString()
+  from?: string;
+
+  @IsOptional()
+  @IsString()
+  to?: string;
+
+  @IsOptional()
   @IsIn(['today', '7d', 'month', '90d', 'year', 'custom'])
   range?: 'today' | '7d' | 'month' | '90d' | 'year' | 'custom';
 

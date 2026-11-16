@@ -25,7 +25,7 @@ export const MOCK_VALID_OTP = '123456'
 export const DEMO_USERS: Record<StaffRole, DemoUser> = {
   ORGANIZATION_ADMIN: {
     id: 'usr-101',
-    name: 'Dr. Arun Kumar (Owner)',
+    name: 'Clinic Owner',
     role: 'ORGANIZATION_ADMIN',
     phone: '+910000000101',
     email: 'admin@docmatrix.com',

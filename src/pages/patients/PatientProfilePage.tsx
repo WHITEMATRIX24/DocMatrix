@@ -674,7 +674,7 @@ export const PatientProfilePage: React.FC = () => {
       patientId: patient.id,
       consentType: consentType.trim(),
       status: consentStatus,
-      recordedBy: 'Dr. Arun Kumar',
+      recordedBy: 'Attending Doctor',
       documentRef: `DMX-CNS-${Date.now().toString().slice(-6)}`,
       notes: consentNotes.trim() || undefined
     })
@@ -1961,7 +1961,7 @@ export const PatientProfilePage: React.FC = () => {
                               })}
                             </td>
                             <td>
-                              <div className="rx-doctor-name">{rx.doctor?.fullName || 'Dr. Arun Kumar'}</div>
+                              <div className="rx-doctor-name">{rx.doctor?.fullName || (rx as any).doctorName || 'Attending Doctor'}</div>
                               <div className="rx-doctor-role">Dental Surgeon</div>
                             </td>
                             <td className="rx-diagnosis-cell">

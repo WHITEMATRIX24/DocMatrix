@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException, Inject, Optional } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ForbiddenException, ConflictException, BadRequestException, Inject, Optional } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
@@ -95,7 +95,7 @@ export class AuthService {
     return result;
   }
 
-  async login(loginDto: LoginDto, meta?: { userAgent?: string; ipAddress?: string }) {
+  async login(loginDto: LoginDto, meta?: { userAgent?: string; ipAddress?: string }, platformAdminOnly = false) {
     const user = await this.validateUser(loginDto.email, loginDto.password);
     if (!user) {
       if (this.rateLimiter) {
@@ -117,6 +117,12 @@ export class AuthService {
         );
       }
       throw new UnauthorizedException('Invalid email or password.');
+    }
+
+    if (platformAdminOnly && user.isPlatformAdmin !== true) {
+      this.logSecurityEvent(user.clinicId, 'PLATFORM_LOGIN_DENIED', user.fullName, user.role,
+        'Platform login denied: account is not a platform administrator.', 'warn');
+      throw new ForbiddenException('Platform administrator access is required.');
     }
 
     if (this.rateLimiter) {

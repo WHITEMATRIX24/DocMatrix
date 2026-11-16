@@ -114,7 +114,7 @@ export const PrescriptionPrintModal: React.FC<PrescriptionPrintModalProps> = ({
           <div className="rx-meta-banner" style={{ marginBottom: '20px' }}>
             <div className="rx-meta-item">
               <h5>Prescribing Practitioner</h5>
-              <p>{doctor?.fullName || 'Dr. Arun Kumar'}</p>
+              <p>{doctor?.fullName || 'Attending Doctor'}</p>
               <p className="rx-meta-sub">Dental Surgeon & Clinical Consultant</p>
               <p className="rx-meta-sub">Practitioner ID: {doctor?.id?.slice(0, 8) || 'DOC-REG'}</p>
             </div>

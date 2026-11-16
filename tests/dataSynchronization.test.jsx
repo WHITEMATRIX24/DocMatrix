@@ -337,7 +337,8 @@ describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
     expect(getClinicSnapshot().patients).toHaveLength(1);
 
     // Call logout
-    logout();
+    vi.spyOn(apiClient, 'post').mockResolvedValue({ success: true });
+    await logout();
 
     expect(sessionStorage.getItem(STORAGE_KEYS.TOKEN)).toBeNull();
     expect(sessionStorage.getItem(STORAGE_KEYS.USER)).toBeNull();

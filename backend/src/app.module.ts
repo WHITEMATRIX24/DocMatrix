@@ -18,10 +18,12 @@ import { BillingModule } from './billing/billing.module.js';
 import { StorageModule } from './storage/storage.module.js';
 import { ReportsModule } from './reports/reports.module.js';
 import { CommonModule } from './common/common.module.js';
+import { PlatformAdminModule } from './platform-admin/platform-admin.module.js';
 
 @Module({
   imports: [
     CommonModule,
+    PlatformAdminModule,
     PrismaModule,
     AuthModule,
     ClinicsModule,

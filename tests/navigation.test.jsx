@@ -486,10 +486,10 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
     })
   })
 
-  // 20. STATIC CODE AUDIT (Zero network calls and no dead navigation handlers)
-  it('ensures src/ contains NO prohibited network APIs and no dead navigation code', () => {
+  // API integration is supported; transport belongs in the central API client.
+  it('keeps direct network transports in the central API client', () => {
     const srcDir = path.resolve(__dirname, '../src')
-    const prohibitedAPIs = ['fetch(', 'XMLHttpRequest', 'axios', 'new WebSocket', 'new EventSource', 'sendBeacon(']
+    const directTransports = [/\bfetch\s*\(/, /new\s+XMLHttpRequest\b/, /\baxios\s*[.(]/, /new\s+WebSocket\b/, /new\s+EventSource\b/, /\bsendBeacon\s*\(/]
 
     function scanFiles(dir) {
       const entries = fs.readdirSync(dir, { withFileTypes: true })
@@ -499,8 +499,10 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
           scanFiles(fullPath)
         } else if (/\.(jsx?|tsx?)$/.test(entry.name)) {
           const content = fs.readFileSync(fullPath, 'utf-8')
-          for (const api of prohibitedAPIs) {
-            expect(content.includes(api)).toBe(false)
+          for (const api of directTransports) {
+            if (fullPath !== path.join(srcDir, 'services', 'apiClient.ts')) {
+              expect(content, `Direct transport outside apiClient: ${fullPath}`).not.toMatch(api)
+            }
           }
         }
       }

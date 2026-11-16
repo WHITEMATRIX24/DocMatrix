@@ -38,7 +38,7 @@ export class RolesGuard implements CanActivate {
     }
 
     if (isPlatformAdminOnly) {
-      if (!user.isPlatformAdmin) {
+      if (user.isPlatformAdmin !== true) {
         throw new ForbiddenException('Access restricted to DocMatrix Platform Administrators.');
       }
       return true;

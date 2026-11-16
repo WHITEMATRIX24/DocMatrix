@@ -296,7 +296,7 @@ export const PrescriptionsPage: React.FC = () => {
                       {/* Doctor Info */}
                       <td>
                         <div className="rx-doctor-name">
-                          {rx.doctor?.fullName || 'Dr. Arun Kumar'}
+                          {rx.doctor?.fullName || 'Attending Doctor'}
                         </div>
                         <div className="rx-doctor-role">Dental Surgeon</div>
                       </td>

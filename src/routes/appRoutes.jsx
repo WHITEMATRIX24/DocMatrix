@@ -21,6 +21,7 @@ import Hero38 from '@/components/originkit/hero-38'
 // Lazy-load all launch feature components
 const AppointmentDetailsPage = lazy(() => import('@/pages/appointments/AppointmentDetailsPage'))
 const BillingOverviewPage = lazy(() => import('@/pages/billing/BillingOverviewPage'))
+const PlatformAdminPage = lazy(() => import('@/pages/admin/PlatformAdminPage'))
 const REMOVED_BILLING_PAGES = new Set(['bill.price-list', 'bill.expenses'])
 // Income vs expense was dropped (expenses are no longer tracked); Booking conversion merged into Follow-ups
 const MOVED_REPORT_PAGES = { 'rep.income-expense': '/reports', 'rep.conversion': '/reports/follow-ups' }
@@ -68,6 +69,8 @@ export function AppRoutes({
 }) {
   return (
     <Routes>
+      <Route path="/admin" element={<Suspense fallback={<PageFallback />}><PlatformAdminPage /></Suspense>} />
+      <Route path="/admin/*" element={<Navigate to="/admin" replace />} />
       {/* 1. Public Landing Page */}
       <Route path="/" element={renderLandingPage()} />
 

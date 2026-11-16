@@ -57,10 +57,10 @@ export const TreatmentMaterialUsageModal: React.FC<TreatmentMaterialUsageModalPr
   onClose,
   procedureId = 'trt-root-canal',
   procedureName = 'Root Canal Treatment',
-  patientId = 'pt-1001',
-  patientName = 'Meera Nambiar',
-  doctorId = 'doc-2',
-  doctorName = 'Dr. Priya Nair',
+  patientId = '',
+  patientName = 'Patient',
+  doctorId = '',
+  doctorName = 'Attending Doctor',
   appointmentId,
   treatmentId,
   onConfirmed
@@ -241,12 +241,6 @@ export const TreatmentMaterialUsageModal: React.FC<TreatmentMaterialUsageModalPr
     }
     if (selectedMode === 'manual') {
       return 'Manual Entry Mode: Suggestions are disabled. You can enter all materials, quantities, and batches manually.'
-    }
-    if (doctorId === 'doc-2') {
-      return 'Adaptive Learning Active: Dr. Priya Nair historically uses 2 sets of Dental files and 4 Gutta-percha cones for multi-canal treatments (94% confidence based on 26 procedures). Clinic standard is 1 set.'
-    }
-    if (doctorId === 'doc-1') {
-      return 'Adaptive Learning Active: Dr. Arun Kumar matches clinic standard of 1 set of Dental files (96% confidence based on 18 procedures).'
     }
     return `Adaptive Learning Active: Suggestions tailored to ${doctorName}'s confirmed past clinical cases without altering baseline clinical protocols.`
   }

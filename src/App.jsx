@@ -16,8 +16,9 @@ import AIAgentShortcut from './components/AIAgentShortcut'
 import Hero38 from './components/originkit/hero-38'
 import MeadowBlush from './components/originkit/ui/still-sunset-meadow'
 import { findDemoUserById, DEMO_USERS } from './mocks/auth'
-import { getCurrentUser, logout as authLogout, clearAllClinicStores, initAllClinicStores } from './services/authService'
-import { syncWithBackend, clearClinicStore, initClinicSession } from './services/clinicStore'
+import { getCurrentUser, restoreSession, logout as authLogout, clearAllClinicStores, initAllClinicStores } from './services/authService'
+import { syncWithBackend, clearClinicStore, initClinicSession, isAuthenticatedClinic } from './services/clinicStore'
+import { AUTH_SESSION_CHANGED } from './services/authSession'
 
 export function getSafeNextPath(rawNext) {
   if (!rawNext) return '/dashboard'
@@ -57,7 +58,7 @@ const doctorsProof = [
   ],
   [
     createInitialsAvatar('TA', '%230f766e'),
-    'Dr. Tariq Antoun',
+    'Dr. T. Ahmed',
     'Oncology • Active'
   ],
   [
@@ -785,6 +786,7 @@ function SolutionModuleRoute({ onBack, onContact, detailedModules }) {
 export default function App() {
   const navigate = useNavigate()
   const location = useLocation()
+  const isPlatformAdminRoute = location.pathname === '/admin' || location.pathname.startsWith('/admin/')
   const [ready, setReady] = useState(false)
   const [gridReady, setGridReady] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -810,6 +812,30 @@ export default function App() {
     return null
   })
 
+  // Refresh cached role/navigation after server-side role changes or revocation.
+  useEffect(() => {
+    const updateFromSession = () => {
+      const user = getCurrentUser()
+      if (!user) clearAllClinicStores()
+      setCurrentUser(previous => JSON.stringify(previous) === JSON.stringify(user) ? previous : user)
+    }
+    let checking = false
+    const checkSession = async () => {
+      if (checking || !isAuthenticatedClinic() || document.hidden) return
+      checking = true
+      try { await restoreSession(); updateFromSession() } finally { checking = false }
+    }
+    window.addEventListener(AUTH_SESSION_CHANGED, updateFromSession)
+    window.addEventListener('focus', checkSession)
+    const interval = window.setInterval(checkSession, 60000)
+    checkSession()
+    return () => {
+      window.removeEventListener(AUTH_SESSION_CHANGED, updateFromSession)
+      window.removeEventListener('focus', checkSession)
+      window.clearInterval(interval)
+    }
+  }, [])
+
   // Logged-in user opening /login or /signup goes to /dashboard (Problem P2)
   useEffect(() => {
     if (currentUser && (location.pathname === '/login' || location.pathname === '/signup')) {
@@ -819,13 +845,14 @@ export default function App() {
 
   // Background sync clinic data with backend when session is authenticated
   useEffect(() => {
+    if (isPlatformAdminRoute) return
     if (currentUser) {
       initClinicSession(currentUser.clinicId)
       syncWithBackend().catch(() => {})
     } else {
       initClinicSession()
     }
-  }, [currentUser])
+  }, [currentUser, isPlatformAdminRoute])
 
   // Hash compatibility: support deep-linking via #/route if accessed
   useEffect(() => {
@@ -1506,8 +1533,8 @@ export default function App() {
           )
         }}
       />
-      <AIAgentShortcut />
-      <WhatsAppShortcut />
+      {!isPlatformAdminRoute && <AIAgentShortcut />}
+      {!isPlatformAdminRoute && <WhatsAppShortcut />}
     </div>
   )
 }

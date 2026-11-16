@@ -38,72 +38,17 @@ export const ActivityLogPage: React.FC = () => {
       const res = await apiClient.get<ActivityEvent[]>('/clinics/my-clinic/activity-log', {
         params: { limit: 100 }
       })
-      if (Array.isArray(res) && res.length > 0) {
+      if (Array.isArray(res)) {
         setEvents(res)
         return
       }
     } catch {
-      // Fallback: construct local audit trail
+      // Backend error
     } finally {
       setLoading(false)
     }
 
-    // Default sample entries if backend returns empty or in demo mode
-    const now = new Date()
-    const fallbackEvents: ActivityEvent[] = [
-      {
-        id: 'act-1',
-        timestamp: new Date(now.getTime() - 15 * 60000).toISOString(),
-        module: 'Security',
-        action: 'STAFF_LOGIN',
-        actorName: 'Dr. Arun Kumar',
-        actorRole: 'ORGANIZATION_ADMIN',
-        description: 'Successful administrative login from verified workstation.',
-        severity: 'info'
-      },
-      {
-        id: 'act-2',
-        timestamp: new Date(now.getTime() - 45 * 60000).toISOString(),
-        module: 'Patients',
-        action: 'PATIENT_REGISTERED',
-        actorName: 'Priya Sharma',
-        actorRole: 'RECEPTIONIST',
-        description: 'New patient registered: Rahul Sen (Code: PT-1048).',
-        severity: 'success'
-      },
-      {
-        id: 'act-3',
-        timestamp: new Date(now.getTime() - 120 * 60000).toISOString(),
-        module: 'Billing',
-        action: 'PAYMENT_RECORDED',
-        actorName: 'Priya Sharma',
-        actorRole: 'RECEPTIONIST',
-        description: 'Recorded payment of ₹2,500 via UPI (Ref: UPI-98124).',
-        severity: 'success'
-      },
-      {
-        id: 'act-4',
-        timestamp: new Date(now.getTime() - 240 * 60000).toISOString(),
-        module: 'Clinical',
-        action: 'PLAN_FINALIZED',
-        actorName: 'Dr. Arun Kumar',
-        actorRole: 'DOCTOR',
-        description: 'Finalized treatment plan: Root Canal Therapy & Ceramic Crown for #36.',
-        severity: 'info'
-      },
-      {
-        id: 'act-5',
-        timestamp: new Date(now.getTime() - 360 * 60000).toISOString(),
-        module: 'Inventory',
-        action: 'STOCK_CONSUMED',
-        actorName: 'Dr. Arun Kumar',
-        actorRole: 'DOCTOR',
-        description: 'Recorded consumption: 1× Composite Syringe A2 for Restorative treatment.',
-        severity: 'info'
-      }
-    ]
-
-    setEvents(fallbackEvents)
+    setEvents([])
   }
 
   useEffect(() => {

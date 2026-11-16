@@ -185,8 +185,9 @@ export const FollowUpsPage: React.FC = () => {
     () => ({ now: computePeriod(data, range), before: computePeriod(data, previousSpan(range)) }),
     [data, range]
   )
-  const now = backendData?.now ?? fallbackPeriod.now
-  const before = backendData?.before ?? fallbackPeriod.before
+  const emptyPeriod = computePeriod({ patients: [], appointments: [], invoices: [], treatmentPlans: [] }, range)
+  const now = { ...(backendData ? emptyPeriod : fallbackPeriod.now), ...backendData?.now }
+  const before = { ...(backendData ? emptyPeriod : fallbackPeriod.before), ...backendData?.before }
   const canCompare = Boolean(now.withOutcome && before.withOutcome)
   const visits = useMemo(() => appointments.filter((a) => inRange(a.date, range)), [appointments, range])
   const openVisits = visits.filter((a) => OPEN_STATUSES.includes(a.status)).length

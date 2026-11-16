@@ -19,8 +19,11 @@ import {
   recordTreatmentPlanAcceptance,
   recordTreatmentPlanRejection,
   updateTreatmentPlanItemStatus,
-  updateTreatmentPlanStatus,
+  useClinicData,
+  isDemoSession,
 } from '../../services/clinicStore';
+import { getCurrentUser } from '../../services/authService';
+import { TreatmentPlanContext, TreatmentPlanWorkflow } from './TreatmentPlanWorkflow';
 import '../../pages/clinical/treatmentPlans.css';
 
 interface TreatmentPlanDetailsModalProps {
@@ -31,12 +34,19 @@ interface TreatmentPlanDetailsModalProps {
 }
 
 export const TreatmentPlanDetailsModal: React.FC<TreatmentPlanDetailsModalProps> = ({
-  plan,
+  plan: initialPlan,
   isOpen,
   onClose,
   onPrint,
 }) => {
-  const [activeTab, setActiveTab] = useState<'stages' | 'history'>('stages');
+  const { treatmentPlans } = useClinicData();
+  const plan = treatmentPlans.find(p => p.id === initialPlan.id || (initialPlan.backendId && p.id === initialPlan.backendId)) || initialPlan;
+  const [activeTab, setActiveTab] = useState<'stages' | 'history' | 'clinical' | 'audit'>('stages');
+  const [completedItem, setCompletedItem] = useState<TreatmentPlanItemRecord | null>(null);
+  const [mutationError, setMutationError] = useState('');
+  const [updatingItem, setUpdatingItem] = useState<string | null>(null);
+  const role = getCurrentUser()?.role || (isDemoSession() ? 'ORGANIZATION_ADMIN' : '');
+  const canPlan = ['DOCTOR', 'ORGANIZATION_ADMIN', 'BRANCH_ADMIN'].includes(role);
   const [showAcceptModal, setShowAcceptModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
 
@@ -131,7 +141,16 @@ export const TreatmentPlanDetailsModal: React.FC<TreatmentPlanDetailsModalProps>
     itemId: string,
     newStatus: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'DEFERRED' | 'CANCELLED'
   ) => {
-    await updateTreatmentPlanItemStatus(plan.id, itemId, newStatus);
+    if (!canPlan || updatingItem) return;
+    setMutationError(''); setUpdatingItem(itemId);
+    const item = plan.stages?.flatMap(s => s.items).find(i => i.id === itemId);
+    const wasCompleted = item?.status === 'COMPLETED';
+    try {
+      const updated = await updateTreatmentPlanItemStatus(plan.id, itemId, newStatus);
+      if (!updated) throw new Error('Treatment procedure was not found.');
+      if (item && newStatus === 'COMPLETED' && !wasCompleted) setCompletedItem(item);
+    } catch (e) { setMutationError(e instanceof Error ? e.message : 'Could not update procedure.'); }
+    finally { setUpdatingItem(null); }
   };
 
   const getStatusClass = (status: TreatmentPlanRecord['status']) => {
@@ -146,6 +165,8 @@ export const TreatmentPlanDetailsModal: React.FC<TreatmentPlanDetailsModalProps>
         return 'tp-status-pending';
       case 'Rejected':
         return 'tp-status-rejected';
+      case 'Cancelled':
+        return 'tp-status-cancelled';
       case 'Proposed':
       default:
         return 'tp-status-proposed';
@@ -321,7 +342,11 @@ export const TreatmentPlanDetailsModal: React.FC<TreatmentPlanDetailsModalProps>
         </div>
 
         {/* Tab Navigation */}
+        <TreatmentPlanWorkflow plan={plan} completedItem={completedItem} onDismissPrompt={() => setCompletedItem(null)} />
+        {mutationError && <p role="alert">{mutationError}</p>}
         <div style={{ display: 'flex', borderBottom: '1px solid var(--line, #e2e8f0)', padding: '0 24px', background: 'var(--surface, #ffffff)' }}>
+          <button type="button" onClick={() => setActiveTab('clinical')} aria-pressed={activeTab === 'clinical'}>Clinical Notes &amp; Rx</button>
+          <button type="button" onClick={() => setActiveTab('audit')} aria-pressed={activeTab === 'audit'}>Audit Timeline</button>
           <button
             type="button"
             onClick={() => setActiveTab('stages')}
@@ -364,6 +389,8 @@ export const TreatmentPlanDetailsModal: React.FC<TreatmentPlanDetailsModalProps>
 
         {/* Modal Body */}
         <div className="tp-modal-body">
+          {(activeTab === 'clinical' || activeTab === 'audit') && <TreatmentPlanContext plan={plan} tab={activeTab} />}
+          {(activeTab === 'stages' || activeTab === 'history') && <>
           {activeTab === 'stages' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {((plan.stages && plan.stages.length > 0 ? plan.stages : [
@@ -499,6 +526,7 @@ export const TreatmentPlanDetailsModal: React.FC<TreatmentPlanDetailsModalProps>
                           <td style={{ fontWeight: 700 }}>₹{item.netFee?.toLocaleString()}</td>
                           <td>
                             <select
+                              disabled={!canPlan || Boolean(updatingItem) || plan.status === 'Cancelled'}
                               value={item.status || 'PENDING'}
                               onChange={(e) =>
                                 handleItemStatusChange(item.id, e.target.value as any)
@@ -629,6 +657,7 @@ export const TreatmentPlanDetailsModal: React.FC<TreatmentPlanDetailsModalProps>
               ))}
             </div>
           )}
+          </>}
         </div>
 
         {/* Modal Footer with Actions */}
@@ -640,7 +669,7 @@ export const TreatmentPlanDetailsModal: React.FC<TreatmentPlanDetailsModalProps>
           </div>
 
           <div style={{ display: 'flex', gap: '10px' }}>
-            {!isAccepted && !isCompleted && !isRejected && (
+            {canPlan && plan.status !== 'Cancelled' && !isAccepted && !isCompleted && !isRejected && (
               <>
                 <button
                   type="button"

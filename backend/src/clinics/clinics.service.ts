@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
@@ -6,6 +6,14 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { UpdateClinicDto } from './dto/update-clinic.dto.js';
 import { CreateStaffDto } from './dto/create-staff.dto.js';
 import { UpdateStaffDto } from './dto/update-staff.dto.js';
+import { AuthenticatedUser } from '../common/decorators/current-user.decorator.js';
+import { AuditLogService } from '../common/services/audit-log.service.js';
+import { assignableStaffRoles, assertAssignableStaffRole, assertManageableStaff } from './staff-management.policy.js';
+
+const STAFF_SELECT = {
+  id: true, email: true, fullName: true, phone: true, role: true,
+  isActive: true, isPrimaryContact: true, createdAt: true, updatedAt: true,
+} as const;
 
 interface ClinicExtendedSettings {
   displayName?: string;
@@ -37,7 +45,10 @@ interface SecurityAuditEvent {
 export class ClinicsService {
   private storageDir = path.resolve(process.cwd(), 'storage');
 
-  constructor(private prisma: PrismaService) {
+  constructor(
+    @Inject(PrismaService) private prisma: PrismaService,
+    @Inject(AuditLogService) private auditLog: AuditLogService,
+  ) {
     this.ensureStorageDirectories();
   }
 
@@ -177,7 +188,16 @@ export class ClinicsService {
     };
   }
 
+  getClinicPractitioners(clinicId: string) {
+    if (!clinicId) throw new ForbiddenException('A clinic is required.');
+    return this.prisma.user.findMany({
+      where: { clinicId, role: 'DOCTOR', isActive: true },
+      select: { id: true, fullName: true, role: true }, orderBy: { fullName: 'asc' },
+    });
+  }
+
   async getClinicStaff(clinicId: string) {
+    if (!clinicId) throw new ForbiddenException('A clinic is required.');
     return this.prisma.user.findMany({
       where: { clinicId },
       select: {
@@ -194,7 +214,26 @@ export class ClinicsService {
     });
   }
 
-  async addStaff(clinicId: string, dto: CreateStaffDto) {
+  getAssignableStaffRoles(clinicId: string, actor: AuthenticatedUser) {
+    return assignableStaffRoles(clinicId, actor);
+  }
+
+  private recordStaffEvent(clinicId: string, actor: AuthenticatedUser, action: string,
+    staffId: string, metadata: Record<string, unknown> = {}) {
+    this.auditLog.recordEvent({
+      clinicId, module: 'Staff', action, actorId: actor.id,
+      actorName: actor.fullName, actorRole: actor.role,
+      description: `Staff account ${action.toLowerCase().replace(/_/g, ' ')}.`,
+      metadata: { staffId, ...metadata },
+    });
+  }
+
+  async addStaff(clinicId: string, dto: CreateStaffDto, actor: AuthenticatedUser) {
+    assertAssignableStaffRole(clinicId, actor, dto.role);
+    if (!dto.fullName?.trim() || typeof dto.password !== 'string' ||
+      dto.password.length < 12 || Buffer.byteLength(dto.password, 'utf8') > 72) {
+      throw new BadRequestException('A name and an initial password of at least 12 characters (maximum 72 UTF-8 bytes) are required.');
+    }
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase().trim() },
     });
@@ -206,92 +245,94 @@ export class ClinicsService {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(dto.password, salt);
 
-    return this.prisma.user.create({
-      data: {
-        clinicId,
-        email: dto.email.toLowerCase().trim(),
-        passwordHash,
-        fullName: dto.fullName.trim(),
-        phone: dto.phone?.trim() || null,
-        role: dto.role,
-        isPlatformAdmin: false,
-        isPrimaryContact: false,
-        isActive: true,
-      },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        phone: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-      },
-    });
+    try {
+      const staff = await this.prisma.user.create({
+        data: {
+          clinicId,
+          email: dto.email.toLowerCase().trim(),
+          passwordHash,
+          fullName: dto.fullName.trim(),
+          phone: dto.phone?.trim() || null,
+          role: dto.role,
+          isPlatformAdmin: false,
+          isPrimaryContact: false,
+          isActive: true,
+        },
+        select: STAFF_SELECT,
+      });
+      this.recordStaffEvent(clinicId, actor, 'STAFF_CREATED', staff.id, { role: staff.role });
+      return staff;
+    } catch (error) {
+      if ((error as { code?: string })?.code === 'P2002') {
+        throw new ConflictException('A user with this email address already exists.');
+      }
+      throw error;
+    }
   }
 
-  async updateStaff(clinicId: string, staffId: string, dto: UpdateStaffDto) {
-    const user = await this.prisma.user.findFirst({
-      where: { id: staffId, clinicId },
+  async updateStaff(clinicId: string, staffId: string, dto: UpdateStaffDto, actor: AuthenticatedUser) {
+    assignableStaffRoles(clinicId, actor);
+    if (dto.role !== undefined) assertAssignableStaffRole(clinicId, actor, dto.role);
+    if (dto.fullName !== undefined && !dto.fullName.trim()) throw new BadRequestException('Full name is required.');
+    const { updated, previous } = await this.prisma.$transaction(async tx => {
+      const user = await tx.user.findFirst({ where: { id: staffId, clinicId } });
+      if (!user) throw new NotFoundException('Staff member not found in this clinic.');
+      assertManageableStaff(clinicId, actor, user);
+      if (user.isPrimaryContact && (dto.isActive === false || (dto.role && dto.role !== user.role))) {
+        throw new BadRequestException('The primary clinic owner cannot be deactivated or demoted.');
+      }
+      if (staffId === actor.id && (dto.isActive === false || (dto.role && dto.role !== user.role))) {
+        throw new BadRequestException('You cannot deactivate or change the role of your own account.');
+      }
+      const updated = await tx.user.update({
+        where: { id_clinicId: { id: staffId, clinicId } },
+        data: {
+          ...(dto.fullName !== undefined && { fullName: dto.fullName.trim() }),
+          ...(dto.phone !== undefined && { phone: dto.phone?.trim() || null }),
+          ...(dto.role !== undefined && { role: dto.role }),
+          ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        },
+        select: STAFF_SELECT,
+      });
+      if ((dto.role !== undefined && dto.role !== user.role) ||
+        (dto.isActive !== undefined && dto.isActive !== user.isActive)) {
+        await tx.userSession.updateMany({
+          where: { userId: staffId, clinicId, isRevoked: false },
+          data: { isRevoked: true, revocationReason: 'Staff role or account status changed by clinic administrator' },
+        });
+      }
+      return { updated, previous: user };
     });
-
-    if (!user) {
-      throw new NotFoundException('Staff member not found in this clinic.');
+    if (updated.role !== previous.role) {
+      this.recordStaffEvent(clinicId, actor, 'STAFF_ROLE_CHANGED', staffId, { previousRole: previous.role, role: updated.role });
     }
-
-    if (user.isPrimaryContact && dto.isActive === false) {
-      throw new BadRequestException('The primary clinic owner cannot be deactivated.');
+    if (updated.isActive !== previous.isActive) {
+      this.recordStaffEvent(clinicId, actor, updated.isActive ? 'STAFF_ACTIVATED' : 'STAFF_DEACTIVATED', staffId);
     }
-
-    if (user.isPrimaryContact && dto.role && dto.role !== user.role) {
-      throw new BadRequestException('The primary clinic owner role cannot be changed.');
-    }
-
-    return this.prisma.user.update({
-      where: { id: staffId },
-      data: {
-        ...(dto.fullName && { fullName: dto.fullName.trim() }),
-        ...(dto.phone !== undefined && { phone: dto.phone?.trim() || null }),
-        ...(dto.role && { role: dto.role }),
-        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
-      },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        phone: true,
-        role: true,
-        isActive: true,
-        isPrimaryContact: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    this.recordStaffEvent(clinicId, actor, 'STAFF_UPDATED', staffId);
+    return updated;
   }
 
-  async deleteStaff(clinicId: string, staffId: string) {
-    const user = await this.prisma.user.findFirst({
-      where: { id: staffId, clinicId },
+  async deleteStaff(clinicId: string, staffId: string, actor: AuthenticatedUser) {
+    assignableStaffRoles(clinicId, actor);
+    const removed = await this.prisma.$transaction(async tx => {
+      const user = await tx.user.findFirst({ where: { id: staffId, clinicId } });
+      if (!user) throw new NotFoundException('Staff member not found in this clinic.');
+      assertManageableStaff(clinicId, actor, user);
+      if (user.isPrimaryContact || staffId === actor.id) {
+        throw new BadRequestException('The primary owner and your own account cannot be removed.');
+      }
+      const updated = await tx.user.update({
+        where: { id_clinicId: { id: staffId, clinicId } }, data: { isActive: false }, select: STAFF_SELECT,
+      });
+      await tx.userSession.updateMany({
+        where: { userId: staffId, clinicId, isRevoked: false },
+        data: { isRevoked: true, revocationReason: 'Staff access removed by clinic administrator' },
+      });
+      return updated;
     });
-
-    if (!user) {
-      throw new NotFoundException('Staff member not found in this clinic.');
-    }
-
-    if (user.isPrimaryContact) {
-      throw new BadRequestException('The primary clinic owner cannot be removed.');
-    }
-
-    return this.prisma.user.update({
-      where: { id: staffId },
-      data: { isActive: false },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        isActive: true,
-      },
-    });
+    this.recordStaffEvent(clinicId, actor, 'STAFF_REMOVED', staffId, { deletionMode: 'ACCESS_REVOKED_RECORDS_RETAINED' });
+    return removed;
   }
 
   // ------------------------------------------
