@@ -1,4 +1,5 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import './calendar.css'
 import { Link } from 'react-router-dom'
 import {
@@ -12,11 +13,13 @@ import {
   FileText,
   CreditCard,
   User,
+  X,
   Stethoscope,
   ChevronRight
 } from 'lucide-react'
 import {
   useClinicData,
+  registerWalkIn,
   updateAppointmentStatus,
   DENTISTS,
   type AppointmentRecord,
@@ -25,6 +28,62 @@ import {
 
 export const LiveQueuePage: React.FC = () => {
   const { appointments, patients } = useClinicData()
+  const [modalOpen, setModalOpen] = useState(false)
+  const [walkInForm, setWalkInForm] = useState({
+    patientName: '',
+    mobile: '',
+    gender: 'female',
+    age: '28',
+    complaint: '',
+    doctor: DENTISTS[0]?.name || 'Dr. Arun Kumar',
+    priority: 'normal' as AppointmentPriority
+  })
+
+  // Prevent background scrolling while modal is open & support Escape key
+  useEffect(() => {
+    if (!modalOpen) return
+
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setModalOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = prevOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [modalOpen])
+
+  const handleRegisterWalkIn = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!walkInForm.patientName.trim()) return
+
+    registerWalkIn({
+      patientName: walkInForm.patientName.trim(),
+      mobile: walkInForm.mobile.trim(),
+      gender: walkInForm.gender,
+      age: walkInForm.age || '25',
+      complaint: walkInForm.complaint.trim() || 'General Check-up',
+      doctor: walkInForm.doctor,
+      priority: walkInForm.priority
+    })
+
+    setWalkInForm({
+      patientName: '',
+      mobile: '',
+      gender: 'female',
+      age: '28',
+      complaint: '',
+      doctor: DENTISTS[0]?.name || 'Dr. Arun Kumar',
+      priority: 'normal'
+    })
+    setModalOpen(false)
+  }
 
   const today = new Date().toISOString().slice(0, 10)
   const todayAppointments = appointments.filter((a) => a.date === today && a.status !== 'cancelled')
@@ -60,6 +119,17 @@ export const LiveQueuePage: React.FC = () => {
           <span className="metric-label">Upcoming Scheduled</span>
           <strong className="metric-value">{scheduledUpcoming.length}</strong>
           <span className="metric-sub">Expected later today</span>
+        </div>
+        <div className="queue-metric-action">
+          <button
+            type="button"
+            className="btn-walkin-main"
+            onClick={() => setModalOpen(true)}
+            data-testid="register-walkin-btn"
+          >
+            <UserPlus size={16} />
+            <span>Register Walk-in</span>
+          </button>
         </div>
       </div>
 
@@ -280,6 +350,137 @@ export const LiveQueuePage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Register Walk-in Modal Rendered Directly to Body via Portal */}
+      {modalOpen &&
+        createPortal(
+          <div
+            className="calendar-modal-overlay queue-modal-overlay"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setModalOpen(false)
+              }
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="walkin-modal-title"
+          >
+            <div className="queue-modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="queue-modal-header">
+                <div className="modal-title">
+                  <UserPlus size={20} />
+                  <h3 id="walkin-modal-title">Register Walk-in Patient</h3>
+                </div>
+                <button
+                  type="button"
+                  className="btn-modal-close"
+                  onClick={() => setModalOpen(false)}
+                  aria-label="Close dialog"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleRegisterWalkIn} className="walkin-form">
+                <div className="form-row-2">
+                  <label className="form-field">
+                    <span>Patient Full Name *</span>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Rahul Sharma"
+                      value={walkInForm.patientName}
+                      onChange={(e) => setWalkInForm({ ...walkInForm, patientName: e.target.value })}
+                      autoFocus
+                    />
+                  </label>
+                  <label className="form-field">
+                    <span>Mobile Phone *</span>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="e.g. 9845012345"
+                      value={walkInForm.mobile}
+                      onChange={(e) => setWalkInForm({ ...walkInForm, mobile: e.target.value })}
+                    />
+                  </label>
+                </div>
+
+                <div className="form-row-3">
+                  <label className="form-field">
+                    <span>Gender</span>
+                    <select
+                      value={walkInForm.gender}
+                      onChange={(e) => setWalkInForm({ ...walkInForm, gender: e.target.value })}
+                    >
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </label>
+                  <label className="form-field">
+                    <span>Age</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="110"
+                      value={walkInForm.age}
+                      onChange={(e) => setWalkInForm({ ...walkInForm, age: e.target.value })}
+                    />
+                  </label>
+                  <label className="form-field">
+                    <span>Priority</span>
+                    <select
+                      value={walkInForm.priority}
+                      onChange={(e) =>
+                        setWalkInForm({ ...walkInForm, priority: e.target.value as AppointmentPriority })
+                      }
+                    >
+                      <option value="normal">Normal</option>
+                      <option value="urgent">Urgent</option>
+                      <option value="emergency">Emergency</option>
+                    </select>
+                  </label>
+                </div>
+
+                <label className="form-field">
+                  <span>Primary Dental Complaint</span>
+                  <input
+                    type="text"
+                    placeholder="e.g. Toothache, chipped tooth, emergency bleeding..."
+                    value={walkInForm.complaint}
+                    onChange={(e) => setWalkInForm({ ...walkInForm, complaint: e.target.value })}
+                  />
+                </label>
+
+                <label className="form-field">
+                  <span>Assign to Dentist</span>
+                  <select
+                    value={walkInForm.doctor}
+                    onChange={(e) => setWalkInForm({ ...walkInForm, doctor: e.target.value })}
+                  >
+                    {DENTISTS.map((d) => (
+                      <option key={d.id} value={d.name}>
+                        {d.name} ({d.specialization} &bull; {d.chair})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <div className="modal-actions">
+                  <button type="button" className="btn-cancel" onClick={() => setModalOpen(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-submit-walkin">
+                    <Check size={16} />
+                    <span>Generate Token & Add to Queue</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   )
 }
