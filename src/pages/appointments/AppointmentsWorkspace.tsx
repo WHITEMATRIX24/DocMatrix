@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarDays, ClipboardList, Inbox, Plus, Activity, UserPlus, CheckCircle2, Clock, RotateCcw } from 'lucide-react'
+import { CalendarDays, ClipboardList, Inbox, Plus, Activity, CheckCircle2, Clock, RotateCcw } from 'lucide-react'
 import { getSyncStatus, isAuthenticatedClinic, syncWithBackend, useClinicData } from '@/services/clinicStore'
 import './calendar.css'
 
@@ -74,14 +74,6 @@ export default function AppointmentsWorkspace({ activeFeatureId, children }: App
               <span>Reschedule</span>
             </button>
           )}
-          <button
-            className="patient-intake-secondary"
-            onClick={() => navigate('/appointments/queue')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-          >
-            <UserPlus size={15} />
-            <span>Walk-in Queue</span>
-          </button>
           <button
             className="patient-intake-primary"
             onClick={() => navigate('/appointments/new')}

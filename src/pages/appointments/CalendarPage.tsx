@@ -57,7 +57,7 @@ export const CalendarPage: React.FC = () => {
     return d.toISOString().slice(0, 10)
   })
 
-  const [viewMode, setViewMode] = useState<CalendarViewMode>('dentist')
+  const [viewMode] = useState<CalendarViewMode>('dentist')
   const [filterDoctor, setFilterDoctor] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
 
@@ -487,28 +487,6 @@ export const CalendarPage: React.FC = () => {
 
         {/* View Switchers & Fast Actions */}
         <div className="calendar-top-actions">
-          {/* View Mode Toggle */}
-          <div className="calendar-view-toggle">
-            <button
-              className={`toggle-btn ${viewMode === 'dentist' ? 'is-active' : ''}`}
-              onClick={() => setViewMode('dentist')}
-            >
-              Dentists
-            </button>
-            <button
-              className={`toggle-btn ${viewMode === 'day' ? 'is-active' : ''}`}
-              onClick={() => setViewMode('day')}
-            >
-              Day
-            </button>
-            <button
-              className={`toggle-btn ${viewMode === 'week' ? 'is-active' : ''}`}
-              onClick={() => setViewMode('week')}
-            >
-              Week
-            </button>
-          </div>
-
           {/* Reschedule Button in Calendar Header */}
           <button
             type="button"

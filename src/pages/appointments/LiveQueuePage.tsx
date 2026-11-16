@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 import './calendar.css'
 import { Link } from 'react-router-dom'
 import {
@@ -12,13 +12,11 @@ import {
   FileText,
   CreditCard,
   User,
-  X,
   Stethoscope,
   ChevronRight
 } from 'lucide-react'
 import {
   useClinicData,
-  registerWalkIn,
   updateAppointmentStatus,
   DENTISTS,
   type AppointmentRecord,
@@ -27,16 +25,6 @@ import {
 
 export const LiveQueuePage: React.FC = () => {
   const { appointments, patients } = useClinicData()
-  const [modalOpen, setModalOpen] = useState(false)
-  const [walkInForm, setWalkInForm] = useState({
-    patientName: '',
-    mobile: '',
-    gender: 'female',
-    age: '28',
-    complaint: '',
-    doctor: DENTISTS[0].name,
-    priority: 'normal' as AppointmentPriority
-  })
 
   const today = new Date().toISOString().slice(0, 10)
   const todayAppointments = appointments.filter((a) => a.date === today && a.status !== 'cancelled')
@@ -46,32 +34,6 @@ export const LiveQueuePage: React.FC = () => {
   const inConsultation = todayAppointments.filter((a) => a.status === 'in-progress')
   const completedToday = todayAppointments.filter((a) => a.status === 'completed')
   const scheduledUpcoming = todayAppointments.filter((a) => a.status === 'scheduled' || a.status === 'confirmed')
-
-  const handleRegisterWalkIn = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!walkInForm.patientName.trim()) return
-
-    registerWalkIn({
-      patientName: walkInForm.patientName,
-      mobile: walkInForm.mobile,
-      gender: walkInForm.gender,
-      age: walkInForm.age,
-      complaint: walkInForm.complaint || 'General Check-up',
-      doctor: walkInForm.doctor,
-      priority: walkInForm.priority
-    })
-
-    setWalkInForm({
-      patientName: '',
-      mobile: '',
-      gender: 'female',
-      age: '28',
-      complaint: '',
-      doctor: DENTISTS[0].name,
-      priority: 'normal'
-    })
-    setModalOpen(false)
-  }
 
   const getPatient = (patientId: string) => patients.find((p) => p.id === patientId)
 
@@ -98,12 +60,6 @@ export const LiveQueuePage: React.FC = () => {
           <span className="metric-label">Upcoming Scheduled</span>
           <strong className="metric-value">{scheduledUpcoming.length}</strong>
           <span className="metric-sub">Expected later today</span>
-        </div>
-        <div className="queue-metric-action">
-          <button className="btn-walkin-main" onClick={() => setModalOpen(true)}>
-            <UserPlus size={16} />
-            <span>Register Walk-in</span>
-          </button>
         </div>
       </div>
 
@@ -286,17 +242,33 @@ export const LiveQueuePage: React.FC = () => {
       {/* Completed Today Quick Bar */}
       {completedToday.length > 0 && (
         <div className="completed-summary-bar">
-          <h4>Completed Consultations Today ({completedToday.length})</h4>
+          <div className="completed-summary-header">
+            <div className="completed-summary-title">
+              <span className="completed-icon-badge">
+                <CheckCircle2 size={15} />
+              </span>
+              <h4>Completed Consultations Today</h4>
+              <span className="completed-count-pill">{completedToday.length}</span>
+            </div>
+            <span className="completed-summary-hint">Ready for invoice generation & checkout</span>
+          </div>
           <div className="completed-scroll-row">
             {completedToday.map((appt) => {
               const patient = getPatient(appt.patientId)
+              const patientDisplayName = patient
+                ? `${patient.firstName} ${patient.lastName}`.trim()
+                : (appt.patientName || 'Patient')
               return (
                 <div key={appt.id} className="completed-chip">
-                  <CheckCircle2 size={13} className="text-green" />
-                  <strong>{patient ? `${patient.firstName} ${patient.lastName}` : 'Patient'}</strong>
-                  <span>({appt.doctor})</span>
+                  <div className="completed-chip-left">
+                    <span className="completed-check-dot">
+                      <CheckCircle2 size={14} />
+                    </span>
+                    <strong className="completed-patient-name">{patientDisplayName}</strong>
+                    <span className="completed-doctor-tag">{appt.doctor}</span>
+                  </div>
                   <Link
-                    to={`/billing/invoices?patientId=${patient?.id}&appointmentId=${appt.id}`}
+                    to={`/billing/invoices?patientId=${patient?.id || appt.patientId}&appointmentId=${appt.id}`}
                     className="billing-shortcut-btn"
                   >
                     <CreditCard size={12} />
@@ -305,117 +277,6 @@ export const LiveQueuePage: React.FC = () => {
                 </div>
               )
             })}
-          </div>
-        </div>
-      )}
-
-      {/* Register Walk-in Modal */}
-      {modalOpen && (
-        <div className="queue-modal-overlay">
-          <div className="queue-modal-card">
-            <div className="queue-modal-header">
-              <div className="modal-title">
-                <UserPlus size={20} />
-                <h3>Register Walk-in Patient</h3>
-              </div>
-              <button className="btn-modal-close" onClick={() => setModalOpen(false)}>
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleRegisterWalkIn} className="walkin-form">
-              <div className="form-row-2">
-                <label className="form-field">
-                  <span>Patient Full Name *</span>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Rahul Sharma"
-                    value={walkInForm.patientName}
-                    onChange={(e) => setWalkInForm({ ...walkInForm, patientName: e.target.value })}
-                  />
-                </label>
-                <label className="form-field">
-                  <span>Mobile Phone *</span>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="e.g. 9845012345"
-                    value={walkInForm.mobile}
-                    onChange={(e) => setWalkInForm({ ...walkInForm, mobile: e.target.value })}
-                  />
-                </label>
-              </div>
-
-              <div className="form-row-3">
-                <label className="form-field">
-                  <span>Gender</span>
-                  <select
-                    value={walkInForm.gender}
-                    onChange={(e) => setWalkInForm({ ...walkInForm, gender: e.target.value })}
-                  >
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
-                </label>
-                <label className="form-field">
-                  <span>Age</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max="110"
-                    value={walkInForm.age}
-                    onChange={(e) => setWalkInForm({ ...walkInForm, age: e.target.value })}
-                  />
-                </label>
-                <label className="form-field">
-                  <span>Priority</span>
-                  <select
-                    value={walkInForm.priority}
-                    onChange={(e) => setWalkInForm({ ...walkInForm, priority: e.target.value as AppointmentPriority })}
-                  >
-                    <option value="normal">Normal</option>
-                    <option value="urgent">Urgent</option>
-                    <option value="emergency">Emergency</option>
-                  </select>
-                </label>
-              </div>
-
-              <label className="form-field">
-                <span>Primary Dental Complaint</span>
-                <input
-                  type="text"
-                  placeholder="e.g. Toothache, chipped tooth, emergency bleeding..."
-                  value={walkInForm.complaint}
-                  onChange={(e) => setWalkInForm({ ...walkInForm, complaint: e.target.value })}
-                />
-              </label>
-
-              <label className="form-field">
-                <span>Assign to Dentist</span>
-                <select
-                  value={walkInForm.doctor}
-                  onChange={(e) => setWalkInForm({ ...walkInForm, doctor: e.target.value })}
-                >
-                  {DENTISTS.map((d) => (
-                    <option key={d.id} value={d.name}>
-                      {d.name} ({d.specialization} &bull; {d.chair})
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="modal-actions">
-                <button type="button" className="btn-cancel" onClick={() => setModalOpen(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn-submit-walkin">
-                  <Check size={16} />
-                  <span>Generate Token & Add to Queue</span>
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}
