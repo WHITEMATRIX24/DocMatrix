@@ -64,8 +64,35 @@ import '@/pages/clinical/prescriptions.css'
 import '@/pages/clinical/clinicalNotes.css'
 import '@/pages/clinical/treatmentPlans.css'
 
-type TabKey = 'overview' | 'medical' | 'timeline' | 'billing' | 'documents' | 'consents' | 'prescriptions' | 'notes' | 'plans'
-const TAB_KEYS: TabKey[] = ['overview', 'medical', 'timeline', 'billing', 'documents', 'consents', 'prescriptions', 'notes', 'plans']
+type MainTabKey = 'overview' | 'medical' | 'clinical' | 'billing' | 'documents' | 'activity'
+type ClinicalSubTabKey = 'prescriptions' | 'notes' | 'plans'
+type DocumentsSubTabKey = 'documents' | 'consents'
+
+type TabKey =
+  | 'overview'
+  | 'medical'
+  | 'clinical'
+  | 'timeline'
+  | 'activity'
+  | 'billing'
+  | 'documents'
+  | 'consents'
+  | 'prescriptions'
+  | 'notes'
+  | 'plans'
+const TAB_KEYS: TabKey[] = [
+  'overview',
+  'medical',
+  'clinical',
+  'timeline',
+  'activity',
+  'billing',
+  'documents',
+  'consents',
+  'prescriptions',
+  'notes',
+  'plans'
+]
 
 type ActivityKind = 'visit' | 'note' | 'billing' | 'document' | 'consent' | 'prescription' | 'plan'
 type ActivityItem = { id: string; kind: ActivityKind; date: string; title: string; detail?: string; link?: string; tone?: 'ok' | 'warn' | 'bad' }
@@ -168,27 +195,101 @@ export const PatientProfilePage: React.FC = () => {
     return patients.find((p) => p.id.toLowerCase() === (id || '').toLowerCase())
   }, [patients, id])
 
+  // Remember user's last selected subtab within grouped clinical & document tabs
+  const [lastClinicalSubTab, setLastClinicalSubTab] = useState<ClinicalSubTabKey>('prescriptions')
+  const [lastDocumentsSubTab, setLastDocumentsSubTab] = useState<DocumentsSubTabKey>('documents')
+
   // Resolve active tab based on pathname deep link (e.g. /patients/:id/timeline) or query param ?tab=...
-  const activeTab: TabKey = useMemo(() => {
+  const rawTab: TabKey = useMemo(() => {
     const rawQuery = searchParams.get('tab')?.toLowerCase()
     if (rawQuery && TAB_KEYS.includes(rawQuery as TabKey)) return rawQuery as TabKey
     if (rawQuery === 'x-rays' || rawQuery === 'xrays' || rawQuery === 'radiographs') return 'documents'
+    if (rawQuery === 'treatment-plans' || rawQuery === 'treatmentplans' || rawQuery === 'pending-treatments') return 'plans'
+    if (rawQuery === 'clinical-notes' || rawQuery === 'clinicalnotes') return 'notes'
 
     const path = location.pathname.toLowerCase()
-    if (path.endsWith('/timeline')) return 'timeline'
+    if (path.endsWith('/timeline') || path.endsWith('/activity')) return 'activity'
     if (path.endsWith('/documents') || path.endsWith('/x-rays') || path.endsWith('/xrays')) return 'documents'
     if (path.endsWith('/consents')) return 'consents'
     if (path.endsWith('/prescriptions')) return 'prescriptions'
-    if (path.endsWith('/notes')) return 'notes'
-    if (path.endsWith('/plans') || path.endsWith('/treatment-plans')) return 'plans'
+    if (path.endsWith('/notes') || path.endsWith('/clinical-notes')) return 'notes'
+    if (path.endsWith('/plans') || path.endsWith('/treatment-plans') || path.endsWith('/pending-treatments')) return 'plans'
+    if (path.endsWith('/clinical')) return 'clinical'
     if (path.endsWith('/billing')) return 'billing'
-    if (path.endsWith('/pending-treatments')) return 'plans'
+    if (path.endsWith('/medical')) return 'medical'
     return 'overview'
   }, [location.pathname, searchParams])
 
+  // Derive active top-level main tab
+  const activeMainTab: MainTabKey = useMemo(() => {
+    if (rawTab === 'prescriptions' || rawTab === 'notes' || rawTab === 'plans' || rawTab === 'clinical') {
+      return 'clinical'
+    }
+    if (rawTab === 'documents' || rawTab === 'consents') {
+      return 'documents'
+    }
+    if (rawTab === 'timeline' || rawTab === 'activity') {
+      return 'activity'
+    }
+    if (rawTab === 'medical') return 'medical'
+    if (rawTab === 'billing') return 'billing'
+    return 'overview'
+  }, [rawTab])
+
+  // Derive active subtab for Clinical
+  const clinicalSubTab: ClinicalSubTabKey = useMemo(() => {
+    if (rawTab === 'notes') return 'notes'
+    if (rawTab === 'plans') return 'plans'
+    if (rawTab === 'prescriptions') return 'prescriptions'
+    return lastClinicalSubTab
+  }, [rawTab, lastClinicalSubTab])
+
+  // Derive active subtab for Documents
+  const documentsSubTab: DocumentsSubTabKey = useMemo(() => {
+    if (rawTab === 'consents') return 'consents'
+    if (rawTab === 'documents') return 'documents'
+    return lastDocumentsSubTab
+  }, [rawTab, lastDocumentsSubTab])
+
+  // Keep last subtab in sync when user navigates directly
+  useEffect(() => {
+    if (rawTab === 'prescriptions' || rawTab === 'notes' || rawTab === 'plans') {
+      setLastClinicalSubTab(rawTab)
+    }
+    if (rawTab === 'documents' || rawTab === 'consents') {
+      setLastDocumentsSubTab(rawTab)
+    }
+  }, [rawTab])
+
+  const activeTab: TabKey = rawTab
+
   // Switch tabs on the base profile URL so deep links like /patients/:id/timeline never pin the tab
   const setTab = (tab: TabKey) => {
-    navigate(`/patients/${patient?.id || id}?tab=${tab}`, { replace: true })
+    if (tab === 'clinical') {
+      navigate(`/patients/${patient?.id || id}?tab=${lastClinicalSubTab}`, { replace: true })
+    } else if (tab === 'documents') {
+      navigate(`/patients/${patient?.id || id}?tab=${lastDocumentsSubTab}`, { replace: true })
+    } else if (tab === 'activity' || tab === 'timeline') {
+      navigate(`/patients/${patient?.id || id}?tab=activity`, { replace: true })
+    } else if (tab === 'prescriptions' || tab === 'notes' || tab === 'plans') {
+      setLastClinicalSubTab(tab)
+      navigate(`/patients/${patient?.id || id}?tab=${tab}`, { replace: true })
+    } else if (tab === 'consents') {
+      setLastDocumentsSubTab('consents')
+      navigate(`/patients/${patient?.id || id}?tab=consents`, { replace: true })
+    } else {
+      navigate(`/patients/${patient?.id || id}?tab=${tab}`, { replace: true })
+    }
+  }
+
+  const setClinicalSubTab = (subTab: ClinicalSubTabKey) => {
+    setLastClinicalSubTab(subTab)
+    navigate(`/patients/${patient?.id || id}?tab=${subTab}`, { replace: true })
+  }
+
+  const setDocumentsSubTab = (subTab: DocumentsSubTabKey) => {
+    setLastDocumentsSubTab(subTab)
+    navigate(`/patients/${patient?.id || id}?tab=${subTab}`, { replace: true })
   }
 
   // Prescription modal state
@@ -268,6 +369,9 @@ export const PatientProfilePage: React.FC = () => {
         (patient?.backendId && p.patientId?.toLowerCase() === patient.backendId.toLowerCase())
     )
   }, [prescriptions, id, patient?.backendId])
+
+  const clinicalTotalCount = patientPrescriptions.length + patientNotes.length + patientPlans.length
+  const documentsTotalCount = patientDocs.length + patientConsentList.length
 
   // Pending treatments for overview card
   const pendingTreatments = useMemo(() => {
@@ -885,12 +989,13 @@ export const PatientProfilePage: React.FC = () => {
         </div>
       </header>
 
-      {/* 2. Unified 5 Profile Navigation Tabs */}
+      {/* 2. Simplified 6 Profile Navigation Tabs */}
       <nav className="pat-nav-tabs" aria-label="Patient Profile Sections">
         <button
           type="button"
-          className={`pat-tab-btn ${activeTab === 'overview' ? 'is-active' : ''}`}
+          className={`pat-tab-btn ${activeMainTab === 'overview' ? 'is-active' : ''}`}
           onClick={() => setTab('overview')}
+          data-testid="tab-overview"
         >
           <Activity size={15} />
           <span>Overview</span>
@@ -898,8 +1003,9 @@ export const PatientProfilePage: React.FC = () => {
 
         <button
           type="button"
-          className={`pat-tab-btn ${activeTab === 'medical' ? 'is-active' : ''}`}
+          className={`pat-tab-btn ${activeMainTab === 'medical' ? 'is-active' : ''}`}
           onClick={() => setTab('medical')}
+          data-testid="tab-medical"
         >
           <ShieldCheck size={15} />
           <span>Medical History</span>
@@ -907,20 +1013,22 @@ export const PatientProfilePage: React.FC = () => {
 
         <button
           type="button"
-          className={`pat-tab-btn ${activeTab === 'timeline' ? 'is-active' : ''}`}
-          onClick={() => setTab('timeline')}
+          className={`pat-tab-btn ${activeMainTab === 'clinical' ? 'is-active' : ''}`}
+          onClick={() => setTab('clinical')}
+          data-testid="tab-clinical"
         >
-          <Clock size={15} />
-          <span>Activity</span>
-          {activity.length > 0 && (
-            <span className="pat-tab-badge">{activity.length}</span>
+          <Stethoscope size={15} />
+          <span>Clinical</span>
+          {clinicalTotalCount > 0 && (
+            <span className="pat-tab-badge">{clinicalTotalCount}</span>
           )}
         </button>
 
         <button
           type="button"
-          className={`pat-tab-btn ${activeTab === 'billing' ? 'is-active' : ''}`}
+          className={`pat-tab-btn ${activeMainTab === 'billing' ? 'is-active' : ''}`}
           onClick={() => setTab('billing')}
+          data-testid="tab-billing"
         >
           <Receipt size={15} />
           <span>Billing</span>
@@ -928,63 +1036,27 @@ export const PatientProfilePage: React.FC = () => {
 
         <button
           type="button"
-          className={`pat-tab-btn ${activeTab === 'documents' ? 'is-active' : ''}`}
+          className={`pat-tab-btn ${activeMainTab === 'documents' ? 'is-active' : ''}`}
           onClick={() => setTab('documents')}
+          data-testid="tab-documents-main"
         >
           <FileText size={15} />
-          <span>X-rays & Documents</span>
-          {patientDocs.length > 0 && (
-            <span className="pat-tab-badge">{patientDocs.length}</span>
+          <span>Documents</span>
+          {documentsTotalCount > 0 && (
+            <span className="pat-tab-badge">{documentsTotalCount}</span>
           )}
         </button>
 
         <button
           type="button"
-          className={`pat-tab-btn ${activeTab === 'consents' ? 'is-active' : ''}`}
-          onClick={() => setTab('consents')}
+          className={`pat-tab-btn ${activeMainTab === 'activity' ? 'is-active' : ''}`}
+          onClick={() => setTab('activity')}
+          data-testid="tab-activity"
         >
-          <CheckCircle2 size={15} />
-          <span>Consent Records</span>
-          {patientConsentList.length > 0 && (
-            <span className="pat-tab-badge">{patientConsentList.length}</span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          className={`pat-tab-btn ${activeTab === 'prescriptions' ? 'is-active' : ''}`}
-          onClick={() => setTab('prescriptions')}
-        >
-          <Pill size={15} />
-          <span>Prescriptions</span>
-          {patientPrescriptions.length > 0 && (
-            <span className="pat-tab-badge">{patientPrescriptions.length}</span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          className={`pat-tab-btn ${activeTab === 'notes' ? 'is-active' : ''}`}
-          onClick={() => setTab('notes')}
-          data-testid="tab-clinical-notes"
-        >
-          <FileText size={15} />
-          <span>Clinical Notes</span>
-          {patientNotes.length > 0 && (
-            <span className="pat-tab-badge">{patientNotes.length}</span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          className={`pat-tab-btn ${activeTab === 'plans' ? 'is-active' : ''}`}
-          onClick={() => setTab('plans')}
-          data-testid="tab-treatment-plans"
-        >
-          <Stethoscope size={15} />
-          <span>Treatment Plans</span>
-          {patientPlans.length > 0 && (
-            <span className="pat-tab-badge">{patientPlans.length}</span>
+          <Clock size={15} />
+          <span>Activity</span>
+          {activity.length > 0 && (
+            <span className="pat-tab-badge">{activity.length}</span>
           )}
         </button>
       </nav>
@@ -992,7 +1064,7 @@ export const PatientProfilePage: React.FC = () => {
       {/* 3. Tab Contents */}
       <div className="pat-tab-content">
         {/* TAB 1: OVERVIEW */}
-        {activeTab === 'overview' && (
+        {activeMainTab === 'overview' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div className="pat-grid-2">
               {/* Demographics & Contact */}
@@ -1470,7 +1542,7 @@ export const PatientProfilePage: React.FC = () => {
         )}
 
         {/* TAB 2: MEDICAL HISTORY */}
-        {activeTab === 'medical' && (
+        {activeMainTab === 'medical' && (
           <section
             className="pat-card pat-medical-card"
             aria-labelledby="medical-history-heading"
@@ -1566,7 +1638,7 @@ export const PatientProfilePage: React.FC = () => {
         )}
 
         {/* TAB 3: ACTIVITY — every visit, note, bill, payment, document and consent in one feed */}
-        {activeTab === 'timeline' && (
+        {activeMainTab === 'activity' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div className="pat-section-head">
               <div>
@@ -1661,8 +1733,8 @@ export const PatientProfilePage: React.FC = () => {
           </div>
         )}
 
-        {/* TAB: BILLING */}
-        {activeTab === 'billing' && (
+        {/* TAB 4: BILLING */}
+        {activeMainTab === 'billing' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div className="pat-section-head">
               <div>
@@ -1724,27 +1796,61 @@ export const PatientProfilePage: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 4: DOCUMENTS */}
-        {activeTab === 'documents' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
-                  Diagnostic Records & Radiographs
-                </h3>
-                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
-                  Intraoral RVG scans, panoramic radiographs (OPG), photos, and lab records.
-                </p>
-              </div>
+        {/* TAB 5: DOCUMENTS (X-rays & Documents, Consent Records) */}
+        {activeMainTab === 'documents' && (
+          <div>
+            <div className="pat-subnav-bar" role="tablist" aria-label="Documents Sections">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={documentsSubTab === 'documents'}
+                className={`pat-subtab-btn ${documentsSubTab === 'documents' ? 'is-active' : ''}`}
+                onClick={() => setDocumentsSubTab('documents')}
+                data-testid="tab-documents"
+              >
+                <FileText size={14} />
+                <span>X-rays & Documents</span>
+                {patientDocs.length > 0 && (
+                  <span className="pat-subtab-badge">{patientDocs.length}</span>
+                )}
+              </button>
 
               <button
                 type="button"
-                onClick={() => setUploadModalOpen(true)}
-                className="pat-btn pat-btn-primary"
+                role="tab"
+                aria-selected={documentsSubTab === 'consents'}
+                className={`pat-subtab-btn ${documentsSubTab === 'consents' ? 'is-active' : ''}`}
+                onClick={() => setDocumentsSubTab('consents')}
+                data-testid="tab-consents"
               >
-                <Upload size={13} /> Upload Document
+                <CheckCircle2 size={14} />
+                <span>Consent Records</span>
+                {patientConsentList.length > 0 && (
+                  <span className="pat-subtab-badge">{patientConsentList.length}</span>
+                )}
               </button>
             </div>
+
+            {documentsSubTab === 'documents' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
+                      Diagnostic Records & Radiographs
+                    </h3>
+                    <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
+                      Intraoral RVG scans, panoramic radiographs (OPG), photos, and lab records.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setUploadModalOpen(true)}
+                    className="pat-btn pat-btn-primary"
+                  >
+                    <Upload size={13} /> Upload Document
+                  </button>
+                </div>
 
             {docNotice && (
               <p className="pat-notice" role="status">
@@ -1832,33 +1938,32 @@ export const PatientProfilePage: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 5: CONSENT RECORDS */}
-        {activeTab === 'consents' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
-                  Informed Consent & Regulatory Records
-                </h3>
-                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
-                  Signed procedural consents in compliance with DCI clinical practice guidelines.
-                </p>
-              </div>
+        {documentsSubTab === 'consents' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
+                      Informed Consent & Regulatory Records
+                    </h3>
+                    <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
+                      Signed procedural consents in compliance with DCI clinical practice guidelines.
+                    </p>
+                  </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ fontSize: '12px', color: '#059669', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                  <CheckCircle2 size={14} /> ABDM & Digital Consent Compliant
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ fontSize: '12px', color: '#059669', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <CheckCircle2 size={14} /> ABDM & Digital Consent Compliant
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setConsentModalOpen(true)}
+                      className="pat-btn pat-btn-primary"
+                      style={{ padding: '6px 14px', fontSize: '12.5px' }}
+                    >
+                      <FileText size={13} /> Add Consent Record
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setConsentModalOpen(true)}
-                  className="pat-btn pat-btn-primary"
-                  style={{ padding: '6px 14px', fontSize: '12.5px' }}
-                >
-                  <FileText size={13} /> Add Consent Record
-                </button>
-              </div>
-            </div>
 
             {patientConsentList.length > 0 ? (
               <div>
@@ -1906,20 +2011,71 @@ export const PatientProfilePage: React.FC = () => {
             )}
           </div>
         )}
+          </div>
+        )}
 
-        {/* TAB 6: PRESCRIPTIONS */}
-        {activeTab === 'prescriptions' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div className="pat-section-head">
-              <div>
-                <h3>Clinical Prescriptions History</h3>
-                <p>Digital drug regimens, dosage instructions, and official letterhead prescriptions authored for this patient.</p>
-              </div>
+        {/* TAB 3: CLINICAL (Prescriptions, Clinical Notes, Treatment Plans) */}
+        {activeMainTab === 'clinical' && (
+          <div>
+            <div className="pat-subnav-bar" role="tablist" aria-label="Clinical Sections">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={clinicalSubTab === 'prescriptions'}
+                className={`pat-subtab-btn ${clinicalSubTab === 'prescriptions' ? 'is-active' : ''}`}
+                onClick={() => setClinicalSubTab('prescriptions')}
+                data-testid="tab-prescriptions"
+              >
+                <Pill size={14} />
+                <span>Prescriptions</span>
+                {patientPrescriptions.length > 0 && (
+                  <span className="pat-subtab-badge">{patientPrescriptions.length}</span>
+                )}
+              </button>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => setRxModalOpen(true)}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={clinicalSubTab === 'notes'}
+                className={`pat-subtab-btn ${clinicalSubTab === 'notes' ? 'is-active' : ''}`}
+                onClick={() => setClinicalSubTab('notes')}
+                data-testid="tab-clinical-notes"
+              >
+                <FileText size={14} />
+                <span>Clinical Notes</span>
+                {patientNotes.length > 0 && (
+                  <span className="pat-subtab-badge">{patientNotes.length}</span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                role="tab"
+                aria-selected={clinicalSubTab === 'plans'}
+                className={`pat-subtab-btn ${clinicalSubTab === 'plans' ? 'is-active' : ''}`}
+                onClick={() => setClinicalSubTab('plans')}
+                data-testid="tab-treatment-plans"
+              >
+                <Stethoscope size={14} />
+                <span>Treatment Plans</span>
+                {patientPlans.length > 0 && (
+                  <span className="pat-subtab-badge">{patientPlans.length}</span>
+                )}
+              </button>
+            </div>
+
+            {clinicalSubTab === 'prescriptions' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="pat-section-head">
+                  <div>
+                    <h3>Clinical Prescriptions History</h3>
+                    <p>Digital drug regimens, dosage instructions, and official letterhead prescriptions authored for this patient.</p>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setRxModalOpen(true)}
                   className="pat-btn pat-btn-primary"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                 >
@@ -2040,8 +2196,7 @@ export const PatientProfilePage: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 7: CLINICAL NOTES */}
-        {activeTab === 'notes' && (
+        {clinicalSubTab === 'notes' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div className="pat-section-head">
               <div>
@@ -2186,8 +2341,7 @@ export const PatientProfilePage: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 9: TREATMENT PLANS & INTEGRATED COST ESTIMATES */}
-        {activeTab === 'plans' && (
+        {clinicalSubTab === 'plans' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} data-testid="patient-treatment-plans-section">
             <div className="pat-section-head">
               <div>
@@ -2346,6 +2500,8 @@ export const PatientProfilePage: React.FC = () => {
                 </button>
               </div>
             )}
+          </div>
+        )}
           </div>
         )}
       </div>
