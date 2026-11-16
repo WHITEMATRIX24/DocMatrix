@@ -22,8 +22,8 @@ export const InvoicesPage: React.FC = () => {
     })
   }, [invoices, patients, query, filter])
 
-  // "Generate invoice" links from appointments land here with a patient preselected: send them to the composer.
-  if (params.get('patientId')) {
+  // "Generate invoice" links from appointments land here with a patient or appointment preselected: send them to the composer.
+  if (params.get('patientId') || params.get('appointmentId')) {
     return <Navigate to={`/billing/invoices/new?${params.toString()}`} replace />
   }
 

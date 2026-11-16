@@ -2962,6 +2962,7 @@ export function createItemisedInvoice(details: {
     taxTotal: Math.round(totals.tax * 100) / 100,
     payments,
     appointmentId: details.appointmentId,
+    treatmentPlanId: details.treatmentPlanId,
     notes: details.notes,
   }
   record.status = deriveInvoiceStatus(record)

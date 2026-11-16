@@ -4,17 +4,24 @@ import { Ban, Banknote, CreditCard, Printer, RotateCcw, Smartphone, X } from 'lu
 import {
   CLINIC_CONFIG,
   computeAgeFromDob,
+  DENTAL_TREATMENTS,
   invoiceBalance,
   invoicePaidAmount,
   lineItemTotals,
   recordInvoicePayment,
   refundInvoicePayment,
   voidInvoiceRecord,
+  type AppointmentRecord,
+  type ClinicalNoteRecord,
+  type InvoiceLineItem,
   type InvoicePayment,
   type InvoiceRecord,
   type PatientRecord,
   type PaymentMode,
+  type TreatmentPlanRecord,
+  type TreatmentType,
 } from '@/services/clinicStore'
+import { effectivePrice, gstRateFor, type ServicePrice } from '@/services/billingStore'
 import { getCurrentUser } from '@/services/authService'
 import { canVoidInvoice, canCollectPayments } from '@/services/billingPermissions'
 import './billing.css'
@@ -87,6 +94,163 @@ export const usePayments = (invoices: InvoiceRecord[]) =>
 export const StatusPill: React.FC<{ status: InvoiceRecord['status'] }> = ({ status }) => (
   <span className={`bill-pill bill-pill-${status.toLowerCase()}`}>{status}</span>
 )
+
+/**
+ * Builds an InvoiceLineItem from an appointment's treatment information,
+ * automatically mapping against billing tariffs, master dental treatments,
+ * and patient treatment plans with accurate pricing.
+ */
+export interface BuildAppointmentLineItemParams {
+  appointment: AppointmentRecord
+  services: ServicePrice[]
+  treatmentPlans?: TreatmentPlanRecord[]
+  clinicalNotes?: ClinicalNoteRecord[]
+}
+
+export const buildAppointmentLineItem = ({
+  appointment,
+  services,
+  treatmentPlans = [],
+  clinicalNotes = [],
+}: BuildAppointmentLineItemParams): { lineItem: InvoiceLineItem; treatmentPlanId?: string } | null => {
+  // Find linked clinical note (if any)
+  const linkedNote = clinicalNotes.find(
+    (n) =>
+      n.appointmentId &&
+      (n.appointmentId === appointment.id ||
+        (appointment.backendId && n.appointmentId === appointment.backendId))
+  )
+
+  // Identify raw treatment name in priority order:
+  // 1. Specific treatmentType from appointment
+  // 2. Treatment performed in linked clinical note
+  // 3. Treatment description in linked clinical note
+  // 4. Appointment visitType
+  const rawTreatment = (
+    appointment.treatmentType ||
+    linkedNote?.treatmentPerformed ||
+    linkedNote?.treatmentDescription ||
+    appointment.visitType ||
+    ''
+  ).trim()
+
+  if (!rawTreatment) return null
+
+  const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+  const stripParens = (s: string) => s.replace(/\s*\([^)]*\)/g, '').trim()
+
+  const rawClean = clean(rawTreatment)
+  const rawCleanNoParens = clean(stripParens(rawTreatment))
+
+  // 1. Check services configured in billing tariffs
+  let matchedService = services.find(
+    (s) => s.name.trim().toLowerCase() === rawTreatment.toLowerCase()
+  )
+
+  if (!matchedService) {
+    matchedService = services.find((s) => clean(s.name) === rawClean)
+  }
+
+  if (!matchedService && rawCleanNoParens) {
+    matchedService = services.find(
+      (s) => clean(stripParens(s.name)) === rawCleanNoParens
+    )
+  }
+
+  if (!matchedService) {
+    matchedService = services.find((s) => {
+      const sClean = clean(s.name)
+      return (
+        (rawClean.length >= 4 && sClean.includes(rawClean)) ||
+        (sClean.length >= 4 && rawClean.includes(sClean))
+      )
+    })
+  }
+
+  // 2. Check master DENTAL_TREATMENTS catalog
+  let matchedDentalTrt: TreatmentType | undefined = DENTAL_TREATMENTS.find(
+    (t) => t.name.trim().toLowerCase() === rawTreatment.toLowerCase()
+  )
+  if (!matchedDentalTrt) {
+    matchedDentalTrt = DENTAL_TREATMENTS.find((t) => clean(t.name) === rawClean)
+  }
+  if (!matchedDentalTrt && rawCleanNoParens) {
+    matchedDentalTrt = DENTAL_TREATMENTS.find(
+      (t) => clean(stripParens(t.name)) === rawCleanNoParens
+    )
+  }
+  if (!matchedDentalTrt) {
+    matchedDentalTrt = DENTAL_TREATMENTS.find((t) => {
+      const tClean = clean(t.name)
+      return (
+        (rawClean.length >= 4 && tClean.includes(rawClean)) ||
+        (tClean.length >= 4 && rawClean.includes(tClean))
+      )
+    })
+  }
+
+  // 3. Check treatment plans for this patient
+  const matchingPlan = treatmentPlans.find((tp) => {
+    const isPatient =
+      tp.patientId === appointment.patientId ||
+      (appointment.patientName && tp.patientName === appointment.patientName)
+    if (!isPatient) return false
+    const pClean = clean(tp.procedure || '')
+    return (
+      pClean === rawClean ||
+      (rawCleanNoParens && clean(stripParens(tp.procedure || '')) === rawCleanNoParens) ||
+      (rawClean.length >= 4 && pClean.includes(rawClean)) ||
+      (pClean.length >= 4 && rawClean.includes(pClean))
+    )
+  })
+
+  // Extract tooth number if known
+  const toothNumber =
+    matchingPlan?.toothNumber ||
+    linkedNote?.treatmentToothNumber ||
+    (() => {
+      const m = (appointment.notes || '').match(/(?:tooth|teeth|#)\s*([0-9]{1,2})/i)
+      return m ? m[1] : ''
+    })()
+
+  // Determine line item attributes
+  let serviceId: string | undefined = undefined
+  let name = rawTreatment
+  let unitPrice = 0
+  let gstRate = 0
+
+  if (matchedService) {
+    serviceId = matchedService.id
+    name = matchedService.name
+    unitPrice = effectivePrice(matchedService)
+    gstRate = gstRateFor(matchedService.gstClass)
+  } else if (matchedDentalTrt) {
+    serviceId = matchedDentalTrt.id
+    name = matchedDentalTrt.name
+    unitPrice = matchedDentalTrt.standardFee
+    gstRate = matchedDentalTrt.category === 'Cosmetic' ? 18 : 0
+  } else if (matchingPlan && matchingPlan.cost > 0) {
+    name = matchingPlan.procedure
+    unitPrice = matchingPlan.cost
+    gstRate = matchingPlan.category === 'Cosmetic' ? 18 : 0
+  }
+
+  const lineItem: InvoiceLineItem = {
+    id: `appt-${appointment.id}-${serviceId || 'custom'}`,
+    serviceId,
+    name,
+    toothNumber: toothNumber || undefined,
+    qty: 1,
+    unitPrice,
+    discount: 0,
+    gstRate,
+  }
+
+  return {
+    lineItem,
+    treatmentPlanId: matchingPlan?.id,
+  }
+}
 
 /* ── Record payment dialog ─────────────────────────────────────────── */
 
