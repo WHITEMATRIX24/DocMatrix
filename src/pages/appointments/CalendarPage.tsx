@@ -275,6 +275,48 @@ export const CalendarPage: React.FC = () => {
     }
   }, [qbDoctor, qbDate, qbTime, selectedQbTreatment, appointments])
 
+  // Check availability of each time slot for rescheduling active appointment
+  const getRescheduleSlotAvailability = (slot: string) => {
+    if (!activeAppt || !rescheduleDate) return { available: true }
+    return checkDentistAvailability(
+      activeAppt.doctor,
+      rescheduleDate,
+      slot,
+      activeAppt.durationMinutes || 30,
+      activeAppt.id
+    )
+  }
+
+  // Auto-adjust rescheduleTime if currently selected slot is unavailable on the chosen date
+  useEffect(() => {
+    if (!showRescheduleModal || !activeAppt || !rescheduleDate) return
+    const currentStatus = checkDentistAvailability(
+      activeAppt.doctor,
+      rescheduleDate,
+      rescheduleTime,
+      activeAppt.durationMinutes || 30,
+      activeAppt.id
+    )
+    if (!currentStatus.available) {
+      const firstAvail = timeSlots.find((s) => {
+        const res = checkDentistAvailability(
+          activeAppt.doctor,
+          rescheduleDate,
+          s,
+          activeAppt.durationMinutes || 30,
+          activeAppt.id
+        )
+        return res.available
+      })
+      if (firstAvail) {
+        setRescheduleTime(firstAvail)
+        setRescheduleError('')
+      } else {
+        setRescheduleError(currentStatus.reason || `${activeAppt.doctor} has no available slots on ${rescheduleDate}.`)
+      }
+    }
+  }, [showRescheduleModal, activeAppt, rescheduleDate])
+
   const handleRegisterAndSelectPatient = () => {
     const rawName = qbPatientSearch.trim()
     if (!rawName) return
@@ -385,6 +427,18 @@ export const CalendarPage: React.FC = () => {
     e.preventDefault()
     if (!activeAppt) return
     setRescheduleError('')
+
+    const slotCheck = checkDentistAvailability(
+      activeAppt.doctor,
+      rescheduleDate,
+      rescheduleTime,
+      activeAppt.durationMinutes || 30,
+      activeAppt.id
+    )
+    if (!slotCheck.available) {
+      setRescheduleError(slotCheck.reason || 'Selected time slot is unavailable. Please select an available slot.')
+      return
+    }
 
     const result = rescheduleAppointment(
       activeAppt.id,
@@ -1357,18 +1411,39 @@ export const CalendarPage: React.FC = () => {
                     required
                     min={new Date().toISOString().slice(0, 10)}
                     value={rescheduleDate}
-                    onChange={(e) => setRescheduleDate(e.target.value)}
+                    onChange={(e) => {
+                      setRescheduleDate(e.target.value)
+                      setRescheduleError('')
+                    }}
                   />
                 </label>
                 <label className="form-field">
                   <span>New Time Slot *</span>
                   <select
                     value={rescheduleTime}
-                    onChange={(e) => setRescheduleTime(e.target.value)}
+                    onChange={(e) => {
+                      setRescheduleTime(e.target.value)
+                      setRescheduleError('')
+                    }}
                   >
-                    {timeSlots.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
+                    {timeSlots.map((s) => {
+                      const slotCheck = getRescheduleSlotAvailability(s)
+                      const isAvailable = slotCheck.available
+                      return (
+                        <option
+                          key={s}
+                          value={s}
+                          disabled={!isAvailable}
+                          className={isAvailable ? 'slot-option-available' : 'slot-option-unavailable'}
+                          style={{
+                            color: isAvailable ? 'var(--text-strong, #0f172a)' : 'var(--text-muted, #94a3b8)',
+                            fontWeight: isAvailable ? 600 : 400
+                          }}
+                        >
+                          {s}{!isAvailable ? ' (Unavailable)' : ''}
+                        </option>
+                      )
+                    })}
                   </select>
                 </label>
               </div>
@@ -1387,7 +1462,15 @@ export const CalendarPage: React.FC = () => {
                 <button type="button" className="btn-cancel" onClick={() => setShowRescheduleModal(false)}>
                   Cancel
                 </button>
-                <button type="submit" className="btn-confirm-reschedule">
+                <button
+                  type="submit"
+                  className="btn-confirm-reschedule"
+                  disabled={!getRescheduleSlotAvailability(rescheduleTime).available}
+                  style={{
+                    opacity: !getRescheduleSlotAvailability(rescheduleTime).available ? 0.6 : 1,
+                    cursor: !getRescheduleSlotAvailability(rescheduleTime).available ? 'not-allowed' : 'pointer'
+                  }}
+                >
                   <RotateCcw size={14} />
                   <span>Confirm Reschedule</span>
                 </button>

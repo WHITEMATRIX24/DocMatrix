@@ -1,8 +1,14 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarDays, Search, UserRound, Stethoscope, RotateCcw, X, Clock, AlertTriangle, Check } from 'lucide-react'
-import { useClinicData, rescheduleAppointment, type AppointmentStatus, type AppointmentRecord } from '@/services/clinicStore'
+import { useClinicData, rescheduleAppointment, checkDentistAvailability, type AppointmentStatus, type AppointmentRecord } from '@/services/clinicStore'
 import './calendar.css'
+
+const RESCHEDULE_TIME_SLOTS = [
+  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
+]
 
 export const AppointmentDetailsPage: React.FC = () => {
   const { patients, appointments } = useClinicData()
@@ -18,6 +24,47 @@ export const AppointmentDetailsPage: React.FC = () => {
   const [rescheduleError, setRescheduleError] = useState('')
   const [rescheduleSuccess, setRescheduleSuccess] = useState('')
 
+  const getRescheduleSlotAvailability = (slot: string) => {
+    if (!rescheduleAppt || !rescheduleDate) return { available: true }
+    return checkDentistAvailability(
+      rescheduleAppt.doctor,
+      rescheduleDate,
+      slot,
+      rescheduleAppt.durationMinutes || 30,
+      rescheduleAppt.id
+    )
+  }
+
+  // Auto-adjust rescheduleTime if currently selected slot is unavailable on the chosen date
+  useEffect(() => {
+    if (!rescheduleAppt || !rescheduleDate) return
+    const currentStatus = checkDentistAvailability(
+      rescheduleAppt.doctor,
+      rescheduleDate,
+      rescheduleTime,
+      rescheduleAppt.durationMinutes || 30,
+      rescheduleAppt.id
+    )
+    if (!currentStatus.available) {
+      const firstAvail = RESCHEDULE_TIME_SLOTS.find((s) => {
+        const res = checkDentistAvailability(
+          rescheduleAppt.doctor,
+          rescheduleDate,
+          s,
+          rescheduleAppt.durationMinutes || 30,
+          rescheduleAppt.id
+        )
+        return res.available
+      })
+      if (firstAvail) {
+        setRescheduleTime(firstAvail)
+        setRescheduleError('')
+      } else {
+        setRescheduleError(currentStatus.reason || `${rescheduleAppt.doctor} has no available slots on ${rescheduleDate}.`)
+      }
+    }
+  }, [rescheduleAppt, rescheduleDate])
+
   const handleOpenReschedule = (appt: AppointmentRecord) => {
     setRescheduleAppt(appt)
     setRescheduleDate(appt.date)
@@ -31,6 +78,18 @@ export const AppointmentDetailsPage: React.FC = () => {
     e.preventDefault()
     if (!rescheduleAppt) return
     setRescheduleError('')
+
+    const slotCheck = checkDentistAvailability(
+      rescheduleAppt.doctor,
+      rescheduleDate,
+      rescheduleTime,
+      rescheduleAppt.durationMinutes || 30,
+      rescheduleAppt.id
+    )
+    if (!slotCheck.available) {
+      setRescheduleError(slotCheck.reason || 'Selected time slot is unavailable. Please select an available slot.')
+      return
+    }
 
     const result = rescheduleAppointment(
       rescheduleAppt.id,
@@ -280,7 +339,10 @@ export const AppointmentDetailsPage: React.FC = () => {
                       required
                       min={new Date().toISOString().slice(0, 10)}
                       value={rescheduleDate}
-                      onChange={(e) => setRescheduleDate(e.target.value)}
+                      onChange={(e) => {
+                        setRescheduleDate(e.target.value)
+                        setRescheduleError('')
+                      }}
                     />
                   </label>
 
@@ -288,15 +350,29 @@ export const AppointmentDetailsPage: React.FC = () => {
                     <span>New Time Slot *</span>
                     <select
                       value={rescheduleTime}
-                      onChange={(e) => setRescheduleTime(e.target.value)}
+                      onChange={(e) => {
+                        setRescheduleTime(e.target.value)
+                        setRescheduleError('')
+                      }}
                     >
-                      {[
-                        '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-                        '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-                        '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
-                      ].map((slot) => (
-                        <option key={slot} value={slot}>{slot}</option>
-                      ))}
+                      {RESCHEDULE_TIME_SLOTS.map((slot) => {
+                        const slotCheck = getRescheduleSlotAvailability(slot)
+                        const isAvailable = slotCheck.available
+                        return (
+                          <option
+                            key={slot}
+                            value={slot}
+                            disabled={!isAvailable}
+                            className={isAvailable ? 'slot-option-available' : 'slot-option-unavailable'}
+                            style={{
+                              color: isAvailable ? 'var(--text-strong, #0f172a)' : 'var(--text-muted, #94a3b8)',
+                              fontWeight: isAvailable ? 600 : 400
+                            }}
+                          >
+                            {slot}{!isAvailable ? ' (Unavailable)' : ''}
+                          </option>
+                        )
+                      })}
                     </select>
                   </label>
                 </div>
@@ -315,7 +391,15 @@ export const AppointmentDetailsPage: React.FC = () => {
                   <button type="button" className="btn-cancel" onClick={() => setRescheduleAppt(null)}>
                     Cancel
                   </button>
-                  <button type="submit" className="btn-confirm-reschedule" disabled={Boolean(rescheduleSuccess)}>
+                  <button
+                    type="submit"
+                    className="btn-confirm-reschedule"
+                    disabled={Boolean(rescheduleSuccess) || !getRescheduleSlotAvailability(rescheduleTime).available}
+                    style={{
+                      opacity: (!getRescheduleSlotAvailability(rescheduleTime).available || Boolean(rescheduleSuccess)) ? 0.6 : 1,
+                      cursor: !getRescheduleSlotAvailability(rescheduleTime).available ? 'not-allowed' : 'pointer'
+                    }}
+                  >
                     <RotateCcw size={14} />
                     <span>Confirm Reschedule</span>
                   </button>

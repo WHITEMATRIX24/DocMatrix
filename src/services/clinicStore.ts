@@ -1767,7 +1767,7 @@ export const bookAppointment = (data: {
 }): AppointmentRecord => {
   const dentist = DENTISTS.find((d) => d.name === data.doctor)
   const chair = data.chair || dentist?.chair || 'Chair 1'
-  const localId = `APT-${Date.now().toString().slice(-4)}`
+  const localId = `APT-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`
 
   const newAppt: AppointmentRecord = {
     id: localId,
@@ -2078,7 +2078,7 @@ export const registerWalkIn = (data: {
   const token = `${CLINIC_CONFIG.walkInTokenPrefix}${walkInCounter++}`
   const now = new Date()
   const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-  const localId = `APT-${Date.now().toString().slice(-4)}`
+  const localId = `APT-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`
 
   const walkInAppt: AppointmentRecord = {
     id: localId,

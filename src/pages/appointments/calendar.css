@@ -2047,6 +2047,35 @@
   border-color: var(--teal-primary, #0b8185);
 }
 
+/* ── Reschedule Time Slot Availability ───────────────────────────── */
+.reschedule-modal-card select option.slot-option-available,
+select option.slot-option-available {
+  color: var(--text-strong, #0f172a);
+  font-weight: 600;
+  background-color: var(--surface, #ffffff);
+}
+
+.reschedule-modal-card select option.slot-option-unavailable,
+select option.slot-option-unavailable,
+.reschedule-modal-card select option:disabled,
+select option:disabled {
+  color: var(--text-muted, #94a3b8) !important;
+  font-weight: 400 !important;
+  background-color: var(--surface-muted, #f8fafc);
+  opacity: 0.6;
+}
+
+:root[data-theme="dark"] .dmx-shell .reschedule-modal-card select option.slot-option-available {
+  color: #f1f5f9;
+  background-color: #111b1c;
+}
+
+:root[data-theme="dark"] .dmx-shell .reschedule-modal-card select option.slot-option-unavailable,
+:root[data-theme="dark"] .dmx-shell select option:disabled {
+  color: #64748b !important;
+  background-color: #0c1415;
+}
+
 :root[data-theme="dark"] .dmx-shell .reschedule-modal-card {
   background: #0c1415;
   border-color: rgba(214, 240, 236, 0.16);
