@@ -2047,7 +2047,7 @@
   border-color: var(--teal-primary, #0b8185);
 }
 
-/* ── Reschedule Time Slot Availability ───────────────────────────── */
+/* ── Reschedule & Booking Time Slot Availability ─────────────────── */
 .reschedule-modal-card select option.slot-option-available,
 select option.slot-option-available {
   color: var(--text-strong, #0f172a);
@@ -2065,6 +2065,24 @@ select option:disabled {
   opacity: 0.6;
 }
 
+button.slot-btn-available {
+  color: var(--text-strong, #0f172a);
+  font-weight: 600;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #cbd5e1);
+  cursor: pointer;
+}
+
+button.slot-btn-unavailable,
+button.slot-btn-unavailable:disabled {
+  color: var(--text-muted, #94a3b8) !important;
+  font-weight: 400 !important;
+  background: var(--surface-alt, #f8fafc) !important;
+  border: 1px solid var(--line-subtle, #e2e8f0) !important;
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+}
+
 :root[data-theme="dark"] .dmx-shell .reschedule-modal-card select option.slot-option-available {
   color: #f1f5f9;
   background-color: #111b1c;
@@ -2074,6 +2092,19 @@ select option:disabled {
 :root[data-theme="dark"] .dmx-shell select option:disabled {
   color: #64748b !important;
   background-color: #0c1415;
+}
+
+:root[data-theme="dark"] .dmx-shell button.slot-btn-available {
+  color: #f1f5f9;
+  background: #111b1c;
+  border-color: rgba(214, 240, 236, 0.16);
+}
+
+:root[data-theme="dark"] .dmx-shell button.slot-btn-unavailable,
+:root[data-theme="dark"] .dmx-shell button.slot-btn-unavailable:disabled {
+  color: #64748b !important;
+  background: #0c1415 !important;
+  border-color: rgba(214, 240, 236, 0.08) !important;
 }
 
 :root[data-theme="dark"] .dmx-shell .reschedule-modal-card {

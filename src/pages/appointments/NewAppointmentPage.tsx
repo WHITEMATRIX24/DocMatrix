@@ -222,7 +222,28 @@ export const NewAppointmentPage: React.FC = () => {
   const availability = useMemo(() => {
     const duration = selectedTreatment?.defaultDurationMinutes || 30
     return checkDentistAvailability(selectedDoctor, selectedDate, selectedTime, duration)
-  }, [selectedDoctor, selectedDate, selectedTime, selectedTreatment])
+  }, [selectedDoctor, selectedDate, selectedTime, selectedTreatment, appointments])
+
+  // Real-time availability check for any time slot
+  const getSlotAvailability = (slot: string) => {
+    const duration = selectedTreatment?.defaultDurationMinutes || 30
+    return checkDentistAvailability(selectedDoctor, selectedDate, slot, duration)
+  }
+
+  // Auto-adjust selectedTime if the current slot is unavailable when doctor or date changes
+  useEffect(() => {
+    const duration = selectedTreatment?.defaultDurationMinutes || 30
+    const currentCheck = checkDentistAvailability(selectedDoctor, selectedDate, selectedTime, duration)
+    if (!currentCheck.available) {
+      const firstAvail = timeSlots.find((s) => {
+        const check = checkDentistAvailability(selectedDoctor, selectedDate, s, duration)
+        return check.available
+      })
+      if (firstAvail) {
+        setSelectedTime(firstAvail)
+      }
+    }
+  }, [selectedDoctor, selectedDate, selectedTreatment, appointments])
 
   const handleSelectPatient = (patientId: string) => {
     setSelectedPatientId(patientId)
@@ -716,28 +737,42 @@ export const NewAppointmentPage: React.FC = () => {
                   <h4 style={{ fontSize: '13px', fontWeight: 600, margin: '0 0 6px 0', color: 'var(--text-strong, #0f172a)' }}>Daily schedule</h4>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                     {timeSlots.map((slot) => {
-                      const isBooked = appointments.some(
-                        (a) => a.doctor === selectedDoctor && a.date === selectedDate && a.time === slot && a.status !== 'cancelled'
-                      )
+                      const slotCheck = getSlotAvailability(slot)
+                      const isAvailable = slotCheck.available
                       const isSelected = selectedTime === slot
                       return (
                         <button
                           key={slot}
                           type="button"
-                          disabled={isBooked}
+                          disabled={!isAvailable}
                           onClick={() => setSelectedTime(slot)}
+                          className={isAvailable ? 'slot-btn-available' : 'slot-btn-unavailable'}
+                          title={!isAvailable ? slotCheck.reason || 'Unavailable slot' : `Select ${slot}`}
                           style={{
-                            padding: '5px 9px',
+                            padding: '6px 10px',
                             fontSize: '11.5px',
                             borderRadius: '5px',
-                            border: isSelected ? '1.5px solid var(--teal-primary, #0b8185)' : '1px solid var(--line, #cbd5e1)',
-                            background: isSelected ? 'var(--teal-primary, #0b8185)' : isBooked ? 'var(--surface-alt, #f1f5f9)' : 'var(--surface, #ffffff)',
-                            color: isSelected ? '#ffffff' : isBooked ? 'var(--text-faint, #94a3b8)' : 'var(--text, #334155)',
-                            cursor: isBooked ? 'not-allowed' : 'pointer',
-                            fontWeight: isSelected ? 700 : 500
+                            border: isSelected
+                              ? '1.5px solid var(--teal-primary, #0b8185)'
+                              : isAvailable
+                              ? '1px solid var(--line, #cbd5e1)'
+                              : '1px solid var(--line-subtle, #e2e8f0)',
+                            background: isSelected
+                              ? 'var(--teal-primary, #0b8185)'
+                              : isAvailable
+                              ? 'var(--surface, #ffffff)'
+                              : 'var(--surface-alt, #f8fafc)',
+                            color: isSelected
+                              ? '#ffffff'
+                              : isAvailable
+                              ? 'var(--text-strong, #0f172a)'
+                              : 'var(--text-muted, #94a3b8)',
+                            opacity: isAvailable ? 1 : 0.6,
+                            cursor: isAvailable ? 'pointer' : 'not-allowed',
+                            fontWeight: isSelected ? 700 : isAvailable ? 600 : 400
                           }}
                         >
-                          {slot} {isBooked ? '(Booked)' : ''}
+                          {slot} {!isAvailable ? '(Unavailable)' : ''}
                         </button>
                       )
                     })}

@@ -62,8 +62,10 @@ export const AppointmentDetailsPage: React.FC = () => {
       } else {
         setRescheduleError(currentStatus.reason || `${rescheduleAppt.doctor} has no available slots on ${rescheduleDate}.`)
       }
+    } else {
+      setRescheduleError('')
     }
-  }, [rescheduleAppt, rescheduleDate])
+  }, [rescheduleAppt, rescheduleDate, appointments])
 
   const handleOpenReschedule = (appt: AppointmentRecord) => {
     setRescheduleAppt(appt)

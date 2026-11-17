@@ -287,6 +287,29 @@ export const CalendarPage: React.FC = () => {
     )
   }
 
+  // Check availability of each time slot for in-calendar quick slot booking
+  const getQbSlotAvailability = (slot: string) => {
+    const duration = selectedQbTreatment?.defaultDurationMinutes || 30
+    return checkDentistAvailability(qbDoctor, qbDate, slot, duration)
+  }
+
+  // Auto-adjust qbTime if currently selected slot is unavailable when doctor, date or treatment changes
+  useEffect(() => {
+    if (!showSlotBookingModal) return
+    const duration = selectedQbTreatment?.defaultDurationMinutes || 30
+    const currentStatus = checkDentistAvailability(qbDoctor, qbDate, qbTime, duration)
+    if (!currentStatus.available) {
+      const firstAvail = timeSlots.find((s) => {
+        const res = checkDentistAvailability(qbDoctor, qbDate, s, duration)
+        return res.available
+      })
+      if (firstAvail) {
+        setQbTime(firstAvail)
+        setQbError('')
+      }
+    }
+  }, [showSlotBookingModal, qbDoctor, qbDate, qbTreatmentId, appointments])
+
   // Auto-adjust rescheduleTime if currently selected slot is unavailable on the chosen date
   useEffect(() => {
     if (!showRescheduleModal || !activeAppt || !rescheduleDate) return
@@ -314,8 +337,10 @@ export const CalendarPage: React.FC = () => {
       } else {
         setRescheduleError(currentStatus.reason || `${activeAppt.doctor} has no available slots on ${rescheduleDate}.`)
       }
+    } else {
+      setRescheduleError('')
     }
-  }, [showRescheduleModal, activeAppt, rescheduleDate])
+  }, [showRescheduleModal, activeAppt, rescheduleDate, appointments])
 
   const handleRegisterAndSelectPatient = () => {
     const rawName = qbPatientSearch.trim()
@@ -1066,9 +1091,24 @@ export const CalendarPage: React.FC = () => {
                 <label className="form-field">
                   <span>Time Slot</span>
                   <select value={qbTime} onChange={(e) => setQbTime(e.target.value)}>
-                    {timeSlots.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
+                    {timeSlots.map((s) => {
+                      const slotCheck = getQbSlotAvailability(s)
+                      const isAvailable = slotCheck.available
+                      return (
+                        <option
+                          key={s}
+                          value={s}
+                          disabled={!isAvailable}
+                          className={isAvailable ? 'slot-option-available' : 'slot-option-unavailable'}
+                          style={{
+                            color: isAvailable ? 'var(--text-strong, #0f172a)' : 'var(--text-muted, #94a3b8)',
+                            fontWeight: isAvailable ? 600 : 400
+                          }}
+                        >
+                          {s}{!isAvailable ? ' (Unavailable)' : ''}
+                        </option>
+                      )
+                    })}
                   </select>
                 </label>
               </div>
