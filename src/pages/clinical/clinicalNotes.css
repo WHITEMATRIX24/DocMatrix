@@ -631,6 +631,13 @@
   border-radius: var(--cn-radius-md);
 }
 
+.cn-form-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
 .cn-form-section-title {
   display: flex;
   align-items: center;
@@ -647,6 +654,88 @@
   width: 16px;
   height: 16px;
   color: var(--cn-teal);
+}
+
+/* ── Collapsible Box Styling ────────────────────────────────────── */
+.cn-collapsible-box {
+  margin-top: 4px;
+  border: 1px dashed var(--line, #cbd5e1);
+  border-radius: var(--cn-radius-md);
+  background: var(--surface, #ffffff);
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.cn-collapsible-box-open {
+  border-style: solid;
+  border-color: #93c5fd;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.cn-collapsible-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-strong, #334155);
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.cn-collapsible-trigger:hover {
+  background: var(--paper, #f1f5f9);
+}
+
+.cn-collapsible-trigger-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cn-collapsible-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cn-collapsible-badge-active {
+  background: rgba(0, 136, 145, 0.12);
+  color: var(--cn-teal, #008891);
+}
+
+.cn-collapsible-badge-empty {
+  background: var(--paper, #f1f5f9);
+  color: var(--text-muted, #94a3b8);
+}
+
+.cn-collapsible-body {
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--line, #e2e8f0);
+  background: #fafbfc;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cn-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-strong, #0f172a);
 }
 
 .cn-form-grid-2 {

@@ -64,7 +64,7 @@ describe('Structured Clinical Notes Module', () => {
       expect(screen.getByText('CN-1003')).toBeInTheDocument();
     });
 
-    it('opens structured 8-section modal when clicking "New Clinical Note"', async () => {
+    it('opens structured streamlined modal when clicking "New Clinical Note"', async () => {
       renderAt('/clinical/notes');
 
       const newBtn = await screen.findByTestId('new-clinical-note-button', {}, { timeout: 10000 });
@@ -73,15 +73,11 @@ describe('Structured Clinical Notes Module', () => {
       const dialog = await screen.findByRole('dialog');
       expect(within(dialog).getByText(/New Dental Clinical Note/i)).toBeInTheDocument();
 
-      // Verify sections
-      expect(within(dialog).getByText(/1\. Consultation Information/i)).toBeInTheDocument();
-      expect(within(dialog).getByText(/2\. Chief Complaint/i)).toBeInTheDocument();
-      expect(within(dialog).getByText(/3\. Symptoms & History/i)).toBeInTheDocument();
-      expect(within(dialog).getByText(/4\. Clinical Examination Findings/i)).toBeInTheDocument();
-      expect(within(dialog).getByText(/5\. Clinical Diagnosis/i)).toBeInTheDocument();
-      expect(within(dialog).getByText(/6\. Treatment Performed/i)).toBeInTheDocument();
-      expect(within(dialog).getByText(/7\. Treatment Recommendations/i)).toBeInTheDocument();
-      expect(within(dialog).getByText(/8\. Follow-up & Patient Instructions/i)).toBeInTheDocument();
+      // Verify streamlined logical sections
+      expect(within(dialog).getByText(/1\. Consultation & Patient Complaint/i)).toBeInTheDocument();
+      expect(within(dialog).getByText(/2\. Clinical Examination & Diagnosis/i)).toBeInTheDocument();
+      expect(within(dialog).getByText(/3\. Treatment & Procedures Performed/i)).toBeInTheDocument();
+      expect(within(dialog).getByText(/4\. Treatment Plan & Follow-up/i)).toBeInTheDocument();
 
       // Pain rating scale (0-10)
       expect(within(dialog).getByText(/Pain Severity Rating/i)).toBeInTheDocument();

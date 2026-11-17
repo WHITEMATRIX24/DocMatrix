@@ -7,6 +7,11 @@ import {
   Save,
   Clock,
   ShieldAlert,
+  ChevronDown,
+  ChevronUp,
+  Stethoscope,
+  Activity,
+  Calendar,
 } from 'lucide-react';
 import {
   useClinicData,
@@ -152,6 +157,19 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [confirmFinalizeOpen, setConfirmFinalizeOpen] = useState(false);
 
+  // Collapsible section state
+  const hasAdditionalExamData = Boolean(
+    extraoralFindings || periodontalFindings || examinationNotes
+  );
+  const [isAdditionalExamOpen, setIsAdditionalExamOpen] = useState<boolean>(
+    Boolean(
+      initialNote?.extraoralFindings ||
+      initialNote?.periodontalFindings ||
+      initialNote?.examinationNotes ||
+      initialNote?.findings
+    )
+  );
+
   // Safety alerts
   const safetyAlerts = useMemo(() => {
     if (!activePatient) return [];
@@ -291,11 +309,14 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
             </div>
           )}
 
-          {/* Section 1: Consultation Details */}
+          {/* Section 1: Consultation & Patient Complaint */}
           <section className="cn-form-section">
-            <h3 className="cn-form-section-title">
-              <Clock /> 1. Consultation Information
-            </h3>
+            <div className="cn-form-section-header">
+              <h3 className="cn-form-section-title">
+                <Clock /> 1. Consultation & Patient Complaint
+              </h3>
+            </div>
+
             <div className="cn-form-grid-3">
               <div className="cn-form-group">
                 <label className="cn-label cn-label-required">Patient</label>
@@ -338,13 +359,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
                 </select>
               </div>
             </div>
-          </section>
 
-          {/* Section 2: Chief Complaint */}
-          <section className="cn-form-section">
-            <h3 className="cn-form-section-title">
-              <FileText /> 2. Chief Complaint
-            </h3>
             <div className="cn-form-group">
               <label className="cn-label cn-label-required">
                 Patient's Primary Concern / Reason for Visit
@@ -358,13 +373,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
                 required
               />
             </div>
-          </section>
 
-          {/* Section 3: Symptoms & Dental History */}
-          <section className="cn-form-section">
-            <h3 className="cn-form-section-title">
-              <AlertTriangle /> 3. Symptoms & History
-            </h3>
             <div className="cn-form-grid-2">
               <div className="cn-form-group">
                 <label className="cn-label">Symptoms</label>
@@ -423,7 +432,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
               </div>
             </div>
 
-            <div className="cn-form-group" style={{ marginTop: '6px' }}>
+            <div className="cn-form-group">
               <label className="cn-label">Medical & Dental History Notes</label>
               <input
                 type="text"
@@ -435,76 +444,14 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
             </div>
           </section>
 
-          {/* Section 4: Clinical Examination */}
+          {/* Section 2: Clinical Examination & Diagnosis */}
           <section className="cn-form-section">
-            <h3 className="cn-form-section-title">
-              <FileText /> 4. Clinical Examination Findings
-            </h3>
-            <div className="cn-form-grid-2">
-              <div className="cn-form-group">
-                <label className="cn-label">Extraoral Examination</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Normal facial symmetry, TMJ smooth without clicking, submandibular lymph nodes non-tender"
-                  value={extraoralFindings}
-                  onChange={(e) => setExtraoralFindings(e.target.value)}
-                  className="cn-textarea"
-                />
-              </div>
-
-              <div className="cn-form-group">
-                <label className="cn-label">Intraoral Examination</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Generalized marginal gingival inflammation, calculus Grade 1 on lingual of lower anteriors"
-                  value={intraoralFindings}
-                  onChange={(e) => setIntraoralFindings(e.target.value)}
-                  className="cn-textarea"
-                />
-              </div>
+            <div className="cn-form-section-header">
+              <h3 className="cn-form-section-title">
+                <CheckCircle2 /> 2. Clinical Examination & Diagnosis
+              </h3>
             </div>
 
-            <div className="cn-form-grid-2">
-              <div className="cn-form-group">
-                <label className="cn-label">Tooth-Specific Findings</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Tooth #46: Deep disto-occlusal cavitated lesion into dentin, vertical percussion tender (+), cold lingering 15s"
-                  value={toothSpecificFindings}
-                  onChange={(e) => setToothSpecificFindings(e.target.value)}
-                  className="cn-textarea"
-                />
-              </div>
-
-              <div className="cn-form-group">
-                <label className="cn-label">Periodontal Evaluation</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Probing depths 2-3mm physiological, bleeding on probing localized to quadrant 4, no mobility"
-                  value={periodontalFindings}
-                  onChange={(e) => setPeriodontalFindings(e.target.value)}
-                  className="cn-textarea"
-                />
-              </div>
-            </div>
-
-            <div className="cn-form-group">
-              <label className="cn-label">General Examination Summary</label>
-              <textarea
-                rows={2}
-                placeholder="Comprehensive synthesis of examination and diagnostic findings"
-                value={examinationNotes}
-                onChange={(e) => setExaminationNotes(e.target.value)}
-                className="cn-textarea"
-              />
-            </div>
-          </section>
-
-          {/* Section 5: Diagnosis */}
-          <section className="cn-form-section">
-            <h3 className="cn-form-section-title">
-              <CheckCircle2 /> 5. Clinical Diagnosis
-            </h3>
             <div className="cn-form-grid-2">
               <div className="cn-form-group">
                 <label className="cn-label cn-label-required">Primary Diagnosis</label>
@@ -529,13 +476,104 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
                 />
               </div>
             </div>
+
+            <div className="cn-form-grid-2">
+              <div className="cn-form-group">
+                <label className="cn-label">Tooth-Specific Findings</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Tooth #46: Deep disto-occlusal cavitated lesion into dentin, vertical percussion tender (+), cold lingering 15s"
+                  value={toothSpecificFindings}
+                  onChange={(e) => setToothSpecificFindings(e.target.value)}
+                  className="cn-textarea"
+                />
+              </div>
+
+              <div className="cn-form-group">
+                <label className="cn-label">Intraoral Examination</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Generalized marginal gingival inflammation, calculus Grade 1 on lingual of lower anteriors"
+                  value={intraoralFindings}
+                  onChange={(e) => setIntraoralFindings(e.target.value)}
+                  className="cn-textarea"
+                />
+              </div>
+            </div>
+
+            {/* Collapsible: Additional Examination Findings */}
+            <div className={`cn-collapsible-box ${isAdditionalExamOpen ? 'cn-collapsible-box-open' : ''}`}>
+              <button
+                type="button"
+                className="cn-collapsible-trigger"
+                onClick={() => setIsAdditionalExamOpen((prev) => !prev)}
+                aria-expanded={isAdditionalExamOpen}
+              >
+                <span className="cn-collapsible-trigger-title">
+                  <Stethoscope size={15} style={{ color: 'var(--cn-teal)' }} />
+                  <span>Additional Examination (Extraoral, Periodontal, Summary)</span>
+                  <span
+                    className={`cn-collapsible-badge ${
+                      hasAdditionalExamData
+                        ? 'cn-collapsible-badge-active'
+                        : 'cn-collapsible-badge-empty'
+                    }`}
+                  >
+                    {hasAdditionalExamData ? 'Contains findings' : 'Optional'}
+                  </span>
+                </span>
+                {isAdditionalExamOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+
+              {isAdditionalExamOpen && (
+                <div className="cn-collapsible-body">
+                  <div className="cn-form-grid-2">
+                    <div className="cn-form-group">
+                      <label className="cn-label">Extraoral Examination</label>
+                      <textarea
+                        rows={2}
+                        placeholder="e.g. Normal facial symmetry, TMJ smooth without clicking, submandibular lymph nodes non-tender"
+                        value={extraoralFindings}
+                        onChange={(e) => setExtraoralFindings(e.target.value)}
+                        className="cn-textarea"
+                      />
+                    </div>
+
+                    <div className="cn-form-group">
+                      <label className="cn-label">Periodontal Evaluation</label>
+                      <textarea
+                        rows={2}
+                        placeholder="e.g. Probing depths 2-3mm physiological, bleeding on probing localized to quadrant 4, no mobility"
+                        value={periodontalFindings}
+                        onChange={(e) => setPeriodontalFindings(e.target.value)}
+                        className="cn-textarea"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="cn-form-group">
+                    <label className="cn-label">General Examination Summary</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Comprehensive synthesis of examination and diagnostic findings"
+                      value={examinationNotes}
+                      onChange={(e) => setExaminationNotes(e.target.value)}
+                      className="cn-textarea"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </section>
 
-          {/* Section 6: Treatment Performed */}
+          {/* Section 3: Treatment Performed */}
           <section className="cn-form-section">
-            <h3 className="cn-form-section-title">
-              <Save /> 6. Treatment Performed (Today's Procedure)
-            </h3>
+            <div className="cn-form-section-header">
+              <h3 className="cn-form-section-title">
+                <Save /> 3. Treatment & Procedures Performed
+              </h3>
+            </div>
+
             <div className="cn-form-grid-2">
               <div className="cn-form-group">
                 <label className="cn-label">Procedure Name</label>
@@ -596,11 +634,14 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
             </div>
           </section>
 
-          {/* Section 7: Treatment Recommendations */}
+          {/* Section 4: Treatment Plan & Follow-up */}
           <section className="cn-form-section">
-            <h3 className="cn-form-section-title">
-              <FileText /> 7. Treatment Recommendations & Next Steps
-            </h3>
+            <div className="cn-form-section-header">
+              <h3 className="cn-form-section-title">
+                <FileText /> 4. Treatment Plan & Follow-up
+              </h3>
+            </div>
+
             <div className="cn-form-grid-2">
               <div className="cn-form-group">
                 <label className="cn-label">Recommended Planned Treatment</label>
@@ -624,16 +665,10 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
                 />
               </div>
             </div>
-          </section>
 
-          {/* Section 8: Follow-up & Advice */}
-          <section className="cn-form-section">
-            <h3 className="cn-form-section-title">
-              <Clock /> 8. Follow-up & Patient Instructions
-            </h3>
             <div className="cn-form-grid-2">
               <div className="cn-form-group">
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+                <label className="cn-checkbox-label">
                   <input
                     type="checkbox"
                     checked={followUpRequired}

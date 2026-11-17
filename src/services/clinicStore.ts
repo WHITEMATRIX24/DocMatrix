@@ -568,7 +568,7 @@ export interface EnquiryRecord {
 
 const initialPatients: PatientRecord[] = [];
 const initialAppointments: AppointmentRecord[] = [];
-const initialToothConditions: ToothCondition[] = [];
+const initialToothConditions: ToothConditionRecord[] = [];
 const initialClinicalNotes: ClinicalNoteRecord[] = [];
 const initialInvoices: InvoiceRecord[] = [];
 const initialTreatmentPlans: TreatmentPlanRecord[] = [];
