@@ -100,14 +100,16 @@ describe('Appointment Booking & Reschedule Slot Availability', () => {
     const option1630 = options.find((opt) => opt.value === '16:30')
     expect(option1630).toBeDefined()
     expect(option1630?.disabled).toBe(true)
-    expect(option1630?.textContent).toContain('(Unavailable)')
+    expect(option1630?.textContent).toBe('16:30')
+    expect(option1630?.textContent).not.toContain('Unavailable')
     expect(option1630?.className).toContain('slot-option-unavailable')
     expect(option1630?.style.color).toBe('var(--text-muted, #94a3b8)')
 
     const option1300 = options.find((opt) => opt.value === '13:00')
     expect(option1300).toBeDefined()
     expect(option1300?.disabled).toBe(true)
-    expect(option1300?.textContent).toContain('(Unavailable)')
+    expect(option1300?.textContent).toBe('13:00')
+    expect(option1300?.textContent).not.toContain('Unavailable')
     expect(option1300?.className).toContain('slot-option-unavailable')
 
     const option1030 = options.find((opt) => opt.value === '10:30')
@@ -167,18 +169,20 @@ describe('Appointment Booking & Reschedule Slot Availability', () => {
       </MemoryRouter>
     )
 
-    // Verify 11:30 slot button is disabled and has unavailable class and text
-    const btn1130 = screen.getByRole('button', { name: /11:30/i })
+    // Verify 11:30 slot button is disabled and dimmed grey without '(Unavailable)' text
+    const btn1130 = screen.getByRole('button', { name: /^11:30$/i })
     expect(btn1130).toBeInTheDocument()
     expect(btn1130).toBeDisabled()
-    expect(btn1130.textContent).toContain('(Unavailable)')
+    expect(btn1130.textContent?.trim()).toBe('11:30')
+    expect(btn1130.textContent).not.toContain('Unavailable')
     expect(btn1130.className).toContain('slot-btn-unavailable')
 
-    // 13:00 (lunch break) should also be disabled and dimmed
-    const btn1300 = screen.getByRole('button', { name: /13:00/i })
+    // 13:00 (lunch break) should also be disabled and dimmed grey without '(Unavailable)' text
+    const btn1300 = screen.getByRole('button', { name: /^13:00$/i })
     expect(btn1300).toBeInTheDocument()
     expect(btn1300).toBeDisabled()
-    expect(btn1300.textContent).toContain('(Unavailable)')
+    expect(btn1300.textContent?.trim()).toBe('13:00')
+    expect(btn1300.textContent).not.toContain('Unavailable')
     expect(btn1300.className).toContain('slot-btn-unavailable')
 
     // Available slot
@@ -260,11 +264,12 @@ describe('Appointment Booking & Reschedule Slot Availability', () => {
 
     const options = Array.from(select.querySelectorAll('option'))
 
-    // 14:00 should be unavailable
+    // 14:00 should be unavailable without '(Unavailable)' text
     const opt1400 = options.find((o) => o.value === '14:00')
     expect(opt1400).toBeDefined()
     expect(opt1400?.disabled).toBe(true)
-    expect(opt1400?.textContent).toContain('(Unavailable)')
+    expect(opt1400?.textContent).toBe('14:00')
+    expect(opt1400?.textContent).not.toContain('Unavailable')
     expect(opt1400?.className).toContain('slot-option-unavailable')
 
     // 10:00 (its own slot) or 10:30 (free) should be available

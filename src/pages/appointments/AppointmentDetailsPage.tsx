@@ -371,7 +371,7 @@ export const AppointmentDetailsPage: React.FC = () => {
                               fontWeight: isAvailable ? 600 : 400
                             }}
                           >
-                            {slot}{!isAvailable ? ' (Unavailable)' : ''}
+                            {slot}
                           </option>
                         )
                       })}

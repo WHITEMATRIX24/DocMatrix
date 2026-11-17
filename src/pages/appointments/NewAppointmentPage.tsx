@@ -772,7 +772,7 @@ export const NewAppointmentPage: React.FC = () => {
                             fontWeight: isSelected ? 700 : isAvailable ? 600 : 400
                           }}
                         >
-                          {slot} {!isAvailable ? '(Unavailable)' : ''}
+                          {slot}
                         </button>
                       )
                     })}

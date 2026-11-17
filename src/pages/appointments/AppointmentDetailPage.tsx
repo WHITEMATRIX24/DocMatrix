@@ -473,7 +473,7 @@ export const AppointmentDetailPage: React.FC = () => {
                             fontWeight: isAvailable ? 600 : 400
                           }}
                         >
-                          {s}{!isAvailable ? ' (Unavailable)' : ''}
+                          {s}
                         </option>
                       )
                     })}
