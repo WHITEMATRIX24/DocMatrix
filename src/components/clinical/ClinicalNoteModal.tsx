@@ -157,7 +157,16 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [confirmFinalizeOpen, setConfirmFinalizeOpen] = useState(false);
 
-  // Collapsible section state
+  // Collapsible section states
+  const hasHistoryData = Boolean(symptoms || symptomDuration || historyNotes);
+  const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(
+    Boolean(
+      initialNote?.symptoms ||
+      initialNote?.symptomDuration ||
+      initialNote?.historyNotes
+    )
+  );
+
   const hasAdditionalExamData = Boolean(
     extraoralFindings || periodontalFindings || examinationNotes
   );
@@ -168,6 +177,11 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
       initialNote?.examinationNotes ||
       initialNote?.findings
     )
+  );
+
+  const hasMaterialsData = Boolean(materialsUsed || treatmentOutcome);
+  const [isMaterialsOpen, setIsMaterialsOpen] = useState<boolean>(
+    Boolean(initialNote?.materialsUsed || initialNote?.treatmentOutcome)
   );
 
   // Safety alerts
@@ -374,35 +388,16 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
               />
             </div>
 
-            <div className="cn-form-grid-2">
-              <div className="cn-form-group">
-                <label className="cn-label">Symptoms</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Continuous throbbing ache, exacerbated by cold and lying down"
-                  value={symptoms}
-                  onChange={(e) => setSymptoms(e.target.value)}
-                  className="cn-textarea"
-                />
-              </div>
-
-              <div className="cn-form-group">
-                <label className="cn-label">Duration of Symptoms</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 3 days, 2 weeks, intermittent since last month"
-                  value={symptomDuration}
-                  onChange={(e) => setSymptomDuration(e.target.value)}
-                  className="cn-input"
-                />
-              </div>
-            </div>
-
             {/* Pain Severity Scale (0 to 10) */}
             <div className="cn-pain-scale">
-              <label className="cn-label">
-                Pain Severity Rating (0 = No Pain, 10 = Severe Unbearable Pain) — Selected: {painSeverity}/10
-              </label>
+              <div className="cn-pain-header">
+                <label className="cn-label">
+                  Pain Severity Rating (0 = No Pain, 10 = Severe)
+                </label>
+                <span className={`cn-pain-indicator cn-pain-indicator-${painSeverity === 0 ? 'none' : painSeverity <= 3 ? 'mild' : painSeverity <= 6 ? 'mod' : 'sev'}`}>
+                  Selected: {painSeverity}/10 · {painSeverity === 0 ? 'No Pain' : painSeverity <= 3 ? 'Mild' : painSeverity <= 6 ? 'Moderate' : 'Severe'}
+                </span>
+              </div>
               <div className="cn-pain-buttons">
                 {Array.from({ length: 11 }, (_, i) => {
                   let selClass = '';
@@ -418,29 +413,77 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
                       type="button"
                       onClick={() => setPainSeverity(i)}
                       className={`cn-pain-btn ${selClass}`}
+                      title={`Pain level ${i}`}
                     >
                       {i}
                     </button>
                   );
                 })}
               </div>
-              <div className="cn-pain-caption">
-                <span>0: None</span>
-                <span>1-3: Mild</span>
-                <span>4-6: Moderate</span>
-                <span>7-10: Severe</span>
-              </div>
             </div>
 
-            <div className="cn-form-group">
-              <label className="cn-label">Medical & Dental History Notes</label>
-              <input
-                type="text"
-                placeholder="e.g. Previous root canal therapy on #45 2 years ago; hypertensive controlled on Amlodipine"
-                value={historyNotes}
-                onChange={(e) => setHistoryNotes(e.target.value)}
-                className="cn-input"
-              />
+            {/* Collapsible: Additional Symptoms & History */}
+            <div className={`cn-collapsible-box ${isHistoryOpen ? 'cn-collapsible-box-open' : ''}`}>
+              <button
+                type="button"
+                className="cn-collapsible-trigger"
+                onClick={() => setIsHistoryOpen((prev) => !prev)}
+                aria-expanded={isHistoryOpen}
+              >
+                <span className="cn-collapsible-trigger-title">
+                  <AlertTriangle size={15} style={{ color: '#f59e0b' }} />
+                  <span>Additional Symptoms & Medical/Dental History</span>
+                  <span
+                    className={`cn-collapsible-badge ${
+                      hasHistoryData
+                        ? 'cn-collapsible-badge-active'
+                        : 'cn-collapsible-badge-empty'
+                    }`}
+                  >
+                    {hasHistoryData ? 'Has details' : 'Optional'}
+                  </span>
+                </span>
+                {isHistoryOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
+
+              {isHistoryOpen && (
+                <div className="cn-collapsible-body">
+                  <div className="cn-form-grid-2">
+                    <div className="cn-form-group">
+                      <label className="cn-label">Symptoms</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Continuous throbbing ache, exacerbated by cold and lying down"
+                        value={symptoms}
+                        onChange={(e) => setSymptoms(e.target.value)}
+                        className="cn-input"
+                      />
+                    </div>
+
+                    <div className="cn-form-group">
+                      <label className="cn-label">Duration of Symptoms</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 3 days, 2 weeks, intermittent since last month"
+                        value={symptomDuration}
+                        onChange={(e) => setSymptomDuration(e.target.value)}
+                        className="cn-input"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="cn-form-group">
+                    <label className="cn-label">Medical & Dental History Notes</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Previous root canal therapy on #45 2 years ago; hypertensive controlled on Amlodipine"
+                      value={historyNotes}
+                      onChange={(e) => setHistoryNotes(e.target.value)}
+                      className="cn-input"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 
@@ -609,28 +652,57 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
               />
             </div>
 
-            <div className="cn-form-grid-2">
-              <div className="cn-form-group">
-                <label className="cn-label">Materials & Instruments Used</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Lignocaine 2%, Rubber Dam, Endo-Z bur, ProTaper Gold, NaOCl 3%, Cavit"
-                  value={materialsUsed}
-                  onChange={(e) => setMaterialsUsed(e.target.value)}
-                  className="cn-input"
-                />
-              </div>
+            {/* Collapsible: Materials & Outcome */}
+            <div className={`cn-collapsible-box ${isMaterialsOpen ? 'cn-collapsible-box-open' : ''}`}>
+              <button
+                type="button"
+                className="cn-collapsible-trigger"
+                onClick={() => setIsMaterialsOpen((prev) => !prev)}
+                aria-expanded={isMaterialsOpen}
+              >
+                <span className="cn-collapsible-trigger-title">
+                  <Activity size={15} style={{ color: 'var(--cn-teal)' }} />
+                  <span>Materials & Immediate Outcome Details</span>
+                  <span
+                    className={`cn-collapsible-badge ${
+                      hasMaterialsData
+                        ? 'cn-collapsible-badge-active'
+                        : 'cn-collapsible-badge-empty'
+                    }`}
+                  >
+                    {hasMaterialsData ? 'Contains details' : 'Optional'}
+                  </span>
+                </span>
+                {isMaterialsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              </button>
 
-              <div className="cn-form-group">
-                <label className="cn-label">Immediate Treatment Outcome</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Immediate pressure release, patient stable and comfortable"
-                  value={treatmentOutcome}
-                  onChange={(e) => setTreatmentOutcome(e.target.value)}
-                  className="cn-input"
-                />
-              </div>
+              {isMaterialsOpen && (
+                <div className="cn-collapsible-body">
+                  <div className="cn-form-grid-2">
+                    <div className="cn-form-group">
+                      <label className="cn-label">Materials & Instruments Used</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Lignocaine 2%, Rubber Dam, Endo-Z bur, ProTaper Gold, NaOCl 3%, Cavit"
+                        value={materialsUsed}
+                        onChange={(e) => setMaterialsUsed(e.target.value)}
+                        className="cn-input"
+                      />
+                    </div>
+
+                    <div className="cn-form-group">
+                      <label className="cn-label">Immediate Treatment Outcome</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Immediate pressure release, patient stable and comfortable"
+                        value={treatmentOutcome}
+                        onChange={(e) => setTreatmentOutcome(e.target.value)}
+                        className="cn-input"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 
@@ -642,42 +714,54 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
               </h3>
             </div>
 
+            <div className="cn-form-group">
+              <label className="cn-label">Recommended Planned Treatment</label>
+              <textarea
+                rows={2}
+                placeholder="e.g. Sitting 2 RCT obturation in 5 days; post-endodontic core buildup and zirconia crown"
+                value={treatmentRecommendations}
+                onChange={(e) => setTreatmentRecommendations(e.target.value)}
+                className="cn-textarea"
+              />
+            </div>
+
             <div className="cn-form-grid-2">
               <div className="cn-form-group">
-                <label className="cn-label">Recommended Planned Treatment</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Sitting 2 RCT obturation in 5 days; post-endodontic core buildup and zirconia crown"
-                  value={treatmentRecommendations}
-                  onChange={(e) => setTreatmentRecommendations(e.target.value)}
-                  className="cn-textarea"
+                <label className="cn-label">Patient Advice & Home Care</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Soft diet on left side, do not chew hard nuts on right side until crown is placed"
+                  value={patientAdvice}
+                  onChange={(e) => setPatientAdvice(e.target.value)}
+                  className="cn-input"
                 />
               </div>
 
               <div className="cn-form-group">
                 <label className="cn-label">Referral Notes / Specialist Consult</label>
-                <textarea
-                  rows={2}
+                <input
+                  type="text"
                   placeholder="e.g. Orthodontic evaluation advised once endodontic treatment is completed"
                   value={referralNotes}
                   onChange={(e) => setReferralNotes(e.target.value)}
-                  className="cn-textarea"
+                  className="cn-input"
                 />
               </div>
             </div>
 
-            <div className="cn-form-grid-2">
-              <div className="cn-form-group">
-                <label className="cn-checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={followUpRequired}
-                    onChange={(e) => setFollowUpRequired(e.target.checked)}
-                  />
-                  Follow-up appointment required
-                </label>
-                {followUpRequired && (
-                  <div style={{ marginTop: '8px' }}>
+            <div className="cn-form-group">
+              <label className="cn-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={followUpRequired}
+                  onChange={(e) => setFollowUpRequired(e.target.checked)}
+                />
+                Follow-up appointment required
+              </label>
+
+              {followUpRequired && (
+                <div className="cn-form-grid-2" style={{ marginTop: '8px' }}>
+                  <div className="cn-form-group">
                     <label className="cn-label">Target Follow-up Date</label>
                     <input
                       type="date"
@@ -686,30 +770,19 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
                       className="cn-input"
                     />
                   </div>
-                )}
-              </div>
 
-              <div className="cn-form-group">
-                <label className="cn-label">Follow-up Instructions</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Return in 5 days for obturation sitting; contact clinic if unexpected swelling occurs"
-                  value={followUpInstructions}
-                  onChange={(e) => setFollowUpInstructions(e.target.value)}
-                  className="cn-textarea"
-                />
-              </div>
-            </div>
-
-            <div className="cn-form-group">
-              <label className="cn-label">Patient Advice & Home Care</label>
-              <input
-                type="text"
-                placeholder="e.g. Soft diet on left side, do not chew hard nuts on right side until crown is placed"
-                value={patientAdvice}
-                onChange={(e) => setPatientAdvice(e.target.value)}
-                className="cn-input"
-              />
+                  <div className="cn-form-group">
+                    <label className="cn-label">Follow-up Instructions</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Return in 5 days for obturation sitting; contact clinic if unexpected swelling occurs"
+                      value={followUpInstructions}
+                      onChange={(e) => setFollowUpInstructions(e.target.value)}
+                      className="cn-input"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </section>
         </div>
