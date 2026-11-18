@@ -70,6 +70,12 @@ export function splitTreatmentProcedures(raw: string): string[] {
     .filter((s) => s.length > 0)
 }
 
+const inFlightApptInvoices = new Map<string, InvoiceRecord>()
+
+export function clearInFlightInvoiceCache(): void {
+  inFlightApptInvoices.clear()
+}
+
 /**
  * Find an active, non-void invoice already associated with this appointment or clinical note.
  */
@@ -82,18 +88,60 @@ export function findExistingInvoiceForConsultation(
   const apptId = params.appointment?.id || params.appointmentId
   const apptBackendId = params.appointment?.backendId
   const noteId = params.clinicalNote?.id || params.clinicalNoteId
+  const targetPatientId =
+    params.patientId ||
+    params.appointment?.patientId ||
+    params.clinicalNote?.patientId
+
+  // Fast in-flight memory check
+  if (apptId && inFlightApptInvoices.has(apptId)) {
+    const cached = inFlightApptInvoices.get(apptId)!
+    if (cached && cached.status !== 'Void') return cached
+  }
+  if (apptBackendId && inFlightApptInvoices.has(apptBackendId)) {
+    const cached = inFlightApptInvoices.get(apptBackendId)!
+    if (cached && cached.status !== 'Void') return cached
+  }
+
+  const rawTreatment = (
+    params.clinicalNote?.treatmentPerformed ||
+    params.appointment?.treatmentType ||
+    params.clinicalNote?.treatmentDescription ||
+    params.appointment?.visitType ||
+    ''
+  ).trim()
+  const cleanTreatment = clean(rawTreatment)
+  const apptDate = params.appointment?.date || new Date().toISOString().slice(0, 10)
 
   for (const inv of invoices) {
     if (inv.status === 'Void') continue
 
     // 1. Direct appointment link
-    if (apptId && inv.appointmentId === apptId) return inv
-    if (apptBackendId && inv.appointmentId === apptBackendId) return inv
+    if (apptId && (inv.appointmentId === apptId || (inv.notes && inv.notes.includes(apptId)))) return inv
+    if (apptBackendId && (inv.appointmentId === apptBackendId || (inv.notes && inv.notes.includes(apptBackendId)))) return inv
 
     // 2. Clinical note reference in invoice notes or description
     if (noteId) {
       if (inv.notes && inv.notes.includes(noteId)) return inv
       if (inv.description && inv.description.includes(noteId)) return inv
+    }
+
+    // 3. Same Patient + Same Treatment + Same Day check (Duplicate Safeguard)
+    if (targetPatientId && inv.patientId === targetPatientId) {
+      const invDate = (inv.createdAt || '').slice(0, 10)
+      const sameDay = !invDate || invDate === apptDate || invDate === new Date().toISOString().slice(0, 10)
+      if (sameDay) {
+        const invDescClean = clean(inv.description || '')
+        if (
+          cleanTreatment &&
+          invDescClean &&
+          (invDescClean === cleanTreatment ||
+            invDescClean.includes(cleanTreatment) ||
+            cleanTreatment.includes(invDescClean))
+        ) {
+          return inv
+        }
+      }
     }
   }
 
@@ -410,6 +458,11 @@ export function autoGenerateInvoiceForConsultation(
     appointmentId: appointment?.id || params.appointmentId,
     notes: referenceNotes,
   })
+
+  // Cache in fast memory lookup to prevent immediate race-condition duplicates
+  if (appointment?.id) inFlightApptInvoices.set(appointment.id, createdInvoice)
+  if (appointment?.backendId) inFlightApptInvoices.set(appointment.backendId, createdInvoice)
+  if (params.appointmentId) inFlightApptInvoices.set(params.appointmentId, createdInvoice)
 
   return {
     invoice: createdInvoice,

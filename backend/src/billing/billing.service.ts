@@ -230,6 +230,23 @@ export class BillingService {
       if (!appt) {
         throw new NotFoundException('Specified appointment does not belong to this patient/clinic');
       }
+
+      // Backend idempotency: Return existing active invoice if already issued
+      const existing = await this.prisma.invoice.findFirst({
+        where: {
+          clinicId,
+          appointmentId: dto.appointmentId,
+          status: { not: 'VOID' },
+        },
+        include: {
+          items: true,
+          payments: true,
+          patient: true,
+        },
+      });
+      if (existing) {
+        return existing;
+      }
     }
 
     // Verify treatment plan if provided
@@ -488,6 +505,23 @@ export class BillingService {
       });
       if (!appt) {
         throw new NotFoundException('Specified appointment does not belong to this patient/clinic');
+      }
+
+      // Backend idempotency: Return existing active invoice if already issued
+      const existing = await this.prisma.invoice.findFirst({
+        where: {
+          clinicId,
+          appointmentId: dto.appointmentId,
+          status: { not: 'VOID' },
+        },
+        include: {
+          items: true,
+          payments: true,
+          patient: true,
+        },
+      });
+      if (existing) {
+        return existing;
       }
     }
 

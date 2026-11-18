@@ -2394,6 +2394,36 @@ export function createItemisedInvoice(details: {
   notes?: string
   upfrontPayment?: Omit<InvoicePayment, 'id' | 'receivedAt'>
 }): InvoiceRecord {
+  // Duplicate prevention check 1: Exact appointment match
+  if (details.appointmentId) {
+    const targetApptId = details.appointmentId
+    const existing = invoicesState.find(
+      (inv) =>
+        inv.status !== 'Void' &&
+        (inv.appointmentId === targetApptId ||
+          (inv.notes && inv.notes.includes(targetApptId)))
+    )
+    if (existing) {
+      return Object.assign(Promise.resolve(existing), existing) as InvoiceRecord & Promise<InvoiceRecord>
+    }
+  }
+
+  // Duplicate prevention check 2: Same patient + same treatment description created today
+  const treatmentDesc = details.items.map((i) => i.name).join(', ')
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const existingSameConsultation = invoicesState.find((inv) => {
+    if (inv.status === 'Void') return false
+    if (inv.patientId !== details.patientId) return false
+    const invDate = (inv.createdAt || '').slice(0, 10)
+    if (invDate && invDate !== todayStr) return false
+    const d1 = (inv.description || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+    const d2 = treatmentDesc.toLowerCase().replace(/[^a-z0-9]/g, '')
+    return d1 && d2 && (d1 === d2 || d1.includes(d2) || d2.includes(d1))
+  })
+  if (existingSameConsultation) {
+    return Object.assign(Promise.resolve(existingSameConsultation), existingSameConsultation) as InvoiceRecord & Promise<InvoiceRecord>
+  }
+
   const totals = details.items.reduce(
     (acc, item) => {
       const t = lineItemTotals(item)
@@ -2420,7 +2450,7 @@ export function createItemisedInvoice(details: {
   const record: InvoiceRecord = {
     id: `INV-${stamp.slice(-8)}`,
     patientId: details.patientId,
-    description: details.items.map((i) => i.name).join(', '),
+    description: treatmentDesc,
     amount,
     status: 'Unpaid',
     createdAt: now,
@@ -2436,6 +2466,10 @@ export function createItemisedInvoice(details: {
   record.status = deriveInvoiceStatus(record)
 
   if (isAuthenticatedClinic() && !isDemoSession()) {
+    // Optimistically store record synchronously so concurrent checks find it immediately
+    invoicesState = [record, ...invoicesState.filter((inv) => inv.id !== record.id)]
+    emitChange()
+
     const safeApptId = details.appointmentId && !details.appointmentId.startsWith('APT-')
       ? details.appointmentId
       : undefined
@@ -2446,7 +2480,7 @@ export function createItemisedInvoice(details: {
       patientId: details.patientId,
       appointmentId: safeApptId,
       treatmentPlanId: safePlanId,
-      description: details.items.map((i) => i.name).join(', ') || 'Dental Treatment',
+      description: treatmentDesc || 'Dental Treatment',
       notes: details.notes || undefined,
       items: details.items.map((it) => ({
         name: it.name,
@@ -2493,6 +2527,11 @@ export function createItemisedInvoice(details: {
       invoicesState = [syncedRecord, ...invoicesState.filter((inv) => inv.id !== syncedRecord.id && inv.id !== record.id)]
       emitChange()
       return syncedRecord
+    }).catch((err) => {
+      // Revert optimistic insert on backend failure
+      invoicesState = invoicesState.filter((inv) => inv.id !== record.id)
+      emitChange()
+      throw err
     })
 
     return Object.assign(promise, record) as InvoiceRecord & Promise<InvoiceRecord>

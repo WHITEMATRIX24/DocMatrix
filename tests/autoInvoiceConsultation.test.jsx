@@ -3,6 +3,7 @@ import {
   autoGenerateInvoiceForConsultation,
   findExistingInvoiceForConsultation,
   splitTreatmentProcedures,
+  clearInFlightInvoiceCache,
 } from '@/services/billingAutoInvoice'
 import * as clinicStore from '@/services/clinicStore'
 import * as billingStore from '@/services/billingStore'
@@ -59,6 +60,7 @@ describe('Automatic Invoice Generation on Consultation Completion', () => {
   let clinicalNotesStore = []
 
   beforeEach(() => {
+    clearInFlightInvoiceCache()
     appointmentsStore = [
       {
         id: 'APT-CONSULT-01',
@@ -385,5 +387,78 @@ describe('Automatic Invoice Generation on Consultation Completion', () => {
     expect(reCompleteResult.isNew).toBe(false)
     expect(reCompleteResult.status).toBe('existing')
     expect(reCompleteResult.invoice?.id).toBe(createdInv.id)
+  })
+
+  it('Scenario 10: Calendar & Live Queue duplicate prevention — concurrent calls reuse existing invoice and generate only ONE invoice per consultation', () => {
+    const queueAppt = {
+      id: 'APT-LIVE-QUEUE-01',
+      patientId: 'PAT-AUTO-101',
+      patientName: 'Meera Nambiar',
+      doctor: 'Dr. Tariq Antoun',
+      chair: 'Chair 1',
+      treatmentType: 'Dental Scaling & Polishing',
+      visitType: 'Dental procedure',
+      date: '2026-11-18',
+      time: '12:00',
+      status: 'in-progress',
+      notes: 'Cleaning and scaling visit',
+    }
+    appointmentsStore.push(queueAppt)
+
+    // Simulate Live Queue "Complete Visit" click which triggers updateAppointmentStatus + autoGenerateInvoice
+    queueAppt.status = 'completed'
+    const initialCount = invoicesStore.length
+
+    // Call 1 (from appointment status change / listener)
+    const call1 = autoGenerateInvoiceForConsultation({
+      appointment: queueAppt,
+      services: mockServices,
+    })
+    expect(call1.isNew).toBe(true)
+    expect(call1.status).toBe('created')
+    expect(invoicesStore.length).toBe(initialCount + 1)
+    const createdId = call1.invoice?.id
+
+    // Call 2 (from UI button handler on same appointment)
+    const call2 = autoGenerateInvoiceForConsultation({
+      appointment: queueAppt,
+      services: mockServices,
+    })
+    expect(call2.isNew).toBe(false)
+    expect(call2.status).toBe('existing')
+    expect(call2.invoice?.id).toBe(createdId)
+    // No extra invoice created!
+    expect(invoicesStore.length).toBe(initialCount + 1)
+
+    // Call 3 (user clicks "Bill" in completed list)
+    const call3 = autoGenerateInvoiceForConsultation({
+      appointmentId: 'APT-LIVE-QUEUE-01',
+      services: mockServices,
+    })
+    expect(call3.isNew).toBe(false)
+    expect(call3.status).toBe('existing')
+    expect(call3.invoice?.id).toBe(createdId)
+    expect(invoicesStore.length).toBe(initialCount + 1)
+
+    // Call 4: Calendar view completion on another appointment for same patient on same date with same treatment
+    const calendarApptSameTreatment = {
+      id: 'APT-CALENDAR-SAME',
+      patientId: 'PAT-AUTO-101',
+      treatmentType: 'Dental Scaling & Polishing',
+      date: '2026-11-18',
+      time: '12:30',
+      status: 'completed',
+    }
+    appointmentsStore.push(calendarApptSameTreatment)
+
+    const call4 = autoGenerateInvoiceForConsultation({
+      appointment: calendarApptSameTreatment,
+      services: mockServices,
+    })
+    // Reuses existing invoice since patient, treatment and date are identical!
+    expect(call4.isNew).toBe(false)
+    expect(call4.status).toBe('existing')
+    expect(call4.invoice?.id).toBe(createdId)
+    expect(invoicesStore.length).toBe(initialCount + 1)
   })
 })
