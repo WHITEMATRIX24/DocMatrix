@@ -96,11 +96,11 @@ export function findExistingInvoiceForConsultation(
   // Fast in-flight memory check
   if (apptId && inFlightApptInvoices.has(apptId)) {
     const cached = inFlightApptInvoices.get(apptId)!
-    if (cached && cached.status !== 'Void') return cached
+    if (cached && cached.status !== 'Void' && cached.status !== 'Cancelled') return cached
   }
   if (apptBackendId && inFlightApptInvoices.has(apptBackendId)) {
     const cached = inFlightApptInvoices.get(apptBackendId)!
-    if (cached && cached.status !== 'Void') return cached
+    if (cached && cached.status !== 'Void' && cached.status !== 'Cancelled') return cached
   }
 
   const rawTreatment = (
@@ -114,7 +114,7 @@ export function findExistingInvoiceForConsultation(
   const apptDate = params.appointment?.date || new Date().toISOString().slice(0, 10)
 
   for (const inv of invoices) {
-    if (inv.status === 'Void') continue
+    if (inv.status === 'Void' || inv.status === 'Cancelled') continue
 
     // 1. Direct appointment link
     if (apptId && (inv.appointmentId === apptId || (inv.notes && inv.notes.includes(apptId)))) return inv

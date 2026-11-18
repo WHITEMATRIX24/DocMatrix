@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import App from '@/App'
-import { createItemisedInvoice, invoiceBalance, recordInvoicePayment, refundInvoicePayment, voidInvoiceRecord, resetStoreForTesting, getClinicSnapshot } from '@/services/clinicStore'
+import { createItemisedInvoice, invoiceBalance, recordInvoicePayment, refundInvoicePayment, voidInvoiceRecord, resetStoreForTesting, getClinicSnapshot, savePatient } from '@/services/clinicStore'
 import { findPatient } from '@/pages/billing/BillingShared'
 
 describe('Billing workspace', () => {
@@ -55,8 +55,16 @@ describe('Billing workspace', () => {
   })
 
   it('creates an itemised invoice with a part payment from the composer', async () => {
+    const pat = savePatient({
+      name: 'Asha',
+      firstName: 'Asha',
+      phone: '9876543210',
+      mobile: '9876543210',
+      age: '30',
+      gender: 'Female',
+    })
     render(
-      <MemoryRouter initialEntries={['/billing/invoices/new?patientId=pt-1001']}>
+      <MemoryRouter initialEntries={[`/billing/invoices/new?patientId=${pat.id}`]}>
         <App />
       </MemoryRouter>
     )

@@ -84,6 +84,7 @@ describe('DocMatrix — Isolated Service Tariff & Invoice Creation Suite', () =>
         }),
       },
       invoice: {
+        findFirst: vi.fn().mockResolvedValue(null),
         create: vi.fn().mockImplementation(async ({ data }: any) => {
           const record = {
             id: `inv-${Date.now()}`,

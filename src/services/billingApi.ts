@@ -10,7 +10,7 @@ import { apiClient } from './apiClient'
 // ============================================================
 
 export type BackendInvoiceStatus = 'DRAFT' | 'ISSUED' | 'PARTIALLY_PAID' | 'PAID' | 'VOID'
-export type FrontendInvoiceStatus = 'Draft' | 'Unpaid' | 'Partial' | 'Paid' | 'Void'
+export type FrontendInvoiceStatus = 'Draft' | 'Unpaid' | 'Partial' | 'Paid' | 'Void' | 'Cancelled'
 
 export type BackendPaymentMode = 'CASH' | 'CARD' | 'UPI' | 'NET_BANKING' | 'CHEQUE'
 export type FrontendPaymentMode = 'Cash' | 'Card' | 'UPI' | 'Net Banking' | 'Cheque'
@@ -73,6 +73,11 @@ export interface BackendInvoice {
   issuedAt?: string | null
   voidedAt?: string | null
   voidReason?: string | null
+  voidedById?: string | null
+  voidedBy?: { id: string; fullName?: string; name?: string; email?: string } | null
+  cancelledAt?: string | null
+  cancellationReason?: string | null
+  cancelledBy?: string | null
   createdAt: string
   updatedAt: string
   items?: BackendInvoiceLineItem[]
@@ -131,7 +136,8 @@ export const toFrontendStatus = (s: BackendInvoiceStatus | string): FrontendInvo
     case 'DRAFT':
       return 'Draft'
     case 'VOID':
-      return 'Void'
+    case 'CANCELLED':
+      return 'Cancelled'
     default:
       return 'Unpaid'
   }
@@ -148,6 +154,7 @@ export const toBackendStatus = (s: FrontendInvoiceStatus | string): BackendInvoi
     case 'Draft':
       return 'DRAFT'
     case 'Void':
+    case 'Cancelled':
       return 'VOID'
     default:
       return 'ISSUED'
@@ -307,6 +314,14 @@ class BillingApiService {
 
   async voidInvoice(id: string, reason: string): Promise<BackendInvoice> {
     return apiClient.post(`/billing/invoices/${encodeURIComponent(id)}/void`, { reason })
+  }
+
+  async cancelInvoice(id: string, reason: string): Promise<BackendInvoice> {
+    return apiClient.post(`/billing/invoices/${encodeURIComponent(id)}/cancel`, { reason })
+  }
+
+  async deleteInvoice(id: string): Promise<{ success: boolean; message?: string }> {
+    return apiClient.delete(`/billing/invoices/${encodeURIComponent(id)}`)
   }
 
   async createInvoiceFromTreatmentPlan(data: {

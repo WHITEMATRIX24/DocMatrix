@@ -217,7 +217,7 @@ export interface InvoiceRecord {
   treatmentPlanId?: string
   description: string
   amount: number // grand total including GST
-  status: 'Draft' | 'Unpaid' | 'Partial' | 'Paid' | 'Void'
+  status: 'Draft' | 'Unpaid' | 'Partial' | 'Paid' | 'Void' | 'Cancelled'
   createdAt: string
   items?: InvoiceLineItem[]
   subtotal?: number
@@ -227,6 +227,16 @@ export interface InvoiceRecord {
   appointmentId?: string
   notes?: string
   dueDate?: string
+  cancelledAt?: string
+  cancelledBy?: string
+  cancellationReason?: string
+  voidedAt?: string
+  voidReason?: string
+}
+
+export const isInvoiceCancelled = (invoice?: InvoiceRecord | null): boolean => {
+  if (!invoice) return false
+  return invoice.status === 'Void' || invoice.status === 'Cancelled'
 }
 
 /** Amount received against an invoice. Older invoices without a payment log count as fully paid when marked Paid. */
@@ -238,7 +248,7 @@ export const invoicePaidAmount = (invoice: InvoiceRecord): number => {
 }
 
 export const invoiceBalance = (invoice: InvoiceRecord): number => {
-  if (invoice.status === 'Void') return 0
+  if (invoice.status === 'Void' || invoice.status === 'Cancelled') return 0
   return Math.max(0, Math.round((invoice.amount - invoicePaidAmount(invoice)) * 100) / 100)
 }
 
@@ -2315,6 +2325,11 @@ export function normalizeBackendInvoice(inv: BackendInvoice): InvoiceRecord {
       dueDate: inv.dueDate || undefined,
       appointmentId: inv.appointmentId || undefined,
       notes: inv.notes || undefined,
+      cancelledAt: inv.cancelledAt || (inv as any).voidedAt || undefined,
+      voidedAt: (inv as any).voidedAt || undefined,
+      cancellationReason: inv.cancellationReason || (inv as any).voidReason || undefined,
+      voidReason: (inv as any).voidReason || undefined,
+      cancelledBy: inv.cancelledBy || (inv as any).voidedBy?.fullName || (inv as any).voidedBy?.name || (inv as any).voidedById || undefined,
       items: Array.isArray(inv.items)
         ? inv.items.map((it: any) => ({
           id: it.id,
@@ -2363,6 +2378,7 @@ export function createInvoice(details: Omit<InvoiceRecord, 'id' | 'status' | 'cr
 
 const deriveInvoiceStatus = (invoice: InvoiceRecord): InvoiceRecord['status'] => {
   if (invoice.status === 'Void') return 'Void'
+  if (invoice.status === 'Cancelled') return 'Cancelled'
   if (invoice.status === 'Draft') return 'Draft'
   const paid = invoicePaidAmount(invoice)
   if (paid <= 0) return 'Unpaid'
@@ -2470,18 +2486,24 @@ export function createItemisedInvoice(details: {
     invoicesState = [record, ...invoicesState.filter((inv) => inv.id !== record.id)]
     emitChange()
 
-    const safeApptId = details.appointmentId && !details.appointmentId.startsWith('APT-')
-      ? details.appointmentId
-      : undefined
+    const targetApptId = details.appointmentId
+    const targetAppt = targetApptId ? findAppointment(appointmentsState, targetApptId) : undefined
+    const safeApptId = targetAppt?.backendId || (targetApptId && !targetApptId.startsWith('APT-')
+      ? targetApptId
+      : undefined)
     const safePlanId = details.treatmentPlanId && !details.treatmentPlanId.startsWith('TRT-')
       ? details.treatmentPlanId
       : undefined
+    const apptNoteTag = targetApptId ? `Appointment: ${targetApptId}` : ''
+    const combinedNotes = details.notes
+      ? (targetApptId && apptNoteTag && !details.notes.includes(targetApptId) ? `${details.notes} | ${apptNoteTag}` : details.notes)
+      : (apptNoteTag || undefined)
     const payload = {
       patientId: details.patientId,
       appointmentId: safeApptId,
       treatmentPlanId: safePlanId,
       description: treatmentDesc || 'Dental Treatment',
-      notes: details.notes || undefined,
+      notes: combinedNotes,
       items: details.items.map((it) => ({
         name: it.name,
         quantity: it.qty || 1,
@@ -2554,6 +2576,10 @@ export function recordInvoicePayment(
   if (index === -1) return null
   const invoice = invoicesState[index]
   const targetId = invoice.backendId || invoice.id
+
+  if (invoice.status === 'Void' || invoice.status === 'Cancelled') {
+    throw new Error('Cannot record payment against a cancelled invoice.')
+  }
 
   const amount = Math.min(payment.amount, invoiceBalance(invoice))
   if (amount <= 0) {
@@ -2706,38 +2732,110 @@ export async function refundInvoicePayment(
   return updated
 }
 
-/** Void an issued invoice */
-export async function voidInvoiceRecord(invoiceId: string, reason: string): Promise<InvoiceRecord | null> {
+/** Cancel an issued invoice with audit reason and timestamp. Requires non-empty reason. */
+export async function cancelInvoiceRecord(
+  invoiceId: string,
+  reason: string,
+  targetStatus: 'Cancelled' | 'Void' = 'Cancelled'
+): Promise<InvoiceRecord | null> {
+  const cleanReason = reason?.trim()
+  if (!cleanReason) {
+    throw new Error('A cancellation reason is required before confirming invoice cancellation.')
+  }
+
   const index = invoicesState.findIndex((inv) => inv.id === invoiceId || inv.backendId === invoiceId)
   if (index === -1) return null
   const invoice = invoicesState[index]
   const targetId = invoice.backendId || invoice.id
 
+  if (invoice.status === 'Void' || invoice.status === 'Cancelled') {
+    return invoice
+  }
+
+  const paid = invoicePaidAmount(invoice)
+  if (invoice.status === 'Paid' || paid > 0) {
+    throw new Error(
+      `Paid invoices cannot be cancelled. If a reversal is needed, please use the refund option on the payment records.`
+    )
+  }
+
+  const now = new Date().toISOString()
+  const dateStr = new Date(now).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  const reasonNote = `[Cancelled on ${dateStr}: ${cleanReason}]`
+  const updatedNotes = invoice.notes ? `${invoice.notes} · ${reasonNote}` : reasonNote
+
+  let cancellerName: string | undefined = undefined
+  try {
+    const rawUser = sessionStorage.getItem('docmatrix_auth_user') || localStorage.getItem('docmatrix_auth_user')
+    if (rawUser) {
+      const u = JSON.parse(rawUser)
+      cancellerName = u.fullName || u.name
+    }
+  } catch {}
+
   if (isAuthenticatedClinic() && !isDemoSession()) {
     try {
-      await billingApi.voidInvoice(targetId, reason)
+      const res = await billingApi.cancelInvoice(targetId, cleanReason)
       const updated: InvoiceRecord = {
         ...invoice,
-        status: 'Void',
-        notes: reason ? `${invoice.notes || ''} [Void: ${reason}]`.trim() : invoice.notes,
+        status: targetStatus,
+        cancelledAt: res?.voidedAt || now,
+        voidedAt: res?.voidedAt || now,
+        cancellationReason: res?.voidReason || cleanReason,
+        voidReason: res?.voidReason || cleanReason,
+        cancelledBy: res?.voidedBy?.fullName || res?.voidedBy?.name || cancellerName || undefined,
+        notes: updatedNotes,
       }
       invoicesState = invoicesState.map((inv, i) => (i === index ? updated : inv))
       emitChange()
       return updated
     } catch (err) {
-      console.error('[clinicStore] voidInvoiceRecord backend call failed:', err)
+      console.error('[clinicStore] cancelInvoiceRecord backend call failed:', err)
       throw err
     }
   }
 
   const updated: InvoiceRecord = {
     ...invoice,
-    status: 'Void',
-    notes: reason ? `${invoice.notes || ''} [Void: ${reason}]`.trim() : invoice.notes,
+    status: targetStatus,
+    cancelledAt: now,
+    voidedAt: now,
+    cancellationReason: cleanReason,
+    voidReason: cleanReason,
+    cancelledBy: cancellerName || undefined,
+    notes: updatedNotes,
   }
   invoicesState = invoicesState.map((inv, i) => (i === index ? updated : inv))
   emitChange()
   return updated
+}
+
+export const voidInvoiceRecord = (invoiceId: string, reason: string) =>
+  cancelInvoiceRecord(invoiceId, reason, 'Void')
+
+/** Permanently remove a cancelled or voided invoice */
+export async function removeInvoiceRecord(invoiceId: string): Promise<boolean> {
+  const index = invoicesState.findIndex((inv) => inv.id === invoiceId || inv.backendId === invoiceId)
+  if (index === -1) return false
+  const invoice = invoicesState[index]
+  const targetId = invoice.backendId || invoice.id
+
+  if (invoice.status !== 'Cancelled' && invoice.status !== 'Void' && invoice.status !== 'Draft') {
+    throw new Error('Only cancelled or draft invoices can be removed.')
+  }
+
+  if (isAuthenticatedClinic() && !isDemoSession()) {
+    try {
+      await billingApi.deleteInvoice(targetId)
+    } catch (err) {
+      console.error('[clinicStore] removeInvoiceRecord backend call failed:', err)
+      throw err
+    }
+  }
+
+  invoicesState = invoicesState.filter((inv) => inv.id !== invoice.id && inv.backendId !== targetId)
+  emitChange()
+  return true
 }
 
 export const updatePatient = (

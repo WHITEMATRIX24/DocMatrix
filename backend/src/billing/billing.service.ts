@@ -223,19 +223,22 @@ export class BillingService {
     const patient = await this.resolvePatient(clinicId, dto.patientId);
 
     // Verify appointment if provided
+    let matchedApptId: string | undefined = undefined;
     if (dto.appointmentId) {
       const appt = await this.prisma.appointment.findFirst({
         where: { id: dto.appointmentId, clinicId, patientId: patient.id },
       });
-      if (!appt) {
-        throw new NotFoundException('Specified appointment does not belong to this patient/clinic');
+      if (appt) {
+        matchedApptId = appt.id;
       }
+    }
 
-      // Backend idempotency: Return existing active invoice if already issued
+    // Backend idempotency 1: Return existing active invoice if already issued for appointment
+    if (matchedApptId) {
       const existing = await this.prisma.invoice.findFirst({
         where: {
           clinicId,
-          appointmentId: dto.appointmentId,
+          appointmentId: matchedApptId,
           status: { not: 'VOID' },
         },
         include: {
@@ -246,6 +249,28 @@ export class BillingService {
       });
       if (existing) {
         return existing;
+      }
+    }
+
+    // Backend idempotency 2: Check existing active invoice by notes containing appointment ID
+    const apptNoteMatch = dto.notes?.match(/Appointment:\s*([A-Za-z0-9_-]+)/i);
+    const notesApptId = apptNoteMatch ? apptNoteMatch[1] : null;
+    if (notesApptId) {
+      const existingByNote = await this.prisma.invoice.findFirst({
+        where: {
+          clinicId,
+          patientId: patient.id,
+          status: { not: 'VOID' },
+          notes: { contains: notesApptId },
+        },
+        include: {
+          items: true,
+          payments: true,
+          patient: true,
+        },
+      });
+      if (existingByNote) {
+        return existingByNote;
       }
     }
 
@@ -265,6 +290,32 @@ export class BillingService {
       this.calc.computeLineItem(item),
     );
     const totals = this.calc.computeInvoiceTotals(computedItems);
+
+    // Backend idempotency 3: Same patient + same description within last 15 minutes
+    const recentWindow = new Date(Date.now() - 15 * 60 * 1000);
+    const candidateDescription =
+      dto.description ||
+      (computedItems.length > 0
+        ? computedItems.map((i) => i.name).join(', ')
+        : 'Draft Invoice');
+    const recentMatch = await this.prisma.invoice.findFirst({
+      where: {
+        clinicId,
+        patientId: patient.id,
+        status: { not: 'VOID' },
+        createdAt: { gte: recentWindow },
+        description: candidateDescription,
+      },
+      include: {
+        items: true,
+        payments: true,
+        patient: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (recentMatch) {
+      return recentMatch;
+    }
 
     return this.prisma.$transaction(async (tx) => {
       await this.validateLineItemReferences(clinicId, computedItems, tx);
@@ -499,19 +550,22 @@ export class BillingService {
       throw new BadRequestException('At least one line item is required to issue an invoice.');
     }
 
+    let matchedApptId: string | undefined = undefined;
     if (dto.appointmentId) {
       const appt = await this.prisma.appointment.findFirst({
         where: { id: dto.appointmentId, clinicId, patientId: patient.id },
       });
-      if (!appt) {
-        throw new NotFoundException('Specified appointment does not belong to this patient/clinic');
+      if (appt) {
+        matchedApptId = appt.id;
       }
+    }
 
-      // Backend idempotency: Return existing active invoice if already issued
+    // Backend idempotency 1: Return existing active invoice if already issued for appointment
+    if (matchedApptId) {
       const existing = await this.prisma.invoice.findFirst({
         where: {
           clinicId,
-          appointmentId: dto.appointmentId,
+          appointmentId: matchedApptId,
           status: { not: 'VOID' },
         },
         include: {
@@ -525,10 +579,71 @@ export class BillingService {
       }
     }
 
+    // Backend idempotency 2: Check existing active invoice by notes containing appointment ID
+    const apptNoteMatch = dto.notes?.match(/Appointment:\s*([A-Za-z0-9_-]+)/i);
+    const notesApptId = apptNoteMatch ? apptNoteMatch[1] : null;
+    if (notesApptId) {
+      const existingByNote = await this.prisma.invoice.findFirst({
+        where: {
+          clinicId,
+          patientId: patient.id,
+          status: { not: 'VOID' },
+          notes: { contains: notesApptId },
+        },
+        include: {
+          items: true,
+          payments: true,
+          patient: true,
+        },
+      });
+      if (existingByNote) {
+        return existingByNote;
+      }
+    }
+
     const computedItems = dto.items.map((i) => this.calc.computeLineItem(i));
     const totals = this.calc.computeInvoiceTotals(computedItems);
 
+    // Backend idempotency 3: Same patient + same description within last 15 minutes
+    const recentWindow = new Date(Date.now() - 15 * 60 * 1000);
+    const candidateDescription =
+      dto.description || computedItems.map((i) => i.name).join(', ');
+    const recentMatch = await this.prisma.invoice.findFirst({
+      where: {
+        clinicId,
+        patientId: patient.id,
+        status: { not: 'VOID' },
+        createdAt: { gte: recentWindow },
+        description: candidateDescription,
+      },
+      include: {
+        items: true,
+        payments: true,
+        patient: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (recentMatch) {
+      return recentMatch;
+    }
+
     return this.prisma.$transaction(async (tx) => {
+      // In-transaction concurrency check
+      if (matchedApptId) {
+        const txExisting = await tx.invoice.findFirst({
+          where: { clinicId, appointmentId: matchedApptId, status: { not: 'VOID' } },
+          include: { items: true, payments: true, patient: true },
+        });
+        if (txExisting) return txExisting;
+      }
+      if (notesApptId) {
+        const txExistingNote = await tx.invoice.findFirst({
+          where: { clinicId, patientId: patient.id, status: { not: 'VOID' }, notes: { contains: notesApptId } },
+          include: { items: true, payments: true, patient: true },
+        });
+        if (txExistingNote) return txExistingNote;
+      }
+
       await this.validateLineItemReferences(clinicId, computedItems, tx);
 
       const invoiceNumber = await this.allocateInvoiceNumber(tx, clinicId);
@@ -542,7 +657,7 @@ export class BillingService {
             clinicId,
             invoiceNumber,
             patientId: patient.id,
-            appointmentId: dto.appointmentId,
+            appointmentId: matchedApptId || dto.appointmentId,
             treatmentPlanId: dto.treatmentPlanId,
             description,
             notes: dto.notes,
@@ -700,6 +815,9 @@ export class BillingService {
           payments: {
             orderBy: { receivedAt: 'desc' },
           },
+          voidedBy: {
+            select: { id: true, fullName: true, email: true },
+          },
         },
       }),
     ]);
@@ -755,7 +873,7 @@ export class BillingService {
   }
 
   /**
-   * Void an issued invoice. Requires audit reason.
+   * Cancel / Void an issued invoice. Requires audit reason.
    * If payments exist, they must be refunded first.
    */
   async voidInvoice(
@@ -764,6 +882,11 @@ export class BillingService {
     id: string,
     dto: VoidInvoiceDto,
   ) {
+    const cleanReason = dto?.reason?.trim();
+    if (!cleanReason) {
+      throw new BadRequestException('A cancellation reason is required before confirming invoice cancellation.');
+    }
+
     const invoice = await this.prisma.invoice.findFirst({
       where: {
         clinicId,
@@ -775,12 +898,12 @@ export class BillingService {
     }
 
     if (invoice.status === InvoiceStatus.VOID) {
-      throw new BadRequestException('Invoice is already voided');
+      throw new BadRequestException('Invoice is already cancelled');
     }
 
-    if (Number(invoice.paidAmount) > 0) {
+    if (invoice.status === InvoiceStatus.PAID || Number(invoice.paidAmount) > 0) {
       throw new BadRequestException(
-        `Cannot void invoice ${invoice.invoiceNumber} with active payments (₹${invoice.paidAmount}). Please issue refunds for all payments first.`,
+        `Paid invoices cannot be cancelled. If a reversal is needed, please use the refund option on the payment records.`,
       );
     }
 
@@ -791,13 +914,16 @@ export class BillingService {
         balance: 0,
         voidedAt: new Date(),
         voidedById: user.id,
-        voidReason: dto.reason,
+        voidReason: cleanReason,
       },
       include: {
         items: true,
         payments: true,
         patient: {
           select: { id: true, patientCode: true, firstName: true, lastName: true },
+        },
+        voidedBy: {
+          select: { id: true, fullName: true, email: true },
         },
       },
     });
@@ -809,11 +935,72 @@ export class BillingService {
       actorId: user.id,
       actorName: user.name || user.fullName,
       actorRole: user.role,
-      description: `Invoice ${invoice.invoiceNumber} voided. Reason: ${dto.reason}`,
+      description: `Invoice ${invoice.invoiceNumber} cancelled. Reason: ${cleanReason}`,
       severity: 'warn',
     });
 
     return voided;
+  }
+
+  /**
+   * Permanently delete/remove a cancelled or draft invoice.
+   * Active issued invoices cannot be deleted (they must be cancelled first).
+   */
+  async deleteInvoice(clinicId: string, user: AuthenticatedUser, id: string) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: {
+        clinicId,
+        OR: [{ id }, { invoiceNumber: id }],
+      },
+      include: {
+        payments: true,
+        items: true,
+      },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException(`Invoice ${id} not found`);
+    }
+
+    if (invoice.status !== InvoiceStatus.VOID && invoice.status !== InvoiceStatus.DRAFT) {
+      throw new BadRequestException('Only cancelled or draft invoices can be removed.');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Disconnect or delete any payments attached to this invoice
+      if (invoice.payments.length > 0) {
+        await tx.invoicePayment.updateMany({
+          where: { invoiceId: invoice.id, clinicId },
+          data: { refundForPaymentId: null },
+        });
+        await tx.invoicePayment.deleteMany({
+          where: { invoiceId: invoice.id, clinicId },
+        });
+      }
+
+      // Delete items
+      await tx.invoiceLineItem.deleteMany({
+        where: { invoiceId: invoice.id, clinicId },
+      });
+
+      // Delete the invoice record
+      await tx.invoice.delete({
+        where: { id: invoice.id },
+      });
+    });
+
+    this.auditLog?.recordEvent({
+      clinicId,
+      module: 'Billing',
+      action: 'BILLING_INVOICE_DELETE',
+      actorId: user.id,
+      actorName: user.name || user.fullName,
+      actorRole: user.role,
+      description: `Cancelled invoice ${invoice.invoiceNumber} permanently removed.`,
+      severity: 'info',
+    });
+
+    return { success: true, id: invoice.id, invoiceNumber: invoice.invoiceNumber };
   }
 
   // ==========================================
@@ -880,7 +1067,7 @@ export class BillingService {
         throw new BadRequestException('Cannot record payment against an unissued draft invoice.');
       }
       if (invoice.status === InvoiceStatus.VOID) {
-        throw new BadRequestException('Cannot record payment against a voided invoice.');
+        throw new BadRequestException('Cannot record payment against a cancelled invoice.');
       }
 
       const currentBalance = Number(invoice.balance);

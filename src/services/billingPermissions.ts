@@ -37,6 +37,10 @@ export function canVoidInvoice(role?: string | null): boolean {
   return (BILLING_ADMIN_ROLES as readonly string[]).includes(role);
 }
 
+export function canCancelInvoice(role?: string | null): boolean {
+  return canVoidInvoice(role);
+}
+
 export function canManageTariffs(role?: string | null): boolean {
   if (!role) return false;
   return (BILLING_ADMIN_ROLES as readonly string[]).includes(role);

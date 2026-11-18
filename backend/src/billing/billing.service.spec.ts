@@ -59,6 +59,8 @@ describe('BillingService & BillingCalculationService', () => {
       invoice: {
         create: vi.fn(),
         update: vi.fn(),
+        delete: vi.fn(),
+        deleteMany: vi.fn(),
         findFirst: vi.fn(),
         findUnique: vi.fn(),
         findUniqueOrThrow: vi.fn(),
@@ -73,6 +75,8 @@ describe('BillingService & BillingCalculationService', () => {
       },
       invoicePayment: {
         create: vi.fn(),
+        deleteMany: vi.fn(),
+        updateMany: vi.fn(),
         findFirst: vi.fn(),
         findUnique: vi.fn(),
         findMany: vi.fn(),
@@ -371,6 +375,75 @@ describe('BillingService & BillingCalculationService', () => {
           reason: 'Attempting to void paid bill',
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects cancelling an invoice when reason is missing or only whitespace', async () => {
+      prisma.invoice.findFirst.mockResolvedValue({
+        id: 'inv-uuid-1',
+        clinicId: mockClinicId,
+        invoiceNumber: 'INV-1001',
+        status: InvoiceStatus.ISSUED,
+        paidAmount: 0,
+      });
+
+      await expect(
+        billingService.voidInvoice(mockClinicId, mockStaffUser, 'inv-uuid-1', {
+          reason: '   ',
+        }),
+      ).rejects.toThrow(/cancellation reason is required/i);
+    });
+
+    it('rejects recording payments against a cancelled or voided invoice', async () => {
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 'inv-void-1',
+          clinicId: mockClinicId,
+          status: InvoiceStatus.VOID,
+          totalAmount: 1000,
+          paidAmount: 0,
+          balance: 0,
+        },
+      ]);
+
+      await expect(
+        billingService.recordPayment(mockClinicId, mockStaffUser, 'inv-void-1', {
+          amount: 500,
+          mode: PaymentMode.CASH,
+        }),
+      ).rejects.toThrow(/Cannot record payment against a cancelled invoice/i);
+    });
+
+    it('permanently deletes a cancelled invoice', async () => {
+      prisma.invoice.findFirst.mockResolvedValue({
+        id: 'inv-uuid-cancelled',
+        clinicId: mockClinicId,
+        invoiceNumber: 'INV-1099',
+        status: InvoiceStatus.VOID,
+        payments: [],
+        items: [{ id: 'item-1' }],
+      });
+      prisma.invoicePayment.deleteMany.mockResolvedValue({ count: 0 });
+      prisma.invoiceLineItem.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.invoice.delete.mockResolvedValue({ id: 'inv-uuid-cancelled' });
+
+      const res = await billingService.deleteInvoice(mockClinicId, mockStaffUser, 'inv-uuid-cancelled');
+      expect(res.success).toBe(true);
+      expect(prisma.invoice.delete).toHaveBeenCalledWith({ where: { id: 'inv-uuid-cancelled' } });
+    });
+
+    it('rejects removing an active non-cancelled invoice', async () => {
+      prisma.invoice.findFirst.mockResolvedValue({
+        id: 'inv-uuid-active',
+        clinicId: mockClinicId,
+        invoiceNumber: 'INV-1100',
+        status: InvoiceStatus.ISSUED,
+        payments: [],
+        items: [],
+      });
+
+      await expect(
+        billingService.deleteInvoice(mockClinicId, mockStaffUser, 'inv-uuid-active'),
+      ).rejects.toThrow(/Only cancelled or draft invoices can be removed/i);
     });
   });
 

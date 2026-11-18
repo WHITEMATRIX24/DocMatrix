@@ -137,6 +137,25 @@ export class BillingController {
     return this.billingService.voidInvoice(user.clinicId!, user, id, dto);
   }
 
+  @RequireBillingPermissions(BillingPermission.INVOICE_VOID)
+  @Post('invoices/:id/cancel')
+  async cancelInvoice(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: VoidInvoiceDto,
+  ) {
+    return this.billingService.voidInvoice(user.clinicId!, user, id, dto);
+  }
+
+  @RequireBillingPermissions(BillingPermission.INVOICE_VOID)
+  @Delete('invoices/:id')
+  async deleteInvoice(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.billingService.deleteInvoice(user.clinicId!, user, id);
+  }
+
   // ==========================================
   // PAYMENTS & REFUNDS
   // ==========================================
