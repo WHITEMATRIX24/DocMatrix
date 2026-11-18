@@ -22,9 +22,28 @@ export const InvoicesPage: React.FC = () => {
     })
   }, [invoices, patients, query, filter])
 
-  // "Generate invoice" links from appointments land here with a patient or appointment preselected: send them to the composer.
+  // Check if an active invoice already exists for this appointment
+  const existingApptInvoice = useMemo(() => {
+    const apptId = params.get('appointmentId')
+    if (!apptId) return null
+    return invoices.find(
+      (inv) =>
+        inv.status !== 'Void' &&
+        (inv.appointmentId === apptId || (inv.notes && inv.notes.includes(apptId)))
+    )
+  }, [invoices, params])
+
+  // "Generate invoice" links from appointments land here with a patient or appointment preselected:
+  // If an invoice already exists for this consultation, open it directly in the drawer for payment!
+  // Otherwise send to composer to create new invoice.
   if (params.get('patientId') || params.get('appointmentId')) {
-    return <Navigate to={`/billing/invoices/new?${params.toString()}`} replace />
+    if (existingApptInvoice) {
+      if (openId !== existingApptInvoice.id) {
+        setOpenId(existingApptInvoice.id)
+      }
+    } else {
+      return <Navigate to={`/billing/invoices/new?${params.toString()}`} replace />
+    }
   }
 
   const open = invoices.find((inv) => inv.id === openId)

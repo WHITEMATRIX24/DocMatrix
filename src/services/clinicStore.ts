@@ -1975,6 +1975,26 @@ export const cancelAppointment = (appointmentId: string, reason: string): boolea
   return true
 }
 
+type AppointmentCompletedListener = (appointment: AppointmentRecord) => void
+const appointmentCompletedListeners = new Set<AppointmentCompletedListener>()
+
+export const onAppointmentCompleted = (listener: AppointmentCompletedListener) => {
+  appointmentCompletedListeners.add(listener)
+  return () => {
+    appointmentCompletedListeners.delete(listener)
+  }
+}
+
+export const triggerAppointmentCompleted = (appointment: AppointmentRecord) => {
+  appointmentCompletedListeners.forEach((listener) => {
+    try {
+      listener(appointment)
+    } catch (err) {
+      console.error('[clinicStore] error in appointment completed listener:', err)
+    }
+  })
+}
+
 export const updateAppointmentStatus = (
   appointmentId: string,
   status: AppointmentStatus,
@@ -2011,6 +2031,13 @@ export const updateAppointmentStatus = (
   })
 
   emitChange()
+
+  if (status === 'completed') {
+    const updated = appointmentsState.find((a) => matchesAppointmentId(a, appointmentId))
+    if (updated) {
+      triggerAppointmentCompleted(updated)
+    }
+  }
 
   // Background sync to backend if authenticated
   try {

@@ -2,6 +2,7 @@ import {
   getClinicSnapshot,
   createItemisedInvoice,
   DENTAL_TREATMENTS,
+  onAppointmentCompleted,
   type AppointmentRecord,
   type ClinicalNoteRecord,
   type InvoiceLineItem,
@@ -417,3 +418,16 @@ export function autoGenerateInvoiceForConsultation(
     message: `Invoice ${createdInvoice.id} generated automatically.`,
   }
 }
+
+// Automatically listen to appointment completion to generate invoice
+onAppointmentCompleted((appointment) => {
+  try {
+    autoGenerateInvoiceForConsultation({
+      appointment,
+      patientId: appointment.patientId,
+    })
+  } catch (err) {
+    console.warn('[billingAutoInvoice] auto-generation on appointment completion failed:', err)
+  }
+})
+

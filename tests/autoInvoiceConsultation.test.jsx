@@ -307,4 +307,83 @@ describe('Automatic Invoice Generation on Consultation Completion', () => {
     expect(result.invoice?.status).toBe('Unpaid')
     expect(result.invoice?.payments).toEqual([])
   })
+
+  it('Scenario 9: Complete End-to-End Workflow (Calendar -> Check-In -> Call In -> Complete -> Auto Invoice -> Billing -> Payment)', () => {
+    // 1. Calendar: Patient has scheduled appointment
+    const appt = {
+      id: 'APT-E2E-FLOW',
+      patientId: 'PAT-AUTO-101',
+      patientName: 'Meera Nambiar',
+      doctor: 'Dr. Tariq Antoun',
+      chair: 'Chair 2',
+      treatmentType: 'Root Canal Treatment (Single Sitting)',
+      visitType: 'Dental procedure',
+      date: '2026-11-18',
+      time: '11:00',
+      status: 'scheduled',
+      notes: 'Patient attending for RCT on tooth 46',
+    }
+    appointmentsStore.push(appt)
+
+    // 2. Check-In: Receptionist clicks Check-In when patient arrives
+    appt.status = 'checked-in'
+    appt.checkInTime = '10:55'
+    expect(appt.status).toBe('checked-in')
+
+    // 3. Call In / Start: Dentist calls patient to chair
+    appt.status = 'in-progress'
+    appt.consultationStartTime = '11:02'
+    expect(appt.status).toBe('in-progress')
+
+    // 4. Complete Consultation & 5. Automatic Invoice Generation
+    appt.status = 'completed'
+    appt.completedTime = '11:45'
+
+    const genResult = autoGenerateInvoiceForConsultation({
+      appointment: appt,
+      services: mockServices,
+    })
+
+    expect(genResult.isNew).toBe(true)
+    expect(genResult.status).toBe('created')
+    expect(genResult.invoice).not.toBeNull()
+
+    const createdInv = genResult.invoice
+    expect(createdInv.patientId).toBe('PAT-AUTO-101')
+    expect(createdInv.appointmentId).toBe('APT-E2E-FLOW')
+    expect(createdInv.status).toBe('Unpaid')
+    expect(createdInv.amount).toBe(4500)
+
+    // 6. Billing Module: Generated invoice immediately exists in billing with Unpaid status
+    const allBillingInvoices = clinicStore.getClinicSnapshot().invoices
+    expect(allBillingInvoices.some((inv) => inv.id === createdInv.id)).toBe(true)
+    const billingInvoice = allBillingInvoices.find((inv) => inv.id === createdInv.id)
+    expect(billingInvoice?.status).toBe('Unpaid')
+    expect(billingInvoice?.amount).toBe(4500)
+
+    // 7. Payment Collection: Patient pays at billing counter
+    const payment = {
+      id: 'PAY-RECEIPT-001',
+      amount: 4500,
+      mode: 'UPI',
+      receivedAt: new Date().toISOString(),
+      reference: 'UPI-REF-987654321',
+    }
+    billingInvoice.payments.push(payment)
+    billingInvoice.status = 'Paid'
+
+    expect(billingInvoice.status).toBe('Paid')
+    expect(billingInvoice.payments.length).toBe(1)
+    expect(billingInvoice.payments[0].amount).toBe(4500)
+    expect(billingInvoice.payments[0].mode).toBe('UPI')
+
+    // Duplicate check: Re-running completion does NOT create a 2nd invoice
+    const reCompleteResult = autoGenerateInvoiceForConsultation({
+      appointment: appt,
+      services: mockServices,
+    })
+    expect(reCompleteResult.isNew).toBe(false)
+    expect(reCompleteResult.status).toBe('existing')
+    expect(reCompleteResult.invoice?.id).toBe(createdInv.id)
+  })
 })
