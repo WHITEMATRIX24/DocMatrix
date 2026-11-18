@@ -122,13 +122,13 @@ export const buildAppointmentLineItem = ({
   )
 
   // Identify raw treatment name in priority order:
-  // 1. Specific treatmentType from appointment
-  // 2. Treatment performed in linked clinical note
+  // 1. Treatment performed in linked clinical note (actual chairside procedure)
+  // 2. Specific treatmentType from appointment
   // 3. Treatment description in linked clinical note
   // 4. Appointment visitType
   const rawTreatment = (
-    appointment.treatmentType ||
     linkedNote?.treatmentPerformed ||
+    appointment.treatmentType ||
     linkedNote?.treatmentDescription ||
     appointment.visitType ||
     ''

@@ -18,7 +18,11 @@ import {
   ClinicalNoteRecord,
   refreshClinicalNotes,
   finalizeClinicalNote,
+  updateAppointmentStatus,
+  type InvoiceRecord,
 } from '../../services/clinicStore';
+import { autoGenerateInvoiceForConsultation } from '../../services/billingAutoInvoice';
+import { InvoiceDrawer } from '../billing/BillingShared';
 import { ClinicalNoteModal } from '../../components/clinical/ClinicalNoteModal';
 import { ClinicalNoteDetailsModal } from '../../components/clinical/ClinicalNoteDetailsModal';
 import { ClinicalNotePrintModal } from '../../components/clinical/ClinicalNotePrintModal';
@@ -33,12 +37,14 @@ export const ClinicalNotesPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'FINALIZED' | 'DRAFT'>('ALL');
   const [dateFilter, setDateFilter] = useState('');
   const initialPatientParam = params.get('patientId') || '';
+  const initialAppointmentParam = params.get('appointmentId') || '';
 
   // Modals state
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<ClinicalNoteRecord | null>(null);
   const [viewingNote, setViewingNote] = useState<ClinicalNoteRecord | null>(null);
   const [printingNote, setPrintingNote] = useState<ClinicalNoteRecord | null>(null);
+  const [activeInvoice, setActiveInvoice] = useState<InvoiceRecord | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {
@@ -49,9 +55,21 @@ export const ClinicalNotesPage: React.FC = () => {
 
   const handleFinalizeDraft = async (note: ClinicalNoteRecord) => {
     try {
-      await finalizeClinicalNote(note.id);
+      const finalized = await finalizeClinicalNote(note.id);
       if (viewingNote?.id === note.id) {
         setViewingNote((prev) => (prev ? { ...prev, status: 'FINALIZED' } : null));
+      }
+      const targetApptId = note.appointmentId || initialAppointmentParam;
+      if (targetApptId) {
+        updateAppointmentStatus(targetApptId, 'completed');
+      }
+      const invRes = autoGenerateInvoiceForConsultation({
+        clinicalNote: finalized || note,
+        appointmentId: targetApptId,
+        patientId: note.patientId,
+      });
+      if (invRes.invoice) {
+        setActiveInvoice(invRes.invoice);
       }
     } catch (err) {
       console.error('Failed to finalize clinical note:', err);
@@ -402,10 +420,14 @@ export const ClinicalNotesPage: React.FC = () => {
       {isNewModalOpen && (
         <ClinicalNoteModal
           defaultPatientId={initialPatientParam}
+          defaultAppointmentId={initialAppointmentParam}
           onClose={() => setIsNewModalOpen(false)}
-          onSaved={(newNote) => {
+          onSaved={(newNote, generatedInvoice) => {
             setIsNewModalOpen(false);
             setViewingNote(newNote);
+            if (generatedInvoice) {
+              setActiveInvoice(generatedInvoice);
+            }
           }}
         />
       )}
@@ -414,10 +436,14 @@ export const ClinicalNotesPage: React.FC = () => {
       {editingNote && (
         <ClinicalNoteModal
           initialNote={editingNote}
+          defaultAppointmentId={initialAppointmentParam}
           onClose={() => setEditingNote(null)}
-          onSaved={(updated) => {
+          onSaved={(updated, generatedInvoice) => {
             setEditingNote(null);
             setViewingNote(updated);
+            if (generatedInvoice) {
+              setActiveInvoice(generatedInvoice);
+            }
           }}
         />
       )}
@@ -444,6 +470,16 @@ export const ClinicalNotesPage: React.FC = () => {
         <ClinicalNotePrintModal
           note={printingNote}
           onClose={() => setPrintingNote(null)}
+        />
+      )}
+
+      {/* Auto-Generated / Consultation Invoice Drawer Preview */}
+      {activeInvoice && (
+        <InvoiceDrawer
+          invoice={activeInvoice}
+          patient={patients.find((p) => p.id === activeInvoice.patientId)}
+          onClose={() => setActiveInvoice(null)}
+          onDone={() => setActiveInvoice(null)}
         />
       )}
     </div>

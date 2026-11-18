@@ -826,6 +826,7 @@ export const subscribeClinicData = (listener: () => void) => {
 };
 
 export const getClinicSnapshot = () => cachedSnapshot;
+export const getInvoices = (): InvoiceRecord[] => cachedSnapshot.invoices;
 
 export const useClinicData = () => {
   return useSyncExternalStore(subscribeClinicData, getClinicSnapshot, getClinicSnapshot);

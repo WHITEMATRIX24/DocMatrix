@@ -30,8 +30,11 @@ import {
   sendAppointmentReminder,
   checkDentistAvailability,
   type AppointmentStatus,
-  type PatientRecord
+  type PatientRecord,
+  type InvoiceRecord
 } from '@/services/clinicStore'
+import { autoGenerateInvoiceForConsultation } from '@/services/billingAutoInvoice'
+import { InvoiceDrawer } from '@/pages/billing/BillingShared'
 
 const TIME_SLOTS = [
   '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
@@ -122,6 +125,7 @@ export const AppointmentDetailPage: React.FC = () => {
 
   const [cancelReason, setCancelReason] = useState('')
   const [whatsAppType, setWhatsAppType] = useState<'confirmation' | 'reminder_24h' | 'reminder_2h' | 'recall'>('confirmation')
+  const [activeInvoice, setActiveInvoice] = useState<InvoiceRecord | null>(null)
 
   useEffect(() => {
     if (appointment) {
@@ -159,6 +163,13 @@ export const AppointmentDetailPage: React.FC = () => {
     updateAppointmentStatus(appointment.id, newStatus)
     if (newStatus === 'completed') {
       setShowMaterialModal(true)
+      const res = autoGenerateInvoiceForConsultation({
+        appointment,
+        patientId: appointment.patientId,
+      })
+      if (res.invoice) {
+        setActiveInvoice(res.invoice)
+      }
     }
   }
 
@@ -394,10 +405,31 @@ export const AppointmentDetailPage: React.FC = () => {
             <Activity size={14} />
             <span>Treatment Plan</span>
           </Link>
-          <Link to={`/billing/invoices?patientId=${patient.id}&appointmentId=${appointment.id}`} className="action-billing-link">
+          <button
+            type="button"
+            className="action-billing-link"
+            onClick={() => {
+              const res = autoGenerateInvoiceForConsultation({
+                appointment,
+                patientId: appointment.patientId,
+              })
+              if (res.invoice) {
+                setActiveInvoice(res.invoice)
+              }
+            }}
+            title="View or generate consultation invoice"
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
             <CreditCard size={14} />
             <span>Generate Invoice</span>
-          </Link>
+          </button>
         </nav>
       </div>
 
@@ -581,6 +613,16 @@ export const AppointmentDetailPage: React.FC = () => {
           doctorName={appointment.doctor}
           procedureId={(appointment.treatmentType || appointment.visitType || '').toLowerCase().includes('root canal') ? 'trt-root-canal' : (appointment.treatmentType || '').toLowerCase().includes('extraction') ? 'trt-extraction' : 'trt-root-canal'}
           procedureName={appointment.treatmentType || appointment.visitType || 'Root Canal Treatment'}
+        />
+      )}
+
+      {/* Auto-Generated / Consultation Invoice Drawer Preview */}
+      {activeInvoice && (
+        <InvoiceDrawer
+          invoice={activeInvoice}
+          patient={patient}
+          onClose={() => setActiveInvoice(null)}
+          onDone={() => setActiveInvoice(null)}
         />
       )}
     </section>

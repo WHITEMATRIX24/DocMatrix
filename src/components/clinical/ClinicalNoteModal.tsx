@@ -19,14 +19,18 @@ import {
   addClinicalNote,
   updateClinicalNote,
   finalizeClinicalNote,
+  updateAppointmentStatus,
+  type InvoiceRecord,
 } from '../../services/clinicStore';
+import { autoGenerateInvoiceForConsultation } from '../../services/billingAutoInvoice';
 import '../../pages/clinical/clinicalNotes.css';
 
 interface ClinicalNoteModalProps {
   initialNote?: ClinicalNoteRecord | null;
   defaultPatientId?: string;
+  defaultAppointmentId?: string;
   onClose: () => void;
-  onSaved: (note: ClinicalNoteRecord) => void;
+  onSaved: (note: ClinicalNoteRecord, invoice?: InvoiceRecord | null) => void;
 }
 
 const CONSULTATION_TYPES = [
@@ -40,6 +44,7 @@ const CONSULTATION_TYPES = [
 export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
   initialNote,
   defaultPatientId,
+  defaultAppointmentId,
   onClose,
   onSaved,
 }) => {
@@ -219,6 +224,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
 
       const payload = {
         patientId: activePatient?.backendId || selectedPatientId,
+        appointmentId: initialNote?.appointmentId || defaultAppointmentId || undefined,
         consultationDate: new Date(consultationDate).toISOString(),
         consultationType,
         chiefComplaint: chiefComplaint.trim(),
@@ -258,9 +264,26 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
       } else {
         // Create new clinical note
         saved = await addClinicalNote(payload);
+        if (shouldFinalize) {
+          saved = await finalizeClinicalNote(saved.id);
+        }
       }
 
-      onSaved(saved);
+      let generatedInvoice: InvoiceRecord | null = null;
+      if (shouldFinalize) {
+        const targetApptId = saved.appointmentId || defaultAppointmentId;
+        if (targetApptId) {
+          updateAppointmentStatus(targetApptId, 'completed');
+        }
+        const invRes = autoGenerateInvoiceForConsultation({
+          clinicalNote: saved,
+          appointmentId: targetApptId,
+          patientId: saved.patientId,
+        });
+        generatedInvoice = invRes.invoice;
+      }
+
+      onSaved(saved, generatedInvoice);
       onClose();
     } catch (err: any) {
       console.error('Failed to save clinical note:', err);

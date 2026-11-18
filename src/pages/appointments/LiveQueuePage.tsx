@@ -23,11 +23,15 @@ import {
   updateAppointmentStatus,
   DENTISTS,
   type AppointmentRecord,
-  type AppointmentPriority
+  type AppointmentPriority,
+  type InvoiceRecord
 } from '@/services/clinicStore'
+import { autoGenerateInvoiceForConsultation } from '@/services/billingAutoInvoice'
+import { InvoiceDrawer } from '@/pages/billing/BillingShared'
 
 export const LiveQueuePage: React.FC = () => {
   const { appointments, patients } = useClinicData()
+  const [activeInvoice, setActiveInvoice] = useState<InvoiceRecord | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [walkInForm, setWalkInForm] = useState({
     patientName: '',
@@ -58,6 +62,27 @@ export const LiveQueuePage: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [modalOpen])
+
+  const handleCompleteVisit = (appt: AppointmentRecord) => {
+    updateAppointmentStatus(appt.id, 'completed')
+    const result = autoGenerateInvoiceForConsultation({
+      appointment: appt,
+      patientId: appt.patientId,
+    })
+    if (result.invoice) {
+      setActiveInvoice(result.invoice)
+    }
+  }
+
+  const handleOpenConsultationBilling = (appt: AppointmentRecord) => {
+    const result = autoGenerateInvoiceForConsultation({
+      appointment: appt,
+      patientId: appt.patientId,
+    })
+    if (result.invoice) {
+      setActiveInvoice(result.invoice)
+    }
+  }
 
   const handleRegisterWalkIn = (e: React.FormEvent) => {
     e.preventDefault()
@@ -236,7 +261,8 @@ export const LiveQueuePage: React.FC = () => {
                     <div className="queue-card-actions">
                       <button
                         className="btn-complete-visit"
-                        onClick={() => updateAppointmentStatus(appt.id, 'completed')}
+                        onClick={() => handleCompleteVisit(appt)}
+                        title="Complete consultation & generate invoice"
                       >
                         <Check size={13} />
                         <span>Complete Visit</span>
@@ -337,13 +363,15 @@ export const LiveQueuePage: React.FC = () => {
                     <strong className="completed-patient-name">{patientDisplayName}</strong>
                     <span className="completed-doctor-tag">{appt.doctor}</span>
                   </div>
-                  <Link
-                    to={`/billing/invoices?patientId=${patient?.id || appt.patientId}&appointmentId=${appt.id}`}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenConsultationBilling(appt)}
                     className="billing-shortcut-btn"
+                    title="Review auto-generated invoice or collect payment"
                   >
                     <CreditCard size={12} />
-                    <span>Bill</span>
-                  </Link>
+                    <span>Bill / Invoice</span>
+                  </button>
                 </div>
               )
             })}
@@ -481,6 +509,16 @@ export const LiveQueuePage: React.FC = () => {
           </div>,
           document.body
         )}
+
+      {/* Auto-Generated / Consultation Invoice Drawer Preview */}
+      {activeInvoice && (
+        <InvoiceDrawer
+          invoice={activeInvoice}
+          patient={getPatient(activeInvoice.patientId)}
+          onClose={() => setActiveInvoice(null)}
+          onDone={() => setActiveInvoice(null)}
+        />
+      )}
     </div>
   )
 }

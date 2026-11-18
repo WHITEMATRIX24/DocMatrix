@@ -41,14 +41,18 @@ import {
   checkDentistAvailability,
   type AppointmentRecord,
   type AppointmentStatus,
-  type AppointmentPriority
+  type AppointmentPriority,
+  type InvoiceRecord
 } from '@/services/clinicStore'
+import { autoGenerateInvoiceForConsultation } from '@/services/billingAutoInvoice'
+import { InvoiceDrawer } from '@/pages/billing/BillingShared'
 
 type CalendarViewMode = 'day' | 'week' | 'dentist'
 
 export const CalendarPage: React.FC = () => {
   const navigate = useNavigate()
   const { appointments, patients } = useClinicData()
+  const [activeInvoice, setActiveInvoice] = useState<InvoiceRecord | null>(null)
 
   // Selected date
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -215,6 +219,16 @@ export const CalendarPage: React.FC = () => {
     else if (appt.status === 'checked-in') nextStatus = 'in-progress'
     else if (appt.status === 'in-progress') nextStatus = 'completed'
     updateAppointmentStatus(appt.id, nextStatus)
+
+    if (nextStatus === 'completed') {
+      const res = autoGenerateInvoiceForConsultation({
+        appointment: appt,
+        patientId: appt.patientId,
+      })
+      if (res.invoice) {
+        setActiveInvoice(res.invoice)
+      }
+    }
   }
 
   // Quick WhatsApp trigger from card
@@ -1277,6 +1291,15 @@ export const CalendarPage: React.FC = () => {
                     const newStatus = e.target.value as AppointmentStatus
                     updateAppointmentStatus(activeAppt.id, newStatus)
                     setActiveAppt({ ...activeAppt, status: newStatus })
+                    if (newStatus === 'completed') {
+                      const res = autoGenerateInvoiceForConsultation({
+                        appointment: activeAppt,
+                        patientId: activeAppt.patientId,
+                      })
+                      if (res.invoice) {
+                        setActiveInvoice(res.invoice)
+                      }
+                    }
                   }}
                 >
                   <option value="scheduled">Scheduled</option>
@@ -1334,6 +1357,41 @@ export const CalendarPage: React.FC = () => {
 
             {/* Modern Action Bar with icons & crisp styling */}
             <div className="modal-actions-bar">
+              {activeAppt.status !== 'completed' && activeAppt.status !== 'cancelled' && (
+                <button
+                  type="button"
+                  className="btn-action-complete"
+                  onClick={() => {
+                    updateAppointmentStatus(activeAppt.id, 'completed')
+                    setActiveAppt({ ...activeAppt, status: 'completed' })
+                    const res = autoGenerateInvoiceForConsultation({
+                      appointment: activeAppt,
+                      patientId: activeAppt.patientId,
+                    })
+                    if (res.invoice) {
+                      setActiveInvoice(res.invoice)
+                    }
+                  }}
+                  title="Finalize consultation and preview invoice"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    background: '#0d9488',
+                    color: '#fff',
+                    border: 'none',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Check size={14} />
+                  <span>Complete Consultation</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 className="btn-action-reschedule"
@@ -1391,13 +1449,24 @@ export const CalendarPage: React.FC = () => {
                   <FileText size={13} />
                   <span>Clinical Note</span>
                 </Link>
-                <Link
-                  to={`/billing/invoices?patientId=${activeAppt.patientId}&appointmentId=${activeAppt.id}`}
+                <button
+                  type="button"
                   className="integration-chip highlight-chip"
+                  onClick={() => {
+                    const res = autoGenerateInvoiceForConsultation({
+                      appointment: activeAppt,
+                      patientId: activeAppt.patientId,
+                    })
+                    if (res.invoice) {
+                      setActiveInvoice(res.invoice)
+                    }
+                  }}
+                  title="View / Generate Consultation Invoice"
+                  style={{ cursor: 'pointer', border: 'none', background: 'none' }}
                 >
                   <CreditCard size={13} />
                   <span>Invoice & Billing</span>
-                </Link>
+                </button>
               </div>
             </div>
           </div>
@@ -1599,6 +1668,16 @@ export const CalendarPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Auto-Generated / Consultation Invoice Drawer Preview */}
+      {activeInvoice && (
+        <InvoiceDrawer
+          invoice={activeInvoice}
+          patient={patients.find((p) => p.id === activeInvoice.patientId)}
+          onClose={() => setActiveInvoice(null)}
+          onDone={() => setActiveInvoice(null)}
+        />
       )}
     </div>
   )

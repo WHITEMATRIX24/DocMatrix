@@ -182,6 +182,8 @@ export const useBillingData = () =>
     () => snapshot,
   )
 
+export const getBillingSnapshot = () => snapshot
+
 /**
  * Fetch authoritative Tariffs and Expenses from NestJS backend.
  */
