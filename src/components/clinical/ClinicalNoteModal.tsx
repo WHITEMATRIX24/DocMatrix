@@ -1155,7 +1155,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
   const formContent = (
     <>
       {error && (
-        <div className="cn-safety-banner" style={{ background: 'rgba(220, 38, 38, 0.1)', color: '#dc2626' }}>
+        <div className="cn-safety-banner cn-safety-banner-error">
           <AlertTriangle />
           <span>{error}</span>
         </div>
@@ -1911,7 +1911,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
                       error.toLowerCase().includes('privilege') ||
                       error.toLowerCase().includes('practitioner') ||
                       error.toLowerCase().includes('unauthorized')) && (
-                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#991b1b' }}>
+                        <div className="cn-dialog-error-tip">
                           Tip: Note finalization legally requires verified DOCTOR privileges.
                           You can save this consultation as a <strong>Draft</strong> now, or switch to the Attending Doctor role.
                         </div>
@@ -1920,26 +1920,13 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
                 </div>
               )}
 
-              <p style={{ margin: 0, fontSize: '13px', lineHeight: 1.5, color: 'var(--text-main, #334155)' }}>
+              <p className="cn-modal-dialog-notice">
                 Once finalized, this consultation record becomes a signed, read-only legal medical document.
                 Further updates can only be recorded as auditable clinical addenda.
               </p>
 
               {currentUser?.role && currentUser.role !== 'DOCTOR' && !error && (
-                <div
-                  style={{
-                    marginTop: '12px',
-                    padding: '8px 12px',
-                    background: 'rgba(245, 158, 11, 0.1)',
-                    border: '1px solid rgba(245, 158, 11, 0.25)',
-                    borderRadius: '8px',
-                    color: '#b45309',
-                    fontSize: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}
-                >
+                <div className="cn-role-warning-banner">
                   <ShieldAlert size={16} style={{ flexShrink: 0 }} />
                   <span>
                     Signed in as <strong>{currentUser.role.replace(/_/g, ' ')}</strong>. Note finalization requires verified DOCTOR privileges.
