@@ -2678,7 +2678,6 @@ body.dark-mode .cn-mat-other-input {
 .cn-record-page-container {
   background: var(--cn-bg-primary, #ffffff);
   border: none;
-  border-top: 3px solid var(--cn-teal, #0d9488);
   border-radius: 0;
   box-shadow: none;
   overflow: visible;
