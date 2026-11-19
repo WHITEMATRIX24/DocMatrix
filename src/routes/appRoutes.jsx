@@ -22,6 +22,7 @@ import Hero38 from '@/components/originkit/hero-38'
 const AppointmentDetailsPage = lazy(() => import('@/pages/appointments/AppointmentDetailsPage'))
 const BillingOverviewPage = lazy(() => import('@/pages/billing/BillingOverviewPage'))
 const PlatformAdminPage = lazy(() => import('@/pages/admin/PlatformAdminPage'))
+const RecordConsultationPage = lazy(() => import('@/pages/clinical/RecordConsultationPage'))
 const REMOVED_BILLING_PAGES = new Set(['bill.price-list', 'bill.expenses'])
 // Income vs expense was dropped (expenses are no longer tracked); Booking conversion merged into Follow-ups
 const MOVED_REPORT_PAGES = { 'rep.income-expense': '/reports', 'rep.conversion': '/reports/follow-ups' }
@@ -186,8 +187,36 @@ export function AppRoutes({
           }
         />
         <Route
+          path="/clinical/notes/new"
+          element={
+            <ProtectedRoute currentUser={currentUser}>
+              <Suspense fallback={<PageFallback />}>
+                <RecordConsultationPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/clinical/notes/:id/edit"
+          element={
+            <ProtectedRoute currentUser={currentUser}>
+              <Suspense fallback={<PageFallback />}>
+                <RecordConsultationPage />
+              </Suspense>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/clinical/notes/record"
+          element={<Navigate to="/clinical/notes/new" replace />}
+        />
+        <Route
           path="/clinical/master-lists"
-          element={<Navigate to="/settings/clinical-config" replace />}
+          element={<Navigate to="/settings/clinical-config?tab=procedures" replace />}
+        />
+        <Route
+          path="/clinical/procedures"
+          element={<Navigate to="/settings/clinical-config?tab=procedures" replace />}
         />
         <Route
           path="/clinical"
