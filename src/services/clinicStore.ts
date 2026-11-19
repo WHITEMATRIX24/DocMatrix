@@ -110,6 +110,7 @@ export interface ClinicalNoteRecord {
   consultationDate?: string
   consultationType?: string
   status?: 'DRAFT' | 'FINALIZED'
+  isFinalized?: boolean
   finalizedAt?: string
   finalizedById?: string
   finalizedByName?: string
