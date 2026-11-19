@@ -110,14 +110,19 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
           disabled={disabled}
           placeholder={selectedOption ? selectedOption.label : placeholder || 'Search or select...'}
           value={inputValue}
-          onFocus={(e) => {
+          onFocus={() => {
             if (disabled) return;
             setIsOpen(true);
-            e.target.select();
+            setTimeout(() => {
+              inputRef.current?.select();
+            }, 0);
           }}
           onClick={() => {
             if (disabled) return;
             if (!isOpen) setIsOpen(true);
+            setTimeout(() => {
+              inputRef.current?.select();
+            }, 0);
           }}
           onChange={(e) => {
             setIsTyping(true);
@@ -129,10 +134,12 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
               setIsOpen(false);
               setIsTyping(false);
               setSearchQuery('');
+              inputRef.current?.blur();
             } else if (e.key === 'Enter') {
               e.preventDefault();
               if (filteredOptions.length > 0) {
                 handleSelect(filteredOptions[0].value);
+                inputRef.current?.blur();
               }
             } else if (e.key === 'ArrowDown' && !isOpen) {
               setIsOpen(true);
@@ -142,11 +149,13 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         />
         <div
           className="cn-searchable-select-arrow"
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             if (disabled) return;
             setIsOpen((prev) => !prev);
             inputRef.current?.focus();
           }}
+          title="Toggle options"
         >
           <ChevronDown size={16} />
         </div>
