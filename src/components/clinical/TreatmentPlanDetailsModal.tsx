@@ -39,7 +39,7 @@ export const TreatmentPlanDetailsModal: React.FC<TreatmentPlanDetailsModalProps>
   onClose,
   onPrint,
 }) => {
-  const { treatmentPlans } = useClinicData();
+  const { treatmentPlans, patientDocuments } = useClinicData();
   const plan = treatmentPlans.find(p => p.id === initialPlan.id || (initialPlan.backendId && p.id === initialPlan.backendId)) || initialPlan;
   const [activeTab, setActiveTab] = useState<'stages' | 'history' | 'clinical' | 'audit'>('stages');
   const [completedItem, setCompletedItem] = useState<TreatmentPlanItemRecord | null>(null);
@@ -56,9 +56,14 @@ export const TreatmentPlanDetailsModal: React.FC<TreatmentPlanDetailsModalProps>
       (plan.patient ? `${plan.patient.firstName} ${plan.patient.lastName}` : '')
   );
   const [acceptanceMethod, setAcceptanceMethod] = useState<
-    'STAFF_RECORDED' | 'WRITTEN_CONSENT' | 'DIGITAL_SIGNATURE' | 'PATIENT_PORTAL'
+    'STAFF_RECORDED' | 'WRITTEN_CONSENT'
   >('STAFF_RECORDED');
   const [acceptanceNotes, setAcceptanceNotes] = useState('');
+  const [evidenceDocumentId, setEvidenceDocumentId] = useState('');
+  const [acceptanceError, setAcceptanceError] = useState('');
+  const consentDocuments = patientDocuments.filter(
+    doc => doc.patientId === plan.patientId && doc.category === 'Consent'
+  );
   const [isSubmittingAcceptance, setIsSubmittingAcceptance] = useState(false);
 
   // Rejection form state
@@ -107,16 +112,26 @@ export const TreatmentPlanDetailsModal: React.FC<TreatmentPlanDetailsModalProps>
     e.preventDefault();
     if (!acceptedByName.trim()) return;
 
+    setAcceptanceError('');
+    if (acceptanceMethod === 'WRITTEN_CONSENT' &&
+        !consentDocuments.some(doc => doc.id === evidenceDocumentId)) {
+      setAcceptanceError('Select an uploaded consent document for this patient.');
+      return;
+    }
     setIsSubmittingAcceptance(true);
     try {
-      await recordTreatmentPlanAcceptance(plan.id, {
+      const accepted = await recordTreatmentPlanAcceptance(plan.id, {
         versionNumber: plan.currentVersion || 1,
         patientAcceptedByName: acceptedByName.trim(),
         acceptanceMethod,
-        isStaffRecorded: acceptanceMethod === 'STAFF_RECORDED',
+        isStaffRecorded: true,
+        evidenceDocumentId: acceptanceMethod === 'WRITTEN_CONSENT' ? evidenceDocumentId : undefined,
         notes: acceptanceNotes.trim(),
       });
+      if (!accepted) throw new Error('Treatment plan is no longer available.');
       setShowAcceptModal(false);
+    } catch {
+      setAcceptanceError('Acceptance could not be saved. Please check the consent document and try again.');
     } finally {
       setIsSubmittingAcceptance(false);
     }
@@ -788,8 +803,9 @@ export const TreatmentPlanDetailsModal: React.FC<TreatmentPlanDetailsModalProps>
                       Consent / Acceptance Method
                     </label>
                     <select
+                      aria-label="Consent / Acceptance Method"
                       value={acceptanceMethod}
-                      onChange={(e) => setAcceptanceMethod(e.target.value as any)}
+                      onChange={(e) => setAcceptanceMethod(e.target.value as 'STAFF_RECORDED' | 'WRITTEN_CONSENT')}
                       style={{
                         width: '100%',
                         padding: '8px 12px',
@@ -800,9 +816,24 @@ export const TreatmentPlanDetailsModal: React.FC<TreatmentPlanDetailsModalProps>
                     >
                       <option value="STAFF_RECORDED">Staff-Recorded (Chairside Verbal Consent)</option>
                       <option value="WRITTEN_CONSENT">Written Consent (Physical Signed Copy on File)</option>
-                      <option value="DIGITAL_SIGNATURE">Digital Signature Form</option>
-                      <option value="PATIENT_PORTAL">Patient Portal Approval</option>
                     </select>
+                    {acceptanceMethod === 'WRITTEN_CONSENT' && (
+                      <div>
+                        <label htmlFor="acceptance-evidence">Uploaded consent document</label>
+                        <select id="acceptance-evidence" required value={evidenceDocumentId}
+                          onChange={e => setEvidenceDocumentId(e.target.value)}>
+                          <option value="">Select a consent document</option>
+                          {consentDocuments.map(doc => (
+                            <option key={doc.id} value={doc.id}>{doc.title} ({doc.fileName})</option>
+                          ))}
+                        </select>
+                        {consentDocuments.length === 0 && (
+                          <p>Upload the signed document under this patient's Documents tab using the Consent category first.</p>
+                        )}
+                        <small>This records staff confirmation of the uploaded consent; it is not a verified patient digital signature.</small>
+                      </div>
+                    )}
+                    {acceptanceError && <p role="alert">{acceptanceError}</p>}
                     {acceptanceMethod === 'STAFF_RECORDED' && (
                       <small style={{ color: 'var(--text-muted, #64748b)', display: 'block', marginTop: '4px' }}>
                         Note: Staff-recorded acceptance will be documented as an operatory verbal agreement, not a verified digital signature.

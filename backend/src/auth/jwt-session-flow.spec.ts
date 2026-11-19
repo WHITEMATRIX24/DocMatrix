@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { randomBytes } from 'node:crypto';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { JwtStrategy, JwtPayload } from './jwt.strategy.js';
@@ -20,7 +21,8 @@ function createMockPrisma() {
     }),
     findFirst: vi.fn(async ({ where }: any) => {
       for (const sess of sessions.values()) {
-        if (where?.tokenHash && sess.tokenHash === where.tokenHash) return { ...sess };
+        if (where?.tokenHash && sess.tokenHash === where.tokenHash)
+          return { ...sess };
         if (
           where?.previousTokenHashes?.has &&
           sess.previousTokenHashes &&
@@ -46,8 +48,10 @@ function createMockPrisma() {
       let count = 0;
       for (const [id, sess] of sessions.entries()) {
         const userMatches = !where.userId || sess.userId === where.userId;
-        const familyMatches = !where.familyId || sess.familyId === where.familyId;
-        const revokedMatches = where.isRevoked === undefined || sess.isRevoked === where.isRevoked;
+        const familyMatches =
+          !where.familyId || sess.familyId === where.familyId;
+        const revokedMatches =
+          where.isRevoked === undefined || sess.isRevoked === where.isRevoked;
         if (userMatches && familyMatches && revokedMatches) {
           sessions.set(id, { ...sess, ...data });
           count++;
@@ -72,7 +76,10 @@ describe('DocMatrix JWT Strategy & Session Revocation Verification', () => {
   let sessionService: SessionService;
   let mockPrisma: any;
 
+  afterEach(() => vi.unstubAllEnvs());
+
   beforeEach(() => {
+    vi.stubEnv('JWT_SECRET', randomBytes(32).toString('hex'));
     mockPrisma = createMockPrisma();
     sessionService = new SessionService(mockPrisma as PrismaService);
     strategy = new JwtStrategy(mockPrisma as PrismaService, sessionService);
@@ -187,7 +194,11 @@ describe('DocMatrix JWT Strategy & Session Revocation Verification', () => {
     };
 
     // Mass revoke all user sessions
-    await sessionService.revokeAllUserSessions('usr-1', undefined, 'Password changed');
+    await sessionService.revokeAllUserSessions(
+      'usr-1',
+      undefined,
+      'Password changed',
+    );
 
     await expect(strategy.validate(payload)).rejects.toThrow(
       /Session has been revoked or expired/,

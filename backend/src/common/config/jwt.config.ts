@@ -27,25 +27,28 @@ export const KNOWN_UNSAFE_SECRETS: readonly string[] = Object.freeze([
   'password',
   '12345678',
   'changeme',
+  'replace-with-a-generated-jwt-secret',
+  'docmatrix-dev-jwt-secret-replace-in-production',
 ]);
 
 /**
  * Validates the JWT_SECRET environment variable.
- * Enforces presence, non-emptiness, rejection of known unsafe fallbacks, and a minimum key length.
+ * Requires hex or canonical base64 encoding of at least 32 cryptographically random bytes.
+ * Format checks cannot prove randomness: generate keys with a CSPRNG, never a passphrase.
  * CRITICAL: The secret value is never printed or included in error messages.
  */
 export function validateJwtSecret(secret?: string): string {
   if (secret === undefined || secret === null) {
     throw new Error(
       'JWT Configuration Fatal Error: JWT_SECRET environment variable is missing. ' +
-      'An explicitly configured secret is required in all environments.',
+        'An explicitly configured secret is required in all environments.',
     );
   }
 
   if (typeof secret !== 'string' || secret.trim().length === 0) {
     throw new Error(
       'JWT Configuration Fatal Error: JWT_SECRET environment variable is empty. ' +
-      'An explicitly configured secret is required in all environments.',
+        'An explicitly configured secret is required in all environments.',
     );
   }
 
@@ -54,13 +57,46 @@ export function validateJwtSecret(secret?: string): string {
   if (KNOWN_UNSAFE_SECRETS.includes(trimmed.toLowerCase())) {
     throw new Error(
       'JWT Configuration Fatal Error: JWT_SECRET is set to a known unsafe default fallback. ' +
-      'A secure, unique signing secret must be provided.',
+        'A secure, unique signing secret must be provided.',
     );
   }
 
-  if (trimmed.length < 16) {
+  let keyBytes: Buffer;
+  if (/^(?:[a-fA-F0-9]{2}){32,}$/.test(trimmed)) {
+    keyBytes = Buffer.from(trimmed, 'hex');
+  } else if (
+    /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(
+      trimmed,
+    )
+  ) {
+    keyBytes = Buffer.from(trimmed, 'base64');
+    if (keyBytes.toString('base64') !== trimmed) {
+      throw new Error(
+        'JWT Configuration Fatal Error: JWT_SECRET must use canonical base64 or hex encoding.',
+      );
+    }
+  } else {
     throw new Error(
-      'JWT Configuration Fatal Error: JWT_SECRET must be at least 16 characters long for cryptographic security.',
+      'JWT Configuration Fatal Error: JWT_SECRET must encode at least 32 random bytes as hex or canonical base64.',
+    );
+  }
+
+  // Reject obvious low-entropy keys even when their encoded length is sufficient.
+  const repeatsShortPattern = Array.from(
+    { length: Math.floor(keyBytes.length / 2) },
+    (_, i) => i + 1,
+  ).some(
+    (size) =>
+      keyBytes.length % size === 0 &&
+      keyBytes.every((byte, index) => byte === keyBytes[index % size]),
+  );
+  if (
+    keyBytes.length < 32 ||
+    new Set(keyBytes).size < 16 ||
+    repeatsShortPattern
+  ) {
+    throw new Error(
+      'JWT Configuration Fatal Error: JWT_SECRET must encode at least 32 random bytes; weak or repetitive keys are prohibited.',
     );
   }
 
@@ -79,7 +115,8 @@ export function getJwtSecret(): string {
  * Returns the access token expiration string (e.g. '15m').
  */
 export function getJwtAccessExpiration(): any {
-  return (process.env.JWT_ACCESS_EXPIRATION?.trim() || DEFAULT_ACCESS_TOKEN_EXPIRATION) as any;
+  return (process.env.JWT_ACCESS_EXPIRATION?.trim() ||
+    DEFAULT_ACCESS_TOKEN_EXPIRATION) as any;
 }
 
 /**
@@ -99,7 +136,10 @@ export function getJwtRefreshTtlSeconds(): number {
 /**
  * Extracts a cookie value by name from a raw Cookie header string.
  */
-export function extractCookie(cookieHeader: string | undefined, name: string): string | null {
+export function extractCookie(
+  cookieHeader: string | undefined,
+  name: string,
+): string | null {
   if (!cookieHeader || typeof cookieHeader !== 'string') return null;
   const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
   return match ? decodeURIComponent(match[1]) : null;
@@ -108,7 +148,11 @@ export function extractCookie(cookieHeader: string | undefined, name: string): s
 /**
  * Sets an HttpOnly, scoped refresh token cookie on the outgoing response.
  */
-export function setRefreshCookie(res: Response, refreshToken: string, nodeEnv = process.env.NODE_ENV): void {
+export function setRefreshCookie(
+  res: Response,
+  refreshToken: string,
+  nodeEnv = process.env.NODE_ENV,
+): void {
   if (!res || typeof res.cookie !== 'function') return;
   const isProd = nodeEnv === 'production';
   const cookiePath = process.env.COOKIE_PATH || '/auth';
@@ -125,7 +169,10 @@ export function setRefreshCookie(res: Response, refreshToken: string, nodeEnv = 
 /**
  * Clears the refresh token cookie.
  */
-export function clearRefreshCookie(res: Response, nodeEnv = process.env.NODE_ENV): void {
+export function clearRefreshCookie(
+  res: Response,
+  nodeEnv = process.env.NODE_ENV,
+): void {
   if (!res || typeof res.clearCookie !== 'function') return;
   const isProd = nodeEnv === 'production';
   const cookiePath = process.env.COOKIE_PATH || '/auth';

@@ -1,3 +1,4 @@
+import { lockTenantRecord } from '../common/transaction-locks.js';
 import {
   BadRequestException,
   ForbiddenException,
@@ -68,6 +69,7 @@ export class ClinicalNotesService {
     currentUser: AuthenticatedUser,
     dto: CreateClinicalNoteDto,
   ) {
+    this.assertAuthorizedDoctor(currentUser);
     const patient = await this.resolvePatient(clinicId, dto.patientId);
     if (!patient) {
       throw new NotFoundException('Patient not found in this clinic.');
@@ -326,7 +328,11 @@ export class ClinicalNotesService {
     id: string,
     dto: UpdateClinicalNoteDto,
   ) {
-    const existing = await this.prisma.clinicalNote.findFirst({
+    return this.prisma.$transaction(async (tx) => {
+      await lockTenantRecord(tx, 'ClinicalNote', clinicId, id);
+
+    this.assertAuthorizedDoctor(currentUser);
+    const existing = await tx.clinicalNote.findFirst({
       where: { id, clinicId },
     });
 
@@ -341,7 +347,7 @@ export class ClinicalNotesService {
     }
 
     if (dto.appointmentId) {
-      const appt = await this.prisma.appointment.findFirst({
+      const appt = await tx.appointment.findFirst({
         where: { id: dto.appointmentId, clinicId, patientId: existing.patientId },
       });
       if (!appt) {
@@ -439,7 +445,7 @@ export class ClinicalNotesService {
       data.patientAdvice = dto.patientAdvice.trim() || null;
     }
 
-    return this.prisma.clinicalNote.update({
+    return tx.clinicalNote.update({
       where: { id },
       data,
       include: {
@@ -466,6 +472,8 @@ export class ClinicalNotesService {
         addenda: true,
       },
     });
+
+    }, { maxWait: 10000, timeout: 20000 });
   }
 
   /**
@@ -477,9 +485,12 @@ export class ClinicalNotesService {
     currentUser: AuthenticatedUser,
     id: string,
   ) {
+    return this.prisma.$transaction(async (tx) => {
+      await lockTenantRecord(tx, 'ClinicalNote', clinicId, id);
+
     this.assertAuthorizedDoctor(currentUser);
 
-    const existing = await this.prisma.clinicalNote.findFirst({
+    const existing = await tx.clinicalNote.findFirst({
       where: { id, clinicId },
     });
 
@@ -491,7 +502,7 @@ export class ClinicalNotesService {
       throw new BadRequestException('Clinical note is already finalized.');
     }
 
-    return this.prisma.clinicalNote.update({
+    return tx.clinicalNote.update({
       where: { id },
       data: {
         status: 'FINALIZED',
@@ -523,6 +534,8 @@ export class ClinicalNotesService {
         addenda: true,
       },
     });
+
+    }, { maxWait: 10000, timeout: 20000 });
   }
 
   /**

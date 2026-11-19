@@ -1,3 +1,4 @@
+import { lockTenantRecord } from '../common/transaction-locks.js';
 import {
   BadRequestException,
   ForbiddenException,
@@ -157,9 +158,12 @@ export class PrescriptionsService {
     id: string,
     dto: UpdatePrescriptionDto,
   ) {
+    return this.prisma.$transaction(async (tx) => {
+      await lockTenantRecord(tx, 'Prescription', clinicId, id);
+
     this.assertAuthorizedDoctor(currentUser);
 
-    const existing = await this.prisma.prescription.findFirst({
+    const existing = await tx.prescription.findFirst({
       where: { id, clinicId },
       include: { items: true },
     });
@@ -173,7 +177,7 @@ export class PrescriptionsService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return (async () => {
       // If new medication items were supplied, replace existing items atomically
       if (dto.items && dto.items.length > 0) {
         await tx.prescriptionItem.deleteMany({
@@ -230,7 +234,9 @@ export class PrescriptionsService {
           },
         },
       });
-    });
+    })();
+
+    }, { maxWait: 10000, timeout: 20000 });
   }
 
   /**
@@ -242,9 +248,12 @@ export class PrescriptionsService {
     currentUser: AuthenticatedUser,
     id: string,
   ) {
+    return this.prisma.$transaction(async (tx) => {
+      await lockTenantRecord(tx, 'Prescription', clinicId, id);
+
     this.assertAuthorizedDoctor(currentUser);
 
-    const existing = await this.prisma.prescription.findFirst({
+    const existing = await tx.prescription.findFirst({
       where: { id, clinicId },
       include: { items: true },
     });
@@ -264,7 +273,7 @@ export class PrescriptionsService {
       );
     }
 
-    return this.prisma.prescription.update({
+    return tx.prescription.update({
       where: { id },
       data: {
         status: 'FINALIZED',
@@ -303,6 +312,8 @@ export class PrescriptionsService {
         },
       },
     });
+
+    }, { maxWait: 10000, timeout: 20000 });
   }
 
   /**
@@ -315,9 +326,12 @@ export class PrescriptionsService {
     id: string,
     dto: CancelPrescriptionDto,
   ) {
+    return this.prisma.$transaction(async (tx) => {
+      await lockTenantRecord(tx, 'Prescription', clinicId, id);
+
     this.assertAuthorizedDoctor(currentUser);
 
-    const existing = await this.prisma.prescription.findFirst({
+    const existing = await tx.prescription.findFirst({
       where: { id, clinicId },
     });
     if (!existing) {
@@ -334,7 +348,7 @@ export class PrescriptionsService {
       );
     }
 
-    return this.prisma.prescription.update({
+    return tx.prescription.update({
       where: { id },
       data: {
         status: 'CANCELLED',
@@ -382,6 +396,8 @@ export class PrescriptionsService {
         },
       },
     });
+
+    }, { maxWait: 10000, timeout: 20000 });
   }
 
   /**

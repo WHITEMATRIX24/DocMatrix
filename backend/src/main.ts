@@ -1,7 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
-import { AppModule } from './app.module.js';
 import { getCorsOptions } from './common/config/cors.config.js';
 import { getJwtSecret } from './common/config/jwt.config.js';
 
@@ -16,6 +15,8 @@ async function bootstrap() {
   // Validate JWT Secret at startup before accepting traffic
   getJwtSecret();
 
+  // Import modules only after local environment loading and signing-key validation.
+  const { AppModule } = await import('./app.module.js');
   const app = await NestFactory.create(AppModule);
 
   // Configure Trusted Proxy explicitly (Prevent header spoofing and respect reverse proxies)

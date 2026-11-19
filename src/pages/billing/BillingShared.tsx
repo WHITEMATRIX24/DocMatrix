@@ -224,7 +224,7 @@ export const buildAppointmentLineItem = ({
   const matchingPlan = treatmentPlans.find((tp) => {
     const isPatient =
       tp.patientId === appointment.patientId ||
-      (appointment.patientName && (tp as any).patientName === appointment.patientName)
+      Boolean(appointment.patientName && (tp as any).patientName === appointment.patientName)
     if (!isPatient) return false
     const pClean = clean(tp.procedure || '')
     return (

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { loadFromStorage, saveToStorage } from './storageService'
-import { apiClient } from './apiClient'
+import { apiClient, getStoredToken } from './apiClient'
 
 export type SuggestionMode = 'standard' | 'doctor-specific' | 'manual'
 
@@ -338,6 +338,7 @@ export function useAdaptiveInventory(): AdaptiveInventoryState {
  * Synchronize inventory items & movements with backend database
  */
 export async function syncInventoryWithBackend() {
+  if (!getStoredToken()) return
   try {
     const backendItems = await apiClient.get<InventoryStockItem[]>('/inventory/items')
     if (Array.isArray(backendItems)) {
@@ -352,6 +353,7 @@ export async function syncInventoryWithBackend() {
   }
 
   try {
+    if (!getStoredToken()) return
     const backendAudits = await apiClient.get<ConfirmedMaterialDeduction[]>('/inventory/movements')
     if (Array.isArray(backendAudits)) {
       state = {

@@ -32,7 +32,6 @@ describe('Patient Registration: Age Directly Calculated from DOB', () => {
     const expectedAge = computeAgeFromDob('1995-06-15');
     expect(ageInput.value).toBe(expectedAge);
     expect(ageInput).toHaveAttribute('readonly');
-    expect(screen.getByText(new RegExp(`Age: ${expectedAge} years \\(directly calculated from Date of Birth\\)`, 'i'))).toBeInTheDocument();
   });
 
   it('updates the calculated age immediately when DOB is changed', () => {

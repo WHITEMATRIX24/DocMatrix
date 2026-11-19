@@ -31,7 +31,12 @@ describe('AuthService', () => {
       isRevoked: false,
     };
     const mockSessionService = {
-      createSession: vi.fn().mockResolvedValue({ session: mockSession, refreshToken: 'refresh-token-xyz' }),
+      createSession: vi
+        .fn()
+        .mockResolvedValue({
+          session: mockSession,
+          refreshToken: 'refresh-token-xyz',
+        }),
       rotateRefreshToken: vi.fn(),
       isSessionValid: vi.fn().mockReturnValue(true),
       revokeSession: vi.fn(),
@@ -39,14 +44,23 @@ describe('AuthService', () => {
       revokeAllUserSessions: vi.fn().mockReturnValue(1),
     };
 
-    service = new AuthService(mockPrisma, mockJwt, mockSessionService as any);
+    service = new AuthService(
+      mockPrisma,
+      mockJwt,
+      mockSessionService as any,
+      undefined,
+      { recordEvent: vi.fn() } as any,
+    );
   });
 
   it('rejects login if user is not found', async () => {
     mockPrisma.user.findUnique.mockResolvedValue(null);
 
     await expect(
-      service.login({ email: 'unknown@docmatrix.com', password: 'password123' }),
+      service.login({
+        email: 'unknown@docmatrix.com',
+        password: 'password123',
+      }),
     ).rejects.toThrow(UnauthorizedException);
   });
 
@@ -58,7 +72,10 @@ describe('AuthService', () => {
     });
 
     await expect(
-      service.login({ email: 'inactive@docmatrix.com', password: 'password123' }),
+      service.login({
+        email: 'inactive@docmatrix.com',
+        password: 'password123',
+      }),
     ).rejects.toThrow(UnauthorizedException);
   });
 
@@ -76,7 +93,7 @@ describe('AuthService', () => {
       isPlatformAdmin: false,
       isPrimaryContact: true,
       isActive: true,
-      clinic: { name: 'Apollo Dental' },
+      clinic: { name: 'Apollo Dental', status: 'ACTIVE' },
     });
 
     const response = await service.login({
@@ -85,6 +102,9 @@ describe('AuthService', () => {
     });
 
     expect(response.token).toBe('mock-jwt-token-xyz');
+    expect(mockJwt.sign).toHaveBeenCalledWith(
+      expect.objectContaining({ sub: 'usr-1', sessionId: 'session-123' }),
+    );
     expect(response.user.email).toBe('dr.arun@docmatrix.com');
     expect(response.user.role).toBe('ORGANIZATION_ADMIN');
     expect(response.user.clinicName).toBe('Apollo Dental');
@@ -101,7 +121,11 @@ describe('AuthService', () => {
       });
       mockPrisma.user.update = vi.fn().mockResolvedValue({ id: 'usr-1' });
 
-      const res = await service.changePassword('usr-1', 'OldPassword123!', 'NewPassword456!');
+      const res = await service.changePassword(
+        'usr-1',
+        'OldPassword123!',
+        'NewPassword456!',
+      );
       expect(res.success).toBe(true);
       expect(mockPrisma.user.update).toHaveBeenCalled();
     });
@@ -121,4 +145,3 @@ describe('AuthService', () => {
     });
   });
 });
-

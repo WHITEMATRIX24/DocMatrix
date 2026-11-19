@@ -2,7 +2,7 @@
 // @ts-nocheck
 "use client"
 import React, { useState } from "react";
-import { Stethoscope, CalendarCheck, CreditCard, ArrowUpRight } from "lucide-react";
+import { Stethoscope, CalendarCheck, CreditCard } from "lucide-react";
 import ParticleSimulation from "@/components/originkit/ui/hero-38/particle-simulation";
 
 export function SectionHero() {
@@ -66,13 +66,6 @@ export function SectionHero() {
                 <strong className="hero38-keyword">multi-visit tracking</strong>.
               </p>
             </div>
-
-            <div className="hero38-card-footer">
-              <span className="hero38-card-action-label">Explore Dental EMR</span>
-              <span className="hero38-card-arrow">
-                <ArrowUpRight size={15} />
-              </span>
-            </div>
           </article>
 
           {/* Card 2: Operations */}
@@ -95,13 +88,6 @@ export function SectionHero() {
                 <strong className="hero38-keyword">inventory management</strong>.
               </p>
             </div>
-
-            <div className="hero38-card-footer">
-              <span className="hero38-card-action-label">Explore Operations</span>
-              <span className="hero38-card-arrow">
-                <ArrowUpRight size={15} />
-              </span>
-            </div>
           </article>
 
           {/* Card 3: Financials */}
@@ -123,13 +109,6 @@ export function SectionHero() {
                 <strong className="hero38-keyword">Itemised billing</strong>, GST reporting, real-time expense tracking, accounts management, and seamless{" "}
                 <strong className="hero38-keyword">Tally export</strong>.
               </p>
-            </div>
-
-            <div className="hero38-card-footer">
-              <span className="hero38-card-action-label">Explore Financials</span>
-              <span className="hero38-card-arrow">
-                <ArrowUpRight size={15} />
-              </span>
             </div>
           </article>
         </div>

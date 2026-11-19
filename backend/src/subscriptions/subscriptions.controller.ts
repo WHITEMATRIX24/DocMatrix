@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { PlatformAdminOnly } from '../common/decorators/platform-admin.decorator.js';
+import { Body, Controller, Get, Post, UseGuards, ForbiddenException } from '@nestjs/common';
 import { StaffRole } from '@prisma/client';
 import { SubscriptionsService } from './subscriptions.service.js';
 import { AssignSubscriptionDto } from './dto/assign-subscription.dto.js';
@@ -25,18 +26,20 @@ export class SubscriptionsController {
     return this.subscriptionsService.getSubscriptionHistory(user.clinicId!);
   }
 
-  @Roles(StaffRole.ORGANIZATION_ADMIN)
+  @PlatformAdminOnly()
   @Post('assign')
   async assignSubscription(@CurrentUser() user: AuthenticatedUser, @Body() dto: AssignSubscriptionDto) {
+    if (user.isPlatformAdmin !== true) throw new ForbiddenException('Subscription provisioning requires a platform administrator.');
     // If not platform admin, enforce that clinicId must match the user's clinic:
     const targetClinicId = user.isPlatformAdmin ? dto.clinicId : user.clinicId!;
     return this.subscriptionsService.assignSubscription({
       ...dto,
       clinicId: targetClinicId,
-    });
+    }, user);
   }
 
   @Roles(StaffRole.ORGANIZATION_ADMIN)
+  @UseGuards(TenantGuard)
   @Post('cancel')
   async cancelSubscription(
     @CurrentUser() user: AuthenticatedUser,

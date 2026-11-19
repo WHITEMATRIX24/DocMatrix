@@ -1,3 +1,4 @@
+import { getCurrentUser } from '@/services/authService'
 import React, { useMemo, useState, useEffect } from 'react'
 import { Link, useParams, useSearchParams, useLocation, useNavigate } from 'react-router-dom'
 import {
@@ -618,7 +619,8 @@ export const PatientProfilePage: React.FC = () => {
   // Document Upload Modal State
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
   const [docTitle, setDocTitle] = useState('')
-  const [docCategory, setDocCategory] = useState<PatientDocumentRecord['category']>('Radiology')
+  const intakeDocumentsOnly = getCurrentUser()?.role === 'RECEPTIONIST'
+  const [docCategory, setDocCategory] = useState<PatientDocumentRecord['category']>(intakeDocumentsOnly ? 'Identification' : 'Radiology')
   const [docFile, setDocFile] = useState<File | null>(null)
   const [docSaving, setDocSaving] = useState(false)
   const [docNotice, setDocNotice] = useState('')
@@ -2753,12 +2755,16 @@ export const PatientProfilePage: React.FC = () => {
                     value={docCategory}
                     onChange={(e) => setDocCategory(e.target.value as PatientDocumentRecord['category'])}
                   >
+                    {!intakeDocumentsOnly && <>
                     <option value="Radiology">Radiology (X-Ray / OPG)</option>
                     <option value="Intraoral Photo">Intraoral Photo</option>
                     <option value="Lab Report">Lab Report</option>
                     <option value="Prescription">Prescription</option>
-                    <option value="Consent">Consent Record</option>
                     <option value="Other">Other</option>
+                    </>}
+                    <option value="Identification">Identification</option>
+                    <option value="Referral">Referral</option>
+                    <option value="Consent">Consent Record</option>
                   </select>
                 </div>
 

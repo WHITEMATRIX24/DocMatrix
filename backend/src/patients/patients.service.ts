@@ -99,24 +99,37 @@ export class PatientsService {
     return this.serializePatient(patient);
   }
 
+  async generateNextPatientCode(clinicId: string): Promise<string> {
+    const existing = await this.prisma.patient.findMany({
+      where: { clinicId },
+      select: { patientCode: true },
+    });
+
+    const codeSet = new Set(existing.map((p) => p.patientCode.trim().toUpperCase()));
+    let seq = 1;
+    while (codeSet.has(`PAT-${String(seq).padStart(3, '0')}`)) {
+      seq++;
+    }
+    return `PAT-${String(seq).padStart(3, '0')}`;
+  }
+
   async createPatient(clinicId: string, dto: CreatePatientDto) {
     let code = dto.patientCode?.trim();
     if (!code) {
-      const count = await this.prisma.patient.count({ where: { clinicId } });
-      code = `pt-${1001 + count}`;
-    }
-
-    const existingCode = await this.prisma.patient.findUnique({
-      where: {
-        clinicId_patientCode: {
-          clinicId,
-          patientCode: code,
+      code = await this.generateNextPatientCode(clinicId);
+    } else {
+      const existingCode = await this.prisma.patient.findUnique({
+        where: {
+          clinicId_patientCode: {
+            clinicId,
+            patientCode: code,
+          },
         },
-      },
-    });
+      });
 
-    if (existingCode) {
-      code = `pt-${1001 + (await this.prisma.patient.count({ where: { clinicId } }))}-${Date.now().toString().slice(-4)}`;
+      if (existingCode) {
+        code = await this.generateNextPatientCode(clinicId);
+      }
     }
 
     const dob = new Date(dto.dateOfBirth);

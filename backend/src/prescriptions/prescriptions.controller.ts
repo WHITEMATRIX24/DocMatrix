@@ -1,3 +1,4 @@
+import { RequireOperation } from '../common/decorators/operation-permission.decorator.js';
 import {
   Body,
   Controller,
@@ -28,6 +29,7 @@ export class PrescriptionsController {
   constructor(private readonly prescriptionsService: PrescriptionsService) {}
 
   @Post('prescriptions')
+  @RequireOperation('clinical.write')
   async createPrescription(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreatePrescriptionDto,
@@ -40,6 +42,7 @@ export class PrescriptionsController {
   }
 
   @Get('prescriptions')
+  @RequireOperation('clinical.read')
   async getPrescriptions(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: PrescriptionQueryDto,
@@ -48,6 +51,7 @@ export class PrescriptionsController {
   }
 
   @Get('prescriptions/:id')
+  @RequireOperation('clinical.read')
   async getPrescriptionById(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -56,6 +60,7 @@ export class PrescriptionsController {
   }
 
   @Patch('prescriptions/:id')
+  @RequireOperation('clinical.write')
   async updatePrescription(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -70,6 +75,7 @@ export class PrescriptionsController {
   }
 
   @Post('prescriptions/:id/finalize')
+  @RequireOperation('clinical.write')
   async finalizePrescription(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -82,6 +88,7 @@ export class PrescriptionsController {
   }
 
   @Post('prescriptions/:id/cancel')
+  @RequireOperation('clinical.write')
   async cancelPrescription(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -96,6 +103,7 @@ export class PrescriptionsController {
   }
 
   @Get('patients/:id/prescriptions')
+  @RequireOperation('clinical.read')
   async getPatientPrescriptions(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') patientId: string,

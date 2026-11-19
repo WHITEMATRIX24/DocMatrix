@@ -70,7 +70,7 @@ describe('BillingService & BillingCalculationService', () => {
       invoiceLineItem: {
         createMany: vi.fn(),
         deleteMany: vi.fn(),
-        findMany: vi.fn(),
+        findMany: vi.fn().mockResolvedValue([]),
         count: vi.fn(),
       },
       invoicePayment: {
@@ -98,7 +98,7 @@ describe('BillingService & BillingCalculationService', () => {
         update: vi.fn(),
         delete: vi.fn(),
       },
-      $queryRaw: vi.fn(),
+      $queryRaw: vi.fn().mockResolvedValue([{ id: 'locked-test-row', assignedValue: 1001 }]),
       $executeRaw: vi.fn(),
       $transaction: vi.fn(async (cb: any) => cb(prisma)),
     };

@@ -14,7 +14,7 @@ const getBaseUrl = (): string => {
   return 'http://localhost:3000';
 };
 
-const getStoredToken = (): string | null => {
+export const getStoredToken = (): string | null => {
   try {
     return sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token');
   } catch {
@@ -31,9 +31,11 @@ interface RequestOptions {
 
 // Concurrency mutex to ensure only one refresh request runs at any time
 let activeRefreshPromise: Promise<string | null> | null = null;
+let refreshCooldown: { token: string | null; until: number } | null = null;
 
 const requestNewAccessToken = async (): Promise<string | null> => {
   if (activeRefreshPromise) return activeRefreshPromise;
+  if (refreshCooldown?.token === getStoredToken() && Date.now() < refreshCooldown.until) return null;
 
   activeRefreshPromise = (async () => {
     const tokenAtStart = getStoredToken();
@@ -54,7 +56,17 @@ const requestNewAccessToken = async (): Promise<string | null> => {
 
       if (getStoredToken() !== tokenAtStart) return null;
 
-      if (!response.ok) {
+      if (response.status === 429) {
+        const retryAfter = response.headers?.get('Retry-After');
+        const seconds = retryAfter ? Number(retryAfter) : NaN;
+        const retryAt = retryAfter && !Number.isFinite(seconds) ? Date.parse(retryAfter) : NaN;
+        const delay = Number.isFinite(seconds) ? seconds * 1000
+          : Number.isFinite(retryAt) ? retryAt - Date.now() : 60000;
+        refreshCooldown = { token: tokenAtStart, until: Date.now() + Math.max(1000, delay) };
+        return null;
+      }
+
+      if (response.status === 401 || response.status === 403) {
         // Refresh token has expired, been revoked, or is invalid
         try {
           localStorage.removeItem('docmatrix_auth_token');
@@ -68,11 +80,12 @@ const requestNewAccessToken = async (): Promise<string | null> => {
         notifyAuthSessionChanged();
         return null;
       }
+      if (!response.ok) return null;
 
       const data = await response.json();
       if (getStoredToken() !== tokenAtStart) return null;
       if (data?.token) {
-        const storage = localStorage.getItem('docmatrix_auth_token') ? localStorage : sessionStorage;
+        const storage = sessionStorage.getItem('docmatrix_auth_token') ? sessionStorage : localStorage;
         storage.setItem('docmatrix_auth_token', data.token);
         if (data.user) {
           storage.setItem('docmatrix_auth_user', JSON.stringify(data.user));
@@ -159,7 +172,12 @@ class ApiClient {
     // Auto-refresh token handling on 401
     const isAuthEndpoint = endpoint.includes('/auth/login') || endpoint.includes('/auth/platform-login') || endpoint.includes('/auth/refresh') || endpoint.includes('/auth/logout');
     if (response.status === 401 && !isAuthEndpoint && !options?._isRetry) {
-      const newToken = await requestNewAccessToken();
+      // A delayed 401 may belong to a token already refreshed or cleared by
+      // another request. Reuse the replacement; never refresh a cleared session.
+      const currentToken = getStoredToken();
+      const newToken = token && currentToken
+        ? (currentToken !== token ? currentToken : await requestNewAccessToken())
+        : null;
       if (newToken) {
         return this.request<T>(endpoint, method, body, {
           ...options,

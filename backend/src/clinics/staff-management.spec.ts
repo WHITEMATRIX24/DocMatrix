@@ -1,3 +1,4 @@
+import { PrismaService } from '../prisma/prisma.service.js';
 import 'reflect-metadata';
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import { Test } from '@nestjs/testing';
@@ -44,7 +45,7 @@ describe('Clinic-owner staff management HTTP/RBAC (synthetic persistence only)',
   let users: Map<string, any>, sessionRows: Map<string, any>, audit: any, billing: any;
   const password = 'Synthetic-Staff-2026!';
   const jwt = new JwtService({ secret: 'synthetic-test-key-for-staff-authorization', signOptions: { expiresIn: '15m' } });
-  const select = (row: any, fields: any) => !row ? null : fields ? Object.fromEntries(Object.keys(fields).filter(k => fields[k]).map(k => [k, row[k]])) : { ...row };
+  const select = (row: any, fields: any) => !row ? null : fields ? Object.fromEntries(Object.keys(fields).filter(k => fields[k]).map(k => [k, row[k]])) : { ...row, clinic: row.clinicId ? { status: 'ACTIVE' } : null };
   const matches = (row: any, where: any) => Object.entries(where || {}).every(([k, v]) => row[k] === v);
 
   beforeEach(async () => {
@@ -54,6 +55,7 @@ describe('Clinic-owner staff management HTTP/RBAC (synthetic persistence only)',
       ['branch-a', 'clinic-a', 'BRANCH_ADMIN', false],
     ] as const) users.set(id, { id, clinicId, role, fullName: id, email: `${id}@docmatrix.test`, passwordHash: bcrypt.hashSync(password, 4), isPrimaryContact: primary, isPlatformAdmin: false, isActive: true });
     db = {
+      clinic: { findUnique: vi.fn(async () => ({ status: 'ACTIVE' })) },
       user: {
         findUnique: vi.fn(async ({ where, select: fields }: any) => select([...users.values()].find(u => matches(u, where)), fields)),
         findFirst: vi.fn(async ({ where }: any) => select([...users.values()].find(u => matches(u, where)), null)),
@@ -90,6 +92,7 @@ describe('Clinic-owner staff management HTTP/RBAC (synthetic persistence only)',
     const fixture = await Test.createTestingModule({
       controllers: [ClinicsController, BillingController, ReportsController, ClinicalNotesController, PrescriptionsController, AppointmentsController],
       providers: [
+        { provide: PrismaService, useValue: db },
         { provide: ClinicsService, useValue: service }, { provide: BillingService, useValue: billing },
         { provide: ReportsService, useValue: new ReportsService(db) },
         { provide: ClinicalNotesService, useValue: new ClinicalNotesService(db) },

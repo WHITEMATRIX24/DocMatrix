@@ -733,7 +733,7 @@ img {
   display: flex;
   width: max-content;
   align-items: center;
-  animation: partners-flow 6.2s linear infinite;
+  animation: partners-flow 22s linear infinite;
 }
 
 .partner-set {

@@ -1,3 +1,4 @@
+import { lockTenantRecord } from '../common/transaction-locks.js';
 import {
   BadRequestException,
   ForbiddenException,
@@ -558,7 +559,8 @@ export class TreatmentPlansService {
     id: string,
     dto: RecordAcceptanceDto,
   ) {
-    const plan = await this.prisma.treatmentPlan.findFirst({
+
+    this.assertAuthorizedPractitioner(currentUser);   const plan = await this.prisma.treatmentPlan.findFirst({
       where: { id, clinicId },
     });
 
@@ -566,6 +568,15 @@ export class TreatmentPlansService {
       throw new NotFoundException(`Treatment plan #${id} not found in this clinic.`);
     }
 
+    if (!['PROPOSED', 'PENDING', 'REJECTED'].includes(plan.status) || dto.versionNumber !== plan.currentVersion) {
+      throw new BadRequestException('Only the current proposed estimate may be accepted.');
+    }
+    if (dto.isStaffRecorded === false || dto.acceptanceMethod === AcceptanceMethod.DIGITAL_SIGNATURE || dto.acceptanceMethod === AcceptanceMethod.PATIENT_PORTAL) {
+      throw new BadRequestException('This staff endpoint cannot attest direct patient signing. Record staff acceptance or verified written consent.');
+    }
+    if (dto.acceptanceMethod === AcceptanceMethod.WRITTEN_CONSENT && (!dto.evidenceDocumentId || !await this.prisma.patientDocument.findFirst({
+      where: { id: dto.evidenceDocumentId, clinicId, patientId: plan.patientId, category: 'Consent' }, select: { id: true },
+    }))) throw new BadRequestException('Written consent requires an existing consent document for this patient.');
     const revision = await this.prisma.treatmentEstimateRevision.findUnique({
       where: {
         treatmentPlanId_versionNumber: {
@@ -586,9 +597,13 @@ export class TreatmentPlansService {
       (currentUser as any).name ||
       'Authorized Staff';
 
-    const isStaffRecorded = dto.isStaffRecorded !== undefined ? dto.isStaffRecorded : true;
+    const isStaffRecorded = true;
 
     return this.prisma.$transaction(async (tx) => {
+      await lockTenantRecord(tx, 'TreatmentPlan', clinicId, plan.id);
+      const current = await tx.treatmentPlan.findFirst({ where: { id: plan.id, clinicId } });
+      if (!current || current.status !== plan.status || current.currentVersion !== plan.currentVersion) throw new BadRequestException('Treatment plan changed; reload before retrying.');
+
       // Mark the estimate revision as accepted
       await tx.treatmentEstimateRevision.update({
         where: { id: revision.id },
@@ -603,7 +618,7 @@ export class TreatmentPlansService {
 
       // Update plan status
       const updatedPlan = await tx.treatmentPlan.update({
-        where: { id: plan.id },
+        where: { id: plan.id, clinicId, status: plan.status, currentVersion: plan.currentVersion },
         data: {
           status: TreatmentPlanStatus.ACCEPTED,
           acceptedVersion: dto.versionNumber,
@@ -629,6 +644,7 @@ export class TreatmentPlansService {
           userRole: currentUser.role,
           action: 'ACCEPTED',
           details: {
+            evidenceDocumentId: dto.evidenceDocumentId,
             versionNumber: dto.versionNumber,
             patientAcceptedByName: dto.patientAcceptedByName.trim(),
             acceptanceMethod: dto.acceptanceMethod,
@@ -654,7 +670,8 @@ export class TreatmentPlansService {
     id: string,
     dto: RecordRejectionDto,
   ) {
-    const plan = await this.prisma.treatmentPlan.findFirst({
+
+    this.assertAuthorizedPractitioner(currentUser);   const plan = await this.prisma.treatmentPlan.findFirst({
       where: { id, clinicId },
     });
 
@@ -662,14 +679,19 @@ export class TreatmentPlansService {
       throw new NotFoundException(`Treatment plan #${id} not found in this clinic.`);
     }
 
+    if (!['PROPOSED', 'PENDING'].includes(plan.status)) throw new BadRequestException('Only a proposed plan may be rejected.');
     const userName =
       currentUser.fullName ||
       (currentUser as any).name ||
       'Authorized Staff';
 
     return this.prisma.$transaction(async (tx) => {
+      await lockTenantRecord(tx, 'TreatmentPlan', clinicId, plan.id);
+      const current = await tx.treatmentPlan.findFirst({ where: { id: plan.id, clinicId } });
+      if (!current || current.status !== plan.status || current.currentVersion !== plan.currentVersion) throw new BadRequestException('Treatment plan changed; reload before retrying.');
+
       const updatedPlan = await tx.treatmentPlan.update({
-        where: { id: plan.id },
+        where: { id: plan.id, clinicId, status: plan.status, currentVersion: plan.currentVersion },
         data: {
           status: TreatmentPlanStatus.REJECTED,
           rejectionReason: dto.rejectionReason.trim(),
@@ -706,7 +728,8 @@ export class TreatmentPlansService {
     id: string,
     dto: UpdatePlanStatusDto,
   ) {
-    const plan = await this.prisma.treatmentPlan.findFirst({
+
+    this.assertAuthorizedPractitioner(currentUser);   const plan = await this.prisma.treatmentPlan.findFirst({
       where: { id, clinicId },
     });
 
@@ -714,14 +737,26 @@ export class TreatmentPlansService {
       throw new NotFoundException(`Treatment plan #${id} not found in this clinic.`);
     }
 
+    const transitions: Record<string, string[]> = {
+      PROPOSED: ['PENDING', 'CANCELLED'], PENDING: ['CANCELLED'],
+      ACCEPTED: ['IN_PROGRESS', 'CANCELLED'], IN_PROGRESS: ['COMPLETED', 'PENDING', 'CANCELLED'],
+      REJECTED: ['PROPOSED', 'CANCELLED'], COMPLETED: [], CANCELLED: [],
+    };
+    if (!(transitions[plan.status] || []).includes(dto.status)) {
+      throw new BadRequestException('Invalid treatment plan status transition. Use the acceptance/rejection endpoint for patient decisions.');
+    }
     const userName =
       currentUser.fullName ||
       (currentUser as any).name ||
       'Authorized Staff';
 
     return this.prisma.$transaction(async (tx) => {
+      await lockTenantRecord(tx, 'TreatmentPlan', clinicId, plan.id);
+      const current = await tx.treatmentPlan.findFirst({ where: { id: plan.id, clinicId } });
+      if (!current || current.status !== plan.status || current.currentVersion !== plan.currentVersion) throw new BadRequestException('Treatment plan changed; reload before retrying.');
+
       const updatedPlan = await tx.treatmentPlan.update({
-        where: { id: plan.id },
+        where: { id: plan.id, clinicId, status: plan.status, currentVersion: plan.currentVersion },
         data: {
           status: dto.status,
         },
@@ -757,7 +792,8 @@ export class TreatmentPlansService {
     itemId: string,
     dto: UpdatePlanItemDto,
   ) {
-    const plan = await this.prisma.treatmentPlan.findFirst({
+
+    this.assertAuthorizedPractitioner(currentUser);   const plan = await this.prisma.treatmentPlan.findFirst({
       where: { id: planId, clinicId },
     });
 
@@ -774,14 +810,23 @@ export class TreatmentPlansService {
       throw new NotFoundException(`Procedure item #${itemId} not found in this plan.`);
     }
 
+    if (!['ACCEPTED', 'IN_PROGRESS'].includes(plan.status) || ['COMPLETED', 'CANCELLED'].includes(item.status)) {
+      throw new BadRequestException('Procedures may only progress on an accepted active plan; terminal items cannot be changed.');
+    }
+    const itemTransitions: Record<string, string[]> = { PENDING: ['IN_PROGRESS', 'COMPLETED', 'DEFERRED', 'CANCELLED'], IN_PROGRESS: ['COMPLETED', 'DEFERRED', 'CANCELLED'], DEFERRED: ['PENDING', 'IN_PROGRESS', 'CANCELLED'] };
+    if (!(itemTransitions[item.status] || []).includes(dto.status)) throw new BadRequestException('Invalid procedure status transition.');
     const userName =
       currentUser.fullName ||
       (currentUser as any).name ||
       'Authorized Staff';
 
     return this.prisma.$transaction(async (tx) => {
+      await lockTenantRecord(tx, 'TreatmentPlan', clinicId, plan.id);
+      const current = await tx.treatmentPlan.findFirst({ where: { id: plan.id, clinicId } });
+      if (!current || current.status !== plan.status || current.currentVersion !== plan.currentVersion) throw new BadRequestException('Treatment plan changed; reload before retrying.');
+
       const updatedItem = await tx.treatmentPlanItem.update({
-        where: { id: item.id },
+        where: { id: item.id, status: item.status, stage: { treatmentPlan: { clinicId, status: plan.status } } },
         data: {
           status: dto.status,
           notes: dto.notes !== undefined ? dto.notes?.trim() || null : item.notes,

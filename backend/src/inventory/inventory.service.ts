@@ -1,4 +1,6 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { lockInventoryItems } from '../common/transaction-locks.js';
+import type { AuthenticatedUser } from '../common/decorators/current-user.decorator.js';
+import { Injectable, NotFoundException, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateItemDto } from './dto/create-item.dto.js';
 import { AddBatchDto } from './dto/add-batch.dto.js';
@@ -86,7 +88,10 @@ export class InventoryService {
   }
 
   async deleteItem(clinicId: string, id: string) {
-    const existing = await this.prisma.inventoryItem.findFirst({
+    return this.prisma.$transaction(async (tx) => {
+      await lockInventoryItems(tx, clinicId, [id]);
+
+    const existing = await tx.inventoryItem.findFirst({
       where: {
         clinicId,
         OR: [{ id }, { sku: id }],
@@ -97,30 +102,35 @@ export class InventoryService {
     }
 
     // Delete associated batches first within clinic boundary
-    await this.prisma.inventoryBatch.deleteMany({
+    await tx.inventoryBatch.deleteMany({
       where: { itemId: existing.id, clinicId },
     });
 
-    return this.prisma.inventoryItem.delete({
+    return tx.inventoryItem.delete({
       where: { id: existing.id },
     });
+
+    }, { maxWait: 10000, timeout: 20000 });
   }
 
   async receiveBatch(clinicId: string, dto: AddBatchDto) {
-    const item = await this.prisma.inventoryItem.findFirst({
+    return this.prisma.$transaction(async (tx) => {
+      await lockInventoryItems(tx, clinicId, [dto.itemId]);
+
+    const item = await tx.inventoryItem.findFirst({
       where: { id: dto.itemId, clinicId },
     });
     if (!item) {
       throw new NotFoundException('Inventory item not found');
     }
 
-    const existingBatch = await this.prisma.inventoryBatch.findFirst({
+    const existingBatch = await tx.inventoryBatch.findFirst({
       where: { clinicId, itemId: dto.itemId, batchNumber: dto.batchNumber },
     });
 
     let batch;
     if (existingBatch) {
-      batch = await this.prisma.inventoryBatch.update({
+      batch = await tx.inventoryBatch.update({
         where: { id: existingBatch.id },
         data: {
           quantity: existingBatch.quantity + dto.quantity,
@@ -129,7 +139,7 @@ export class InventoryService {
         },
       });
     } else {
-      batch = await this.prisma.inventoryBatch.create({
+      batch = await tx.inventoryBatch.create({
         data: {
           clinicId,
           itemId: dto.itemId,
@@ -141,7 +151,7 @@ export class InventoryService {
       });
     }
 
-    const updatedItem = await this.prisma.inventoryItem.update({
+    const updatedItem = await tx.inventoryItem.update({
       where: { id: item.id },
       data: {
         totalStock: item.totalStock + dto.quantity,
@@ -149,49 +159,59 @@ export class InventoryService {
     });
 
     return { item: updatedItem, batch };
+
+    }, { maxWait: 10000, timeout: 20000 });
   }
 
   async updateBatch(
     clinicId: string,
     dto: { itemId: string; batchNumber: string; newBatchNumber?: string; expiryDate?: string; quantity?: number },
   ) {
-    const item = await this.prisma.inventoryItem.findFirst({
+    return this.prisma.$transaction(async (tx) => {
+      await lockInventoryItems(tx, clinicId, [dto.itemId]);
+
+    const item = await tx.inventoryItem.findFirst({
       where: { clinicId, OR: [{ id: dto.itemId }, { sku: dto.itemId }] },
     });
     if (!item) {
       throw new NotFoundException('Inventory item not found');
     }
 
-    const batch = await this.prisma.inventoryBatch.findFirst({
+    const batch = await tx.inventoryBatch.findFirst({
       where: { clinicId, itemId: item.id, batchNumber: dto.batchNumber },
     });
     if (!batch) {
       throw new NotFoundException('Batch not found');
     }
 
-    const updatedBatch = await this.prisma.inventoryBatch.update({
+    const updatedBatch = await tx.inventoryBatch.update({
       where: { id: batch.id },
       data: {
         ...(dto.newBatchNumber ? { batchNumber: dto.newBatchNumber.trim().toUpperCase() } : {}),
         ...(dto.expiryDate ? { expiryDate: dto.expiryDate } : {}),
-        ...(dto.quantity !== undefined ? { quantity: Math.max(0, dto.quantity) } : {}),
+        ...(dto.quantity !== undefined ? { quantity: dto.quantity } : {}),
       },
     });
 
-    const allBatches = await this.prisma.inventoryBatch.findMany({
+    const allBatches = await tx.inventoryBatch.findMany({
       where: { clinicId, itemId: item.id },
     });
     const totalStock = allBatches.reduce((s, b) => s + b.quantity, 0);
-    const updatedItem = await this.prisma.inventoryItem.update({
+    const updatedItem = await tx.inventoryItem.update({
       where: { id: item.id },
       data: { totalStock },
     });
 
     return { item: updatedItem, batch: updatedBatch };
+
+    }, { maxWait: 10000, timeout: 20000 });
   }
 
   async adjustStock(clinicId: string, dto: AdjustStockDto) {
-    const item = await this.prisma.inventoryItem.findFirst({
+    return this.prisma.$transaction(async (tx) => {
+      await lockInventoryItems(tx, clinicId, [dto.itemId]);
+
+    const item = await tx.inventoryItem.findFirst({
       where: {
         clinicId,
         OR: [{ id: dto.itemId }, { sku: dto.itemId }],
@@ -201,29 +221,33 @@ export class InventoryService {
       throw new NotFoundException('Inventory item not found');
     }
 
-    const batch = await this.prisma.inventoryBatch.findFirst({
+    const batch = await tx.inventoryBatch.findFirst({
       where: { clinicId, itemId: item.id, batchNumber: dto.batchNumber },
     });
     if (!batch) {
       throw new NotFoundException('Batch not found');
     }
 
-    const newBatchQty = Math.max(0, batch.quantity + dto.adjustmentAmount);
+    const newBatchQty = batch.quantity + dto.adjustmentAmount;
+    if (newBatchQty < 0) throw new BadRequestException('Insufficient batch stock.');
     const qtyDelta = newBatchQty - batch.quantity;
+    if (item.totalStock + qtyDelta < 0) throw new BadRequestException('Insufficient inventory stock.');
 
-    const updatedBatch = await this.prisma.inventoryBatch.update({
+    const updatedBatch = await tx.inventoryBatch.update({
       where: { id: batch.id },
       data: { quantity: newBatchQty },
     });
 
-    const updatedItem = await this.prisma.inventoryItem.update({
+    const updatedItem = await tx.inventoryItem.update({
       where: { id: item.id },
       data: {
-        totalStock: Math.max(0, item.totalStock + qtyDelta),
+        totalStock: item.totalStock + qtyDelta,
       },
     });
 
     return { item: updatedItem, batch: updatedBatch };
+
+    }, { maxWait: 10000, timeout: 20000 });
   }
 
   async getAudits(clinicId: string) {
@@ -250,7 +274,23 @@ export class InventoryService {
     }));
   }
 
-  async confirmDeduction(clinicId: string, dto: ConfirmDeductionDto) {
+  async confirmDeduction(clinicId: string, dto: ConfirmDeductionDto, actor: AuthenticatedUser) {
+    if (!actor || actor.clinicId !== clinicId) throw new ForbiddenException('Authenticated inventory actor is required.');
+    const recorded = { patientName: 'Not linked', doctorId: undefined as string | undefined, doctorName: 'Unassigned', confirmedBy: actor.id };
+    if (dto.patientId) {
+      const patient = await this.prisma.patient.findFirst({ where: { id: dto.patientId, clinicId } });
+      if (!patient) throw new NotFoundException('Patient not found in this clinic.');
+      recorded.patientName = patient.firstName + ' ' + patient.lastName;
+    }
+    const doctorId = dto.doctorId || (actor.role === 'DOCTOR' ? actor.id : undefined);
+    if (doctorId) {
+      const doctor = await this.prisma.user.findFirst({ where: { id: doctorId, clinicId, role: 'DOCTOR', isActive: true } });
+      if (!doctor) throw new NotFoundException('Doctor not found in this clinic.');
+      recorded.doctorId = doctor.id; recorded.doctorName = doctor.fullName;
+    }
+    if (dto.appointmentId && !await this.prisma.appointment.findFirst({ where: { id: dto.appointmentId, clinicId, ...(dto.patientId ? { patientId: dto.patientId } : {}) } })) throw new NotFoundException('Appointment not found in this clinic.');
+    if (dto.treatmentId && !await this.prisma.treatmentPlan.findFirst({ where: { id: dto.treatmentId, clinicId, ...(dto.patientId ? { patientId: dto.patientId } : {}) } })) throw new NotFoundException('Treatment plan not found in this clinic.');
+
     const opId = dto.operationId || dto.deductionId;
 
     if (opId) {
@@ -268,6 +308,7 @@ export class InventoryService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        await lockInventoryItems(tx, clinicId, dto.materials.map(mat => mat.itemId));
         if (opId) {
           const existingInTx = await tx.inventoryAudit.findFirst({
             where: { clinicId, id: opId },
@@ -282,7 +323,8 @@ export class InventoryService {
         }
 
         for (const mat of dto.materials) {
-          const totalDeduct = (mat.confirmedQty || 0) + (mat.wastageQty || 0);
+          if (!Number.isSafeInteger(mat.confirmedQty) || mat.confirmedQty < 0 || !Number.isSafeInteger(mat.wastageQty ?? 0) || (mat.wastageQty ?? 0) < 0) throw new BadRequestException('Inventory quantities must be nonnegative integers.');
+          const totalDeduct = mat.confirmedQty + (mat.wastageQty ?? 0);
           if (totalDeduct <= 0) continue;
 
           const item = await tx.inventoryItem.findFirst({
@@ -291,23 +333,27 @@ export class InventoryService {
               OR: [
                 { id: mat.itemId },
                 { sku: mat.itemId },
-                ...(mat.name ? [{ name: { equals: mat.name, mode: 'insensitive' as const } }] : []),
+
               ],
             },
           });
+          if (!item) throw new NotFoundException('Inventory item not found.');
           if (item) {
+            if (item.totalStock < totalDeduct) throw new BadRequestException('Insufficient inventory stock.');
             await tx.inventoryItem.update({
               where: { id: item.id },
-              data: { totalStock: Math.max(0, item.totalStock - totalDeduct) },
+              data: { totalStock: item.totalStock - totalDeduct },
             });
 
             const batch = await tx.inventoryBatch.findFirst({
               where: { clinicId, itemId: item.id, batchNumber: mat.batchNumber },
             });
+            if (!batch) throw new NotFoundException('Inventory batch not found.');
+            if (batch.quantity < totalDeduct) throw new BadRequestException('Insufficient batch stock.');
             if (batch) {
               await tx.inventoryBatch.update({
                 where: { id: batch.id },
-                data: { quantity: Math.max(0, batch.quantity - totalDeduct) },
+                data: { quantity: batch.quantity - totalDeduct },
               });
             }
           }
@@ -320,14 +366,14 @@ export class InventoryService {
             treatmentId: dto.treatmentId,
             appointmentId: dto.appointmentId,
             patientId: dto.patientId,
-            patientName: dto.patientName,
-            doctorId: dto.doctorId,
-            doctorName: dto.doctorName,
+            patientName: recorded.patientName,
+            doctorId: recorded.doctorId,
+            doctorName: recorded.doctorName,
             procedureId: dto.procedureId,
             procedureName: dto.procedureName,
             modeUsed: dto.modeUsed || 'standard',
             materials: dto.materials as any,
-            confirmedBy: dto.confirmedBy,
+            confirmedBy: recorded.confirmedBy,
           },
         });
 

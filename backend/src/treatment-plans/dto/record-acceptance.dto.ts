@@ -18,6 +18,10 @@ export class RecordAcceptanceDto {
 
   @IsOptional()
   @IsString()
+  evidenceDocumentId?: string;
+
+  @IsOptional()
+  @IsString()
   notes?: string;
 }
 

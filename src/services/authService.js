@@ -60,6 +60,15 @@ export const STORAGE_KEYS = {
   LEGACY_SESSION: 'docmatrix-demo-session'
 }
 
+function clearStoredCredentials() {
+  for (const storage of [sessionStorage, localStorage]) {
+    storage.removeItem(STORAGE_KEYS.TOKEN);
+    storage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+    storage.removeItem(STORAGE_KEYS.USER);
+  }
+  sessionStorage.removeItem(STORAGE_KEYS.LEGACY_SESSION);
+}
+
 /**
  * Log in with email and password
  * Attempts backend API first; falls back to demo accounts if server offline.
@@ -79,6 +88,7 @@ export async function login(email, password, rememberMe = false) {
 
     if (res?.token && res?.user) {
       clearAllClinicStores();
+      clearStoredCredentials();
       const storage = rememberMe ? localStorage : sessionStorage;
       storage.setItem(STORAGE_KEYS.TOKEN, res.token);
       storage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.user));
@@ -190,6 +200,7 @@ export async function registerClinic(formData) {
 
     if (res?.token && res?.user) {
       clearAllClinicStores();
+      clearStoredCredentials();
       sessionStorage.setItem(STORAGE_KEYS.TOKEN, res.token);
       sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.user));
       try {

@@ -43,8 +43,18 @@ const clinicalImagery = {
   doctor: '/hero-doctor.jpg'             // Modern healthcare professional
 }
 
-// Healthcare Ecosystem Ticker Partners
-const partners = ['EMR Sync ↗', '▲ MedTech', '~ WhatsApp API', '▣ LabXpress', 'Practo Connect', 'Rx Gateway', 'ABDM Ready']
+
+// Real Platform Capabilities Ticker
+const coreCapabilities = [
+  'Multi-Chair Scheduling',
+  'Interactive Clinical Charts',
+  'Treatment Plan Approvals',
+  'Live OPD Queue',
+  'GST Invoicing & Billing',
+  'WhatsApp Reminders',
+  'Digital E-Prescriptions',
+  'Practice Analytics'
+]
 
 const createInitialsAvatar = (initials, bg) =>
   `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="48" fill="${bg}"/><text x="50%" y="54%" font-family="system-ui, -apple-system, sans-serif" font-size="32" font-weight="700" fill="%23ffffff" text-anchor="middle" dominant-baseline="middle">${initials}</text></svg>`
@@ -406,15 +416,6 @@ function PlanEntitlement({ val, isFeatured }) {
   )
 }
 
-// 6 Value Pillars
-const why = [
-  [Layers, 'Unified Healthcare Operations', 'Front desk, clinical, lab and pharmacy teams work from the same live picture.'],
-  [Share2, 'Connected Patient Journey', 'Every step of a visit hands off cleanly to the next, with nothing re-entered.'],
-  [Eye, 'Workflow Visibility', 'See where each patient is and what is pending across the clinic.'],
-  [Network, 'Scalable Healthcare Platform', 'Start with one clinic and extend to departments, sites and partner networks.'],
-  [Radio, 'Multi-Channel Communication', 'Reach patients and staff through the channels that fit each situation.'],
-  [Gauge, 'Operational Insights', 'Turn daily activity into reports that help leaders plan capacity and service.']
-]
 
 function MedicalCrossMark({ light = false }) {
   return (
@@ -1121,7 +1122,7 @@ export default function App() {
                   </div>
                   <ul className="hero-trust" aria-label="Highlights">
                     <li><Check size={14} strokeWidth={2.6} /> Free plan for solo practices</li>
-                    <li><Check size={14} strokeWidth={2.6} /> ABDM ready</li>
+                    <li><Check size={14} strokeWidth={2.6} /> No credit card required</li>
                     <li><Check size={14} strokeWidth={2.6} /> Setup in under 24h</li>
                   </ul>
                 </div>
@@ -1134,14 +1135,13 @@ export default function App() {
                   CLINICAL
                 </span>
 
-
-                {/* Healthcare Partner Ticker Track */}
-                <div className="partner-row" aria-label="Connected healthcare ecosystem partners">
+                {/* Real Platform Capabilities Ticker Track */}
+                <div className="partner-row" aria-label="Core platform capabilities">
                   <div className="partner-track">
                     {[0, 1].map((set) => (
                       <div className="partner-set" key={set} aria-hidden={set === 1}>
-                        {partners.map((partner) => (
-                          <span key={`${set}-${partner}`}>{partner}</span>
+                        {coreCapabilities.map((capability) => (
+                          <span key={`${set}-${capability}`}>{capability}</span>
                         ))}
                       </div>
                     ))}
@@ -1393,30 +1393,7 @@ export default function App() {
                 </div>
               </section>
 
-              {/* Section 9: Why Doc Matrix (6 Pillars) */}
-              <section id="why" className="section-padded bg-white">
-                <div className="wrap">
-                  <div className="section-head rv">
-                    <span className="section-kicker">WHY DOC MATRIX</span>
-                    <h2 className="section-title">Why leading clinics choose DocMatrix.</h2>
-                    <p className="section-lead">
-                      The difference is in the connection — no gaps, no dropped handoffs, no lost history.
-                    </p>
-                  </div>
 
-                  <div className="why-pillars-grid">
-                    {why.map(([Icon, title, desc], idx) => (
-                      <div key={title} className="why-box rv" style={{ transitionDelay: `${idx * 0.06}s` }}>
-                        <div className="why-icon-bubble">
-                          <Icon size={22} color="#008891" />
-                        </div>
-                        <h3 className="why-box-title">{title}</h3>
-                        <p className="why-box-desc">{desc}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
 
               {/* Section 10: Contact / Consultation Request */}
               <section id="contact" className="section-padded contact-section-meadow">

@@ -1,52 +1,36 @@
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { pathToFileURL } from 'node:url';
 
-const prisma = new PrismaClient();
-
-async function main() {
-  const email = process.argv[2]?.trim().toLowerCase() || 'admin@docmatrix.com';
-  const password = process.argv[3] || 'Admin@DocMatrix2026!';
-  const fullName = process.argv[4] || 'DocMatrix Platform Admin';
-
-  const salt = await bcrypt.genSalt(10);
-  const passwordHash = await bcrypt.hash(password, salt);
-
-  const admin = await prisma.user.upsert({
-    where: { email },
-    update: {
-      isPlatformAdmin: true,
-      isActive: true,
-      passwordHash,
-      fullName,
-    },
-    create: {
-      email,
-      fullName,
-      passwordHash,
-      role: 'ORGANIZATION_ADMIN',
-      isPlatformAdmin: true,
-      isPrimaryContact: false,
-      isActive: true,
-      clinicId: null,
-    },
-  });
-
-  console.log('PLATFORM_ADMIN_CREATED');
-  console.log(JSON.stringify({
-    id: admin.id,
-    email: admin.email,
-    fullName: admin.fullName,
-    role: admin.role,
-    isPlatformAdmin: admin.isPlatformAdmin,
-    clinicId: admin.clinicId,
-  }, null, 2));
+export async function provisionPlatformAdmin(prisma, { email, password, fullName }) {
+  if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ||
+      typeof password !== 'string' || password.length < 16 || Buffer.byteLength(password, 'utf8') > 72) {
+    throw new Error('Explicit bootstrap email and password (16+ characters, maximum 72 UTF-8 bytes) are required.');
+  }
+  const normalizedEmail = email.trim().toLowerCase();
+  if (await prisma.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } })) {
+    throw new Error('Account already exists. Bootstrap cannot reset or elevate an existing account.');
+  }
+  return prisma.user.create({ data: {
+    email: normalizedEmail, passwordHash: await bcrypt.hash(password, 12),
+    fullName: fullName?.trim() || 'DocMatrix Platform Admin', role: 'ORGANIZATION_ADMIN',
+    isPlatformAdmin: true, isPrimaryContact: false, isActive: true, clinicId: null,
+  }, select: { id: true } });
 }
 
-main()
-  .catch((e) => {
-    console.error('FAILED_TO_CREATE_PLATFORM_ADMIN', e);
-    process.exit(1);
-  })
-  .finally(async () => {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const { PrismaClient } = await import('@prisma/client');
+  const prisma = new PrismaClient();
+  try {
+    await provisionPlatformAdmin(prisma, {
+      email: process.env.DOCMATRIX_BOOTSTRAP_EMAIL,
+      password: process.env.DOCMATRIX_BOOTSTRAP_PASSWORD,
+      fullName: process.env.DOCMATRIX_BOOTSTRAP_NAME,
+    });
+    console.log('PLATFORM_ADMIN_CREATED');
+  } catch {
+    console.error('PLATFORM_ADMIN_BOOTSTRAP_FAILED: Verify explicit credentials and use a new account.');
+    process.exitCode = 1;
+  } finally {
     await prisma.$disconnect();
-  });
+  }
+}

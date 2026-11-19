@@ -1,3 +1,4 @@
+import { RequireOperation } from '../common/decorators/operation-permission.decorator.js';
 import {
   Body,
   Controller,
@@ -26,6 +27,7 @@ export class ClinicalNotesController {
   constructor(private readonly clinicalNotesService: ClinicalNotesService) {}
 
   @Post('clinical-notes')
+  @RequireOperation('clinical.write')
   async createClinicalNote(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateClinicalNoteDto,
@@ -38,6 +40,7 @@ export class ClinicalNotesController {
   }
 
   @Get('clinical-notes')
+  @RequireOperation('clinical.read')
   async getClinicalNotes(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ClinicalNoteQueryDto,
@@ -46,6 +49,7 @@ export class ClinicalNotesController {
   }
 
   @Get('clinical-notes/:id')
+  @RequireOperation('clinical.read')
   async getClinicalNoteById(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -54,6 +58,7 @@ export class ClinicalNotesController {
   }
 
   @Patch('clinical-notes/:id')
+  @RequireOperation('clinical.write')
   async updateClinicalNote(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -68,6 +73,7 @@ export class ClinicalNotesController {
   }
 
   @Post('clinical-notes/:id/finalize')
+  @RequireOperation('clinical.write')
   async finalizeClinicalNote(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -80,6 +86,7 @@ export class ClinicalNotesController {
   }
 
   @Post('clinical-notes/:id/addenda')
+  @RequireOperation('clinical.write')
   async addAddendum(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -94,6 +101,7 @@ export class ClinicalNotesController {
   }
 
   @Get('patients/:id/clinical-notes')
+  @RequireOperation('clinical.read')
   async getPatientClinicalNotes(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') patientId: string,

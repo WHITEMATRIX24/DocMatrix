@@ -7,7 +7,7 @@ import { getJwtSecret, JWT_ALGORITHM } from '../common/config/jwt.config.js';
 
 export interface JwtPayload {
   sub: string;
-  sessionId?: string;
+  sessionId: string;
   email: string;
   role: string;
   clinicId: string | null;
@@ -29,6 +29,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
+    if (
+      !payload ||
+      typeof payload.sub !== 'string' ||
+      !payload.sub.trim() ||
+      typeof payload.sessionId !== 'string' ||
+      !payload.sessionId.trim()
+    ) {
+      throw new UnauthorizedException(
+        'A valid user and session identifier are required. Please log in again.',
+      );
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       select: {
@@ -44,15 +56,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
 
     if (!user || !user.isActive) {
-      throw new UnauthorizedException('User account is inactive or no longer exists.');
+      throw new UnauthorizedException(
+        'User account is inactive or no longer exists.',
+      );
     }
 
-    // If access token carries a sessionId, verify that the session has not been revoked or expired
-    if (payload.sessionId) {
-      const isValid = await this.sessionService.isSessionValid(payload.sessionId, user.id);
-      if (!isValid) {
-        throw new UnauthorizedException('Session has been revoked or expired. Please log in again.');
-      }
+    // Every protected access token must be bound to a live, user-owned database session.
+    const isValid = await this.sessionService.isSessionValid(
+      payload.sessionId,
+      user.id,
+    );
+    if (!isValid) {
+      throw new UnauthorizedException(
+        'Session has been revoked or expired. Please log in again.',
+      );
     }
 
     return {

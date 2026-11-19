@@ -451,7 +451,7 @@ export const NewAppointmentPage: React.FC = () => {
                   <input
                     type="text"
                     className="patient-search-field"
-                    placeholder="Search by Patient Name or ID Number (e.g., Aarav, PAT-1001, 1001)..."
+                    placeholder="Search by Patient Name or ID Number (e.g., Aarav, PAT-001, 001)..."
                     value={patientSearch}
                     onFocus={() => setIsSearchOpen(true)}
                     onClick={() => setIsSearchOpen(true)}

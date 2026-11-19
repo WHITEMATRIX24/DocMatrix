@@ -1,3 +1,5 @@
+import { CLINICAL_UPLOAD_LIMITS, clinicalDownloadHeaders } from '../storage/upload-limits.js';
+import { RequireOperation } from '../common/decorators/operation-permission.decorator.js';
 import {
   Body,
   Controller,
@@ -37,16 +39,19 @@ export class ClinicalController {
   // -------------------------------------------------------------------------
 
   @Get('clinical/tooth-charts')
+  @RequireOperation('clinical.read')
   async getAllClinicToothCharts(@CurrentUser() user: AuthenticatedUser) {
     return this.clinicalService.getAllClinicToothCharts(user.clinicId!);
   }
 
   @Get('clinical/documents')
+  @RequireOperation('document.read')
   async getAllClinicDocuments(@CurrentUser() user: AuthenticatedUser) {
-    return this.clinicalService.getAllClinicDocuments(user.clinicId!);
+    return this.clinicalService.getAllClinicDocuments(user.clinicId!, user);
   }
 
   @Get('clinical/consents')
+  @RequireOperation('consent.read')
   async getAllClinicConsents(@CurrentUser() user: AuthenticatedUser) {
     return this.clinicalService.getAllClinicConsents(user.clinicId!);
   }
@@ -56,6 +61,7 @@ export class ClinicalController {
   // -------------------------------------------------------------------------
 
   @Get('patients/:patientId/tooth-chart')
+  @RequireOperation('clinical.read')
   async getToothChart(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
@@ -64,6 +70,7 @@ export class ClinicalController {
   }
 
   @Put('patients/:patientId/tooth-chart')
+  @RequireOperation('clinical.write')
   async saveToothCondition(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
@@ -73,6 +80,7 @@ export class ClinicalController {
   }
 
   @Post('patients/:patientId/tooth-chart/batch')
+  @RequireOperation('clinical.write')
   async batchSaveToothChart(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
@@ -86,43 +94,48 @@ export class ClinicalController {
   // -------------------------------------------------------------------------
 
   @Get('patients/:patientId/documents')
+  @RequireOperation('document.read')
   async getDocuments(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
   ) {
-    return this.clinicalService.getDocuments(user.clinicId!, patientId);
+    return this.clinicalService.getDocuments(user.clinicId!, patientId, user);
   }
 
   @Post('patients/:patientId/documents')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: CLINICAL_UPLOAD_LIMITS }))
+  @RequireOperation('document.write')
   async createDocument(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
     @Body() dto: CreateDocumentDto,
     @UploadedFile() file?: any,
   ) {
-    return this.clinicalService.createDocument(user.clinicId!, patientId, dto, file);
+    return this.clinicalService.createDocument(user.clinicId!, patientId, dto, file, user);
   }
 
   @Get('patients/:patientId/documents/:docId')
+  @RequireOperation('document.read')
   async getDocument(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
     @Param('docId') docId: string,
   ) {
-    return this.clinicalService.getDocument(user.clinicId!, patientId, docId);
+    return this.clinicalService.getDocument(user.clinicId!, patientId, docId, user);
   }
 
   @Get('patients/:patientId/documents/:docId/signed-url')
+  @RequireOperation('document.read')
   async getDocumentSignedUrl(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
     @Param('docId') docId: string,
   ) {
-    return this.clinicalService.getDocumentSignedUrl(user.clinicId!, patientId, docId);
+    return this.clinicalService.getDocumentSignedUrl(user.clinicId!, patientId, docId, user);
   }
 
   @Get('patients/:patientId/documents/:docId/download')
+  @RequireOperation('document.read')
   async downloadDocument(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
@@ -134,12 +147,14 @@ export class ClinicalController {
       user.clinicId!,
       patientId,
       docId,
+      user,
     );
 
     if (redirect === 'true' && signedUrl) {
       return res.redirect(signedUrl);
     }
 
+    clinicalDownloadHeaders(res, false);
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
     res.setHeader('Content-Length', buffer.length);
@@ -147,30 +162,32 @@ export class ClinicalController {
   }
 
   @Get('patients/:patientId/documents/:docId/preview')
+  @RequireOperation('document.read')
   async previewDocument(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
     @Param('docId') docId: string,
-    @Query('redirect') redirect: string,
+    @Query('redirect') _redirect: string,
     @Res() res: Response,
   ) {
-    const { fileName, mimeType, buffer, signedUrl } = await this.clinicalService.downloadDocument(
+    const { fileName, mimeType, buffer } = await this.clinicalService.downloadDocument(
       user.clinicId!,
       patientId,
       docId,
+      user,
     );
 
-    if (redirect === 'true' && signedUrl) {
-      return res.redirect(signedUrl);
-    }
-
+    // Preview always passes through the sandboxed backend response.
+    clinicalDownloadHeaders(res, true);
+    const inline = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'].includes(mimeType);
     res.setHeader('Content-Type', mimeType);
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileName)}"`);
+    res.setHeader('Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${encodeURIComponent(fileName)}"`);
     res.setHeader('Content-Length', buffer.length);
     res.end(buffer);
   }
 
   @Delete('patients/:patientId/documents/:docId')
+  @RequireOperation('document.delete')
   async deleteDocument(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
@@ -184,6 +201,7 @@ export class ClinicalController {
   // -------------------------------------------------------------------------
 
   @Get('patients/:patientId/consents')
+  @RequireOperation('consent.read')
   async getConsents(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
@@ -192,6 +210,7 @@ export class ClinicalController {
   }
 
   @Post('patients/:patientId/consents')
+  @RequireOperation('consent.write')
   async createConsent(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
@@ -206,6 +225,7 @@ export class ClinicalController {
   }
 
   @Get('patients/:patientId/consents/:consentId')
+  @RequireOperation('consent.read')
   async getConsent(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
@@ -215,6 +235,7 @@ export class ClinicalController {
   }
 
   @Patch('patients/:patientId/consents/:consentId')
+  @RequireOperation('consent.write')
   async updateConsent(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
@@ -230,6 +251,7 @@ export class ClinicalController {
   }
 
   @Delete('patients/:patientId/consents/:consentId')
+  @RequireOperation('consent.delete')
   async deleteConsent(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,

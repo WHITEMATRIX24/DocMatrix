@@ -101,7 +101,7 @@ export class SessionService {
           );
         }
 
-        if (session.expiresAt.getTime() < now.getTime()) {
+        if (session.expiresAt.getTime() <= now.getTime()) {
           throw new UnauthorizedException('Refresh token has expired. Please log in again.');
         }
 
@@ -171,7 +171,7 @@ export class SessionService {
     if (!session) return false;
     if (session.userId !== userId) return false;
     if (session.isRevoked) return false;
-    if (session.expiresAt.getTime() < Date.now()) return false;
+    if (session.expiresAt.getTime() <= Date.now()) return false;
 
     return true;
   }

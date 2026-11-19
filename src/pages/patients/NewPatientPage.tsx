@@ -170,8 +170,8 @@ export const NewPatientPage: React.FC = () => {
                   <label className="patient-intake-field"><span>Last name / surname</span><input name="lastName" autoComplete="family-name" placeholder="Enter last name" /></label>
                   <div className="patient-intake-field patient-intake-field-wide"><span>Date of birth & Age <b>*</b></span><div className="patient-intake-inline-inputs">
                     <input name="dateOfBirth" type="date" aria-label="Date of birth" max={new Date().toISOString().slice(0, 10)} value={dob} onChange={handleDobChange} />
-                    <input name="age" type="number" min="0" max="130" aria-label="Age in years" placeholder="Age in years" value={age} onChange={handleAgeChange} readOnly={Boolean(dob)} title={dob ? 'Age is directly calculated from Date of Birth' : 'Age in years'} style={dob ? { backgroundColor: 'var(--surface-subtle, #f8fafc)' } : undefined} />
-                  </div><small>{dob && age ? `Age: ${age} years (directly calculated from Date of Birth)` : 'Enter date of birth (age is calculated automatically) or enter age.'}</small></div>
+                    <input name="age" type="number" min="0" max="130" aria-label="Age in years" placeholder="Age in years" value={age} onChange={handleAgeChange} readOnly={Boolean(dob)} title={dob ? 'Age is calculated from Date of Birth' : 'Age in years'} style={dob ? { backgroundColor: 'var(--surface-subtle, #f8fafc)' } : undefined} />
+                  </div></div>
                   <label className="patient-intake-field"><span>Gender <b>*</b></span><select name="gender" defaultValue="" required><option value="" disabled>Select gender</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select></label>
                   <label className="patient-intake-field"><span>Primary mobile number <b>*</b></span><div className="patient-intake-inline-inputs patient-intake-phone"><select aria-label="Country calling code" name="countryCode" defaultValue="+91"><option value="+91">+91 (IN)</option><option value="+1">+1</option><option value="+44">+44</option><option value="+971">+971</option></select><input name="mobile" type="tel" autoComplete="tel-national" placeholder="Enter mobile number" required /></div></label>
                   <label className="patient-intake-field"><span>Email address <small>Optional</small></span><input name="email" type="email" autoComplete="email" placeholder="name@example.com" /></label>
@@ -202,7 +202,6 @@ export const NewPatientPage: React.FC = () => {
 
             <div className="patient-intake-step-panel" data-step="2" hidden={step !== 2}>
               <div className="patient-intake-fields">
-                <div className="patient-intake-clinical-note"><ShieldCheck size={18} /><p><strong>Clinical safety note</strong><br />Unknown means the history has not been confirmed. The dental team should review unknown or reported risks before treatment.</p></div>
                 <div className="patient-intake-questions">
                   <MedicalQuestion name="allergies" title="Known allergies" description="Include medicines, local anesthetics, latex, or other allergies." value={allergies} onChange={setAllergies} />
                   <MedicalQuestion name="medications" title="Current medications" description="Include regular and recent medicines or supplements." value={medications} onChange={setMedications} />

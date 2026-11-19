@@ -1,3 +1,4 @@
+import { assertClinicStatus } from '../common/clinic-status.policy.js';
 import { Injectable, UnauthorizedException, ForbiddenException, ConflictException, BadRequestException, Inject, Optional } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
@@ -128,6 +129,8 @@ export class AuthService {
     if (this.rateLimiter) {
       await this.rateLimiter.recordSuccessfulLogin(meta?.ipAddress || '127.0.0.1', loginDto.email);
     }
+
+    if (user.clinicId) assertClinicStatus(user.clinic?.status, user);
 
     // Create a new uniquely tracked session with refresh token
     const { session, refreshToken } = await this.sessionService.createSession(
@@ -301,6 +304,8 @@ export class AuthService {
       await this.sessionService.revokeSession(session.id, 'User account is inactive or disabled');
       throw new UnauthorizedException('User account is inactive or no longer exists.');
     }
+
+    if (user.clinicId) assertClinicStatus(user.clinic?.status, user);
 
     const payload = {
       sub: user.id,

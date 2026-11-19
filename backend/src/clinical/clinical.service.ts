@@ -12,6 +12,7 @@ import {
 import { CreateDocumentDto } from './dto/create-document.dto.js';
 import { CreateConsentDto } from './dto/create-consent.dto.js';
 import { UpdateConsentDto } from './dto/update-consent.dto.js';
+import type { AuthenticatedUser } from '../common/decorators/current-user.decorator.js';
 import { StorageService } from '../storage/storage.service.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -212,6 +213,14 @@ export class ClinicalService {
   // 2. PATIENT DOCUMENTS
   // =========================================================================
 
+  private readonly intakeDocumentCategories = ['Identification', 'Consent', 'Referral'];
+
+  private documentScope(actor?: AuthenticatedUser) {
+    return actor?.role === 'RECEPTIONIST' && !actor.isPlatformAdmin
+      ? { category: { in: this.intakeDocumentCategories } }
+      : {};
+  }
+
   private serializeDocument(doc: any, patientCode?: string, signedUrl?: string | null) {
     const code = patientCode || doc.patient?.patientCode || doc.patientId;
     return {
@@ -235,13 +244,14 @@ export class ClinicalService {
     };
   }
 
-  async getDocuments(clinicId: string, patientIdOrCode: string) {
+  async getDocuments(clinicId: string, patientIdOrCode: string, actor?: AuthenticatedUser) {
     const patient = await this.resolvePatient(clinicId, patientIdOrCode);
 
     const docs = await this.prisma.patientDocument.findMany({
       where: {
         clinicId,
         patientId: patient.id,
+        ...this.documentScope(actor),
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -264,7 +274,12 @@ export class ClinicalService {
     patientIdOrCode: string,
     dto: CreateDocumentDto,
     file?: any,
+    actor?: AuthenticatedUser,
   ) {
+    if (actor?.role === 'RECEPTIONIST' && !actor.isPlatformAdmin &&
+        !this.intakeDocumentCategories.includes(dto.category.trim())) {
+      throw new ForbiddenException('Receptionists may upload only Identification, Consent or Referral documents.');
+    }
     const patient = await this.resolvePatient(clinicId, patientIdOrCode);
 
     let fileBuffer: Buffer | null = null;
@@ -335,7 +350,7 @@ export class ClinicalService {
     return this.serializeDocument(doc, patient.patientCode, signedUrl);
   }
 
-  async getDocument(clinicId: string, patientIdOrCode: string, docId: string) {
+  async getDocument(clinicId: string, patientIdOrCode: string, docId: string, actor?: AuthenticatedUser) {
     const patient = await this.resolvePatient(clinicId, patientIdOrCode);
 
     const doc = await this.prisma.patientDocument.findFirst({
@@ -343,6 +358,7 @@ export class ClinicalService {
         id: docId,
         clinicId,
         patientId: patient.id,
+        ...this.documentScope(actor),
       },
     });
 
@@ -395,7 +411,7 @@ export class ClinicalService {
     return { success: true, message: 'Document deleted successfully.' };
   }
 
-  async downloadDocument(clinicId: string, patientIdOrCode: string, docId: string) {
+  async downloadDocument(clinicId: string, patientIdOrCode: string, docId: string, actor?: AuthenticatedUser) {
     const patient = await this.resolvePatient(clinicId, patientIdOrCode);
 
     const doc = await this.prisma.patientDocument.findFirst({
@@ -403,6 +419,7 @@ export class ClinicalService {
         id: docId,
         clinicId,
         patientId: patient.id,
+        ...this.documentScope(actor),
       },
     });
 
@@ -425,7 +442,7 @@ export class ClinicalService {
         const result = await this.storageService.getDocumentBuffer(doc.fileKey);
         buffer = result.buffer;
         mimeType = result.mimeType || mimeType;
-      } catch (err) {
+      } catch {
         const filePath = path.join(this.storageRoot, clinicId, path.basename(doc.fileKey));
         if (fs.existsSync(filePath)) {
           buffer = fs.readFileSync(filePath);
@@ -442,6 +459,9 @@ export class ClinicalService {
       }
     }
 
+    // Revalidate legacy objects too; never serve stored active MIME values.
+    if (this.storageService) mimeType = this.storageService.validateFile(buffer, doc.fileName).mimeType;
+
     return {
       fileName: doc.fileName,
       mimeType,
@@ -450,7 +470,7 @@ export class ClinicalService {
     };
   }
 
-  async getDocumentSignedUrl(clinicId: string, patientIdOrCode: string, docId: string) {
+  async getDocumentSignedUrl(clinicId: string, patientIdOrCode: string, docId: string, actor?: AuthenticatedUser) {
     const patient = await this.resolvePatient(clinicId, patientIdOrCode);
 
     const doc = await this.prisma.patientDocument.findFirst({
@@ -458,6 +478,7 @@ export class ClinicalService {
         id: docId,
         clinicId,
         patientId: patient.id,
+        ...this.documentScope(actor),
       },
     });
 
@@ -482,9 +503,9 @@ export class ClinicalService {
     };
   }
 
-  async getAllClinicDocuments(clinicId: string) {
+  async getAllClinicDocuments(clinicId: string, actor?: AuthenticatedUser) {
     const docs = await this.prisma.patientDocument.findMany({
-      where: { clinicId },
+      where: { clinicId, ...this.documentScope(actor) },
       include: {
         patient: { select: { patientCode: true } },
       },
@@ -538,7 +559,7 @@ export class ClinicalService {
     const patient = await this.resolvePatient(clinicId, patientIdOrCode);
 
     const recordedDate = dto.dateRecorded ? new Date(dto.dateRecorded) : new Date();
-    const recordedBy = dto.recordedBy?.trim() || userFullName || 'Clinical Staff';
+    const recordedBy = userFullName || 'Clinical Staff';
     const docRef = dto.documentRef?.trim() || `DMX-CNS-${Date.now().toString().slice(-6)}`;
 
     const consent = await this.prisma.patientConsent.create({

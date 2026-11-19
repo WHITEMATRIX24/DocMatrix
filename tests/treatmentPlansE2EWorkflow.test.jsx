@@ -10,17 +10,41 @@ import { TreatmentPlanDetailsModal } from '../src/components/clinical/TreatmentP
 import { TreatmentPlanPrintModal } from '../src/components/clinical/TreatmentPlanPrintModal';
 import {
   resetStoreForTesting,
+  getClinicSnapshot,
+  initClinicSession,
   createStructuredTreatmentPlan,
   recordTreatmentPlanAcceptance,
   updateTreatmentPlanItemStatus,
   useClinicData,
 } from '../src/services/clinicStore';
+import { saveToStorage, STORAGE_KEYS } from '../src/services/storageService';
+
+/** @type {import('../src/services/clinicStore').PatientRecord} */
+const testPatient = {
+  id: 'pt-1001', firstName: 'Meera', lastName: 'Nambiar',
+  age: '32', dateOfBirth: '1994-01-01', gender: 'Female',
+  mobile: '0000000000', countryCode: '+91', email: 'meera@example.test',
+  language: 'English', city: '', state: '', postalCode: '', address: '',
+  emergencyName: '', emergencyPhone: '', relationship: '',
+  allergies: 'no', allergiesDetails: '', medications: 'no', medicationsDetails: '',
+  conditions: 'no', conditionsDetails: '', createdAt: '2026-11-18T00:00:00.000Z',
+};
 
 describe('DocMatrix — Phase 2: GUI Workflow Verification (Treatment Plans & Estimates)', () => {
   beforeEach(() => {
+    localStorage.clear();
     sessionStorage.clear();
     sessionStorage.setItem('docmatrix-demo-session', 'usr-101');
     resetStoreForTesting();
+    // Hydrate only this test's browser store; production/demo seeds stay empty.
+    saveToStorage(STORAGE_KEYS.DATA, { ...getClinicSnapshot(), patients: [{ ...testPatient }] });
+    initClinicSession();
+  });
+
+  afterEach(() => {
+    resetStoreForTesting();
+    localStorage.clear();
+    sessionStorage.clear();
   });
 
   // ---------------------------------------------------------------------------

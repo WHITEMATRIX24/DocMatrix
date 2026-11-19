@@ -4,123 +4,145 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { StorageProvider } from './storage.interface.js';
+import { Readable } from 'stream';
+import {
+  StorageProvider,
+  UploadOptions,
+  UploadResult,
+  DownloadResult,
+} from './storage.interface.js';
 
 @Injectable()
 export class S3StorageProvider implements StorageProvider {
-  readonly name = 's3-storage';
+  readonly providerName = 's3' as const;
   private readonly logger = new Logger(S3StorageProvider.name);
   private client: S3Client | null = null;
-  private bucket: string = '';
+  private bucket: string;
 
   constructor() {
-    this.initClient();
-  }
+    const endpoint = process.env.AWS_ENDPOINT_URL_S3;
+    const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+    const region = process.env.AWS_REGION || 'ap-southeast-1';
+    this.bucket = process.env.S3_BUCKET || 'uploads';
 
-  private initClient(): void {
-    const bucket =
-      process.env.AWS_S3_BUCKET ||
-      process.env.S3_BUCKET ||
-      process.env.NEON_OBJECT_STORAGE_BUCKET ||
-      '';
-    const accessKeyId =
-      process.env.AWS_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID || '';
-    const secretAccessKey =
-      process.env.AWS_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY || '';
-    const region =
-      process.env.AWS_REGION || process.env.S3_REGION || 'ap-southeast-1';
-    const endpoint =
-      process.env.AWS_ENDPOINT ||
-      process.env.S3_ENDPOINT ||
-      process.env.NEON_OBJECT_STORAGE_ENDPOINT ||
-      undefined;
-
-    if (bucket && accessKeyId && secretAccessKey) {
-      try {
-        this.bucket = bucket;
-        this.client = new S3Client({
-          region,
-          endpoint,
-          credentials: {
-            accessKeyId,
-            secretAccessKey,
-          },
-          forcePathStyle: Boolean(endpoint),
-        });
-        this.logger.log(`S3 Object Storage initialized for bucket: ${bucket}`);
-      } catch (err: any) {
-        this.logger.warn(`Failed to initialize S3Client: ${err.message}`);
-        this.client = null;
-      }
+    if (accessKeyId && secretAccessKey) {
+      this.client = new S3Client({
+        endpoint: endpoint || undefined,
+        region,
+        credentials: {
+          accessKeyId,
+          secretAccessKey,
+        },
+        forcePathStyle: true,
+      });
+      this.logger.log(`S3StorageProvider initialized (Bucket: ${this.bucket}, Endpoint: ${endpoint || 'AWS Standard'})`);
+    } else {
+      this.logger.warn('S3StorageProvider: Missing AWS credentials. Cloud storage disabled.');
     }
   }
 
   isAvailable(): boolean {
-    return Boolean(this.client && this.bucket);
+    return this.client !== null && Boolean(this.bucket);
   }
 
-  async upload(fileKey: string, buffer: Buffer, mimeType: string): Promise<void> {
-    if (!this.client || !this.bucket) {
-      throw new Error('S3 client is not available.');
+  async upload(options: UploadOptions): Promise<UploadResult> {
+    if (!this.client) {
+      throw new Error('S3 client is not configured.');
     }
+
     const command = new PutObjectCommand({
       Bucket: this.bucket,
-      Key: fileKey,
-      Body: buffer,
-      ContentType: mimeType,
+      Key: options.key,
+      Body: options.buffer,
+      ContentType: options.mimeType,
+      Metadata: options.metadata,
     });
-    await this.client.send(command);
-  }
 
-  async getBuffer(fileKey: string): Promise<{ buffer: Buffer; mimeType?: string }> {
-    if (!this.client || !this.bucket) {
-      throw new Error('S3 client is not available.');
-    }
-    const command = new GetObjectCommand({
-      Bucket: this.bucket,
-      Key: fileKey,
-    });
     const response = await this.client.send(command);
-    if (!response.Body) {
-      throw new Error(`Empty body returned for S3 object: ${fileKey}`);
-    }
-    const byteArray = await response.Body.transformToByteArray();
+
     return {
-      buffer: Buffer.from(byteArray),
-      mimeType: response.ContentType,
+      key: options.key,
+      size: options.buffer.length,
+      eTag: response.ETag,
+      provider: 's3',
     };
   }
 
-  async delete(fileKey: string): Promise<void> {
-    if (!this.client || !this.bucket) return;
+  async getBuffer(key: string): Promise<DownloadResult> {
+    if (!this.client) {
+      throw new Error('S3 client is not configured.');
+    }
+
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+    });
+
+    const response = await this.client.send(command);
+    if (!response.Body) {
+      throw new Error(`S3 object ${key} returned empty body.`);
+    }
+
+    // Convert response stream to buffer
+    const chunks: Buffer[] = [];
+    const stream = response.Body as Readable;
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const buffer = Buffer.concat(chunks);
+
+    return {
+      buffer,
+      mimeType: response.ContentType || 'application/octet-stream',
+      contentLength: response.ContentLength || buffer.length,
+    };
+  }
+
+  async delete(key: string): Promise<void> {
+    if (!this.client) {
+      return;
+    }
+
     try {
       const command = new DeleteObjectCommand({
         Bucket: this.bucket,
-        Key: fileKey,
+        Key: key,
       });
       await this.client.send(command);
     } catch (err: any) {
-      this.logger.warn(`Failed to delete S3 object ${fileKey}: ${err.message}`);
+      this.logger.error(`Failed to delete S3 object: ${key}`, err?.message);
     }
   }
 
   async getSignedDownloadUrl(
-    fileKey: string,
-    fileName?: string,
+    key: string,
+    filename?: string,
     expiresInSeconds: number = 900,
-  ): Promise<string> {
-    if (!this.client || !this.bucket) {
-      throw new Error('S3 client is not available.');
+  ): Promise<string | null> {
+    if (!this.client) {
+      return null;
     }
-    const command = new GetObjectCommand({
-      Bucket: this.bucket,
-      Key: fileKey,
-      ResponseContentDisposition: fileName
-        ? `inline; filename="${encodeURIComponent(fileName)}"`
-        : 'inline',
-    });
-    return getSignedUrl(this.client, command, { expiresIn: expiresInSeconds });
+
+    try {
+      const disposition = filename
+        ? `attachment; filename="${encodeURIComponent(filename)}"`
+        : undefined;
+
+      const command = new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        ResponseContentDisposition: disposition,
+      });
+
+      return await getSignedUrl(this.client, command, { expiresIn: expiresInSeconds });
+    } catch (err: any) {
+      this.logger.error(`Failed generating signed URL for ${key}:`, err?.message);
+      return null;
+    }
   }
 }
+

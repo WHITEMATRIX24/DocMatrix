@@ -1,0 +1,235 @@
+{
+  "date": "2026-11-18",
+  "branch": "security/batch-1-remaining",
+  "passed": 368,
+  "failed": 0,
+  "skipped": 0,
+  "testFiles": 31,
+  "typescript": "passed",
+  "prismaValidation": "passed",
+  "lintErrors": 0,
+  "lintWarnings": 30,
+  "postgresVersion": "18.6",
+  "clamAvVersion": "1.5.4",
+  "antivirusDatabase": "isolated synthetic test signatures",
+  "productionResourcesModified": false,
+  "schemaMigrationGeneratedOrApplied": false,
+  "findings": [
+    {
+      "id": 2,
+      "status": "FIXED AND VERIFIED",
+      "scope": "local implementation and tests"
+    },
+    {
+      "id": 3,
+      "status": "FIXED AND VERIFIED",
+      "scope": "local implementation and tests"
+    },
+    {
+      "id": 4,
+      "status": "FIXED AND VERIFIED",
+      "scope": "local implementation and tests"
+    },
+    {
+      "id": 5,
+      "status": "FIXED AND VERIFIED",
+      "scope": "local implementation and tests"
+    },
+    {
+      "id": 6,
+      "status": "FIXED AND VERIFIED",
+      "scope": "local implementation and tests"
+    },
+    {
+      "id": 7,
+      "status": "FIXED AND VERIFIED",
+      "scope": "local implementation and tests"
+    },
+    {
+      "id": 8,
+      "status": "FIXED AND VERIFIED",
+      "scope": "local implementation and tests"
+    },
+    {
+      "id": 9,
+      "status": "FIXED AND VERIFIED",
+      "scope": "local implementation and tests"
+    },
+    {
+      "id": 10,
+      "status": "FIXED AND VERIFIED",
+      "scope": "local implementation and tests"
+    },
+    {
+      "id": 11,
+      "status": "FIXED AND VERIFIED",
+      "scope": "local implementation and tests"
+    },
+    {
+      "id": 12,
+      "status": "FIXED AND VERIFIED",
+      "scope": "local implementation and tests"
+    },
+    {
+      "id": 13,
+      "status": "FIXED AND VERIFIED",
+      "scope": "local implementation and tests"
+    },
+    {
+      "id": 14,
+      "status": "FIXED AND VERIFIED",
+      "scope": "local implementation and tests"
+    },
+    {
+      "id": 15,
+      "status": "FIXED AND VERIFIED",
+      "scope": "local implementation and tests"
+    }
+  ],
+  "originalVerificationScope": "Historical Batch 1 local verification; see stagingReview for current follow-up results and limits.",
+  "stagingReview": {
+    "date": "2026-11-18",
+    "report": "security/BATCH_1_STAGING_REVIEW.md",
+    "backend": {
+      "passed": 381,
+      "failed": 0,
+      "skipped": 14,
+      "testFiles": 32,
+      "exitCode": 0,
+      "skips": {
+        "disposablePostgres": 13,
+        "liveClamAv": 1
+      },
+      "authAndJwtTestsPassed": 62,
+      "newStagingTestsPassed": 27
+    },
+    "frontend": {
+      "passed": 34,
+      "failed": 2,
+      "skipped": 0,
+      "testFiles": 7,
+      "exitCode": 1,
+      "newTestsPassed": 5,
+      "baselineE2E": {
+        "passed": 5,
+        "failed": 2,
+        "sameFailingCases": true
+      },
+      "build": "passed",
+      "typescript": "failed: two errors reproduced with baseline source"
+    },
+    "backendTypescript": "passed",
+    "fullBackendLint": {
+      "exitCode": 0,
+      "errors": 0,
+      "warnings": 76
+    },
+    "finding1ImplementationUnchanged": true,
+    "productionResourcesModified": false,
+    "schemaMigrationGeneratedOrApplied": false,
+    "stagedOrCommitted": false,
+    "readiness": "Targeted fixes verified; full staging checks not green due to pre-existing frontend type errors and demo-fixture test failures.",
+    "modifiedFiles": [
+      "src/components/clinical/TreatmentPlanDetailsModal.tsx",
+      "src/services/clinicStore.ts",
+      "src/pages/patients/PatientProfilePage.tsx",
+      "backend/src/common/decorators/operation-permission.decorator.ts",
+      "backend/src/clinical/clinical.controller.ts",
+      "backend/src/clinical/clinical.service.ts",
+      "backend/src/common/services/audit-log.service.ts",
+      "backend/src/security/batch-1.staging.spec.ts",
+      "tests/treatmentPlanAcceptance.test.jsx",
+      "tests/treatmentPlanAcceptanceStore.test.ts",
+      "backend/security/BATCH_1_REPORT.md",
+      "backend/security/batch-1-verification.json",
+      "backend/security/BATCH_1_STAGING_REVIEW.md"
+    ]
+  },
+  "finalCompatibility": {
+    "date": "2026-11-18",
+    "report": "security/BATCH_1_COMPATIBILITY_REPORT.md",
+    "issuesResolved": 4,
+    "frontendTypescript": {
+      "exitCode": 0
+    },
+    "focusedWorkflows": {
+      "passed": 2,
+      "failed": 0,
+      "filteredOut": 5,
+      "exitCode": 0
+    },
+    "frontendSevenFiles": {
+      "passed": 36,
+      "failed": 0,
+      "skipped": 0,
+      "testFiles": 7,
+      "exitCode": 0
+    },
+    "additionalBilling": {
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0,
+      "testFiles": 2,
+      "exitCode": 0
+    },
+    "frontendBuild": {
+      "exitCode": 0,
+      "warnings": [
+        "mixed static/dynamic imports",
+        "large chunks"
+      ]
+    },
+    "completeBackend": {
+      "passed": 404,
+      "failed": 0,
+      "skipped": 1,
+      "testFiles": 33,
+      "missingSpecFiles": [],
+      "exitCode": 0,
+      "postgresSecurityCasesPassed": 13,
+      "realPostgresAuthCasesPassed": 10,
+      "skippedReason": "Optional live ClamAV engine unavailable"
+    },
+    "initialBackendAttempt": {
+      "passed": 392,
+      "failed": 2,
+      "skipped": 11,
+      "exitCode": 1,
+      "realDatabaseAuthSuiteIncomplete": true
+    },
+    "isolatedAuthDiagnostic": {
+      "passed": 15,
+      "failed": 0,
+      "skipped": 0,
+      "exitCode": 0
+    },
+    "backendTypescript": {
+      "exitCode": 0
+    },
+    "prismaValidation": {
+      "exitCode": 0
+    },
+    "diffCheck": {
+      "exitCode": 0
+    },
+    "finding1AndBackendImplementationUnchanged": true,
+    "rolePermissionMatrixUnchanged": true,
+    "schemaAndMigrationsUnchanged": true,
+    "productionResourcesModified": false,
+    "stagedOrCommitted": false,
+    "deployed": false,
+    "disposablePostgresStoppedAfterVerification": true,
+    "remainingCompatibilityBlockers": [],
+    "readiness": "Required local compatibility checks passed; optional live ClamAV and previously documented deployment gates are not production readiness verification.",
+    "modifiedFiles": [
+      "src/pages/billing/BillingShared.tsx",
+      "src/services/clinicStore.ts",
+      "tests/treatmentPlansE2EWorkflow.test.jsx",
+      "tests/billingPatientPlanMatching.test.ts",
+      "backend/security/BATCH_1_COMPATIBILITY_REPORT.md",
+      "backend/security/BATCH_1_REPORT.md",
+      "backend/security/BATCH_1_STAGING_REVIEW.md",
+      "backend/security/batch-1-verification.json"
+    ]
+  }
+}

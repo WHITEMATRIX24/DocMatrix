@@ -13,3 +13,4 @@ skills-lock.json
 # Sensitive database backups and runtime audit storage
 prisma/backups/
 /storage/
+/.security-test/

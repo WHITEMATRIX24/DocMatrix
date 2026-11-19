@@ -105,7 +105,7 @@ export class BillingController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {
-    return this.billingService.getInvoiceById(user.clinicId!, id);
+    return this.billingService.getInvoiceById(user.clinicId!, id, user);
   }
 
   @RequireBillingPermissions(BillingPermission.INVOICE_UPDATE)

@@ -1,54 +1,96 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
-import { StorageProvider } from './storage.interface.js';
+import {
+  StorageProvider,
+  UploadOptions,
+  UploadResult,
+  DownloadResult,
+} from './storage.interface.js';
 
 @Injectable()
 export class LocalStorageProvider implements StorageProvider {
-  readonly name = 'local-storage';
+  readonly providerName = 'local' as const;
+  private readonly logger = new Logger(LocalStorageProvider.name);
   private readonly baseDir: string;
 
   constructor() {
     this.baseDir = path.resolve(process.cwd(), 'storage', 'documents');
-    try {
-      if (!fs.existsSync(this.baseDir)) {
+    if (!fs.existsSync(this.baseDir)) {
+      try {
         fs.mkdirSync(this.baseDir, { recursive: true });
+      } catch (err: any) {
+        this.logger.error(`Could not create local storage directory ${this.baseDir}:`, err?.message);
       }
-    } catch {}
+    }
   }
 
   isAvailable(): boolean {
     return true;
   }
 
-  private resolvePath(fileKey: string): string {
-    // Sanitize path to prevent directory traversal
-    const safeKey = fileKey.replace(/\\/g, '/').replace(/\.\./g, '');
-    return path.join(this.baseDir, safeKey);
-  }
+  private resolveSafePath(key: string): string {
+    // Prevent directory traversal: key is sanitized and resolved strictly inside baseDir
+    const normalizedKey = key.replace(/^[/\\]+/, '');
+    const fullPath = path.resolve(this.baseDir, normalizedKey);
 
-  async upload(fileKey: string, buffer: Buffer, _mimeType: string): Promise<void> {
-    const fullPath = this.resolvePath(fileKey);
-    const dir = path.dirname(fullPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    if (!fullPath.startsWith(this.baseDir)) {
+      throw new Error(`Path traversal attempt blocked: ${key}`);
     }
-    await fs.promises.writeFile(fullPath, buffer);
+
+    return fullPath;
   }
 
-  async getBuffer(fileKey: string): Promise<{ buffer: Buffer; mimeType?: string }> {
-    const fullPath = this.resolvePath(fileKey);
+  async upload(options: UploadOptions): Promise<UploadResult> {
+    const fullPath = this.resolveSafePath(options.key);
+    const parentDir = path.dirname(fullPath);
+
+    if (!fs.existsSync(parentDir)) {
+      fs.mkdirSync(parentDir, { recursive: true });
+    }
+
+    await fs.promises.writeFile(fullPath, options.buffer);
+
+    return {
+      key: options.key,
+      size: options.buffer.length,
+      provider: 'local',
+    };
+  }
+
+  async getBuffer(key: string): Promise<DownloadResult> {
+    const fullPath = this.resolveSafePath(key);
+
     if (!fs.existsSync(fullPath)) {
-      throw new Error(`Local file not found: ${fileKey}`);
+      throw new Error(`File not found at local storage key: ${key}`);
     }
+
     const buffer = await fs.promises.readFile(fullPath);
-    return { buffer };
+    return {
+      buffer,
+      mimeType: 'application/octet-stream',
+      contentLength: buffer.length,
+    };
   }
 
-  async delete(fileKey: string): Promise<void> {
-    const fullPath = this.resolvePath(fileKey);
-    if (fs.existsSync(fullPath)) {
-      await fs.promises.unlink(fullPath).catch(() => {});
+  async delete(key: string): Promise<void> {
+    try {
+      const fullPath = this.resolveSafePath(key);
+      if (fs.existsSync(fullPath)) {
+        await fs.promises.unlink(fullPath);
+      }
+    } catch (err: any) {
+      this.logger.error(`Error deleting local file ${key}:`, err?.message);
     }
+  }
+
+  async getSignedDownloadUrl(
+    _key: string,
+    _filename?: string,
+    _expiresInSeconds?: number,
+  ): Promise<string | null> {
+    // Local storage cannot provide public cloud pre-signed URLs
+    return null;
   }
 }
+

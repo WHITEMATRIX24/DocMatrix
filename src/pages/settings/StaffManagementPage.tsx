@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import {
   Users, UserPlus, Search, Filter, Shield, MoreVertical,
-  CheckCircle2, AlertCircle, Edit2, Trash2, Power, X, RefreshCw
+  CheckCircle2, AlertCircle, Edit2, Trash2, Power, X, RefreshCw,
+  User, Mail, Lock, Phone, Eye, EyeOff, Key, Check, Info
 } from 'lucide-react'
 import { apiClient } from '@/services/apiClient'
 import type { StaffRole } from '@/mocks/auth'
@@ -20,6 +21,49 @@ interface StaffMember {
 
 interface AssignableRole { value: StaffRole; label: string }
 
+const ROLE_DESCRIPTIONS: Record<string, { title: string; desc: string }> = {
+  ORGANIZATION_ADMIN: {
+    title: 'Organization Administrator',
+    desc: 'Full administrative control over all clinic branches, subscription plans, and organizational settings.'
+  },
+  BRANCH_ADMIN: {
+    title: 'Branch Administrator',
+    desc: 'Full operational control over this clinic branch, staff members, master clinical lists, and settings.'
+  },
+  DOCTOR: {
+    title: 'Dentist / Practitioner',
+    desc: 'Full clinical care access: patient records, interactive tooth charts, clinical notes, prescriptions, and treatment plans.'
+  },
+  DENTIST: {
+    title: 'Dentist / Practitioner',
+    desc: 'Full clinical care access: patient records, interactive tooth charts, clinical notes, prescriptions, and treatment plans.'
+  },
+  RECEPTIONIST: {
+    title: 'Front Desk & Operations',
+    desc: 'Patient intake, appointment booking, check-in, live OPD queue management, and basic patient documents.'
+  },
+  ACCOUNTANT: {
+    title: 'Billing & Financials',
+    desc: 'Invoicing, payment collection, expense records, tax reports, and Tally exports.'
+  },
+  NURSE: {
+    title: 'Dental Assistant',
+    desc: 'Clinical assistance: view appointments, patient records, and assist with clinical charting.'
+  },
+  CLINICAL_ASSISTANT: {
+    title: 'Dental Assistant',
+    desc: 'Clinical assistance: view appointments, patient records, and assist with clinical charting.'
+  },
+  LAB_TECHNICIAN: {
+    title: 'Dental Lab Technician',
+    desc: 'Dental lab tracking, prosthetics status updates, and lab order coordination.'
+  },
+  PHARMACIST: {
+    title: 'Clinic Pharmacist',
+    desc: 'Medication dispensing, pharmacy inventory, and prescription fulfillment.'
+  }
+}
+
 export const StaffManagementPage: React.FC = () => {
   const [staff, setStaff] = useState<StaffMember[]>([])
   const [assignableRoles, setAssignableRoles] = useState<AssignableRole[]>([])
@@ -32,6 +76,7 @@ export const StaffManagementPage: React.FC = () => {
 
   // Add Staff Modal State
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -79,7 +124,18 @@ export const StaffManagementPage: React.FC = () => {
 
   const closeAddModal = () => {
     setShowAddModal(false)
+    setShowPassword(false)
     setFormData({ fullName: '', email: '', phone: '', role: 'DOCTOR', password: '' })
+  }
+
+  const generatePassword = () => {
+    const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*'
+    let pwd = 'Dm@'
+    for (let i = 0; i < 11; i++) {
+      pwd += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    setFormData(prev => ({ ...prev, password: pwd }))
+    setShowPassword(true)
   }
   const canManageMember = (member: StaffMember) => assignableRoles.some(r => r.value === member.role)
   const roleFilters = [...new Set(staff.map(s => s.role).concat(assignableRoles.map(r => r.value)))]
@@ -484,8 +540,8 @@ export const StaffManagementPage: React.FC = () => {
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(0, 0, 0, 0.65)',
-          backdropFilter: 'blur(4px)',
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(6px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -494,123 +550,340 @@ export const StaffManagementPage: React.FC = () => {
         }}>
           <div style={{
             background: 'var(--surface-raised, #ffffff)',
-            border: '1px solid var(--line-strong, #e2e8f0)',
+            border: '1px solid var(--line, #e2e8f0)',
             borderRadius: '16px',
-            maxWidth: '480px',
+            maxWidth: '500px',
             width: '100%',
-            padding: '28px',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.4)'
+            padding: '26px 28px',
+            boxShadow: '0 20px 25px -5px rgba(15, 23, 42, 0.18), 0 8px 10px -6px rgba(15, 23, 42, 0.1)',
+            position: 'relative'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-strong, #0f172a)', margin: 0 }}>
-                Add New Staff Member
-              </h2>
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  background: 'rgba(0, 136, 145, 0.1)',
+                  border: '1px solid rgba(0, 136, 145, 0.2)',
+                  color: 'var(--teal-primary, #008891)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <UserPlus size={20} strokeWidth={2.2} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-strong, #0f172a)', margin: 0, letterSpacing: '-0.01em' }}>
+                    Add New Staff Member
+                  </h2>
+                  <p style={{ margin: '2px 0 0', fontSize: '12.5px', color: 'var(--text-muted, #64748b)' }}>
+                    Set up credentials and assign role permissions for clinic access.
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={closeAddModal}
                 disabled={submitting}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted, #94a3b8)', cursor: 'pointer' }}
+                aria-label="Close"
+                style={{
+                  background: 'var(--surface-alt, #f1f5f9)',
+                  border: 'none',
+                  color: 'var(--text-muted, #64748b)',
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
             <form role="dialog" aria-label="Add staff member" onSubmit={handleAddStaff} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Full Name */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
-                  Full Name *
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '5px' }}>
+                  Full Name <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Dr. Kavitha Rajan"
-                  aria-label="Full name"
-                  maxLength={150}
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
-                />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <User size={16} style={{ position: 'absolute', left: '12px', color: 'var(--text-muted, #94a3b8)', pointerEvents: 'none' }} />
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Dr. Kavitha Rajan"
+                    aria-label="Full name"
+                    maxLength={150}
+                    value={formData.fullName}
+                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px 10px 38px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--line-strong, #cbd5e1)',
+                      background: 'var(--surface-base, #ffffff)',
+                      color: 'var(--text-strong, #0f172a)',
+                      fontSize: '13.5px',
+                      boxSizing: 'border-box',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
               </div>
 
+              {/* Email */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
-                  Email Address (Login) *
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '5px' }}>
+                  Email Address (Login) <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                <input
-                  type="email"
-                  required
-                  placeholder="doctor@docmatrix.com"
-                  aria-label="Email"
-                  autoComplete="off"
-                  maxLength={254}
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
-                />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Mail size={16} style={{ position: 'absolute', left: '12px', color: 'var(--text-muted, #94a3b8)', pointerEvents: 'none' }} />
+                  <input
+                    type="email"
+                    required
+                    placeholder="doctor@docmatrix.com"
+                    aria-label="Email"
+                    autoComplete="off"
+                    maxLength={254}
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px 10px 38px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--line-strong, #cbd5e1)',
+                      background: 'var(--surface-base, #ffffff)',
+                      color: 'var(--text-strong, #0f172a)',
+                      fontSize: '13.5px',
+                      boxSizing: 'border-box',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
               </div>
 
+              {/* Password */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
-                  Initial Password *
-                </label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Minimum 12 characters"
-                  aria-label="Initial password"
-                  autoComplete="new-password"
-                  minLength={12}
-                  maxLength={72}
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
-                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)' }}>
+                    Initial Password <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={generatePassword}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--teal-primary, #008891)',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontSize: '11.5px',
+                      padding: '0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <Key size={12} /> Auto-suggest password
+                  </button>
+                </div>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Lock size={16} style={{ position: 'absolute', left: '12px', color: 'var(--text-muted, #94a3b8)', pointerEvents: 'none' }} />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    placeholder="Minimum 12 characters"
+                    aria-label="Initial password"
+                    autoComplete="new-password"
+                    minLength={12}
+                    maxLength={72}
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 38px 10px 38px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--line-strong, #cbd5e1)',
+                      background: 'var(--surface-base, #ffffff)',
+                      color: 'var(--text-strong, #0f172a)',
+                      fontSize: '13.5px',
+                      boxSizing: 'border-box',
+                      outline: 'none'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    style={{
+                      position: 'absolute',
+                      right: '10px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-muted, #94a3b8)',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderRadius: '4px'
+                    }}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '11.5px' }}>
+                  <span style={{ color: formData.password.length >= 12 ? 'var(--tone-green, #059669)' : 'var(--text-muted, #64748b)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    {formData.password.length >= 12 && <Check size={12} strokeWidth={2.6} />}
+                    {formData.password.length >= 12 ? 'Password meets minimum length' : 'Minimum 12 characters required'}
+                  </span>
+                </div>
               </div>
 
+              {/* Phone */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '5px' }}>
                   Phone Number
                 </label>
-                <input
-                  type="tel"
-                  placeholder="+91 98765 00000"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
-                />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Phone size={16} style={{ position: 'absolute', left: '12px', color: 'var(--text-muted, #94a3b8)', pointerEvents: 'none' }} />
+                  <input
+                    type="tel"
+                    placeholder="+91 98765 00000"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px 10px 38px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--line-strong, #cbd5e1)',
+                      background: 'var(--surface-base, #ffffff)',
+                      color: 'var(--text-strong, #0f172a)',
+                      fontSize: '13.5px',
+                      boxSizing: 'border-box',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
               </div>
 
+              {/* Role & Permissions */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '5px' }}>
                   Role &amp; Permissions
                 </label>
-                <select
-                  value={formData.role}
-                  aria-label="Staff role"
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
-                >
-                  {assignableRoles.map(r => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
-                  ))}
-                </select>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Shield size={16} style={{ position: 'absolute', left: '12px', color: 'var(--text-muted, #94a3b8)', pointerEvents: 'none', zIndex: 1 }} />
+                  <select
+                    value={formData.role}
+                    aria-label="Staff role"
+                    onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 34px 10px 38px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--line-strong, #cbd5e1)',
+                      background: 'var(--surface-base, #ffffff)',
+                      color: 'var(--text-strong, #0f172a)',
+                      fontSize: '13.5px',
+                      fontWeight: 500,
+                      boxSizing: 'border-box',
+                      outline: 'none',
+                      appearance: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {assignableRoles.map(r => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
+                  </select>
+                  <div style={{ position: 'absolute', right: '12px', pointerEvents: 'none', color: 'var(--text-muted, #94a3b8)', display: 'flex', alignItems: 'center' }}>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  </div>
+                </div>
+
+                {ROLE_DESCRIPTIONS[formData.role] && (
+                  <div style={{
+                    marginTop: '6px',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    background: 'rgba(0, 136, 145, 0.05)',
+                    border: '1px solid rgba(0, 136, 145, 0.15)',
+                    fontSize: '12px',
+                    color: 'var(--text, #334155)',
+                    lineHeight: 1.4,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '8px'
+                  }}>
+                    <Info size={14} color="var(--teal-primary, #008891)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <span>
+                      <strong style={{ color: 'var(--teal-primary, #008891)', marginRight: '4px' }}>
+                        {ROLE_DESCRIPTIONS[formData.role].title}:
+                      </strong>
+                      {ROLE_DESCRIPTIONS[formData.role].desc}
+                    </span>
+                  </div>
+                )}
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
                 <button
                   type="button"
                   onClick={closeAddModal}
                   disabled={submitting}
-                  style={{ flex: 1, padding: '9px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken, #f8fafc)', color: 'var(--text-strong, #475569)', cursor: 'pointer' }}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--line-strong, #cbd5e1)',
+                    background: 'var(--surface-base, #ffffff)',
+                    color: 'var(--text-strong, #334155)',
+                    fontSize: '13.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting || !assignableRoles.some(r => r.value === formData.role)}
-                  style={{ flex: 1, padding: '9px', borderRadius: '6px', border: 'none', background: 'var(--teal-primary, #008891)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
+                  style={{
+                    flex: 1.2,
+                    padding: '10px 18px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: submitting || !assignableRoles.some(r => r.value === formData.role)
+                      ? 'var(--line-strong, #cbd5e1)'
+                      : 'var(--teal-primary, #008891)',
+                    color: '#ffffff',
+                    fontSize: '13.5px',
+                    fontWeight: 600,
+                    cursor: submitting ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 4px rgba(0, 136, 145, 0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
                 >
-                  {submitting ? 'Creating...' : 'Create Account'}
+                  {submitting ? (
+                    <>
+                      <RefreshCw size={14} className="spin" />
+                      <span>Creating...</span>
+                    </>
+                  ) : (
+                    'Create Account'
+                  )}
                 </button>
               </div>
             </form>
@@ -626,8 +899,8 @@ export const StaffManagementPage: React.FC = () => {
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(0, 0, 0, 0.65)',
-          backdropFilter: 'blur(4px)',
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(6px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -636,90 +909,227 @@ export const StaffManagementPage: React.FC = () => {
         }}>
           <div style={{
             background: 'var(--surface-raised, #ffffff)',
-            border: '1px solid var(--line-strong, #e2e8f0)',
+            border: '1px solid var(--line, #e2e8f0)',
             borderRadius: '16px',
-            maxWidth: '460px',
+            maxWidth: '480px',
             width: '100%',
-            padding: '28px',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.4)'
+            padding: '26px 28px',
+            boxShadow: '0 20px 25px -5px rgba(15, 23, 42, 0.18), 0 8px 10px -6px rgba(15, 23, 42, 0.1)',
+            position: 'relative'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-strong, #0f172a)', margin: 0 }}>
-                Edit Staff Member
-              </h2>
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  background: 'rgba(0, 136, 145, 0.1)',
+                  border: '1px solid rgba(0, 136, 145, 0.2)',
+                  color: 'var(--teal-primary, #008891)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  <Edit2 size={18} strokeWidth={2.2} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-strong, #0f172a)', margin: 0, letterSpacing: '-0.01em' }}>
+                    Edit Staff Member
+                  </h2>
+                  <p style={{ margin: '2px 0 0', fontSize: '12.5px', color: 'var(--text-muted, #64748b)' }}>
+                    Update staff profile details and role assignment.
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setEditingStaff(null)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted, #94a3b8)', cursor: 'pointer' }}
+                style={{
+                  background: 'var(--surface-alt, #f1f5f9)',
+                  border: 'none',
+                  color: 'var(--text-muted, #64748b)',
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
               >
-                <X size={20} />
+                <X size={16} />
               </button>
             </div>
 
             <form role="dialog" aria-label="Edit staff member" onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Full Name */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
-                  Full Name *
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '5px' }}>
+                  Full Name <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={editFormData.fullName}
-                  aria-label="Full name"
-                  maxLength={150}
-                  onChange={(e) => setEditFormData({ ...editFormData, fullName: e.target.value })}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
-                />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <User size={16} style={{ position: 'absolute', left: '12px', color: 'var(--text-muted, #94a3b8)', pointerEvents: 'none' }} />
+                  <input
+                    type="text"
+                    required
+                    value={editFormData.fullName}
+                    aria-label="Full name"
+                    maxLength={150}
+                    onChange={(e) => setEditFormData({ ...editFormData, fullName: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px 10px 38px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--line-strong, #cbd5e1)',
+                      background: 'var(--surface-base, #ffffff)',
+                      color: 'var(--text-strong, #0f172a)',
+                      fontSize: '13.5px',
+                      boxSizing: 'border-box',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
               </div>
 
+              {/* Phone */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '5px' }}>
                   Phone Number
                 </label>
-                <input
-                  type="tel"
-                  value={editFormData.phone}
-                  onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
-                />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Phone size={16} style={{ position: 'absolute', left: '12px', color: 'var(--text-muted, #94a3b8)', pointerEvents: 'none' }} />
+                  <input
+                    type="tel"
+                    value={editFormData.phone}
+                    onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px 10px 38px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--line-strong, #cbd5e1)',
+                      background: 'var(--surface-base, #ffffff)',
+                      color: 'var(--text-strong, #0f172a)',
+                      fontSize: '13.5px',
+                      boxSizing: 'border-box',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
               </div>
 
+              {/* Role & Permissions */}
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #334155)', marginBottom: '5px' }}>
                   Role &amp; Permissions
                 </label>
-                <select
-                  disabled={editingStaff.isPrimaryContact}
-                  aria-label="Staff role"
-                  value={editFormData.role}
-                  onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value as any })}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken)', color: 'var(--text-strong)', boxSizing: 'border-box' }}
-                >
-                  {assignableRoles.map(r => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
-                  ))}
-                </select>
-                {editingStaff.isPrimaryContact && (
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Shield size={16} style={{ position: 'absolute', left: '12px', color: 'var(--text-muted, #94a3b8)', pointerEvents: 'none', zIndex: 1 }} />
+                  <select
+                    disabled={editingStaff.isPrimaryContact}
+                    aria-label="Staff role"
+                    value={editFormData.role}
+                    onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value as any })}
+                    style={{
+                      width: '100%',
+                      padding: '10px 34px 10px 38px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--line-strong, #cbd5e1)',
+                      background: editingStaff.isPrimaryContact ? 'var(--surface-alt, #f1f5f9)' : 'var(--surface-base, #ffffff)',
+                      color: 'var(--text-strong, #0f172a)',
+                      fontSize: '13.5px',
+                      fontWeight: 500,
+                      boxSizing: 'border-box',
+                      outline: 'none',
+                      appearance: 'none',
+                      cursor: editingStaff.isPrimaryContact ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {assignableRoles.map(r => (
+                      <option key={r.value} value={r.value}>{r.label}</option>
+                    ))}
+                  </select>
+                  <div style={{ position: 'absolute', right: '12px', pointerEvents: 'none', color: 'var(--text-muted, #94a3b8)', display: 'flex', alignItems: 'center' }}>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  </div>
+                </div>
+                {editingStaff.isPrimaryContact ? (
                   <span style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)', marginTop: '4px', display: 'block' }}>
                     Owner role cannot be changed.
                   </span>
+                ) : ROLE_DESCRIPTIONS[editFormData.role] && (
+                  <div style={{
+                    marginTop: '6px',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    background: 'rgba(0, 136, 145, 0.05)',
+                    border: '1px solid rgba(0, 136, 145, 0.15)',
+                    fontSize: '12px',
+                    color: 'var(--text, #334155)',
+                    lineHeight: 1.4,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '8px'
+                  }}>
+                    <Info size={14} color="var(--teal-primary, #008891)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <span>
+                      <strong style={{ color: 'var(--teal-primary, #008891)', marginRight: '4px' }}>
+                        {ROLE_DESCRIPTIONS[editFormData.role].title}:
+                      </strong>
+                      {ROLE_DESCRIPTIONS[editFormData.role].desc}
+                    </span>
+                  </div>
                 )}
               </div>
 
-              <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: '10px', marginTop: '14px' }}>
                 <button
                   type="button"
                   onClick={() => setEditingStaff(null)}
-                  style={{ flex: 1, padding: '9px', borderRadius: '6px', border: '1px solid var(--line-strong, #cbd5e1)', background: 'var(--surface-sunken, #f8fafc)', color: 'var(--text-strong, #475569)', cursor: 'pointer' }}
+                  style={{
+                    flex: 1,
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--line-strong, #cbd5e1)',
+                    background: 'var(--surface-base, #ffffff)',
+                    color: 'var(--text-strong, #334155)',
+                    fontSize: '13.5px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  style={{ flex: 1, padding: '9px', borderRadius: '6px', border: 'none', background: 'var(--teal-primary, #008891)', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
+                  style={{
+                    flex: 1.2,
+                    padding: '10px 18px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: submitting ? 'var(--line-strong, #cbd5e1)' : 'var(--teal-primary, #008891)',
+                    color: '#fff',
+                    fontSize: '13.5px',
+                    fontWeight: 600,
+                    cursor: submitting ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 4px rgba(0, 136, 145, 0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
                 >
-                  {submitting ? 'Saving...' : 'Save Changes'}
+                  {submitting ? (
+                    <>
+                      <RefreshCw size={14} className="spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
                 </button>
               </div>
             </form>

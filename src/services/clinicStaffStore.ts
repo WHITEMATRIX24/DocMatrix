@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { apiClient } from './apiClient'
+import { apiClient, getStoredToken } from './apiClient'
 
 export interface ClinicStaffDoctor {
   id: string
@@ -127,6 +127,7 @@ export function cacheClinicStaff(staff: unknown[], clinicId = getStaffClinicId()
 
 export async function fetchAndSyncClinicStaff(): Promise<ClinicStaffDoctor[]> {
   const clinicId = getStaffClinicId()
+  if (!clinicId || !getStoredToken()) return getStoredStaff()
   try {
     const res = await apiClient.get<any[]>('/clinics/my-clinic/practitioners')
     if (Array.isArray(res)) {

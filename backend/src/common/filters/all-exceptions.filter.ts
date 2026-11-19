@@ -63,7 +63,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       );
     } else if (status === 401 || status === 403 || status === 429) {
       this.logger.warn(
-        `[${request.method}] ${safePath} Status: ${status} - Access Denied/Restricted for IP: ${clientIp}`,
+        `[${request.method}] ${safePath} Status: ${status} - ${status === 401 ? 'Authentication required or session invalid' : status === 403 ? 'Access forbidden' : 'Rate limit exceeded'} (Client IP: ${clientIp})`,
       );
     }
 

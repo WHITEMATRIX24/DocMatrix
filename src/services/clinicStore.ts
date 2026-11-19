@@ -343,7 +343,7 @@ export interface PatientDocumentRecord {
   id: string
   patientId: string
   title: string
-  category: 'Radiology' | 'Intraoral Photo' | 'Lab Report' | 'Prescription' | 'Consent' | 'Other'
+  category: 'Radiology' | 'Intraoral Photo' | 'Lab Report' | 'Prescription' | 'Consent' | 'Identification' | 'Referral' | 'Other'
   fileName: string
   fileSize: string
   uploadDate: string
@@ -2064,6 +2064,19 @@ export const updateAppointmentStatus = (
   } catch { /* ignore */ }
 }
 
+export const generateNextPatientId = (existingPatients: PatientRecord[] = patientsState): string => {
+  const idSet = new Set(
+    (existingPatients || [])
+      .map((p) => (p.id || '').trim().toUpperCase())
+      .filter(Boolean)
+  );
+  let seq = 1;
+  while (idSet.has(`PAT-${String(seq).padStart(3, '0')}`)) {
+    seq++;
+  }
+  return `PAT-${String(seq).padStart(3, '0')}`;
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. WALK-INS & LIVE QUEUE MANAGEMENT
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2084,7 +2097,7 @@ export const registerWalkIn = (data: {
   let patient = patientsState.find((p) => p.mobile === data.mobile)
   if (!patient) {
     patient = {
-      id: `PAT-${Date.now().toString().slice(-4)}`,
+      id: generateNextPatientId(patientsState),
       firstName: firstName || 'Walk-in',
       lastName: lastName || 'Patient',
       age: data.age || '30',
@@ -2247,7 +2260,7 @@ export const savePatient = (data: Omit<PatientRecord, 'id' | 'createdAt'>): Pati
   const newPatient: PatientRecord = {
     ...data,
     age: computedAge,
-    id: `PAT-${Date.now().toString().slice(-4)}`,
+    id: generateNextPatientId(patientsState),
     createdAt: new Date().toISOString()
   }
   patientsState = [newPatient, ...patientsState]
@@ -3330,11 +3343,22 @@ export const recordTreatmentPlanAcceptance = async (
     patientAcceptedByName: string;
     acceptanceMethod: 'STAFF_RECORDED' | 'WRITTEN_CONSENT' | 'DIGITAL_SIGNATURE' | 'PATIENT_PORTAL';
     isStaffRecorded?: boolean;
+    evidenceDocumentId?: string;
     notes?: string;
   }
 ): Promise<boolean> => {
   const plan = treatmentPlansState.find((p) => p.id === id || p.backendId === id);
   if (!plan) return false;
+
+  const targetId = plan.backendId || plan.id;
+  const token = typeof sessionStorage !== 'undefined'
+    ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
+    : null;
+  if (!isDemoSession()) {
+    if (!token) throw new Error('Sign in again to record acceptance.');
+    if (!targetId || targetId.startsWith('TRT-')) throw new Error('Save the treatment plan before recording acceptance.');
+    await apiClient.post(`/treatment-plans/${targetId}/accept`, dto);
+  }
 
   plan.status = 'Accepted';
   plan.acceptedVersion = dto.versionNumber;
@@ -3346,18 +3370,6 @@ export const recordTreatmentPlanAcceptance = async (
 
   treatmentPlansState = [...treatmentPlansState];
   emitChange();
-
-  const targetId = plan.backendId || plan.id;
-  try {
-    const token = typeof sessionStorage !== 'undefined'
-      ? (sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token'))
-      : null;
-    if (token && targetId && !targetId.startsWith('TRT-')) {
-      await apiClient.post(`/treatment-plans/${targetId}/accept`, dto);
-    }
-  } catch (err) {
-    console.warn('[clinicStore] recordTreatmentPlanAcceptance failed on backend:', err);
-  }
 
   return true;
 };

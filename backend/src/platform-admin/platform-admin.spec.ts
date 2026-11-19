@@ -34,7 +34,7 @@ describe('Platform admin HTTP authorization (synthetic persistence)', () => {
   beforeEach(async () => {
     const hash = bcrypt.hashSync(password, 4);
     admin = { id: 'platform-a', email: 'platform@docmatrix.test', fullName: 'Platform Operator', role: 'ORGANIZATION_ADMIN', clinicId: null, isActive: true, isPlatformAdmin: true, isPrimaryContact: false, passwordHash: hash };
-    accounts = [admin, ...Object.values(StaffRole).map(role => ({ ...admin, id: role, email: `${role.toLowerCase()}@clinic.test`, role, clinicId: 'clinic-a', isPlatformAdmin: false, isPrimaryContact: role === 'ORGANIZATION_ADMIN' }))];
+    accounts = [admin, ...Object.values(StaffRole).map(role => ({ ...admin, id: role, email: `${role.toLowerCase()}@clinic.test`, role, clinicId: 'clinic-a', clinic: { status: 'ACTIVE' }, isPlatformAdmin: false, isPrimaryContact: role === 'ORGANIZATION_ADMIN' }))];
     sessionRows = new Map();
     db = {
       user: {

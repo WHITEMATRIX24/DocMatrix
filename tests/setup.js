@@ -3,6 +3,12 @@ import { configure } from '@testing-library/dom'
 
 configure({ asyncUtilTimeout: 5000 })
 
+// UI unit tests use synthetic sessions. Never send those credentials to a
+// running development backend; individual transport tests supply their own mock.
+globalThis.fetch = async () => {
+  throw new Error('Network disabled in UI unit tests. Mock fetch or apiClient for API responses.')
+}
+
 // Ensure valid Web Storage API in Node 22+/25+ environments where native localStorage may be uninitialized
 const createMemoryStorage = () => {
   let store = new Map()

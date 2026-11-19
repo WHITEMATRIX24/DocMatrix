@@ -9,9 +9,14 @@ describe('InventoryService — Idempotency & Deduction Protection', () => {
   let prisma: any;
 
   const mockClinicId = 'clinic-alpha';
+  const actor: any = { id: 'staff-a', clinicId: mockClinicId, role: 'ORGANIZATION_ADMIN', isPlatformAdmin: false };
 
   beforeEach(async () => {
     prisma = {
+      $queryRaw: vi.fn().mockResolvedValue([{ id: 'locked-item' }]),
+      patient: { findFirst: vi.fn().mockResolvedValue({ firstName: 'Synthetic', lastName: 'Patient' }) },
+      treatmentPlan: { findFirst: vi.fn().mockResolvedValue({ id: 'trt-101' }) },
+      appointment: { findFirst: vi.fn().mockResolvedValue({ id: 'appt-101' }) },
       inventoryItem: {
         findFirst: vi.fn(),
         update: vi.fn(),
@@ -79,7 +84,7 @@ describe('InventoryService — Idempotency & Deduction Protection', () => {
       materials: dto.materials,
     });
 
-    const result = await service.confirmDeduction(mockClinicId, dto);
+    const result = await service.confirmDeduction(mockClinicId, dto, actor);
 
     // Assert stock was updated
     expect(prisma.inventoryItem.update).toHaveBeenCalledWith({
@@ -138,7 +143,7 @@ describe('InventoryService — Idempotency & Deduction Protection', () => {
     // Pre-existing audit found for this operationId
     prisma.inventoryAudit.findFirst.mockResolvedValue(existingAuditRecord);
 
-    const result = await service.confirmDeduction(mockClinicId, dto);
+    const result = await service.confirmDeduction(mockClinicId, dto, actor);
 
     // Assert NO stock updates were triggered
     expect(prisma.inventoryItem.update).not.toHaveBeenCalled();
@@ -190,7 +195,7 @@ describe('InventoryService — Idempotency & Deduction Protection', () => {
       materials: additionalDto.materials,
     });
 
-    const result = await service.confirmDeduction(mockClinicId, additionalDto);
+    const result = await service.confirmDeduction(mockClinicId, additionalDto, actor);
 
     // Stock update for additional consumption is executed
     expect(prisma.inventoryItem.update).toHaveBeenCalledWith({
@@ -202,7 +207,7 @@ describe('InventoryService — Idempotency & Deduction Protection', () => {
     expect((result as any).isDuplicate).toBeUndefined();
   });
 
-  it('clamps stock to zero and never produces negative stock values', async () => {
+  it('rejects insufficient stock without committing a deduction', async () => {
     const dto: ConfirmDeductionDto = {
       operationId: 'op-deduct-003',
       treatmentId: 'trt-102',
@@ -239,17 +244,10 @@ describe('InventoryService — Idempotency & Deduction Protection', () => {
       clinicId: mockClinicId,
     });
 
-    await service.confirmDeduction(mockClinicId, dto);
+    await expect(service.confirmDeduction(mockClinicId, dto, actor)).rejects.toThrow(/Insufficient/);
 
     // Stock must be clamped to 0, not -12
-    expect(prisma.inventoryItem.update).toHaveBeenCalledWith({
-      where: { id: 'mat-gauze' },
-      data: { totalStock: 0 },
-    });
-    expect(prisma.inventoryBatch.update).toHaveBeenCalledWith({
-      where: { id: 'batch-uuid-gauze' },
-      data: { quantity: 0 },
-    });
+    expect(prisma.inventoryAudit.create).not.toHaveBeenCalled();
   });
 });
 

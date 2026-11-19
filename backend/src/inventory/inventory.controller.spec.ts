@@ -107,7 +107,7 @@ describe('InventoryController Multi-Tenant Isolation', () => {
     };
 
     await controller.confirmDeduction(userClinicA, deductionDto as any);
-    expect(service.confirmDeduction).toHaveBeenCalledWith(clinicAId, deductionDto);
+    expect(service.confirmDeduction).toHaveBeenCalledWith(clinicAId, deductionDto, userClinicA);
   });
 });
 

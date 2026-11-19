@@ -117,7 +117,7 @@ export class AuditLogService {
     // 2. Dispatch to Centralized Webhook / SIEM Pipeline if configured
     const webhookUrl = process.env.AUDIT_LOG_WEBHOOK_URL;
     if (webhookUrl) {
-      this.forwardToCentralizedSink(webhookUrl, logEntry);
+      void this.forwardToCentralizedSink(webhookUrl, logEntry);
     }
 
     // 3. Durable Append-Only Storage (Zero historical data loss)

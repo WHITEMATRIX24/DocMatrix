@@ -1,12 +1,20 @@
-import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsNotEmpty, IsOptional, IsString, IsInt, Min, Max, MaxLength, ArrayMaxSize, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class DeductedMaterialItemDto {
+  @IsString() @IsNotEmpty() @MaxLength(100)
   itemId!: string;
+  @IsString() @IsOptional() @MaxLength(200)
   name!: string;
+  @IsString() @IsOptional() @MaxLength(200)
   unit!: string;
+  @IsInt() @Min(0) @Max(1000000000) @IsOptional()
   suggestedQty?: number;
+  @IsInt() @Min(0) @Max(1000000000)
   confirmedQty!: number;
+  @IsInt() @Min(0) @Max(1000000000) @IsOptional()
   wastageQty?: number;
+  @IsString() @IsNotEmpty() @MaxLength(100)
   batchNumber!: string;
 }
 
@@ -56,9 +64,12 @@ export class ConfirmDeductionDto {
   modeUsed?: string;
 
   @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => DeductedMaterialItemDto)
   materials!: DeductedMaterialItemDto[];
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   confirmedBy!: string;
 

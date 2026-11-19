@@ -1,3 +1,6 @@
+import { canPerform } from '../common/decorators/operation-permission.decorator.js';
+import { lockTenantRecord } from '../common/transaction-locks.js';
+import { hasBillingPermission, BillingPermission } from './billing-permissions.policy.js';
 import {
   BadRequestException,
   ForbiddenException,
@@ -41,6 +44,43 @@ export class BillingService {
     private readonly calc: BillingCalculationService,
     @Optional() private readonly auditLog?: AuditLogService,
   ) {}
+
+  private async reserveTreatmentItems(tx: Prisma.TransactionClient, clinicId: string,
+    items: Array<{ treatmentPlanItemId?: string | null }>, excludeInvoiceId?: string): Promise<void> {
+    const requested = items.map(item => item.treatmentPlanItemId).filter((id): id is string => !!id);
+    const ids = [...new Set(requested)].sort();
+    if (!ids.length) return;
+    if (ids.length !== requested.length) throw new BadRequestException('A treatment item cannot appear twice on an invoice.');
+    const locked = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT i."id" FROM "TreatmentPlanItem" i
+      JOIN "TreatmentPlanStage" s ON s."id" = i."stageId"
+      JOIN "TreatmentPlan" p ON p."id" = s."treatmentPlanId"
+      WHERE p."clinicId" = ${clinicId} AND i."id" IN (${Prisma.join(ids)})
+      ORDER BY i."id" FOR UPDATE OF i
+    `);
+    if (locked.length !== ids.length) throw new NotFoundException('Treatment items not found in this clinic.');
+    const existing = await tx.invoiceLineItem.findMany({ where: {
+      clinicId, treatmentPlanItemId: { in: ids }, invoice: { status: { not: InvoiceStatus.VOID } },
+      ...(excludeInvoiceId ? { invoiceId: { not: excludeInvoiceId } } : {}),
+    }, select: { id: true } });
+    if (existing.length) throw new ConflictException('A treatment item is already reserved by an active invoice.');
+  }
+
+  private assertPaymentPermission(user: AuthenticatedUser, payment?: { amount: number }): void {
+    if (payment && user.isPlatformAdmin !== true && !hasBillingPermission(user.role, BillingPermission.PAYMENT_COLLECT)) {
+      throw new ForbiddenException('Payment collection permission is required for upfront payments.');
+    }
+  }
+
+  private async validateInvoiceLinks(client: Prisma.TransactionClient | PrismaService, clinicId: string, patientId: string,
+    appointmentId?: string | null, treatmentPlanId?: string | null): Promise<void> {
+    if (appointmentId && !await client.appointment.findFirst({ where: { id: appointmentId, clinicId, patientId }, select: { id: true } })) {
+      throw new NotFoundException('Specified appointment does not belong to this patient/clinic');
+    }
+    if (treatmentPlanId && !await client.treatmentPlan.findFirst({ where: { id: treatmentPlanId, clinicId, patientId }, select: { id: true } })) {
+      throw new NotFoundException('Specified treatment plan does not belong to this patient/clinic');
+    }
+  }
 
   /**
    * Concurrency-safe atomic invoice number allocator using ClinicSequence.
@@ -319,6 +359,7 @@ export class BillingService {
 
     return this.prisma.$transaction(async (tx) => {
       await this.validateLineItemReferences(clinicId, computedItems, tx);
+      await this.reserveTreatmentItems(tx, clinicId, computedItems);
 
       const draftNumber = await this.allocateDraftNumber(tx, clinicId);
 
@@ -388,7 +429,10 @@ export class BillingService {
     id: string,
     dto: UpdateDraftInvoiceDto,
   ) {
-    const invoice = await this.prisma.invoice.findFirst({
+    return this.prisma.$transaction(async (tx) => {
+      await lockTenantRecord(tx, 'Invoice', clinicId, id);
+
+    const invoice = await tx.invoice.findFirst({
       where: {
         clinicId,
         OR: [{ id }, { invoiceNumber: id }],
@@ -411,7 +455,10 @@ export class BillingService {
       targetPatientId = patient.id;
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return (async () => {
+      await this.validateInvoiceLinks(tx, clinicId, targetPatientId,
+        dto.appointmentId !== undefined ? dto.appointmentId : invoice.appointmentId,
+        dto.treatmentPlanId !== undefined ? dto.treatmentPlanId : invoice.treatmentPlanId);
       let totals = {
         subtotal: Number(invoice.subtotal),
         discountTotal: Number(invoice.discountTotal),
@@ -430,6 +477,7 @@ export class BillingService {
         // Compute and validate new items
         const computedItems = dto.items.map((i) => this.calc.computeLineItem(i));
         await this.validateLineItemReferences(clinicId, computedItems, tx);
+        await this.reserveTreatmentItems(tx, clinicId, computedItems, invoice.id);
         totals = this.calc.computeInvoiceTotals(computedItems);
 
         try {
@@ -481,7 +529,9 @@ export class BillingService {
       });
 
       return updated;
-    });
+    })();
+
+    }, { maxWait: 10000, timeout: 20000 });
   }
 
   /**
@@ -492,7 +542,10 @@ export class BillingService {
     user: AuthenticatedUser,
     id: string,
   ) {
-    const invoice = await this.prisma.invoice.findFirst({
+    return this.prisma.$transaction(async (tx) => {
+      await lockTenantRecord(tx, 'Invoice', clinicId, id);
+
+    const invoice = await tx.invoice.findFirst({
       where: {
         clinicId,
         OR: [{ id }, { invoiceNumber: id }],
@@ -513,7 +566,8 @@ export class BillingService {
       throw new BadRequestException('Cannot issue an invoice with zero line items.');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    return (async () => {
+      await this.reserveTreatmentItems(tx, clinicId, invoice.items, invoice.id);
       const permanentNumber = await this.allocateInvoiceNumber(tx, clinicId);
 
       const issued = await tx.invoice.update({
@@ -533,7 +587,9 @@ export class BillingService {
       });
 
       return issued;
-    });
+    })();
+
+    }, { maxWait: 10000, timeout: 20000 });
   }
 
   /**
@@ -544,6 +600,7 @@ export class BillingService {
     user: AuthenticatedUser,
     dto: CreateAndIssueInvoiceDto,
   ) {
+    this.assertPaymentPermission(user, dto.upfrontPayment);
     const patient = await this.resolvePatient(clinicId, dto.patientId);
 
     if (!dto.items || dto.items.length === 0) {
@@ -601,6 +658,8 @@ export class BillingService {
       }
     }
 
+    await this.validateInvoiceLinks(this.prisma, clinicId, patient.id, dto.appointmentId, dto.treatmentPlanId);
+
     const computedItems = dto.items.map((i) => this.calc.computeLineItem(i));
     const totals = this.calc.computeInvoiceTotals(computedItems);
 
@@ -645,6 +704,7 @@ export class BillingService {
       }
 
       await this.validateLineItemReferences(clinicId, computedItems, tx);
+      await this.reserveTreatmentItems(tx, clinicId, computedItems);
 
       const invoiceNumber = await this.allocateInvoiceNumber(tx, clinicId);
       const description =
@@ -836,7 +896,7 @@ export class BillingService {
   /**
    * Get invoice details by ID.
    */
-  async getInvoiceById(clinicId: string, id: string) {
+  async getInvoiceById(clinicId: string, id: string, actor?: AuthenticatedUser) {
     const invoice = await this.prisma.invoice.findFirst({
       where: {
         clinicId,
@@ -857,7 +917,7 @@ export class BillingService {
             },
           },
         },
-        appointment: true,
+
         treatmentPlan: true,
         voidedBy: {
           select: { id: true, fullName: true, email: true },
@@ -869,7 +929,15 @@ export class BillingService {
       throw new NotFoundException(`Invoice ${id} not found`);
     }
 
-    return invoice;
+    await this.validateInvoiceLinks(this.prisma, clinicId, invoice.patientId, invoice.appointmentId, invoice.treatmentPlanId);
+    const appointment = invoice.appointmentId ? await this.prisma.appointment.findFirst({ where: { id: invoice.appointmentId, clinicId, patientId: invoice.patientId } }) : null;
+    if (!actor || !canPerform(actor, 'clinical.read')) {
+      const { medicalSafetyAlerts: _medicalSafetyAlerts, ...patient } = invoice.patient;
+      const safeAppointment = appointment ? { ...appointment, notes: null } : null;
+      const safePlan = invoice.treatmentPlan ? { ...invoice.treatmentPlan, notes: null, clinicalNoteId: null } : null;
+      return { ...invoice, patient, appointment: safeAppointment, treatmentPlan: safePlan };
+    }
+    return { ...invoice, appointment };
   }
 
   /**
@@ -887,7 +955,10 @@ export class BillingService {
       throw new BadRequestException('A cancellation reason is required before confirming invoice cancellation.');
     }
 
-    const invoice = await this.prisma.invoice.findFirst({
+    return this.prisma.$transaction(async (tx) => {
+      await lockTenantRecord(tx, 'Invoice', clinicId, id);
+
+      const invoice = await tx.invoice.findFirst({
       where: {
         clinicId,
         OR: [{ id }, { invoiceNumber: id }],
@@ -907,7 +978,7 @@ export class BillingService {
       );
     }
 
-    const voided = await this.prisma.invoice.update({
+    const voided = await tx.invoice.update({
       where: { id: invoice.id },
       data: {
         status: InvoiceStatus.VOID,
@@ -940,6 +1011,8 @@ export class BillingService {
     });
 
     return voided;
+
+    }, { maxWait: 10000, timeout: 20000 });
   }
 
   /**
@@ -1838,6 +1911,7 @@ export class BillingService {
     user: AuthenticatedUser,
     dto: InvoiceFromTreatmentPlanDto,
   ) {
+    this.assertPaymentPermission(user, dto.upfrontPayment);
     const plan = await this.prisma.treatmentPlan.findFirst({
       where: { id: dto.treatmentPlanId, clinicId },
       include: {

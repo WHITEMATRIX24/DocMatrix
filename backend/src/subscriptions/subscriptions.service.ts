@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import type { AuthenticatedUser } from '../common/decorators/current-user.decorator.js';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ClinicStatus, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AssignSubscriptionDto } from './dto/assign-subscription.dto.js';
@@ -72,7 +73,8 @@ export class SubscriptionsService {
     });
   }
 
-  async assignSubscription(dto: AssignSubscriptionDto) {
+  async assignSubscription(dto: AssignSubscriptionDto, actor: AuthenticatedUser) {
+    if (actor?.isPlatformAdmin !== true) throw new ForbiddenException('Subscription provisioning requires a platform administrator.');
     const clinic = await this.prisma.clinic.findUnique({ where: { id: dto.clinicId } });
     if (!clinic) {
       throw new NotFoundException(`Clinic '${dto.clinicId}' not found.`);
