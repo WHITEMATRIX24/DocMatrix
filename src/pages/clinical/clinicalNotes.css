@@ -2647,9 +2647,9 @@ body.dark-mode .cn-mat-other-input {
    Full Page: Record Dental Consultation Page
    ========================================================================== */
 
-/* Shell adjustments to allow full-width expansion */
+/* Shell adjustments to allow full-width expansion with clean spacing */
 .dmx-shell:has(.cn-record-page-workspace) .dmx-main {
-  padding: 0 0 40px 0 !important;
+  padding: 16px 0 40px 0 !important;
   max-width: 100% !important;
   width: 100% !important;
 }
