@@ -7,9 +7,11 @@ import { getJwtSecret } from './common/config/jwt.config.js';
 async function bootstrap() {
   // Load local environment file if process.loadEnvFile is supported
   if (typeof (process as any).loadEnvFile === 'function') {
-    try {
-      (process as any).loadEnvFile();
-    } catch {}
+    for (const envPath of ['.env', 'backend/.env', '../.env']) {
+      try {
+        (process as any).loadEnvFile(envPath);
+      } catch {}
+    }
   }
 
   // Validate JWT Secret at startup before accepting traffic
