@@ -3,16 +3,12 @@ import { Link } from 'react-router-dom'
 import {
   Ban,
   Banknote,
-  Calendar,
   CreditCard,
   FileText,
-  Phone,
   Printer,
   RotateCcw,
   Smartphone,
-  Stethoscope,
   Trash2,
-  User,
   X,
 } from 'lucide-react'
 import {
@@ -45,6 +41,7 @@ import { effectivePrice, gstRateFor, type ServicePrice } from '@/services/billin
 import { getCurrentUser } from '@/services/authService'
 import { canVoidInvoice, canCancelInvoice, canCollectPayments, canIssueRefunds } from '@/services/billingPermissions'
 import './billing.css'
+import './invoiceDrawer.css'
 
 export const PAYMENT_MODES: { id: PaymentMode; icon: React.ComponentType<{ size?: number }> }[] = [
   { id: 'Cash', icon: Banknote },
@@ -791,369 +788,424 @@ export const InvoiceDrawer: React.FC<{
     }
   }
 
+  /* ── Presentation-only derived values (no billing logic) ── */
+  const tone: 'paid' | 'partial' | 'unpaid' | 'cancelled' = isCancelled
+    ? 'cancelled'
+    : isPaid || (balance <= 0 && invoice.amount > 0)
+      ? 'paid'
+      : paidAmount > 0
+        ? 'partial'
+        : 'unpaid'
+  const toneLabel = {
+    paid: 'Paid',
+    partial: 'Partially Paid',
+    unpaid: 'Unpaid',
+    cancelled: 'Cancelled',
+  }[tone]
+  const patientName = patient ? `${patient.firstName} ${patient.lastName}`.trim() : 'Unknown Patient'
+  const patientInitials =
+    patient
+      ? `${patient.firstName?.[0] || ''}${patient.lastName?.[0] || ''}`.toUpperCase() || '?'
+      : '?'
+  const patientCode = (patient as any)?.patientCode || patient?.id || invoice.patientId
+  const consultationDate = linkedAppt?.date || linkedNote?.consultationDate || null
+  const consultationLabel =
+    linkedAppt?.treatmentType ||
+    linkedAppt?.visitType ||
+    linkedNote?.treatmentPerformed ||
+    linkedNote?.consultationType ||
+    null
+  const rawDoctor = linkedAppt?.doctor || linkedNote?.doctorName || ''
+  const attendingDoctor = rawDoctor && rawDoctor !== 'Unassigned' ? rawDoctor : null
+  const rows: InvoiceLineItem[] = items || [
+    {
+      id: 'single',
+      name: invoice.description || 'General Dental Treatment',
+      qty: 1,
+      unitPrice: invoice.amount,
+      discount: 0,
+      gstRate: 0,
+    } as InvoiceLineItem,
+  ]
+  const serviceCount = rows.length
+  const subtotal = invoice.subtotal ?? invoice.amount
+  const paidPercent =
+    invoice.amount > 0 ? Math.min(100, Math.max(0, Math.round((paidAmount / invoice.amount) * 100))) : 0
+
   return (
     <div className="bill-overlay bill-overlay-side" onMouseDown={onClose}>
       <aside
-        className="bill-drawer bill-drawer-redesign"
+        className={`bill-drawer bill-drawer-redesign ivd ivd-tone-${tone}`}
         role="dialog"
         aria-modal="true"
         aria-label={`Invoice ${invoice.id}`}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        {/* 1. INVOICE HEADER */}
-        <header className="bill-drawer-head">
-          <div className="bill-drawer-title-group">
-            <div className="bill-drawer-title-row">
-              <span className="bill-invoice-badge">{invoice.id}</span>
-              <StatusPill status={invoice.status} />
-            </div>
-            <div className="bill-drawer-date-row">
-              <Calendar size={13} className="bill-drawer-subicon" />
-              <span>Issued on {prettyDate(invoice.createdAt)}</span>
-              {invoice.dueDate && (
-                <span className="bill-drawer-duedate">· Due: {prettyDate(invoice.dueDate)}</span>
-              )}
+        {/* ── Header ── */}
+        <header className="bill-drawer-head ivd-head">
+          <div className="ivd-head-main">
+            <span className="ivd-head-icon" aria-hidden="true">
+              <FileText size={16} />
+            </span>
+            <div className="ivd-head-titles">
+              <span className="ivd-eyebrow">Invoice</span>
+              <div className="ivd-head-idrow">
+                <h2 className="ivd-number">{invoice.id}</h2>
+                <span className={`ivd-status ivd-status-${tone}`}>
+                  <span className="ivd-status-dot" aria-hidden="true" />
+                  {toneLabel}
+                </span>
+              </div>
             </div>
           </div>
-          <button
-            type="button"
-            className="bill-drawer-close"
-            onClick={onClose}
-            aria-label="Close invoice panel"
-          >
-            <X size={18} />
-          </button>
+          <div className="ivd-head-side">
+            <dl className="ivd-head-meta">
+              <div>
+                <dt>Issued</dt>
+                <dd>{prettyDate(invoice.createdAt)}</dd>
+              </div>
+              {invoice.dueDate && (
+                <div>
+                  <dt>Due</dt>
+                  <dd className={balance > 0 && !isCancelled ? 'ivd-due' : undefined}>
+                    {prettyDate(invoice.dueDate)}
+                  </dd>
+                </div>
+              )}
+            </dl>
+            <button
+              type="button"
+              className="ivd-close"
+              onClick={onClose}
+              aria-label="Close invoice panel"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </header>
 
-        <div className="bill-drawer-body">
-          {/* CANCELLATION NOTICE CARD */}
+        <div className="bill-drawer-body ivd-body">
+          {/* ── Cancellation notice ── */}
           {isCancelled && (
-            <div className="bill-cancellation-banner">
-              <div className="bill-cancellation-icon-wrap">
-                <Ban size={20} />
-              </div>
-              <div className="bill-cancellation-content">
-                <div className="bill-cancellation-title">
+            <div className="ivd-alert" role="note">
+              <Ban size={16} className="ivd-alert-icon" />
+              <div className="ivd-alert-text">
+                <div className="ivd-alert-title">
                   <strong>Invoice Cancelled</strong>
-                  <span className="bill-cancellation-date">
+                  <span>
                     {prettyDate(invoice.cancelledAt || invoice.voidedAt || invoice.createdAt)}
+                    {invoice.cancelledBy ? ` · by ${invoice.cancelledBy}` : ''}
                   </span>
                 </div>
-                {invoice.cancelledBy && (
-                  <span className="bill-cancellation-actor">
-                    Cancelled by: {invoice.cancelledBy}
-                  </span>
-                )}
-                <div className="bill-cancellation-reason">
-                  <span className="bill-cancellation-label">Reason:</span>{' '}
+                <p>
+                  <span className="ivd-muted">Reason:</span>{' '}
                   {invoice.cancellationReason || invoice.voidReason || 'Cancellation confirmed by staff'}
-                </div>
+                </p>
               </div>
             </div>
           )}
 
-          {/* 2. PATIENT INFORMATION CARD */}
-          <div className="bill-patient-card">
-            <div className="bill-patient-avatar">
-              <User size={18} />
-            </div>
-            <div className="bill-patient-info">
-              <div className="bill-patient-name-row">
+          {/* ── Patient strip ── */}
+          <section className="ivd-patient" aria-label="Patient information">
+            <div className="ivd-patient-id">
+              <span className="ivd-avatar" aria-hidden="true">{patientInitials}</span>
+              <div className="ivd-patient-name">
                 {patient ? (
-                  <Link
-                    to={`/patients/${patient.id}`}
-                    className="bill-patient-name-link"
-                    title="Open patient profile"
-                  >
-                    {patient.firstName} {patient.lastName}
+                  <Link to={`/patients/${patient.id}`} title="Open patient profile">
+                    {patientName}
                   </Link>
                 ) : (
-                  <span className="bill-patient-name-plain">Unknown Patient</span>
+                  <span>{patientName}</span>
                 )}
-                <span className="bill-patient-mrn" title="Patient MRN / ID">
-                  {(patient as any)?.patientCode || patient?.id || invoice.patientId}
-                </span>
-              </div>
-              <div className="bill-patient-meta-row">
-                {patient?.mobile ? (
-                  <span className="bill-patient-contact">
-                    <Phone size={12} />
-                    {patient.countryCode ? `${patient.countryCode} ` : ''}
-                    {patient.mobile}
-                  </span>
-                ) : null}
-                {linkedAppt ? (
-                  <span
-                    className="bill-patient-appt-ref"
-                    title={`Appointment ID: ${linkedAppt.id}`}
-                  >
-                    <Stethoscope size={12} />
-                    {linkedAppt.treatmentType || linkedAppt.visitType || 'Consultation'}
-                    {linkedAppt.time ? ` (${linkedAppt.time})` : ''}
-                  </span>
-                ) : invoice.appointmentId ? (
-                  <span className="bill-patient-appt-ref">
-                    <Stethoscope size={12} /> Appt: {invoice.appointmentId}
-                  </span>
-                ) : linkedNote ? (
-                  <span className="bill-patient-appt-ref">
-                    <Stethoscope size={12} /> {linkedNote.treatmentPerformed || linkedNote.consultationType || 'Clinical consultation'}
-                  </span>
-                ) : null}
+                <small>Patient</small>
               </div>
             </div>
-          </div>
+            <dl className="ivd-patient-facts">
+              <div>
+                <dt>Patient ID</dt>
+                <dd className="ivd-mono">{patientCode}</dd>
+              </div>
+              <div>
+                <dt>Mobile</dt>
+                <dd>
+                  {patient?.mobile
+                    ? `${patient.countryCode ? `${patient.countryCode} ` : ''}${patient.mobile}`
+                    : '—'}
+                </dd>
+              </div>
+              <div>
+                <dt>Consultation</dt>
+                <dd title={consultationLabel || undefined}>
+                  {consultationDate ? prettyDate(consultationDate) : '—'}
+                  {consultationLabel && <small className="ivd-fact-sub">{consultationLabel}</small>}
+                </dd>
+              </div>
+              {attendingDoctor && (
+                <div>
+                  <dt>Doctor</dt>
+                  <dd>{attendingDoctor}</dd>
+                </div>
+              )}
+            </dl>
+          </section>
 
-          {/* 3. SERVICE / TREATMENT DETAILS */}
-          <div className="bill-section">
-            <div className="bill-section-head">
-              <h3 className="bill-section-title">Services & Treatments</h3>
-              <span className="bill-items-count">
-                {items ? `${items.length} item${items.length > 1 ? 's' : ''}` : '1 item'}
-              </span>
-            </div>
-            {items ? (
-              <div className="bill-table-wrapper">
-                <table className="bill-table bill-items-table">
-                  <thead>
-                    <tr>
-                      <th>Service / Treatment</th>
-                      <th className="c">Tooth</th>
-                      <th className="r">Qty</th>
-                      <th className="r">Rate</th>
-                      <th className="r">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((item, idx) => {
-                      const t = lineItemTotals(item)
-                      return (
-                        <tr key={item.id || idx}>
-                          <td className="bill-item-name-cell">
-                            <div className="bill-item-name">{item.name}</div>
-                            {(item.discount > 0 || item.gstRate > 0) && (
-                              <div className="bill-item-submeta">
-                                {item.discount > 0 && (
-                                  <span className="bill-item-disc">
-                                    Disc −{inr(item.discount)}
-                                  </span>
-                                )}
-                                {item.discount > 0 && item.gstRate > 0 && <span> · </span>}
-                                {item.gstRate > 0 && (
-                                  <span className="bill-item-tax">GST {item.gstRate}%</span>
-                                )}
-                              </div>
-                            )}
-                          </td>
-                          <td className="c">
-                            {item.toothNumber ? (
-                              <span className="bill-tooth-badge">#{item.toothNumber}</span>
-                            ) : (
-                              <span className="bill-tooth-empty">—</span>
-                            )}
-                          </td>
-                          <td className="r bill-qty-cell">{item.qty || 1}</td>
-                          <td className="r bill-rate-cell">{inr(item.unitPrice)}</td>
-                          <td className="r bill-total-cell">
-                            <strong>{inr(t.total)}</strong>
-                          </td>
+          <div className="ivd-grid">
+            <div className="ivd-main">
+              {/* ── Services & Treatments ── */}
+              <section className="ivd-section ivd-area-items">
+                <div className="ivd-section-head">
+                  <h3 className="ivd-section-title">Services &amp; Treatments</h3>
+                  <span className="ivd-count">
+                    {serviceCount} service{serviceCount === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <div className="ivd-table-scroll">
+                  <table className="ivd-table ivd-items">
+                    <colgroup>
+                      <col className="ivd-col-idx" />
+                      <col />
+                      <col className="ivd-col-tooth" />
+                      <col className="ivd-col-qty" />
+                      <col className="ivd-col-money" />
+                      <col className="ivd-col-money" />
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th scope="col">#</th>
+                        <th scope="col">Service / Treatment</th>
+                        <th scope="col" className="c">Tooth</th>
+                        <th scope="col" className="r">Qty</th>
+                        <th scope="col" className="r">Rate</th>
+                        <th scope="col" className="r">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((item, idx) => {
+                        const t = lineItemTotals(item)
+                        return (
+                          <tr key={item.id || idx}>
+                            <td className="ivd-idx">{idx + 1}</td>
+                            <td>
+                              <span className="ivd-item-name">{item.name}</span>
+                              {(item.discount > 0 || item.gstRate > 0) && (
+                                <span className="ivd-item-meta">
+                                  {item.discount > 0 && <>Discount −{inr(item.discount)}</>}
+                                  {item.discount > 0 && item.gstRate > 0 && ' · '}
+                                  {item.gstRate > 0 && <>GST {item.gstRate}%</>}
+                                </span>
+                              )}
+                            </td>
+                            <td className="c">
+                              {item.toothNumber ? (
+                                <span className="ivd-tooth">{item.toothNumber}</span>
+                              ) : (
+                                <span className="ivd-muted">—</span>
+                              )}
+                            </td>
+                            <td className="r ivd-num">{item.qty || 1}</td>
+                            <td className="r ivd-num">{inr(item.unitPrice)}</td>
+                            <td className="r ivd-num ivd-strong">{inr(t.total)}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              {/* ── Payment History ── */}
+              <section className="ivd-section ivd-area-payments">
+                <div className="ivd-section-head">
+                  <h3 className="ivd-section-title">Payment History</h3>
+                  {paymentsList.length > 0 && (
+                    <span className="ivd-count">
+                      {paymentsList.length} transaction{paymentsList.length === 1 ? '' : 's'}
+                    </span>
+                  )}
+                </div>
+                {paymentsList.length > 0 ? (
+                  <div className="ivd-table-scroll">
+                    <table className="ivd-table ivd-payments">
+                      <thead>
+                        <tr>
+                          <th scope="col">Date</th>
+                          <th scope="col">Method</th>
+                          <th scope="col">Reference</th>
+                          <th scope="col" className="r">Amount</th>
+                          <th scope="col">Status</th>
+                          <th scope="col" className="r">
+                            <span className="ivd-sr">Actions</span>
+                          </th>
                         </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="bill-single-desc-card">
-                <p className="bill-single-desc-text">
-                  {invoice.description || 'General Dental Treatment'}
-                </p>
-                <strong className="bill-single-desc-amount">{inr(invoice.amount)}</strong>
-              </div>
-            )}
-          </div>
+                      </thead>
+                      <tbody>
+                        {paymentsList.map((p) => {
+                          const isRefund = p.amount < 0 || p.type === 'REFUND'
+                          const alreadyRefunded =
+                            !isRefund &&
+                            paymentsList.some(
+                              (other) =>
+                                (other.amount < 0 || other.type === 'REFUND') &&
+                                other.reference?.includes(p.id.slice(0, 8))
+                            )
+                          const ModeIcon =
+                            p.mode === 'Card' ? CreditCard : p.mode === 'UPI' ? Smartphone : Banknote
+                          const payState = isRefund ? 'refund' : alreadyRefunded ? 'refunded' : 'received'
+                          return (
+                            <tr key={p.id} className={isRefund ? 'is-refund' : undefined}>
+                              <td className="ivd-nowrap">{prettyDate(p.receivedAt)}</td>
+                              <td>
+                                <span className="ivd-method">
+                                  <ModeIcon size={13} />
+                                  {p.mode}
+                                </span>
+                              </td>
+                              <td className="ivd-ref" title={p.reference || p.id}>
+                                {p.reference || <span className="ivd-muted">—</span>}
+                              </td>
+                              <td className={`r ivd-num ivd-strong ${isRefund ? 'ivd-neg' : ''}`}>
+                                {isRefund ? `−${inr(Math.abs(p.amount))}` : inr(p.amount)}
+                              </td>
+                              <td>
+                                <span className={`ivd-paystate ivd-paystate-${payState}`}>
+                                  {payState === 'refund'
+                                    ? 'Refund'
+                                    : payState === 'refunded'
+                                      ? 'Refunded'
+                                      : 'Received'}
+                                </span>
+                              </td>
+                              <td className="r">
+                                {!isRefund && !alreadyRefunded && !isCancelled && canRefund && (
+                                  <button
+                                    type="button"
+                                    className="ivd-link-btn"
+                                    onClick={() => handleRefund(p)}
+                                    disabled={Boolean(refundingId)}
+                                    title="Refund payment"
+                                  >
+                                    <RotateCcw size={12} />
+                                    {refundingId === p.id ? 'Refunding...' : 'Refund'}
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="ivd-empty-hint">
+                    <span>No payment transactions recorded yet.</span>
+                  </div>
+                )}
+              </section>
 
-          {/* 4. FINANCIAL SUMMARY */}
-          <div className="bill-section">
-            <h3 className="bill-section-title">Financial Summary</h3>
-            <div className="bill-summary-card">
-              <div className="bill-summary-row">
-                <span className="bill-summary-label">Subtotal</span>
-                <span className="bill-summary-value">
-                  {inr(invoice.subtotal ?? invoice.amount)}
-                </span>
-              </div>
-              {invoice.discountTotal ? (
-                <div className="bill-summary-row bill-discount-row">
-                  <span className="bill-summary-label">Total Discount</span>
-                  <span className="bill-summary-value">−{inr(invoice.discountTotal)}</span>
-                </div>
-              ) : null}
-              {invoice.taxTotal ? (
-                <div className="bill-summary-row">
-                  <span className="bill-summary-label">Taxes / GST</span>
-                  <span className="bill-summary-value">{inr(invoice.taxTotal)}</span>
-                </div>
-              ) : null}
-              <div className="bill-summary-row bill-grand-total-row">
-                <strong className="bill-summary-label">Grand Total</strong>
-                <strong className="bill-grand-amount">{inr(invoice.amount)}</strong>
-              </div>
-              <div className="bill-summary-row bill-paid-row">
-                <span className="bill-summary-label">Amount Paid</span>
-                <span className="bill-paid-amount">{inr(invoicePaidAmount(invoice))}</span>
-              </div>
-
-              {/* Outstanding Balance Highlight Card */}
-              <div
-                className={`bill-balance-card ${
-                  isCancelled ? 'is-cancelled' : balance > 0 ? 'is-due' : 'is-settled'
-                }`}
-              >
-                <div className="bill-balance-card-left">
-                  <span className="bill-balance-card-label">
-                    {isCancelled
-                      ? 'Invoice Status'
-                      : balance > 0
-                      ? 'Outstanding Balance'
-                      : 'Payment Status'}
-                  </span>
-                  <span className="bill-balance-card-sub">
-                    {isCancelled
-                      ? 'Invoice cancelled · Further payments prohibited'
-                      : balance > 0
-                      ? 'Pending collection from patient'
-                      : 'Fully settled · No balance due'}
-                  </span>
-                </div>
-                <div className="bill-balance-card-right">
-                  <strong className="bill-balance-card-value">
-                    {isCancelled ? 'Cancelled' : inr(balance)}
-                  </strong>
-                </div>
-              </div>
+              {/* ── Notes (only when present) ── */}
+              {invoice.notes && invoice.notes.trim() && (
+                <section className="ivd-section ivd-area-notes">
+                  <h3 className="ivd-section-title">Notes</h3>
+                  <p className="ivd-notes">{invoice.notes}</p>
+                </section>
+              )}
             </div>
-          </div>
 
-          {/* 5. PAYMENT HISTORY */}
-          <div className="bill-section">
-            <div className="bill-section-head">
-              <h3 className="bill-section-title">Payment History</h3>
-              {paymentsList.length ? (
-                <span className="bill-items-count">
-                  {paymentsList.length} transaction
-                  {paymentsList.length > 1 ? 's' : ''}
-                </span>
-              ) : null}
-            </div>
-            {isPaid && (
-              <div className="bill-paid-info-note">
-                <RotateCcw size={13} />
-                <span>Fully paid invoice · If the patient needs a refund or reversal, use the <strong>Refund</strong> option below.</span>
+            {/* ── Financial Summary ── */}
+            <aside className="ivd-summary ivd-area-summary" aria-label="Financial summary">
+              <h3 className="ivd-section-title">Financial Summary</h3>
+              <dl className="ivd-sum-rows">
+                <div>
+                  <dt>Subtotal</dt>
+                  <dd>{inr(subtotal)}</dd>
+                </div>
+                <div>
+                  <dt>Discount</dt>
+                  <dd className={invoice.discountTotal ? 'ivd-neg' : 'ivd-muted'}>
+                    {invoice.discountTotal ? `−${inr(invoice.discountTotal)}` : '—'}
+                  </dd>
+                </div>
+                {invoice.taxTotal ? (
+                  <div>
+                    <dt>Tax (GST)</dt>
+                    <dd>{inr(invoice.taxTotal)}</dd>
+                  </div>
+                ) : null}
+              </dl>
+              <div className="ivd-grand">
+                <span>Grand Total</span>
+                <strong>{inr(invoice.amount)}</strong>
               </div>
-            )}
-            {paymentsList.length ? (
-              <div className="bill-payments-list">
-                {paymentsList.map((p) => {
-                  const isRefund = p.amount < 0 || p.type === 'REFUND'
-                  const alreadyRefunded =
-                    !isRefund &&
-                    paymentsList.some(
-                      (other) =>
-                        (other.amount < 0 || other.type === 'REFUND') &&
-                        other.reference?.includes(p.id.slice(0, 8))
-                    )
-                  const ModeIcon =
-                    p.mode === 'Card'
-                      ? CreditCard
-                      : p.mode === 'UPI'
-                      ? Smartphone
-                      : Banknote
-
-                  return (
-                    <div
-                      key={p.id}
-                      className={`bill-payment-item ${isRefund ? 'is-refund' : ''}`}
-                    >
-                      <div className="bill-payment-mode-icon">
-                        <ModeIcon size={16} />
-                      </div>
-                      <div className="bill-payment-details">
-                        <div className="bill-payment-title-row">
-                          <strong className="bill-payment-mode-text">{p.mode}</strong>
-                          {isRefund && <span className="bill-refund-badge">Refund</span>}
-                          <span
-                            className={`bill-payment-amt ${
-                              isRefund ? 'is-negative' : 'is-positive'
-                            }`}
-                          >
-                            {isRefund ? `−${inr(Math.abs(p.amount))}` : inr(p.amount)}
-                          </span>
-                        </div>
-                        <div className="bill-payment-meta-row">
-                          <span>{prettyDate(p.receivedAt)}</span>
-                          {p.reference && <span> · Ref: {p.reference}</span>}
-                          <span className="bill-payment-id"> · {p.id}</span>
-                        </div>
-                      </div>
-                      {!isRefund && !alreadyRefunded && !isCancelled && canRefund && (
-                        <button
-                          type="button"
-                          className="bill-refund-btn"
-                          onClick={() => handleRefund(p)}
-                          disabled={Boolean(refundingId)}
-                          title="Refund payment"
-                        >
-                          <RotateCcw size={12} />{' '}
-                          {refundingId === p.id ? 'Refunding...' : 'Refund'}
-                        </button>
-                      )}
-                    </div>
-                  )
-                })}
+              <dl className="ivd-sum-rows">
+                <div>
+                  <dt>Amount Paid</dt>
+                  <dd className={paidAmount > 0 ? 'ivd-pos' : undefined}>{inr(paidAmount)}</dd>
+                </div>
+              </dl>
+              <div className={`ivd-balance ivd-balance-${tone}`}>
+                <div className="ivd-balance-top">
+                  <span>{tone === 'cancelled' ? 'Balance' : 'Outstanding Balance'}</span>
+                  <strong>{isCancelled ? 'Cancelled' : inr(balance)}</strong>
+                </div>
+                {!isCancelled && invoice.amount > 0 && (
+                  <div
+                    className="ivd-progress"
+                    role="progressbar"
+                    aria-label="Amount collected"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={paidPercent}
+                  >
+                    <span style={{ width: `${paidPercent}%` }} />
+                  </div>
+                )}
+                <small>
+                  {tone === 'cancelled'
+                    ? 'No further payments can be collected.'
+                    : tone === 'paid'
+                      ? 'Fully settled — nothing due.'
+                      : tone === 'partial'
+                        ? `${paidPercent}% collected · ${inr(balance)} pending`
+                        : 'Awaiting payment at the billing counter.'}
+                </small>
               </div>
-            ) : (
-              <div className="bill-payments-empty">
-                <FileText size={26} className="bill-payments-empty-icon" />
-                <p className="bill-payments-empty-title">No payments recorded yet</p>
-                <p className="bill-payments-empty-desc">
-                  {balance > 0
-                    ? 'Payment has not been received. Use the Collect button below to record a transaction.'
-                    : 'This invoice has no payment transactions attached.'}
-                </p>
-              </div>
-            )}
-            {invoice.notes && (
-              <div className="bill-notes-box">
-                <span className="bill-notes-label">Notes:</span>
-                <span className="bill-notes-text">{invoice.notes}</span>
-              </div>
-            )}
+            </aside>
           </div>
         </div>
 
         {error && (
-          <div className="bill-error-banner" role="alert">
+          <div className="bill-error-banner ivd-error" role="alert">
             {error}
           </div>
         )}
 
-        {/* 6. FOOTER ACTIONS */}
-        <footer className="bill-drawer-footer">
-          <div className="bill-drawer-footer-left">
+        {/* ── Actions ── */}
+        <footer className="bill-drawer-footer ivd-footer">
+          <div className="ivd-footer-group">
             <button
               type="button"
-              className="bill-action-btn bill-action-btn-secondary"
+              className="ivd-btn ivd-btn-secondary"
               onClick={() => printInvoice(invoice, patient)}
               disabled={isVoiding}
               title="Print or export PDF invoice"
             >
               <Printer size={15} /> Print / PDF
             </button>
+            {canRefund && unrefundedPayments.length > 0 && !isCancelled && (
+              <button
+                type="button"
+                className="ivd-btn ivd-btn-secondary"
+                onClick={() => handleRefund(unrefundedPayments[0])}
+                disabled={Boolean(refundingId)}
+                title="Refund payment"
+              >
+                <RotateCcw size={14} /> {refundingId ? 'Refunding...' : 'Refund'}
+              </button>
+            )}
             {canBeCancelled && (
               <button
                 type="button"
-                className="bill-action-btn bill-action-btn-danger"
+                className="ivd-btn ivd-btn-danger"
                 onClick={() => setCancelling(true)}
                 disabled={isVoiding}
                 title="Cancel this invoice with audit reason"
@@ -1164,7 +1216,7 @@ export const InvoiceDrawer: React.FC<{
             {canCancel && isCancelled && (
               <button
                 type="button"
-                className="bill-action-btn bill-action-btn-danger"
+                className="ivd-btn ivd-btn-danger"
                 onClick={handleRemoveInvoice}
                 disabled={isRemoving}
                 title="Permanently remove this cancelled invoice"
@@ -1172,30 +1224,15 @@ export const InvoiceDrawer: React.FC<{
                 <Trash2 size={15} /> {isRemoving ? 'Removing...' : 'Remove Invoice'}
               </button>
             )}
-            {canRefund && unrefundedPayments.length > 0 && !isCancelled && (
-              <button
-                type="button"
-                className="bill-action-btn bill-action-btn-secondary"
-                onClick={() => handleRefund(unrefundedPayments[0])}
-                disabled={Boolean(refundingId)}
-                title="Refund payment"
-              >
-                <RotateCcw size={14} /> {refundingId ? 'Refunding...' : 'Refund'}
-              </button>
-            )}
           </div>
-          <div className="bill-drawer-footer-right">
-            <button
-              type="button"
-              className="bill-action-btn bill-action-btn-secondary"
-              onClick={onClose}
-            >
+          <div className="ivd-footer-group ivd-footer-primary">
+            <button type="button" className="ivd-btn ivd-btn-secondary" onClick={onClose}>
               Close
             </button>
             {canCollect && balance > 0 && !isCancelled && (
               <button
                 type="button"
-                className="bill-action-btn bill-action-btn-primary"
+                className="ivd-btn ivd-btn-primary"
                 onClick={() => setPaying(true)}
                 disabled={isVoiding}
               >
@@ -1218,7 +1255,7 @@ export const InvoiceDrawer: React.FC<{
           invoice={invoice}
           patientName={patient ? `${patient.firstName} ${patient.lastName}` : 'Patient'}
           onClose={() => setPaying(false)}
-          onDone={(updated) => {
+          onDone={() => {
             setPaying(false)
             if (onDone) onDone()
           }}

@@ -28,10 +28,15 @@ import {
 } from '@/services/clinicStore'
 import { autoGenerateInvoiceForConsultation } from '@/services/billingAutoInvoice'
 import { InvoiceDrawer } from '@/pages/billing/BillingShared'
+import {
+  InvoiceSuccessToast,
+  type InvoiceSuccessToastData,
+} from '@/components/shared/InvoiceSuccessToast'
 
 export const LiveQueuePage: React.FC = () => {
   const { appointments, patients } = useClinicData()
   const [activeInvoice, setActiveInvoice] = useState<InvoiceRecord | null>(null)
+  const [invoiceToast, setInvoiceToast] = useState<InvoiceSuccessToastData | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [walkInForm, setWalkInForm] = useState({
     patientName: '',
@@ -70,7 +75,10 @@ export const LiveQueuePage: React.FC = () => {
       patientId: appt.patientId,
     })
     if (result.invoice) {
-      setActiveInvoice(result.invoice)
+      setInvoiceToast({
+        invoiceNumber: result.invoice.id,
+        amount: result.invoice.amount,
+      })
     }
   }
 
@@ -519,6 +527,12 @@ export const LiveQueuePage: React.FC = () => {
           onDone={() => setActiveInvoice(null)}
         />
       )}
+
+      {/* Invoice Generated Success Toast */}
+      <InvoiceSuccessToast
+        toast={invoiceToast}
+        onClose={() => setInvoiceToast(null)}
+      />
     </div>
   )
 }

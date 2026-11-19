@@ -46,6 +46,10 @@ import {
 } from '@/services/clinicStore'
 import { autoGenerateInvoiceForConsultation } from '@/services/billingAutoInvoice'
 import { InvoiceDrawer } from '@/pages/billing/BillingShared'
+import {
+  InvoiceSuccessToast,
+  type InvoiceSuccessToastData,
+} from '@/components/shared/InvoiceSuccessToast'
 
 type CalendarViewMode = 'day' | 'week' | 'dentist'
 
@@ -53,6 +57,7 @@ export const CalendarPage: React.FC = () => {
   const navigate = useNavigate()
   const { appointments, patients } = useClinicData()
   const [activeInvoice, setActiveInvoice] = useState<InvoiceRecord | null>(null)
+  const [invoiceToast, setInvoiceToast] = useState<InvoiceSuccessToastData | null>(null)
 
   // Selected date
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -226,7 +231,10 @@ export const CalendarPage: React.FC = () => {
         patientId: appt.patientId,
       })
       if (res.invoice) {
-        setActiveInvoice(res.invoice)
+        setInvoiceToast({
+          invoiceNumber: res.invoice.id,
+          amount: res.invoice.amount,
+        })
       }
     }
   }
@@ -1297,7 +1305,10 @@ export const CalendarPage: React.FC = () => {
                         patientId: activeAppt.patientId,
                       })
                       if (res.invoice) {
-                        setActiveInvoice(res.invoice)
+                        setInvoiceToast({
+                          invoiceNumber: res.invoice.id,
+                          amount: res.invoice.amount,
+                        })
                       }
                     }
                   }}
@@ -1369,7 +1380,10 @@ export const CalendarPage: React.FC = () => {
                       patientId: activeAppt.patientId,
                     })
                     if (res.invoice) {
-                      setActiveInvoice(res.invoice)
+                      setInvoiceToast({
+                        invoiceNumber: res.invoice.id,
+                        amount: res.invoice.amount,
+                      })
                     }
                   }}
                   title="Finalize consultation and preview invoice"
@@ -1679,6 +1693,12 @@ export const CalendarPage: React.FC = () => {
           onDone={() => setActiveInvoice(null)}
         />
       )}
+
+      {/* Invoice Generated Success Toast */}
+      <InvoiceSuccessToast
+        toast={invoiceToast}
+        onClose={() => setInvoiceToast(null)}
+      />
     </div>
   )
 }
