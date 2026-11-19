@@ -84,7 +84,7 @@ export interface AppointmentRecord {
   rescheduleHistory?: RescheduleRecord[]
   statusHistory?: StatusHistoryRecord[]
   remindersSent?: {
-    type: 'confirmation' | '24h' | '2h' | 'whatsapp'
+    type: 'confirmation' | '24h' | '2h' | 'whatsapp' | 'call_in'
     sentAt: string
     recipient: string
   }[]
@@ -2202,19 +2202,35 @@ export const registerWalkIn = (data: {
 // 4. REMINDERS & WHATSAPP
 // ─────────────────────────────────────────────────────────────────────────────
 
+const resolveActiveClinicName = (): string => {
+  try {
+    const rawUser =
+      (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('docmatrix_auth_user')) ||
+      (typeof localStorage !== 'undefined' && localStorage.getItem('docmatrix_auth_user'))
+    if (rawUser) {
+      const parsed = JSON.parse(rawUser)
+      if (parsed?.clinicName) return parsed.clinicName
+      if (parsed?.clinic?.name) return parsed.clinic.name
+    }
+  } catch { /* fallback to default */ }
+  return CLINIC_CONFIG.clinicName
+}
+
 export const generateWhatsAppMessage = (
-  type: 'confirmation' | 'reminder_24h' | 'reminder_2h' | 'recall',
+  type: 'confirmation' | 'reminder_24h' | 'reminder_2h' | 'recall' | 'call_in',
   appointment: AppointmentRecord,
   patient: PatientRecord
 ): string => {
-  const patientName = `${patient.firstName} ${patient.lastName}`.trim()
-  const clinic = CLINIC_CONFIG.clinicName
+  const patientName = `${patient.firstName} ${patient.lastName}`.trim() || 'Patient'
+  const clinic = resolveActiveClinicName()
   const date = appointment.date
   const time = appointment.time
   const doctor = appointment.doctor
   const treatment = appointment.treatmentType || appointment.visitType
 
-  if (type === 'confirmation') {
+  if (type === 'call_in') {
+    return `Hello ${patientName}, your turn has arrived at ${clinic}. The doctor is ready to see you. Please proceed to the consultation room. Thank you!`
+  } else if (type === 'confirmation') {
     return `Hello ${patientName}, your appointment at *${clinic}* is CONFIRMED!\n\n📅 Date: ${date}\n⏰ Time: ${time}\n👨‍⚕️ Doctor: ${doctor}\n🦷 Treatment: ${treatment}\n📍 Address: ${CLINIC_CONFIG.clinicAddress}\n\nTo reschedule or reply, send us a message here. See you soon!`
   } else if (type === 'reminder_24h') {
     return `Reminder from *${clinic}*: Hello ${patientName}, you have an appointment scheduled for TOMORROW (${date}) at ${time} with ${doctor}.\n\nPlease arrive 10 minutes prior. Reply 'CONFIRM' or message us if you need to reschedule.`
@@ -2227,7 +2243,7 @@ export const generateWhatsAppMessage = (
 
 export const sendAppointmentReminder = (
   appointmentId: string,
-  type: 'confirmation' | '24h' | '2h' | 'whatsapp'
+  type: 'confirmation' | '24h' | '2h' | 'whatsapp' | 'call_in'
 ) => {
   const appt = findAppointment(appointmentsState, appointmentId)
   if (!appt) return
