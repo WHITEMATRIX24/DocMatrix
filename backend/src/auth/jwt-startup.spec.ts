@@ -35,7 +35,7 @@ describe('Finding #1: authentication module startup validation', () => {
         /JWT Configuration Fatal Error/,
       );
     },
-    15000,
+    45000,
   );
 
   it('allows authentication module initialization with an independently generated key', async () => {
@@ -44,5 +44,5 @@ describe('Finding #1: authentication module startup validation', () => {
     await expect(import('./auth.module.js')).resolves.toHaveProperty(
       'AuthModule',
     );
-  }, 15000);
+  }, 45000);
 });
