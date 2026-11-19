@@ -42,6 +42,7 @@ interface SearchableSelectProps {
   disabled?: boolean;
   hasError?: boolean;
   ariaLabel?: string;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -52,12 +53,17 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   disabled = false,
   hasError = false,
   ariaLabel,
+  onOpenChange,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    onOpenChange?.(isOpen);
+  }, [isOpen, onOpenChange]);
 
   const selectedOption = useMemo(
     () => options.find((opt) => opt.value === value),
@@ -703,6 +709,9 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmFinalizeOpen, setConfirmFinalizeOpen] = useState(false);
+  const [patientDropdownOpen, setPatientDropdownOpen] = useState(false);
+  const [consultTypeDropdownOpen, setConsultTypeDropdownOpen] = useState(false);
+  const isConsultationSectionActive = patientDropdownOpen || consultTypeDropdownOpen;
 
   // Master procedure autocomplete / combobox state
   const { services: billingServices = [] } = useBillingData();
@@ -1177,7 +1186,10 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
       )}
 
       {/* Section 1: Consultation Details */}
-      <section className="cn-form-section">
+      <section
+        className={`cn-form-section cn-form-section-consultation ${isConsultationSectionActive ? 'is-dropdown-active' : ''}`}
+        style={{ zIndex: isConsultationSectionActive ? 120 : undefined }}
+      >
         <h3 className="cn-form-section-title">
           <Clock /> 1. Consultation Information
         </h3>
@@ -1201,6 +1213,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
               disabled={Boolean(initialNote?.isFinalized)}
               hasError={Boolean(validationErrors.patient)}
               ariaLabel="Patient"
+              onOpenChange={setPatientDropdownOpen}
             />
             {validationErrors.patient && (
               <div className="cn-field-error">{validationErrors.patient}</div>
@@ -1238,6 +1251,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
               placeholder="Search or select consultation type..."
               disabled={Boolean(initialNote?.isFinalized)}
               ariaLabel="Consultation Type"
+              onOpenChange={setConsultTypeDropdownOpen}
             />
           </div>
         </div>
@@ -2008,8 +2022,9 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
                   className="cn-cat-back-btn"
                   onClick={() => setIsProcedureCatalogueOpen(false)}
                   aria-label="Back to clinical note"
+                  title="Back to clinical note"
                 >
-                  <ArrowLeft size={16} /> Back to Note
+                  <ArrowLeft size={16} />
                 </button>
                 <div>
                   <h2 id="proc-catalogue-heading" className="cn-cat-title">
