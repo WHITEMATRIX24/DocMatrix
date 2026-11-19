@@ -10,14 +10,14 @@ export const LEGACY_STORAGE_KEY = 'docmatrix-theme'
  */
 export function getSystemTheme() {
   if (typeof window !== 'undefined' && window.matchMedia) {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
   }
-  return 'light'
+  return 'dark'
 }
 
 /**
- * Returns stored user preference ('system' | 'dark' | 'light').
- * Defaults to 'system' so OS dark / bright mode is respected everywhere.
+ * Returns stored user preference ('dark' | 'light' | 'system').
+ * Defaults to 'dark'.
  */
 export function getThemePreference() {
   try {
@@ -27,24 +27,25 @@ export function getThemePreference() {
     }
     // Backward compatibility: if old key is explicitly set and new key is not
     const legacy = localStorage.getItem(LEGACY_STORAGE_KEY)
-    if (legacy === 'dark') {
-      return 'dark'
+    if (legacy === 'dark' || legacy === 'light') {
+      return legacy
     }
-    return 'system'
+    return 'dark'
   } catch {
-    return 'system'
+    return 'dark'
   }
 }
 
 /**
  * Returns the effective active theme applied to document ('dark' | 'light').
+ * Defaults to 'dark'.
  */
 export function getStoredTheme() {
   const pref = getThemePreference()
   if (pref === 'system') {
     return getSystemTheme()
   }
-  return pref
+  return pref || 'dark'
 }
 
 /**
@@ -58,15 +59,18 @@ export function isSystemTheme() {
  * Apply theme to document element and notify listeners.
  */
 export function applyTheme(prefOrTheme, save = true) {
-  let effectiveTheme = 'light'
-  let preferenceToSave = prefOrTheme || 'system'
+  let effectiveTheme = 'dark'
+  let preferenceToSave = prefOrTheme || 'dark'
 
-  if (prefOrTheme === 'system' || !prefOrTheme) {
+  if (prefOrTheme === 'system') {
     effectiveTheme = getSystemTheme()
     preferenceToSave = 'system'
   } else if (prefOrTheme === 'dark' || prefOrTheme === 'light') {
     effectiveTheme = prefOrTheme
     preferenceToSave = prefOrTheme
+  } else if (!prefOrTheme) {
+    effectiveTheme = 'dark'
+    preferenceToSave = 'dark'
   }
 
   if (typeof document !== 'undefined') {
