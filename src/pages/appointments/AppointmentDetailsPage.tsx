@@ -76,7 +76,7 @@ export const AppointmentDetailsPage: React.FC = () => {
     setRescheduleSuccess('')
   }
 
-  const handleConfirmReschedule = (e: React.FormEvent) => {
+  const handleConfirmReschedule = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!rescheduleAppt) return
     setRescheduleError('')
@@ -99,6 +99,8 @@ export const AppointmentDetailsPage: React.FC = () => {
       rescheduleTime,
       rescheduleReason || 'Patient requested new time slot.'
     )
+
+    try { await result._syncPromise } catch (error: any) { setRescheduleError(error.message || 'Reschedule was not saved.'); return }
 
     if (!result.success) {
       setRescheduleError(result.error || 'Conflict detected. Please choose another time slot.')

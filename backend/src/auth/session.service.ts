@@ -1,3 +1,4 @@
+import { SESSION_ABSOLUTE_MS, sessionExpired } from './session.policy.js';
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import crypto, { randomUUID } from 'crypto';
 import type { UserSession } from '@prisma/client';
@@ -14,7 +15,7 @@ export class SessionService {
 
   /**
    * Hashes a raw refresh token using SHA-256.
-   * Plaintext tokens are never stored in the database, file logs, or memory.
+   * Plaintext refresh tokens are never persisted or logged.
    */
   public static hashToken(rawToken: string): string {
     return crypto.createHash('sha256').update(rawToken).digest('hex');
@@ -93,6 +94,7 @@ export class SessionService {
       });
 
       if (session) {
+        if (session.previousTokenHashes.length >= 2048) throw new UnauthorizedException('Session rotation limit reached. Sign in again.');
         if (session.isRevoked) {
           throw new UnauthorizedException(
             session.revocationReason
@@ -101,24 +103,33 @@ export class SessionService {
           );
         }
 
-        if (session.expiresAt.getTime() <= now.getTime()) {
+        if (sessionExpired(session, now.getTime())) {
           throw new UnauthorizedException('Refresh token has expired. Please log in again.');
         }
 
-        // Atomically rotate: archive current tokenHash and set newTokenHash
-        const updated = await tx.userSession.update({
-          where: { id: session.id },
+        // The hash, expiry and revocation predicates are rechecked by PostgreSQL
+        // when the write acquires the row lock, including across backend instances.
+        const rotated = await tx.userSession.updateMany({
+          where: { id: session.id, tokenHash: incomingHash, isRevoked: false, expiresAt: { gt: now } },
           data: {
             tokenHash: newTokenHash,
-            previousTokenHashes: { push: session.tokenHash },
+            previousTokenHashes: { push: incomingHash },
             lastActiveAt: now,
-            expiresAt,
+            expiresAt: new Date(Math.min(expiresAt.getTime(), session.createdAt.getTime() + SESSION_ABSOLUTE_MS)),
             userAgent: meta?.userAgent || session.userAgent,
             ipAddress: meta?.ipAddress || session.ipAddress,
           },
         });
 
-        return { session: updated, newRefreshToken: newRawRefreshToken };
+        if (rotated.count === 1) {
+          const updated = await tx.userSession.findUnique({ where: { id: session.id } });
+          if (!updated || updated.isRevoked || updated.tokenHash !== newTokenHash) {
+            throw new UnauthorizedException('Session changed during refresh. Please log in again.');
+          }
+          return { session: updated, newRefreshToken: newRawRefreshToken };
+        }
+        // A concurrent rotation or logout won. Never overwrite its result.
+        // Reuse detection below preserves the existing family-revocation policy.
       }
 
       // 2. Token Reuse Detection: Search if incoming token was previously rotated
@@ -165,13 +176,17 @@ export class SessionService {
 
     const session = await this.prisma.userSession.findUnique({
       where: { id: sessionId },
-      select: { id: true, userId: true, isRevoked: true, expiresAt: true },
+      select: { id: true, userId: true, isRevoked: true, expiresAt: true, createdAt: true, lastActiveAt: true },
     });
 
     if (!session) return false;
     if (session.userId !== userId) return false;
     if (session.isRevoked) return false;
-    if (session.expiresAt.getTime() <= Date.now()) return false;
+    if (sessionExpired(session)) return false;
+    if (!session.lastActiveAt || Date.now() - session.lastActiveAt.getTime() > 60000) {
+      const touched = await this.prisma.userSession.updateMany({ where: { id: sessionId, userId, isRevoked: false, expiresAt: { gt: new Date() } }, data: { lastActiveAt: new Date() } });
+      if (touched.count !== 1) return false;
+    }
 
     return true;
   }
@@ -192,6 +207,15 @@ export class SessionService {
     } catch {
       return false;
     }
+  }
+
+  /** Revoke only the session owned by the verified access-token subject. */
+  async revokeOwnedSession(sessionId: string, userId: string): Promise<boolean> {
+    const result = await this.prisma.userSession.updateMany({
+      where: { id: sessionId, userId, isRevoked: false },
+      data: { isRevoked: true, revocationReason: 'User logged out' },
+    });
+    return result.count === 1;
   }
 
   /**

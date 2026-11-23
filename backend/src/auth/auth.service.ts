@@ -1,3 +1,7 @@
+import { MfaService, authScope } from './mfa.service.js';
+import { assertNewPassword } from './password.policy.js';
+import { isVerifiedPractitioner } from '../common/practitioner.policy.js';
+import { JWT_ALGORITHM } from '../common/config/jwt.config.js';
 import { assertClinicStatus } from '../common/clinic-status.policy.js';
 import { Injectable, UnauthorizedException, ForbiddenException, ConflictException, BadRequestException, Inject, Optional } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -22,6 +26,7 @@ export class AuthService {
     @Inject(SessionService) private sessionService: SessionService,
     @Optional() @Inject(RateLimiterService) private rateLimiter?: RateLimiterService,
     @Optional() @Inject(AuditLogService) private auditLog?: AuditLogService,
+    @Optional() @Inject(MfaService) private mfa?: MfaService,
   ) {}
 
   private logSecurityEvent(
@@ -41,6 +46,7 @@ export class AuthService {
         actorRole,
         description,
         severity,
+        outcome: action.includes('FAILED') ? 'FAILURE' : action.includes('DENIED') ? 'BLOCKED' : 'SUCCESS',
       });
       return;
     }
@@ -63,6 +69,7 @@ export class AuthService {
         actorRole,
         description,
         severity,
+        outcome: action.includes('FAILED') ? 'FAILURE' : action.includes('DENIED') ? 'BLOCKED' : 'SUCCESS',
       });
       fs.writeFileSync(file, JSON.stringify(logs.slice(0, 100), null, 2), 'utf-8');
     } catch {}
@@ -126,6 +133,13 @@ export class AuthService {
       throw new ForbiddenException('Platform administrator access is required.');
     }
 
+    if (user.mfaEnabled) {
+      if (!loginDto.code || !this.mfa) throw new UnauthorizedException('Enter your authenticator or recovery code.');
+      try { await this.mfa.verify(user.id, loginDto.code); } catch (error) {
+        await this.rateLimiter?.recordFailedLogin(meta?.ipAddress || '127.0.0.1', loginDto.email);
+        throw error;
+      }
+    }
     if (this.rateLimiter) {
       await this.rateLimiter.recordSuccessfulLogin(meta?.ipAddress || '127.0.0.1', loginDto.email);
     }
@@ -139,7 +153,9 @@ export class AuthService {
       meta,
     );
 
+    if (user.mfaEnabled && loginDto.code) await this.prisma.userSession.update({ where: { id: session.id }, data: { mfaVerifiedAt: new Date() } });
     const payload = {
+      scope: authScope(user),
       sub: user.id,
       sessionId: session.id,
       email: user.email,
@@ -174,11 +190,14 @@ export class AuthService {
         clinicName: user.clinic?.name,
         isPlatformAdmin: user.isPlatformAdmin,
         isPrimaryContact: user.isPrimaryContact,
+        accountSetupRequired: authScope(user) !== 'full', mfaEnabled: !!user.mfaEnabled, emailVerified: !!user.emailVerifiedAt,
+        canPractice: isVerifiedPractitioner(user),
       },
     };
   }
 
   async registerClinic(dto: RegisterClinicDto, meta?: { userAgent?: string; ipAddress?: string }) {
+    assertNewPassword(dto.password);
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email.toLowerCase().trim() },
     });
@@ -238,6 +257,7 @@ export class AuthService {
     );
 
     const payload = {
+      scope: authScope(result.user),
       sub: result.user.id,
       sessionId: session.id,
       email: result.user.email,
@@ -269,7 +289,7 @@ export class AuthService {
         clinicId: result.clinic.id,
         clinicName: result.clinic.name,
         isPlatformAdmin: false,
-        isPrimaryContact: true,
+        isPrimaryContact: true, accountSetupRequired: authScope(result.user) !== 'full', mfaEnabled: false, emailVerified: false,
       },
     };
   }
@@ -307,17 +327,8 @@ export class AuthService {
 
     if (user.clinicId) assertClinicStatus(user.clinic?.status, user);
 
-    const payload = {
-      sub: user.id,
-      sessionId: session.id,
-      email: user.email,
-      role: user.role,
-      clinicId: user.clinicId,
-      isPlatformAdmin: user.isPlatformAdmin,
-    };
-
+    const payload = { scope: authScope(user), sub: user.id, sessionId: session.id, email: user.email, role: user.role, clinicId: user.clinicId, isPlatformAdmin: user.isPlatformAdmin };
     const token = this.jwtService.sign(payload);
-
     if (user.clinicId) {
       this.logSecurityEvent(
         user.clinicId,
@@ -342,29 +353,33 @@ export class AuthService {
         clinicName: user.clinic?.name,
         isPlatformAdmin: user.isPlatformAdmin,
         isPrimaryContact: user.isPrimaryContact,
+        accountSetupRequired: authScope(user) !== 'full', mfaEnabled: !!user.mfaEnabled, emailVerified: !!user.emailVerifiedAt,
+        canPractice: isVerifiedPractitioner(user),
       },
     };
   }
 
   async logout(authHeader?: string, rawRefreshToken?: string) {
-    let sessionRevoked = false;
-
-    // 1. Revoke by bearer token sessionId if present
-    if (authHeader && authHeader.startsWith('Bearer ')) {
+    // Logout remains idempotent, but unverified claims must never select a session.
+    if (authHeader?.startsWith('Bearer ')) {
+      let payload: { sub?: unknown; sessionId?: unknown } | undefined;
       try {
-        const token = authHeader.slice(7).trim();
-        const decoded: any = this.jwtService.decode(token);
-        if (decoded?.sessionId) {
-          await this.sessionService.revokeSession(decoded.sessionId, 'User logged out');
-          sessionRevoked = true;
-        }
-      } catch {}
+        payload = await this.jwtService.verifyAsync(authHeader.slice(7).trim(), {
+          algorithms: [JWT_ALGORITHM],
+          // A signed, expired access token may still identify its own session for logout.
+          ignoreExpiration: true,
+        });
+      } catch {
+        // An invalid bearer must not prevent revocation through a valid refresh cookie.
+      }
+      if (typeof payload?.sub === 'string' && payload.sub.trim() &&
+          typeof payload.sessionId === 'string' && payload.sessionId.trim()) {
+        await this.sessionService.revokeOwnedSession(payload.sessionId, payload.sub);
+      }
     }
 
-    // 2. Revoke by refresh token if present
     if (rawRefreshToken) {
-      const revoked = await this.sessionService.revokeSessionByRefreshToken(rawRefreshToken, 'User logged out');
-      if (revoked) sessionRevoked = true;
+      await this.sessionService.revokeSessionByRefreshToken(rawRefreshToken, 'User logged out');
     }
 
     return {
@@ -408,6 +423,8 @@ export class AuthService {
       clinic: user.clinic,
       isPlatformAdmin: user.isPlatformAdmin,
       isPrimaryContact: user.isPrimaryContact,
+        canPractice: isVerifiedPractitioner(user),
+      accountSetupRequired: authScope(user) !== 'full', mfaEnabled: !!user.mfaEnabled, emailVerified: !!user.emailVerifiedAt,
       isActive: user.isActive,
     };
   }
@@ -426,9 +443,7 @@ export class AuthService {
       throw new BadRequestException('Current password is incorrect.');
     }
 
-    if (newPassword.length < 8) {
-      throw new BadRequestException('New password must be at least 8 characters long.');
-    }
+    assertNewPassword(newPassword);
 
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(newPassword, salt);

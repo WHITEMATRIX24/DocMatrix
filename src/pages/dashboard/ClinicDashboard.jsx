@@ -1,16 +1,14 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useEffect, useState } from 'react'
 import {
   ArrowUpRight, ArrowRight, Plus, UserPlus, ChevronRight, Armchair, Clock, CircleAlert, CheckCircle2
 } from 'lucide-react'
+import { apiClient, getStoredToken } from '@/services/apiClient'
 import { invoiceBalance, useClinicData } from '@/services/clinicStore'
 
-const HOURS = ['9 AM', '10 AM', '11 AM', '12 PM', '1 PM', '2 PM', '3 PM', '4 PM', '5 PM']
-const NOW_INDEX = 5
 
 const CHAIR_TONES = { occupied: 'teal', waiting: 'amber', sanitizing: 'violet', ready: 'green' }
 
-function greetingFor(date) {
-  const hour = date.getHours()
+function greetingFor(hour) {
   if (hour < 12) return 'Good morning'
   if (hour < 17) return 'Good afternoon'
   return 'Good evening'
@@ -44,14 +42,22 @@ function Ruler({ value = 0 }) {
 
 export default function ClinicDashboard({ currentUser, navigateTo }) {
   const { patients = [], appointments = [], invoices = [] } = useClinicData()
-  const now = new Date()
-  const dateLabel = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })
-
-  const todayStr = useMemo(() => {
-    const d = new Date()
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
-    return d.toISOString().slice(0, 10)
-  }, [])
+  const [now, setNow] = useState(() => new Date())
+  const [profile, setProfile] = useState(null)
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000)
+    let mounted = true
+    if (getStoredToken()) apiClient.get('/clinics/my-clinic').then(data => { if (mounted) setProfile(data) }).catch(() => {})
+    return () => { mounted = false; clearInterval(timer) }
+  }, [currentUser?.clinicId])
+  const timezone = profile?.timezone || 'Asia/Kolkata'
+  const dateLabel = now.toLocaleDateString('en-IN', { timeZone: timezone, weekday: 'long', day: 'numeric', month: 'long' })
+  const dateParts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(now).map(p => [p.type, p.value]))
+  const todayStr = `${dateParts.year}-${dateParts.month}-${dateParts.day}`
+  const currentHour = Number(dateParts.hour)
+  const hourNumbers = Array.from({ length: 24 }, (_, hour) => hour)
+  const HOURS = hourNumbers.map(hour => `${hour % 12 || 12} ${hour < 12 ? 'AM' : 'PM'}`)
+  const NOW_INDEX = currentHour
 
   // Real Appointments Scheduled for Today
   const todayAppts = useMemo(() => {
@@ -116,17 +122,12 @@ export default function ClinicDashboard({ currentUser, navigateTo }) {
 
   // Real 4 Operatory Chairs Monitor
   const operatoryChairs = useMemo(() => {
-    const suites = [
-      { id: 'chair-1', operatory: 'Operatory 1 • Endodontics Suite', name: 'Chair 1' },
-      { id: 'chair-2', operatory: 'Operatory 2 • Orthodontics Suite', name: 'Chair 2' },
-      { id: 'chair-3', operatory: 'Operatory 3 • Oral Surgery Suite', name: 'Chair 3' },
-      { id: 'chair-4', operatory: 'Operatory 4 • Preventive Care Suite', name: 'Chair 4' }
-    ]
+    const suites = [...new Set(appointments.map(a => a.chair).filter(Boolean))].sort().map(name => ({ id: name, name, operatory: name }))
 
     return suites.map((s, idx) => {
       // Find appointment currently in this chair
       const activeAppt = todayAppts.find((a) => {
-        const chairMatch = a.chair === s.name || a.chair === `Chair ${idx + 1}`
+        const chairMatch = a.chair === s.name
         return chairMatch && (a.status === 'in-progress' || a.status === 'checked-in')
       })
 
@@ -158,21 +159,21 @@ export default function ClinicDashboard({ currentUser, navigateTo }) {
         elapsed: 'Vacant'
       }
     })
-  }, [todayAppts, patients])
+  }, [todayAppts, patients, appointments])
 
   const activeChairCount = operatoryChairs.filter((c) => c.type === 'occupied' || c.type === 'waiting').length
 
   // Real Hourly Activity Distribution
   const { bookedPerHour, completedPerHour, chartMax } = useMemo(() => {
-    const booked = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-    const completed = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+    const booked = Array(24).fill(0)
+    const completed = Array(24).fill(0)
 
     for (const a of todayAppts) {
       if (!a.time) continue
       const hour = parseInt(a.time.split(':')[0], 10)
       // 9 AM is index 0, 10 AM is 1 ... 5 PM (17) is 8
-      const idx = hour - 9
-      if (idx >= 0 && idx < 9) {
+      const idx = hour
+      if (idx >= 0 && idx < 24) {
         booked[idx]++
         if (a.status === 'completed') {
           completed[idx]++
@@ -214,11 +215,11 @@ export default function ClinicDashboard({ currentUser, navigateTo }) {
             <span>{dateLabel}</span>
           </div>
           <h1>
-            {greetingFor(now)}, <strong>{shortName(currentUser.name || currentUser.fullName)}</strong>
+            {greetingFor(currentHour)}, <strong>{shortName(currentUser.name || currentUser.fullName)}</strong>
           </h1>
           <p>
             {currentUser.clinicName || 'Your clinic'} has <strong>{todayAppts.length} patient{todayAppts.length === 1 ? '' : 's'}</strong> booked today,{' '}
-            <strong>{activeChairCount} of 4 chairs</strong> in use.
+            <strong>{activeChairCount} chairs</strong> with active appointments.
           </p>
         </div>
         <div className="dmx-hero-actions">
@@ -281,7 +282,7 @@ export default function ClinicDashboard({ currentUser, navigateTo }) {
 
           <div className="dmx-chart" role="img" aria-label={`${todayAppts.length} appointments booked today, ${completedToday.length} completed`}>
             <div className="dmx-chart-grid" aria-hidden="true">
-              {[4, 3, 2, 1, 0].map((n) => <span key={n} data-label={n} />)}
+              {[4, 3, 2, 1, 0].map((n) => <span key={n} data-label={Math.round(chartMax * n / 4)} />)}
             </div>
             <div className="dmx-chart-bars">
               {HOURS.map((hour, i) => {
@@ -317,11 +318,12 @@ export default function ClinicDashboard({ currentUser, navigateTo }) {
           <div className="dmx-card-head">
             <div>
               <h2>Chairs right now</h2>
-              <p>Live operatory status</p>
+              <p>Based on appointment status and assigned chairs</p>
             </div>
             <span className="dmx-pill dmx-pill-live"><span className="dmx-live-dot" /> Live</span>
           </div>
           <ul className="dmx-chair-list">
+            {operatoryChairs.length === 0 && <li>No chair assignments recorded.</li>}
             {operatoryChairs.map((chair, i) => {
               const [room, specialty] = chair.operatory.split(' • ')
               return (

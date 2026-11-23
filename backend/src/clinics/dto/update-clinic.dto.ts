@@ -1,5 +1,12 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsIn } from 'class-validator';
+import { IsOptional, IsString, IsTimeZone, ValidateNested, MaxLength } from 'class-validator';
 
+import { Type } from 'class-transformer';
+class WorkingHoursDto {
+  @IsString() @MaxLength(100) weekdays!: string;
+  @IsString() @MaxLength(100) saturday!: string;
+  @IsString() @MaxLength(100) sunday!: string;
+}
 export class UpdateClinicDto {
   @IsString()
   @IsOptional()
@@ -53,7 +60,7 @@ export class UpdateClinicDto {
   @IsOptional()
   gstin?: string;
 
-  @IsString()
+  @IsTimeZone()
   @IsOptional()
   timezone?: string;
 
@@ -66,17 +73,17 @@ export class UpdateClinicDto {
   practiceType?: string;
 
   @IsOptional()
-  workingHours?: {
-    weekdays: string;
-    saturday: string;
-    sunday: string;
-  };
+  @ValidateNested()
+  @Type(() => WorkingHoursDto)
+  workingHours?: WorkingHoursDto;
 
   @IsString()
   @IsOptional()
+  @IsIn(['5','7','10','indefinite'])
   retentionAdult?: string;
 
   @IsString()
   @IsOptional()
+  @IsIn(['21','25','indefinite'])
   retentionMinor?: string;
 }

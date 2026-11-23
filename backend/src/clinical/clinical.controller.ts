@@ -69,6 +69,12 @@ export class ClinicalController {
     return this.clinicalService.getToothChart(user.clinicId!, patientId);
   }
 
+  @Get('patients/:patientId/tooth-chart/history')
+  @RequireOperation('clinical.read')
+  getToothChartHistory(@CurrentUser() user: AuthenticatedUser, @Param('patientId') patientId: string) {
+    return this.clinicalService.getToothChartHistory(user.clinicId!, patientId);
+  }
+
   @Put('patients/:patientId/tooth-chart')
   @RequireOperation('clinical.write')
   async saveToothCondition(
@@ -76,7 +82,7 @@ export class ClinicalController {
     @Param('patientId') patientId: string,
     @Body() dto: SaveToothConditionDto,
   ) {
-    return this.clinicalService.saveToothCondition(user.clinicId!, patientId, dto);
+    return this.clinicalService.saveToothCondition(user.clinicId!, patientId, dto, user);
   }
 
   @Post('patients/:patientId/tooth-chart/batch')
@@ -86,7 +92,7 @@ export class ClinicalController {
     @Param('patientId') patientId: string,
     @Body() dto: BatchSaveToothConditionsDto,
   ) {
-    return this.clinicalService.batchSaveToothChart(user.clinicId!, patientId, dto);
+    return this.clinicalService.batchSaveToothChart(user.clinicId!, patientId, dto, user);
   }
 
   // -------------------------------------------------------------------------
@@ -220,7 +226,7 @@ export class ClinicalController {
       user.clinicId!,
       patientId,
       dto,
-      user.email,
+      user,
     );
   }
 
@@ -233,6 +239,10 @@ export class ClinicalController {
   ) {
     return this.clinicalService.getConsent(user.clinicId!, patientId, consentId);
   }
+
+  @Get('patients/:patientId/consents/:consentId/history')
+  @RequireOperation('consent.read')
+  consentHistory(@CurrentUser() user: AuthenticatedUser, @Param('patientId') patientId: string, @Param('consentId') consentId: string) { return this.clinicalService.consentHistory(user.clinicId!, patientId, consentId); }
 
   @Patch('patients/:patientId/consents/:consentId')
   @RequireOperation('consent.write')
@@ -247,6 +257,7 @@ export class ClinicalController {
       patientId,
       consentId,
       dto,
+      user,
     );
   }
 
@@ -257,7 +268,7 @@ export class ClinicalController {
     @Param('patientId') patientId: string,
     @Param('consentId') consentId: string,
   ) {
-    return this.clinicalService.deleteConsent(user.clinicId!, patientId, consentId);
+    return this.clinicalService.deleteConsent(user.clinicId!, patientId, consentId, user);
   }
 }
 

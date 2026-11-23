@@ -1,10 +1,11 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 /**
  * Authentication Service
  * Handles login, clinic registration, current-user profile loading,
  * session management, and password reset.
  * Connects to NestJS Backend with resilient offline fallback for local tests.
  */
-import { apiClient } from './apiClient';
+import { apiClient, requestNewAccessToken } from './apiClient';
 import { clearClinicStore, initClinicSession } from './clinicStore';
 import { clearInventoryStore, initInventorySession } from './adaptiveInventoryStore';
 import { clearClinicStaffStore, fetchAndSyncClinicStaff } from './clinicStaffStore';
@@ -61,12 +62,12 @@ export const STORAGE_KEYS = {
 }
 
 function clearStoredCredentials() {
-  for (const storage of [sessionStorage, localStorage]) {
+  for (const storage of [browserSessionStorage, browserLocalStorage]) {
     storage.removeItem(STORAGE_KEYS.TOKEN);
     storage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
     storage.removeItem(STORAGE_KEYS.USER);
   }
-  sessionStorage.removeItem(STORAGE_KEYS.LEGACY_SESSION);
+  browserSessionStorage.removeItem(STORAGE_KEYS.LEGACY_SESSION);
 }
 
 /**
@@ -77,29 +78,30 @@ function clearStoredCredentials() {
  * @param {boolean} rememberMe
  * @returns {Promise<{ user: object, token: string }>}
  */
-export async function login(email, password, rememberMe = false) {
+export async function login(email, password, rememberMe = false, code = '') {
   const cleanEmail = email.trim().toLowerCase();
 
   try {
     const res = await apiClient.post('/auth/login', {
       email: cleanEmail,
       password,
+      ...(code ? { code } : {}),
     });
 
     if (res?.token && res?.user) {
       clearAllClinicStores();
       clearStoredCredentials();
-      const storage = rememberMe ? localStorage : sessionStorage;
+      const storage = rememberMe ? browserLocalStorage : browserSessionStorage;
       storage.setItem(STORAGE_KEYS.TOKEN, res.token);
       storage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.user));
       try {
-        sessionStorage.setItem(STORAGE_KEYS.LEGACY_SESSION, res.user.id);
+        browserSessionStorage.setItem(STORAGE_KEYS.LEGACY_SESSION, res.user.id);
       } catch {}
 
       if (rememberMe) {
-        localStorage.setItem(STORAGE_KEYS.REMEMBER_EMAIL, cleanEmail);
+        browserLocalStorage.setItem(STORAGE_KEYS.REMEMBER_EMAIL, cleanEmail);
       } else {
-        localStorage.removeItem(STORAGE_KEYS.REMEMBER_EMAIL);
+        browserLocalStorage.removeItem(STORAGE_KEYS.REMEMBER_EMAIL);
       }
 
       initAllClinicStores(res.user.clinicId);
@@ -126,6 +128,8 @@ export async function login(email, password, rememberMe = false) {
     }
   }
 
+  if (import.meta.env?.MODE !== 'test') throw new Error('The server returned an invalid sign-in response.');
+
   // Fallback demo account for local UI testing
   await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -139,18 +143,18 @@ export async function login(email, password, rememberMe = false) {
   };
 
   const token = `demo-token-${Date.now()}`;
-  const storage = rememberMe ? localStorage : sessionStorage;
+  const storage = rememberMe ? browserLocalStorage : browserSessionStorage;
   storage.setItem(STORAGE_KEYS.TOKEN, token);
   storage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
 
   if (rememberMe) {
-    localStorage.setItem(STORAGE_KEYS.REMEMBER_EMAIL, cleanEmail);
+    browserLocalStorage.setItem(STORAGE_KEYS.REMEMBER_EMAIL, cleanEmail);
   } else {
-    localStorage.removeItem(STORAGE_KEYS.REMEMBER_EMAIL);
+    browserLocalStorage.removeItem(STORAGE_KEYS.REMEMBER_EMAIL);
   }
 
   try {
-    sessionStorage.setItem(STORAGE_KEYS.LEGACY_SESSION, user.id);
+    browserSessionStorage.setItem(STORAGE_KEYS.LEGACY_SESSION, user.id);
   } catch {}
 
   try {
@@ -164,20 +168,20 @@ export async function login(email, password, rememberMe = false) {
  * Authenticate through the platform-only backend login without demo fallback
  * or initializing tenant stores.
  */
-export async function loginPlatformAdmin(email, password) {
-  const res = await apiClient.post('/auth/platform-login', { email: email.trim().toLowerCase(), password });
+export async function loginPlatformAdmin(email, password, code = '') {
+  const res = await apiClient.post('/auth/platform-login', { email: email.trim().toLowerCase(), password, ...(code ? { code } : {}) });
   if (!res?.token || res?.user?.isPlatformAdmin !== true) {
     throw Object.assign(new Error('Platform administrator access is required.'), { status: 403 });
   }
   clearAllClinicStores();
-  for (const storage of [localStorage, sessionStorage]) {
+  for (const storage of [browserLocalStorage, browserSessionStorage]) {
     storage.removeItem(STORAGE_KEYS.TOKEN);
     storage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
     storage.removeItem(STORAGE_KEYS.USER);
   }
-  sessionStorage.removeItem(STORAGE_KEYS.LEGACY_SESSION);
-  sessionStorage.setItem(STORAGE_KEYS.TOKEN, res.token);
-  sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.user));
+  browserSessionStorage.removeItem(STORAGE_KEYS.LEGACY_SESSION);
+  browserSessionStorage.setItem(STORAGE_KEYS.TOKEN, res.token);
+  browserSessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.user));
   notifyAuthSessionChanged();
   return res.user;
 }
@@ -201,10 +205,10 @@ export async function registerClinic(formData) {
     if (res?.token && res?.user) {
       clearAllClinicStores();
       clearStoredCredentials();
-      sessionStorage.setItem(STORAGE_KEYS.TOKEN, res.token);
-      sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.user));
+      browserSessionStorage.setItem(STORAGE_KEYS.TOKEN, res.token);
+      browserSessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.user));
       try {
-        sessionStorage.setItem(STORAGE_KEYS.LEGACY_SESSION, res.user.id);
+        browserSessionStorage.setItem(STORAGE_KEYS.LEGACY_SESSION, res.user.id);
       } catch {}
       initAllClinicStores(res.user.clinicId);
       return { user: res.user, token: res.token };
@@ -217,6 +221,8 @@ export async function registerClinic(formData) {
     // If backend connection fails, fall back to simulated session during test mode
     console.warn('[authService] Backend registration unreachable, fallback to local session:', apiErr.message);
   }
+
+  if (import.meta.env?.MODE !== 'test') throw new Error('The server returned an invalid registration response.');
 
   const fallbackUser = {
     id: 'usr-' + Date.now(),
@@ -235,10 +241,10 @@ export async function registerClinic(formData) {
   };
 
   const demoToken = `demo-reg-token-${Date.now()}`;
-  sessionStorage.setItem(STORAGE_KEYS.TOKEN, demoToken);
-  sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(fallbackUser));
+  browserSessionStorage.setItem(STORAGE_KEYS.TOKEN, demoToken);
+  browserSessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(fallbackUser));
   try {
-    sessionStorage.setItem(STORAGE_KEYS.LEGACY_SESSION, fallbackUser.id);
+    browserSessionStorage.setItem(STORAGE_KEYS.LEGACY_SESSION, fallbackUser.id);
   } catch {}
 
   return { user: fallbackUser, token: demoToken };
@@ -248,30 +254,33 @@ export async function registerClinic(formData) {
  * Restore current user profile from backend
  */
 export async function restoreSession() {
-  const token = sessionStorage.getItem(STORAGE_KEYS.TOKEN) || localStorage.getItem(STORAGE_KEYS.TOKEN);
-  if (!token) return getCurrentUser();
+  const token = browserSessionStorage.getItem(STORAGE_KEYS.TOKEN) || browserLocalStorage.getItem(STORAGE_KEYS.TOKEN);
+  if (!token) {
+    const restored = await requestNewAccessToken();
+    if (!restored) return null;
+  }
 
   try {
     const res = await apiClient.get('/auth/me');
-    const activeToken = sessionStorage.getItem(STORAGE_KEYS.TOKEN) || localStorage.getItem(STORAGE_KEYS.TOKEN);
-    if (activeToken !== token) return getCurrentUser();
+    const activeToken = browserSessionStorage.getItem(STORAGE_KEYS.TOKEN) || browserLocalStorage.getItem(STORAGE_KEYS.TOKEN);
+    if (token && activeToken !== token) return getCurrentUser();
     if (res?.id) {
-      const storage = localStorage.getItem(STORAGE_KEYS.TOKEN) ? localStorage : sessionStorage;
+      const storage = browserLocalStorage.getItem(STORAGE_KEYS.TOKEN) ? browserLocalStorage : browserSessionStorage;
       storage.setItem(STORAGE_KEYS.USER, JSON.stringify(res));
       notifyAuthSessionChanged();
       return res;
     }
   } catch (error) {
-    const activeToken = sessionStorage.getItem(STORAGE_KEYS.TOKEN) || localStorage.getItem(STORAGE_KEYS.TOKEN);
-    if (activeToken !== token) return getCurrentUser();
+    const activeToken = browserSessionStorage.getItem(STORAGE_KEYS.TOKEN) || browserLocalStorage.getItem(STORAGE_KEYS.TOKEN);
+    if (token && activeToken !== token) return getCurrentUser();
     if (error?.status === 401 || error?.status === 403) {
       clearAllClinicStores();
-      for (const storage of [localStorage, sessionStorage]) {
+      for (const storage of [browserLocalStorage, browserSessionStorage]) {
         storage.removeItem(STORAGE_KEYS.TOKEN);
         storage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
         storage.removeItem(STORAGE_KEYS.USER);
       }
-      sessionStorage.removeItem(STORAGE_KEYS.LEGACY_SESSION);
+      browserSessionStorage.removeItem(STORAGE_KEYS.LEGACY_SESSION);
       notifyAuthSessionChanged();
       return null;
     }
@@ -285,34 +294,14 @@ export async function restoreSession() {
  * Simulate Google OAuth authentication
  */
 export async function loginWithGoogle() {
-  await new Promise((resolve) => setTimeout(resolve, 100));
-
-  const user = DEMO_USERS['google-demo'];
-  const token = `google-token-${Date.now()}`;
-
-  sessionStorage.setItem(STORAGE_KEYS.TOKEN, token);
-  sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
-
-  try {
-    sessionStorage.setItem(STORAGE_KEYS.LEGACY_SESSION, user.id);
-  } catch {}
-
-  try {
-    initClinicSession(user.clinicId);
-  } catch {}
-
-  return { user, token };
+  throw new Error('Google sign-in is not available. Use your email and password.');
 }
 
 /**
  * Request password reset
  */
 export async function requestPasswordReset(email) {
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  return {
-    success: true,
-    message: `A password reset link has been dispatched to ${email}.`
-  };
+  return apiClient.post('/auth/password-reset/request', { email: email.trim() });
 }
 
 /**
@@ -324,13 +313,13 @@ export async function logout() {
   const revocation = apiClient.post('/auth/logout', {}).catch(() => {});
 
   clearAllClinicStores();
-  localStorage.removeItem(STORAGE_KEYS.TOKEN);
-  localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
-  localStorage.removeItem(STORAGE_KEYS.USER);
-  sessionStorage.removeItem(STORAGE_KEYS.TOKEN);
-  sessionStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
-  sessionStorage.removeItem(STORAGE_KEYS.USER);
-  sessionStorage.removeItem(STORAGE_KEYS.LEGACY_SESSION);
+  browserLocalStorage.removeItem(STORAGE_KEYS.TOKEN);
+  browserLocalStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+  browserLocalStorage.removeItem(STORAGE_KEYS.USER);
+  browserSessionStorage.removeItem(STORAGE_KEYS.TOKEN);
+  browserSessionStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+  browserSessionStorage.removeItem(STORAGE_KEYS.USER);
+  browserSessionStorage.removeItem(STORAGE_KEYS.LEGACY_SESSION);
   notifyAuthSessionChanged();
   await revocation;
 }
@@ -339,17 +328,9 @@ export async function logout() {
  * Manually trigger access token refresh using HttpOnly cookie session
  */
 export async function refreshAccessToken() {
-  const res = await apiClient.post('/auth/refresh', {});
-  if (res?.token) {
-    const storage = localStorage.getItem(STORAGE_KEYS.TOKEN) ? localStorage : sessionStorage;
-    storage.setItem(STORAGE_KEYS.TOKEN, res.token);
-    if (res.user) {
-      storage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.user));
-      notifyAuthSessionChanged();
-    }
-    return res.token;
-  }
-  throw new Error('Refresh failed to return token');
+  const token = await requestNewAccessToken();
+  if (token) return token;
+  throw new Error('Unable to refresh the current session.');
 }
 
 /**
@@ -357,7 +338,7 @@ export async function refreshAccessToken() {
  */
 export function getCurrentUser() {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEYS.USER) || localStorage.getItem(STORAGE_KEYS.USER);
+    const raw = browserSessionStorage.getItem(STORAGE_KEYS.USER) || browserLocalStorage.getItem(STORAGE_KEYS.USER);
     if (raw) return JSON.parse(raw);
   } catch {}
   return null;
@@ -371,11 +352,11 @@ export function isAuthenticated() {
 }
 
 /**
- * Get remembered email from localStorage
+ * Get remembered email from browserLocalStorage
  */
 export function getRememberedEmail() {
   try {
-    return localStorage.getItem(STORAGE_KEYS.REMEMBER_EMAIL) || '';
+    return browserLocalStorage.getItem(STORAGE_KEYS.REMEMBER_EMAIL) || '';
   } catch {
     return '';
   }

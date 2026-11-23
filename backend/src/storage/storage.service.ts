@@ -1,3 +1,4 @@
+import { assertDocumentOwnership } from './document-key.policy.js';
 import { Injectable, Logger, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import * as path from 'path';
@@ -40,6 +41,7 @@ export class StorageService {
       this.activeProvider = this.s3Provider;
       this.logger.log('Active storage engine: AWS/Neon S3 Cloud Object Storage');
     } else {
+      if (process.env.NODE_ENV === 'production') throw new Error('Production object storage credentials and bucket are required; local fallback is disabled.');
       this.activeProvider = this.localProvider;
       this.logger.warn('Active storage engine: Local Disk Storage (Provider integration pending or missing credentials)');
     }
@@ -192,6 +194,12 @@ export class StorageService {
   /**
    * Retrieves binary buffer of document from active storage provider
    */
+  async getClinicDocumentBuffer(clinicId: string, patientId: string, fileKey: string): Promise<DownloadResult> {
+    assertDocumentOwnership(fileKey, clinicId, patientId);
+    if (fileKey.startsWith('clinics/') || fileKey.startsWith(`${clinicId}/`)) return this.getDocumentBuffer(fileKey);
+    return this.localProvider.getBuffer(`${clinicId}/${path.basename(fileKey)}`);
+  }
+
   async getDocumentBuffer(fileKey: string): Promise<DownloadResult> {
     return this.activeProvider.getBuffer(fileKey);
   }

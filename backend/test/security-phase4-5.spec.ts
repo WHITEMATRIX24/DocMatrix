@@ -109,8 +109,8 @@ describe('Security Phases 4 & 5 Hardening Verification', () => {
       const prefix2 = rateLimiter.getIpSubnetPrefix(ip2);
       const prefixDiff = rateLimiter.getIpSubnetPrefix(ipDifferentSubnet);
 
-      expect(prefix1).toBe('2001:0db8:85a3:0000::/64');
-      expect(prefix2).toBe('2001:0db8:85a3:0000::/64');
+      expect(prefix1).toBe('2001:db8:85a3:0::/64');
+      expect(prefix2).toBe('2001:db8:85a3:0::/64');
       expect(prefix1).toBe(prefix2);
       expect(prefix1).not.toBe(prefixDiff);
 

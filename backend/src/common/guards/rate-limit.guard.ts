@@ -42,7 +42,7 @@ export class RateLimitGuard implements CanActivate {
     const isLogin = path.includes('/auth/login') || path.includes('/auth/platform-login');
     if (isLogin && req.method === 'POST') {
       const email = req.body?.email;
-      if (email && typeof email === 'string') {
+      if (email && typeof email === 'string' && email.length <= 254) {
         const lockStatus = await this.rateLimiter.isLoginLocked(ip, email);
         if (lockStatus.locked) {
           if (res && typeof res.setHeader === 'function') {
@@ -71,10 +71,12 @@ export class RateLimitGuard implements CanActivate {
     let ttlSeconds = this.rateLimiter.defaultTtlSeconds;
 
     const isSensitiveAuth =
+      (path.startsWith('/auth/') && path !== '/auth/me') ||
       isLogin ||
       path.includes('/auth/register-clinic') ||
       path.includes('/auth/refresh') ||
-      path.includes('/auth/change-password');
+      path.includes('/auth/change-password') ||
+      path.includes('/auth/password-reset/');
 
     if (customConfig) {
       limit = customConfig.limit;
@@ -84,7 +86,8 @@ export class RateLimitGuard implements CanActivate {
       ttlSeconds = 60; // 60-second window for sensitive auth
     }
 
-    const rateKey = isSensitiveAuth ? `rl:auth:${ip}` : `rl:global:${ip}`;
+    const prefix = this.rateLimiter.getIpSubnetPrefix(ip);
+    const rateKey = isSensitiveAuth ? `rl:auth:${prefix}` : `rl:global:${prefix}`;
     const result = await this.rateLimiter.consume(rateKey, limit, ttlSeconds);
 
     if (res && typeof res.setHeader === 'function') {

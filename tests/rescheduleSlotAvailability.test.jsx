@@ -1,3 +1,4 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import React from 'react'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -13,8 +14,9 @@ import {
 
 describe('Appointment Booking & Reschedule Slot Availability', () => {
   beforeEach(() => {
-    localStorage.clear()
-    sessionStorage.clear()
+    browserLocalStorage.clear()
+    browserSessionStorage.clear()
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-103')
   })
 
   it('validates slot availability using checkDentistAvailability', () => {

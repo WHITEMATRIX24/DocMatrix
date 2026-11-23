@@ -1,3 +1,4 @@
+import { OPERATION_ROLES, type ClinicOperation } from '@/services/permissions'
 import { StaffRole } from '@/mocks/auth'
 
 export type FeaturePhase = 'launch' | 'v2' | 'later'
@@ -581,7 +582,7 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
   {
     "id": "set.security",
     "name": "Security & device verification",
-    "description": "Security: device verification and daily backup status",
+    "description": "Security: sessions, credentials and recovery verification",
     "source": "Part 1",
     "phase": "launch",
     "area": "Settings",
@@ -1029,6 +1030,18 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
     "inNav": true
   }
 ]
+
+// Keep navigation and deep links aligned with API operation boundaries.
+for (const feature of FEATURE_REGISTRY) {
+  let operation: ClinicOperation | undefined
+  if (feature.area === 'Appointments') operation = ['appt.new', 'appt.enquiries'].includes(feature.id) ? 'appointment.schedule' : 'appointment.read'
+  else if (feature.area === 'Patients') operation = feature.id.includes('tooth') || feature.id.includes('medical') || feature.id === 'pat.pending' ? 'clinical.read' : feature.id === 'pat.documents' ? 'document.read' : feature.id === 'pat.consents' ? 'consent.read' : feature.id === 'pat.new' ? 'patient.write' : 'patient.read'
+  else if (feature.area === 'Clinical') operation = 'clinical.read'
+  else if (feature.area === 'Billing') operation = feature.id === 'bill.price-list' ? 'billing.tariff.read' : feature.id === 'bill.expenses' ? 'billing.expense.read' : 'billing.invoice.read'
+  else if (feature.area === 'Inventory') operation = 'inventory.read'
+  else if (feature.area === 'Reports') operation = ['rep.revenue', 'rep.income-expense'].includes(feature.id) ? 'report.financial' : ['rep.doctors', 'rep.treatments'].includes(feature.id) ? 'report.clinical' : 'report.follow_up'
+  if (operation) feature.roles = [...OPERATION_ROLES[operation]] as StaffRole[]
+}
 
 export function getFeatureById(id: string): FeatureEntry | undefined {
   return FEATURE_REGISTRY.find((f) => f.id === id)

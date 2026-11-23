@@ -1,3 +1,4 @@
+import { browserSessionStorage } from '@/services/browserStorage';
 import React from 'react'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
@@ -14,8 +15,8 @@ const renderAt = (url) =>
 
 describe('Reports workspace', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101')
+    browserSessionStorage.clear()
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-101')
     resetStoreForTesting()
   })
 

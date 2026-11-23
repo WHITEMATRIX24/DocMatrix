@@ -137,6 +137,11 @@ model Subscription {
 // ------------------------------------------
 
 model Clinic {
+  gstin String?
+  panNumber String?
+  accountingSettings Json?
+  integrationMappings IntegrationMapping[]
+  accountingOutbox AccountingOutbox[]
   id           String       @id @default(uuid())
   name         String
   slug         String       @unique
@@ -150,6 +155,8 @@ model Clinic {
   postalCode   String?
   timezone     String       @default("Asia/Kolkata")
   currency     String       @default("INR")
+  extendedSettings Json @default("{}")
+  clinicalConfig Json @default("{}")
   practiceType String?      @default("Solo")
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
@@ -190,11 +197,19 @@ model User {
   clinicId         String? // Nullable: null for DocMatrix Platform Admins; required for clinic staff
   email            String    @unique
   passwordHash     String
+  emailVerifiedAt DateTime? @db.Timestamptz(6)
+  mfaSecret String?
+  mfaPendingSecret String?
+  mfaEnabled Boolean @default(false)
+  mfaLastStep BigInt @default(-1)
+  mfaRecoveryHashes String[] @default([])
   fullName         String
   phone            String?
   role             StaffRole @default(DOCTOR)
   isPlatformAdmin  Boolean   @default(false)
   isPrimaryContact Boolean   @default(false) // Primary clinic owner/billing contact
+  practitionerVerifiedAt DateTime? @db.Timestamptz(6)
+  practitionerRegistration String?
   isActive         Boolean   @default(true)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -238,6 +253,7 @@ model UserSession {
   updatedAt           DateTime  @updatedAt
   userAgent           String?
   ipAddress           String?
+  mfaVerifiedAt       DateTime?
 
   user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   clinic              Clinic?   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
@@ -252,8 +268,12 @@ model UserSession {
 // ------------------------------------------
 
 model Patient {
+  gstin String?
+  panNumber String?
   id                  String   @id @default(uuid())
   clinicId            String
+  legalHold Boolean @default(false)
+  retentionArchivedAt DateTime?
   patientCode         String // Deterministic ID (e.g. 'pt-1001') unique within clinic
   firstName           String
   lastName            String
@@ -394,6 +414,9 @@ model PatientConsent {
   notes         String?
   witnessName   String?
   signatureData String?
+  evidenceHash String?
+  consentText String?
+  revokedAt DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -490,7 +513,7 @@ model Enquiry {
   name      String
   phone     String?
   email     String?
-  request   String   // e.g. 'New patient · Cleaning', 'Tooth pain'
+  request   String   // e.g. 'New patient Â· Cleaning', 'Tooth pain'
   status    String   @default("PENDING") // 'PENDING' | 'CONTACTED' | 'CONVERTED' | 'DISMISSED'
   notes     String?
   createdAt DateTime @default(now())
@@ -949,6 +972,10 @@ model Invoice {
 }
 
 model InvoiceLineItem {
+  hsnSacCode String? @default("999312")
+  cgstAmount Decimal @default(0) @db.Decimal(10, 2)
+  sgstAmount Decimal @default(0) @db.Decimal(10, 2)
+  igstAmount Decimal @default(0) @db.Decimal(10, 2)
   id                  String             @id @default(uuid())
   clinicId            String
   invoiceId           String
@@ -1008,6 +1035,7 @@ model InvoicePayment {
 }
 
 model ServiceTariff {
+  hsnSacCode String? @default("999312")
   id          String            @id @default(uuid())
   clinicId    String
   code        String?
@@ -1030,6 +1058,8 @@ model ServiceTariff {
 }
 
 model Expense {
+  hsnSacCode String?
+  vendorGstin String?
   id            String          @id @default(uuid())
   clinicId      String
   expenseNumber String?
@@ -1049,4 +1079,116 @@ model Expense {
 
   @@index([clinicId, date])
   @@index([clinicId, category])
+}
+
+model PasswordReset {
+  id String @id @default(uuid())
+  userId String
+  tokenHash String @unique
+  expiresAt DateTime @db.Timestamptz(6)
+  consumedAt DateTime? @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  @@index([userId, expiresAt])
+}
+model AuditEvent {
+  id String @id
+  clinicId String?
+  module String
+  action String
+  actorId String?
+  actorName String
+  actorRole String
+  description String
+  severity String
+  outcome String
+  metadata Json?
+  ipAddress String?
+  userAgent String?
+  forwardedAt DateTime?
+  forwardAttempts Int @default(0)
+  nextForwardAt DateTime @default(now())
+  @@index([forwardedAt, nextForwardAt])
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  @@index([clinicId, createdAt])
+}
+
+model ConsentRevision {
+  id String @id @default(uuid())
+  consentId String
+  clinicId String
+  actorId String
+  action String
+  snapshot Json
+  evidenceHash String
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  @@index([clinicId, consentId, createdAt])
+}
+
+model EmailVerification {
+  id String @id @default(uuid())
+  userId String
+  tokenHash String @unique
+  expiresAt DateTime @db.Timestamptz(6)
+  consumedAt DateTime? @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  @@index([userId, expiresAt])
+}
+
+// Existing integration metadata recovered through a read-only schema inspection.
+// This models the foundation only; no accounting integration is enabled.
+enum IntegrationProvider {
+  TALLY
+  ZOHO
+  QUICKBOOKS
+}
+enum IntegrationSyncStatus {
+  PENDING
+  PROCESSING
+  SYNCED
+  FAILED
+  SKIPPED
+}
+enum AccountingEventType {
+  INVOICE_ISSUED
+  INVOICE_VOIDED
+  PAYMENT_RECEIVED
+  PAYMENT_REFUNDED
+  EXPENSE_RECORDED
+  PATIENT_CREATED
+  PATIENT_UPDATED
+}
+model IntegrationMapping {
+  id String @id @default(uuid())
+  clinicId String
+  provider IntegrationProvider
+  entityType String
+  internalId String
+  externalId String
+  syncStatus IntegrationSyncStatus @default(SYNCED)
+  syncError String?
+  metadata Json?
+  lastSyncedAt DateTime @default(now()) @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @db.Timestamptz(6)
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  @@unique([clinicId, provider, entityType, internalId])
+  @@index([clinicId, provider, externalId])
+  @@index([clinicId, syncStatus])
+}
+model AccountingOutbox {
+  id String @id @default(uuid())
+  clinicId String
+  eventType AccountingEventType
+  entityId String
+  payload Json
+  status IntegrationSyncStatus @default(PENDING)
+  retryCount Int @default(0)
+  lastError String?
+  processedAt DateTime? @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @db.Timestamptz(6)
+  clinic Clinic @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  @@index([clinicId, status])
+  @@index([clinicId, eventType])
+  @@index([clinicId, createdAt])
 }

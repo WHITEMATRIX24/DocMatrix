@@ -45,6 +45,12 @@ export class BillingController {
     private readonly billingService: BillingService,
   ) {}
 
+  @RequireBillingPermissions(BillingPermission.INVOICE_READ)
+  @Get('treatment-plans')
+  async getBillableTreatmentPlans(@CurrentUser() user: AuthenticatedUser) {
+    return this.billingService.getBillableTreatmentPlans(user.clinicId!);
+  }
+
   // ==========================================
   // DASHBOARD
   // ==========================================

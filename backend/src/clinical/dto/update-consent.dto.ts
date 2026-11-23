@@ -1,9 +1,10 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsString, IsIn } from 'class-validator';
 
 export class UpdateConsentDto {
   @IsString()
   @IsOptional()
-  status?: string; // 'Signed' | 'Pending' | 'Declined'
+  @IsIn(['Signed', 'Pending', 'Declined', 'Revoked'])
+  status?: string;
 
   @IsString()
   @IsOptional()

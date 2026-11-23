@@ -1,3 +1,4 @@
+import { matchesSession, updateSession } from '../../test/helpers/session-persistence.js';
 import { randomBytes } from 'node:crypto';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { UnauthorizedException } from '@nestjs/common';
@@ -47,13 +48,10 @@ function createMockPrisma() {
     updateMany: vi.fn(async ({ where, data }: any) => {
       let count = 0;
       for (const [id, sess] of sessions.entries()) {
-        const userMatches = !where.userId || sess.userId === where.userId;
-        const familyMatches =
-          !where.familyId || sess.familyId === where.familyId;
-        const revokedMatches =
-          where.isRevoked === undefined || sess.isRevoked === where.isRevoked;
-        if (userMatches && familyMatches && revokedMatches) {
-          sessions.set(id, { ...sess, ...data });
+        if (matchesSession(sess, where)) {
+          const updated = { ...sess };
+          updateSession(updated, data);
+          sessions.set(id, updated);
           count++;
         }
       }

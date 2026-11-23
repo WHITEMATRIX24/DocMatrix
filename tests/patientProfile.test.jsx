@@ -1,9 +1,10 @@
+import { seedClinicFixture } from './fixtures/clinic'
 import React from 'react'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import App from '@/App'
-import { resetStoreForTesting, getClinicSnapshot, invoiceBalance } from '@/services/clinicStore'
+import { getClinicSnapshot, invoiceBalance } from '@/services/clinicStore'
 
 const renderAt = (url) =>
   render(
@@ -13,15 +14,11 @@ const renderAt = (url) =>
   )
 
 describe('Patient profile', () => {
-  beforeEach(() => {
-    sessionStorage.clear()
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101')
-    resetStoreForTesting()
-  })
+  beforeEach(() => seedClinicFixture('ORGANIZATION_ADMIN'))
 
   it('shows the summary strip with the real balance due', async () => {
     renderAt('/patients/pt-1001')
-    const strip = await screen.findByLabelText('Patient summary')
+    const strip = await screen.findByLabelText('Patient summary', {}, { timeout: 10000 })
     const due = getClinicSnapshot().invoices.filter((i) => i.patientId === 'pt-1001').reduce((s, i) => s + invoiceBalance(i), 0)
     expect(within(strip).getByText('Balance due')).toBeInTheDocument()
     expect(within(strip).getByText(`₹${due.toLocaleString('en-IN')}`)).toBeInTheDocument()

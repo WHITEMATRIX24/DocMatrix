@@ -55,6 +55,8 @@ const DEFAULT_TEMPLATES: ConsentTemplate[] = [
 ]
 
 export const PrivacySettingsPage: React.FC = () => {
+  const [holdPatient, setHoldPatient] = useState('')
+  const [holdFeedback, setHoldFeedback] = useState('')
   const [templates] = useState<ConsentTemplate[]>(DEFAULT_TEMPLATES)
   const [selectedTemplate, setSelectedTemplate] = useState<ConsentTemplate | null>(null)
   const [retentionAdult, setRetentionAdult] = useState('7')
@@ -105,21 +107,24 @@ export const PrivacySettingsPage: React.FC = () => {
       })
       setRetentionSaved(true)
       setTimeout(() => setRetentionSaved(false), 3000)
-    } catch {
-      // fallback
+    } catch (error: any) {
+      setExportError(error?.message || 'Retention settings could not be saved.')
     } finally {
       setSavingRetention(false)
     }
   }
 
   const handleWithdrawConsent = async (consentId: string) => {
+    const consent = recentConsents.find(c => c.id === consentId)
+    if (!consent?.patientId) { setExportError('The patient for this consent could not be identified.'); return }
+    setExportError(null)
+    setExportFeedback(null)
     try {
-      await apiClient.patch(`/clinical/consents/${consentId}`, { status: 'Revoked' }).catch(() => null)
+      await apiClient.patch(`/patients/${encodeURIComponent(consent.patientId)}/consents/${encodeURIComponent(consentId)}`, { status: 'Revoked' })
       setRecentConsents(prev => prev.map(c => c.id === consentId ? { ...c, status: 'Revoked' } : c))
-      setExportFeedback('Consent status successfully updated to Revoked.')
-      setTimeout(() => setExportFeedback(null), 4000)
-    } catch {
-      setRecentConsents(prev => prev.map(c => c.id === consentId ? { ...c, status: 'Revoked' } : c))
+      setExportFeedback('Consent withdrawn successfully.')
+    } catch (error: any) {
+      setExportError(error?.message || 'Consent could not be withdrawn. Please retry.')
     }
   }
 
@@ -132,36 +137,9 @@ export const PrivacySettingsPage: React.FC = () => {
     setExportError(null)
 
     try {
-      const q = patientExportId.trim().toLowerCase()
-      const patients = await apiClient.get<any[]>('/patients').catch(() => [])
-      const matched = Array.isArray(patients) 
-        ? patients.find((p: any) => p.id === q || p.patientCode?.toLowerCase() === q || p.mobile?.includes(q) || `${p.firstName} ${p.lastName}`.toLowerCase().includes(q))
-        : null
-
-      if (!matched && Array.isArray(patients) && patients.length > 0) {
-        setExportError(`No patient found matching identifier "${patientExportId}". Please check the ID or mobile number.`)
-        setExporting(false)
-        return
-      }
-
-      // Build real export bundle
-      const exportData = {
-        complianceStandard: 'Digital Personal Data Protection Act 2023 (DPDP) & Statutory Health Standards',
-        exportedAt: new Date().toISOString(),
-        patientIdentifier: matched?.patientCode || patientExportId,
-        patientDetails: matched ? {
-          name: `${matched.firstName} ${matched.lastName}`,
-          mobile: matched.mobile,
-          email: matched.email || 'N/A',
-          gender: matched.gender,
-          dateOfBirth: matched.dateOfBirth,
-          city: matched.city || 'N/A'
-        } : { id: patientExportId },
-        purpose: 'Data Subject Portability Request (Section 12 DPDP Act 2023)',
-        recordsIncluded: ['Demographics', 'Appointments', 'Treatment Plans', 'Clinical Notes', 'Invoices', 'Consents'],
-        consents: recentConsents.filter(c => c.patientId === matched?.id),
-        status: 'Verified Authenticated Export'
-      }
+      const exportData = await apiClient.get<any>('/clinics/my-clinic/export', { patientId: patientExportId.trim() })
+      const matched = exportData.records.patients[0]
+      if (!matched) throw new Error('Patient not found in this clinic.')
 
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
@@ -173,7 +151,7 @@ export const PrivacySettingsPage: React.FC = () => {
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
 
-      setExportFeedback(`DPDP compliance package generated and downloaded for ${matched ? `${matched.firstName} ${matched.lastName}` : patientExportId}.`)
+      setExportFeedback(`Patient record package downloaded for ${matched ? `${matched.firstName} ${matched.lastName}` : patientExportId}.`)
       setPatientExportId('')
       setTimeout(() => setExportFeedback(null), 5000)
     } catch {
@@ -211,7 +189,7 @@ export const PrivacySettingsPage: React.FC = () => {
       }}>
         <ShieldAlert size={20} color="var(--teal-primary, #008891)" />
         <div style={{ fontSize: '13.5px', color: 'var(--text-strong, #0f172a)', lineHeight: 1.5 }}>
-          <strong>Statutory Compliance:</strong> In accordance with India’s <em>Digital Personal Data Protection (DPDP) Act 2023</em> and clinical record-keeping standards, all signed consents are stored with cryptographic hashes, practitioner verification, and immutable audit timestamps.
+          <strong>Consent records:</strong> Review recorded consent status, manage withdrawal and export patient records. Templates and retention periods should be reviewed for your clinic’s requirements.
         </div>
       </div>
 
@@ -523,6 +501,12 @@ export const PrivacySettingsPage: React.FC = () => {
         </div>
       </div>
 
+      <section style={{ marginTop: 24 }}><h2>Preserve a patient record</h2><p>A legal hold prevents automatic retention archiving. Archiving retains the underlying clinical evidence.</p>
+        <label>Patient ID or code<input value={holdPatient} onChange={e => setHoldPatient(e.target.value)} /></label>
+        <button disabled={!holdPatient.trim()} onClick={async () => { try { await apiClient.patch(`/patients/${encodeURIComponent(holdPatient.trim())}/legal-hold`, { legalHold: true }); setHoldFeedback('Legal hold enabled.'); } catch (e: any) { setHoldFeedback(e.message); } }}>Enable legal hold</button>
+        <button disabled={!holdPatient.trim()} onClick={async () => { try { await apiClient.patch(`/patients/${encodeURIComponent(holdPatient.trim())}/legal-hold`, { legalHold: false }); setHoldFeedback('Legal hold released. Retention policy applies.'); } catch (e: any) { setHoldFeedback(e.message); } }}>Release legal hold</button>
+        {holdFeedback && <p role="status">{holdFeedback}</p>}
+      </section>
       {/* Recent Consents Table */}
       <div style={{
         marginTop: '24px',

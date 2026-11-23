@@ -77,6 +77,7 @@ export interface BackendDoctorsReportResponse {
   days: number
   summary: {
     doctorsWithVisits: number
+    unassignedBilled?: number
     totalDoctors: number
     completedVisits: number
     proceduresDone: number
@@ -224,6 +225,7 @@ export interface DoctorPerformanceRow {
 }
 
 export interface DoctorPerformanceResponse {
+  summary?: { unassignedBilled?: number };
   now: Partial<PeriodMetrics>
   before: Partial<PeriodMetrics>
   doctors: DoctorPerformanceRow[]

@@ -22,6 +22,7 @@ export class PlansService {
   async getPlan(idOrSlug: string) {
     const plan = await this.prisma.plan.findFirst({
       where: {
+        isActive: true,
         OR: [{ id: idOrSlug }, { slug: idOrSlug }],
       },
       include: {

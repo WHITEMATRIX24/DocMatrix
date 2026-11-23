@@ -1,6 +1,15 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString, IsInt, Min, ValidateNested } from 'class-validator';
 
+import { Type } from 'class-transformer';
+class OpeningBatchDto {
+  @IsString() @IsNotEmpty() batchNumber!: string;
+  @IsString() @IsNotEmpty() expiryDate!: string;
+  @IsInt() @Min(1) quantity!: number;
+  @IsOptional() @IsString() location?: string;
+}
 export class CreateItemDto {
+  @IsOptional() @ValidateNested() @Type(() => OpeningBatchDto) initialBatch?: OpeningBatchDto;
+
   @IsNotEmpty()
   @IsString()
   sku!: string;

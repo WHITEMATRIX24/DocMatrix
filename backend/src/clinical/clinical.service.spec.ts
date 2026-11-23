@@ -29,6 +29,11 @@ describe('ClinicalService - Clinical Modules & Multi-Tenant Isolation', () => {
       },
       $transaction: vi.fn((promises) => Promise.all(promises)),
     };
+    mockPrisma.$queryRaw = vi.fn(async () => []);
+    mockPrisma.consentRevision = { create: vi.fn(async () => ({})), findMany: vi.fn(async () => []) };
+    mockPrisma.auditEvent = { create: vi.fn(async () => ({})), findMany: vi.fn(async () => []) };
+    mockPrisma.toothCondition.findMany.mockResolvedValue([]);
+    mockPrisma.$transaction = vi.fn(work => typeof work === 'function' ? work(mockPrisma) : Promise.all(work));
     service = new ClinicalService(mockPrisma);
   });
 
@@ -39,6 +44,14 @@ describe('ClinicalService - Clinical Modules & Multi-Tenant Isolation', () => {
       await expect(
         service.getToothChart('clinic-A', 'patient-of-clinic-B'),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('rejects invalid FDI numbers, unknown conditions and duplicate batch teeth', async () => {
+      mockPrisma.patient.findFirst.mockResolvedValue({ id: 'patient', patientCode: 'PAT-1' });
+      await expect(service.saveToothCondition('clinic-A','PAT-1',{ toothNumber: 19, condition: 'Healthy' })).rejects.toThrow('valid FDI');
+      await expect(service.saveToothCondition('clinic-A','PAT-1',{ toothNumber: 46, condition: 'Invented' })).rejects.toThrow('valid FDI');
+      await expect(service.batchSaveToothChart('clinic-A','PAT-1',{conditions:[{toothNumber:46,condition:'Healthy'},{toothNumber:46,condition:'Caries'}]})).rejects.toThrow('valid FDI');
+      expect(mockPrisma.toothCondition.upsert).not.toHaveBeenCalled();
     });
 
     it('saves and retrieves tooth conditions for authenticated clinic patient', async () => {
@@ -185,6 +198,7 @@ describe('ClinicalService - Clinical Modules & Multi-Tenant Isolation', () => {
 
       const consent = await service.createConsent('clinic-A', 'pt-1001', {
         consentType: 'Informed Consent for RCT',
+        consentText: 'I consent to root canal treatment after discussion of risks.', signatureData: 'Synthetic patient signature evidence',
         status: 'Signed',
         notes: 'Risks explained',
       });
@@ -193,7 +207,8 @@ describe('ClinicalService - Clinical Modules & Multi-Tenant Isolation', () => {
       expect(consent.status).toBe('Signed');
       expect(consent.patientId).toBe('pt-1001');
 
-      // Update consent
+      expect(mockPrisma.consentRevision.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: 'CREATED', evidenceHash: expect.stringMatching(/^[a-f0-9]{64}$/) }) }));
+      // Update an unsigned consent
       mockPrisma.patientConsent.findFirst.mockResolvedValue({
         id: 'cns-uuid-1',
         clinicId: 'clinic-A',

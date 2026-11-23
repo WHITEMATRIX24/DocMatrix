@@ -1,3 +1,4 @@
+import { useClinicLetterhead } from '@/services/useClinicLetterhead';
 import React from 'react';
 import { X, Printer } from 'lucide-react';
 import { ClinicalNoteRecord } from '../../services/clinicStore';
@@ -12,6 +13,7 @@ export const ClinicalNotePrintModal: React.FC<ClinicalNotePrintModalProps> = ({
   note,
   onClose,
 }) => {
+  const letterhead = useClinicLetterhead();
   const patient = note.patient;
   const patientName = patient
     ? `${patient.firstName} ${patient.lastName}`
@@ -30,7 +32,7 @@ export const ClinicalNotePrintModal: React.FC<ClinicalNotePrintModalProps> = ({
     : note.visitDate;
 
   const handlePrint = () => {
-    window.print();
+    if (letterhead.ready) window.print();
   };
 
   return (
@@ -41,6 +43,7 @@ export const ClinicalNotePrintModal: React.FC<ClinicalNotePrintModalProps> = ({
         aria-modal="true"
         style={{ maxWidth: '820px' }}
       >
+        {!letterhead.ready && <p role={letterhead.error ? 'alert' : 'status'}>{letterhead.error || 'Loading clinic details…'}</p>}
         {/* Modal Controls (Hidden in Print) */}
         <div className="cn-modal-header cn-no-print">
           <div className="cn-modal-header-info">
@@ -54,7 +57,7 @@ export const ClinicalNotePrintModal: React.FC<ClinicalNotePrintModalProps> = ({
             <button
               type="button"
               className="cn-btn cn-btn-primary cn-btn-sm"
-              onClick={handlePrint}
+              onClick={handlePrint} disabled={!letterhead.ready}
             >
               <Printer size={14} /> Print Now
             </button>
@@ -74,12 +77,12 @@ export const ClinicalNotePrintModal: React.FC<ClinicalNotePrintModalProps> = ({
           {/* Clinic Letterhead */}
           <div className="cn-print-letterhead">
             <div>
-              <h1 className="cn-print-clinic-name">DOCMATRIX DENTAL CLINIC</h1>
+              <h1 className="cn-print-clinic-name">{letterhead.name}</h1>
               <p className="cn-print-clinic-sub">
-                Advanced Oral Healthcare & Dental Specialties
+                Clinical consultation record
               </p>
               <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#64748b' }}>
-                124 Healthcare Boulevard, Suite 400 · Ph: +91 98765 43210 · info@docmatrix.clinic
+                {letterhead.address} · {letterhead.phone} · {letterhead.email}
               </p>
             </div>
             <div style={{ textAlign: 'right' }}>
@@ -312,7 +315,7 @@ export const ClinicalNotePrintModal: React.FC<ClinicalNotePrintModalProps> = ({
           <button
             type="button"
             className="cn-btn cn-btn-primary"
-            onClick={handlePrint}
+            onClick={handlePrint} disabled={!letterhead.ready}
           >
             <Printer />
             Print Note

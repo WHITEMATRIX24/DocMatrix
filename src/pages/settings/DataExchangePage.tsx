@@ -1,3 +1,4 @@
+import { verifiedBirthDate, parsePatientCsv } from '@/services/patientImport'
 import React, { useState, useRef } from 'react'
 import {
   ArrowDownToLine, ArrowUpFromLine, FileSpreadsheet, Download,
@@ -6,6 +7,7 @@ import {
 import { apiClient } from '@/services/apiClient'
 
 interface ParsedPatientRow {
+  dateOfBirth?: string;
   firstName: string
   lastName: string
   mobile: string
@@ -36,38 +38,22 @@ export const DataExchangePage: React.FC = () => {
       setExportingPatients(true)
       setExportFeedback(null)
 
-      let patients: any[] = []
-      try {
-        const res = await apiClient.get<any[]>('/patients')
-        if (Array.isArray(res) && res.length > 0) {
-          patients = res
-        }
-      } catch {}
-
-      if (patients.length === 0) {
-        try {
-          const cached = localStorage.getItem('docmatrix_patients')
-          if (cached) patients = JSON.parse(cached)
-        } catch {}
-      }
+      const patients = await apiClient.get<any[]>('/patients')
 
       if (!patients || patients.length === 0) {
         setExportFeedback('No patient records found in your clinic to export.')
         return
       }
 
-      const headers = ['Patient ID', 'First Name', 'Last Name', 'Mobile', 'Email', 'Gender', 'Age', 'City', 'Created Date']
-      const rows = patients.map((p) => [
-        `"${p.id || p.patientCode || ''}"`,
-        `"${p.firstName || ''}"`,
-        `"${p.lastName || ''}"`,
-        `"${p.mobile || ''}"`,
-        `"${p.email || ''}"`,
-        `"${p.gender || ''}"`,
-        `"${p.age || ''}"`,
-        `"${p.city || ''}"`,
-        `"${p.createdAt ? new Date(p.createdAt).toLocaleDateString() : ''}"`
-      ])
+      const headers = ['Patient ID', 'First Name', 'Last Name', 'Mobile', 'Email', 'Gender', 'Date of Birth', 'Age', 'City', 'Created Date']
+      const cell = (value: unknown) => {
+        let text = String(value ?? '');
+        if (/^[\s]*[=+@-]/.test(text)) text = "'" + text;
+        return '"' + text.replace(/"/g, '""') + '"';
+      }
+      const rows = patients.map(p => [p.id || p.patientCode, p.firstName, p.lastName,
+        p.mobile, p.email, p.gender, p.dateOfBirth?.slice(0,10) || '', p.age, p.city,
+        p.createdAt ? new Date(p.createdAt).toISOString() : ''].map(cell))
 
       const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
@@ -94,36 +80,19 @@ export const DataExchangePage: React.FC = () => {
       setExportingFullBackup(true)
       setExportFeedback(null)
 
-      const [clinic, staff, patients, inventory] = await Promise.all([
-        apiClient.get('/clinics/my-clinic').catch(() => null),
-        apiClient.get('/clinics/my-clinic/staff').catch(() => []),
-        apiClient.get('/patients').catch(() => []),
-        apiClient.get('/inventory/items').catch(() => [])
-      ])
+      const backupData = await apiClient.get<any>('/clinics/my-clinic/export', undefined, { timeoutMs: 120000 })
 
-      const backupPackage = {
-        docMatrixVersion: '2.0.0',
-        exportedAt: new Date().toISOString(),
-        clinicProfile: clinic,
-        staffCount: staff?.length || 0,
-        staff: staff,
-        patientCount: patients?.length || 0,
-        patients: patients,
-        inventoryCount: inventory?.length || 0,
-        inventory: inventory
-      }
-
-      const blob = new Blob([JSON.stringify(backupPackage, null, 2)], { type: 'application/json' })
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `docmatrix_full_backup_${new Date().toISOString().slice(0, 10)}.json`
+      link.download = `docmatrix_record_archive_${new Date().toISOString().slice(0, 10)}.json`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
 
-      setExportFeedback('Full clinic archive backup generated and downloaded successfully.')
+      setExportFeedback('Clinic record archive downloaded. Database recovery also requires a verified infrastructure backup.')
     } catch (err: any) {
       setExportFeedback(err?.message || 'Failed to generate full clinic archive.')
     } finally {
@@ -133,11 +102,11 @@ export const DataExchangePage: React.FC = () => {
 
   // 3. Download Sample CSV Template
   const handleDownloadSampleTemplate = () => {
-    const sampleHeaders = ['First Name', 'Last Name', 'Mobile', 'Email', 'Gender', 'Age', 'City']
+    const sampleHeaders = ['First Name', 'Last Name', 'Mobile', 'Email', 'Gender', 'Date of Birth', 'City']
     const sampleRows = [
-      ['Aarav', 'Sharma', '+91 98765 11111', 'aarav.sharma@example.com', 'Male', '32', 'Bengaluru'],
-      ['Deepika', 'Patel', '+91 98765 22222', 'deepika.p@example.com', 'Female', '28', 'Mumbai'],
-      ['Rohan', 'Iyer', '+91 98765 33333', 'rohan.iyer@example.com', 'Male', '45', 'Chennai']
+      ['Aarav', 'Sharma', '+91 98765 11111', 'aarav.sharma@example.com', 'Male', '1994-03-15', 'Bengaluru'],
+      ['Deepika', 'Patel', '+91 98765 22222', 'deepika.p@example.com', 'Female', '1998-06-12', 'Mumbai'],
+      ['Rohan', 'Iyer', '+91 98765 33333', 'rohan.iyer@example.com', 'Male', '1981-09-20', 'Chennai']
     ]
 
     const csv = [sampleHeaders.join(','), ...sampleRows.map(r => r.join(','))].join('\n')
@@ -157,6 +126,8 @@ export const DataExchangePage: React.FC = () => {
     const file = e.target.files?.[0]
     if (!file) return
 
+    if (file.size > 5 * 1024 * 1024) { setParseError('CSV exceeds the 5 MB limit.'); return; }
+    setParsedRows([]);
     setImportFile(file)
     setParseError(null)
     setImportResult(null)
@@ -167,27 +138,28 @@ export const DataExchangePage: React.FC = () => {
         const text = evt.target?.result as string
         if (!text) throw new Error('File appears to be empty.')
 
-        const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0)
+        const lines = parsePatientCsv(text)
         if (lines.length < 2) {
           throw new Error('CSV must contain a header row and at least one patient record.')
         }
 
-        const rawHeaders = lines[0].split(',').map(h => h.replace(/^["']|["']$/g, '').trim().toLowerCase())
-        const fnIdx = rawHeaders.findIndex(h => h.includes('first') || h.includes('name'))
+        const rawHeaders = lines[0].map(h => h.trim().toLowerCase())
+        const fnIdx = rawHeaders.findIndex(h => h.includes('first') || h === 'name')
         const lnIdx = rawHeaders.findIndex(h => h.includes('last'))
         const mobIdx = rawHeaders.findIndex(h => h.includes('mobile') || h.includes('phone') || h.includes('contact'))
         const emailIdx = rawHeaders.findIndex(h => h.includes('email'))
         const genIdx = rawHeaders.findIndex(h => h.includes('gender'))
         const ageIdx = rawHeaders.findIndex(h => h.includes('age'))
+        const dobIdx = rawHeaders.findIndex(h => ['date of birth','dateofbirth','dob'].includes(h))
         const cityIdx = rawHeaders.findIndex(h => h.includes('city'))
 
-        if (fnIdx === -1 && mobIdx === -1) {
-          throw new Error('Could not identify "First Name" or "Mobile" columns. Please use the template.')
+        if (fnIdx === -1 || mobIdx === -1 || dobIdx === -1) {
+          throw new Error('First Name, Mobile and Date of Birth columns are required. Please use the template.')
         }
 
         const rows: ParsedPatientRow[] = []
         for (let i = 1; i < lines.length; i++) {
-          const cells = lines[i].split(',').map(c => c.replace(/^["']|["']$/g, '').trim())
+          const cells = lines[i]
           const fn = fnIdx >= 0 ? cells[fnIdx] : cells[0]
           const ln = lnIdx >= 0 ? cells[lnIdx] : ''
           const mob = mobIdx >= 0 ? cells[mobIdx] : ''
@@ -199,6 +171,7 @@ export const DataExchangePage: React.FC = () => {
           if (!fn && !mob) continue
 
           rows.push({
+            dateOfBirth: dobIdx >= 0 ? cells[dobIdx] : undefined,
             firstName: fn || 'Unknown',
             lastName: ln,
             mobile: mob,
@@ -230,7 +203,8 @@ export const DataExchangePage: React.FC = () => {
       const errors: string[] = []
 
       // Fetch existing patients to detect duplicates before calling API
-      const existingPatients = await apiClient.get<any[]>('/patients').catch(() => [])
+      const existingPatients = await apiClient.get<any[]>('/patients')
+      if (!Array.isArray(existingPatients)) throw new Error('Patient duplicate checking is unavailable. Import stopped.')
       const existingMobiles = new Set(
         Array.isArray(existingPatients)
           ? existingPatients.map((p: any) => (p.mobile || '').replace(/\D/g, '')).filter(Boolean)
@@ -259,11 +233,10 @@ export const DataExchangePage: React.FC = () => {
           continue
         }
 
-        // Calculate a valid date of birth from age or default to 30 years ago
-        const parsedAge = row.age ? parseInt(row.age, 10) : 30
-        const validAge = !isNaN(parsedAge) && parsedAge > 0 && parsedAge < 120 ? parsedAge : 30
-        const birthYear = new Date().getFullYear() - validAge
-        const dateOfBirth = `${birthYear}-01-01`
+        const dateOfBirth = verifiedBirthDate(row.dateOfBirth);
+        if (!dateOfBirth) {
+          skippedCount++; errors.push(`Row ${i+1}: A verified Date of Birth (YYYY-MM-DD) is required. Age alone is approximate and was not converted into a birth date.`); continue;
+        }
 
         // Format gender into valid Gender enum
         const genLower = (row.gender || '').toLowerCase()
@@ -298,6 +271,7 @@ export const DataExchangePage: React.FC = () => {
       setParsedRows([])
       setImportFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
+    } catch (error: any) { setParseError(error.message || 'Import stopped. No prerequisite checks were bypassed.');
     } finally {
       setImporting(false)
     }
@@ -314,7 +288,7 @@ export const DataExchangePage: React.FC = () => {
           Data Export &amp; Batch Import
         </h1>
         <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '14px' }}>
-          Export clinic patient registries, download full system backups, or batch import existing patients from spreadsheet CSVs.
+          Export clinic patient registries, download clinic record archives, or batch import existing patients from spreadsheet CSVs.
         </p>
       </header>
 
@@ -395,11 +369,11 @@ export const DataExchangePage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                   <FileText size={16} color="var(--teal-primary, #008891)" />
                   <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-strong, #0f172a)', margin: 0 }}>
-                    Full Clinic Backup (JSON)
+                    Clinic Record Archive (JSON)
                   </h3>
                 </div>
                 <p style={{ fontSize: '12.5px', color: 'var(--text-muted, #64748b)', margin: '0 0 12px 0', lineHeight: 1.4 }}>
-                  Complete structured dump including clinic profile, staff list, inventory supplies, and patient records for archival or data portability.
+                  Archive of clinic records and document files with a manifest of included data. Downloads are limited to 50 MB of document files; infrastructure recovery requires a separate tested backup.
                 </p>
                 <button
                   type="button"
@@ -420,7 +394,7 @@ export const DataExchangePage: React.FC = () => {
                   }}
                 >
                   {exportingFullBackup ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
-                  {exportingFullBackup ? 'Archiving...' : 'Download Full Archive (.JSON)'}
+                  {exportingFullBackup ? 'Archiving...' : 'Download Record Archive (.JSON)'}
                 </button>
               </div>
             </div>
@@ -464,7 +438,7 @@ export const DataExchangePage: React.FC = () => {
             </div>
 
             <p style={{ fontSize: '13px', color: 'var(--text-muted, #64748b)', margin: '0 0 16px 0', lineHeight: 1.5 }}>
-              Upload a comma-separated values (.csv) file containing your existing patient list. Columns should include First Name, Mobile, Email, Gender, and City.
+              Upload a comma-separated values (.csv) file containing your existing patient list. Include First Name, Last Name, Mobile and verified Date of Birth (YYYY-MM-DD). Age alone is approximate and cannot be imported as a birth date.
             </p>
 
             {parseError && (
@@ -537,7 +511,7 @@ export const DataExchangePage: React.FC = () => {
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-strong, #334155)' }}>
-                    Preview ({parsedRows.length} records ready to import)
+                    Review {parsedRows.length} records before import
                   </span>
                 </div>
 
@@ -553,7 +527,7 @@ export const DataExchangePage: React.FC = () => {
                     <thead>
                       <tr style={{ background: 'var(--surface-alt, #f1f5f9)', color: 'var(--text-muted, #475569)' }}>
                         <th style={{ padding: '6px 10px' }}>Name</th>
-                        <th style={{ padding: '6px 10px' }}>Phone</th>
+                        <th style={{ padding: '6px 10px' }}>Phone</th><th>Date of birth</th>
                         <th style={{ padding: '6px 10px' }}>City</th>
                       </tr>
                     </thead>
@@ -561,7 +535,7 @@ export const DataExchangePage: React.FC = () => {
                       {parsedRows.slice(0, 10).map((r, i) => (
                         <tr key={i} style={{ borderBottom: '1px solid var(--line, #f1f5f9)' }}>
                           <td style={{ padding: '6px 10px', fontWeight: 600, color: 'var(--text-strong)' }}>{r.firstName} {r.lastName}</td>
-                          <td style={{ padding: '6px 10px', color: 'var(--text-muted, #64748b)' }}>{r.mobile || 'N/A'}</td>
+                          <td style={{ padding: '6px 10px', color: 'var(--text-muted, #64748b)' }}>{r.mobile || 'N/A'}</td><td>{r.dateOfBirth || 'Missing — will be skipped'}</td>
                           <td style={{ padding: '6px 10px', color: 'var(--text-muted, #64748b)' }}>{r.city || 'N/A'}</td>
                         </tr>
                       ))}

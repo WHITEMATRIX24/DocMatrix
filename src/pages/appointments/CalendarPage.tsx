@@ -35,7 +35,7 @@ import {
   registerWalkIn,
   updateAppointmentStatus,
   rescheduleAppointment,
-  cancelAppointment,
+  cancelAppointmentPersisted as cancelAppointment,
   sendAppointmentReminder,
   generateWhatsAppMessage,
   checkDentistAvailability,
@@ -442,15 +442,22 @@ export const CalendarPage: React.FC = () => {
     setTimeout(() => setSlotSuccessToast(''), 4000)
   }
 
-  const handleExecuteQuickWalkIn = (e: React.FormEvent) => {
+  const [walkInDob, setWalkInDob] = useState('');
+  const [walkInSaving, setWalkInSaving] = useState(false);
+  const [walkInError, setWalkInError] = useState('');
+  const handleExecuteQuickWalkIn = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!wiName.trim()) return
 
-    registerWalkIn({
+    if (walkInSaving) return;
+    setWalkInSaving(true); setWalkInError('');
+    try {
+    await registerWalkIn({
+      dateOfBirth: walkInDob,
       patientName: wiName,
       mobile: wiMobile,
-      gender: 'female',
-      age: '28',
+      gender: 'undisclosed',
+      age: '',
       complaint: wiComplaint || 'General Dental Consultation',
       doctor: wiDoctor,
       priority: wiPriority
@@ -460,9 +467,11 @@ export const CalendarPage: React.FC = () => {
     setWiMobile('')
     setWiComplaint('')
     setShowQuickWalkIn(false)
+    } catch (error: any) { setWalkInError(error.message || 'Walk-in was not saved.'); }
+    finally { setWalkInSaving(false); }
   }
 
-  const handleExecuteReschedule = (e: React.FormEvent) => {
+  const handleExecuteReschedule = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!activeAppt) return
     setRescheduleError('')
@@ -486,6 +495,8 @@ export const CalendarPage: React.FC = () => {
       rescheduleReason || 'Patient requested new time slot.'
     )
 
+    try { await result._syncPromise } catch (error: any) { setRescheduleError(error.message || 'Reschedule was not saved.'); return }
+
     if (!result.success) {
       setRescheduleError(result.error || 'Conflict detected. Please select another time.')
       return
@@ -502,11 +513,11 @@ export const CalendarPage: React.FC = () => {
     setActiveAppt(null)
   }
 
-  const handleExecuteCancel = (e: React.FormEvent) => {
+  const handleExecuteCancel = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!activeAppt) return
 
-    cancelAppointment(activeAppt.id, cancelReason || 'Patient cancelled visit.')
+    try { await cancelAppointment(activeAppt.id, cancelReason || 'Patient cancelled visit.') } catch (error: any) { window.alert(error.message || 'Cancellation was not saved.'); return }
     setShowCancelModal(false)
     setActiveAppt(null)
   }
@@ -1207,6 +1218,10 @@ export const CalendarPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleExecuteQuickWalkIn} className="sub-modal-form">
+{walkInError && <p role="alert">{walkInError}</p>}
+<label>Date of birth (required for a new patient)<input type="date" value={walkInDob} onChange={e => setWalkInDob(e.target.value)} /></label>
+<fieldset disabled={walkInSaving} style={{border:0,padding:0,margin:0}}>
+
               <label className="form-field">
                 <span>Patient Full Name *</span>
                 <input
@@ -1258,7 +1273,7 @@ export const CalendarPage: React.FC = () => {
                   Issue Token & Add to Live Queue
                 </button>
               </div>
-            </form>
+            </fieldset></form>
           </div>
         </div>
       )}

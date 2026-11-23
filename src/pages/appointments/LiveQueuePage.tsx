@@ -1,3 +1,4 @@
+import { canClinic, getPermissionUser } from '@/services/permissions'
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import './calendar.css'
@@ -84,11 +85,18 @@ export const LiveQueuePage: React.FC = () => {
     }
   }
 
-  const handleRegisterWalkIn = (e: React.FormEvent) => {
+  const [walkInDob, setWalkInDob] = useState('');
+  const [walkInSaving, setWalkInSaving] = useState(false);
+  const [walkInError, setWalkInError] = useState('');
+  const handleRegisterWalkIn = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!walkInForm.patientName.trim()) return
 
-    registerWalkIn({
+    if (walkInSaving) return;
+    setWalkInSaving(true); setWalkInError('');
+    try {
+    await registerWalkIn({
+      dateOfBirth: walkInDob,
       patientName: walkInForm.patientName.trim(),
       mobile: walkInForm.mobile.trim(),
       gender: walkInForm.gender,
@@ -108,6 +116,8 @@ export const LiveQueuePage: React.FC = () => {
       priority: 'normal'
     })
     setModalOpen(false)
+    } catch (error: any) { setWalkInError(error.message || 'Walk-in was not saved.'); }
+    finally { setWalkInSaving(false); }
   }
 
   const today = new Date().toISOString().slice(0, 10)
@@ -149,7 +159,7 @@ export const LiveQueuePage: React.FC = () => {
           <button
             type="button"
             className="btn-walkin-main"
-            onClick={() => setModalOpen(true)}
+            disabled={!canClinic(getPermissionUser(), 'appointment.schedule')} onClick={() => setModalOpen(true)}
             data-testid="register-walkin-btn"
           >
             <UserPlus size={16} />
@@ -206,7 +216,7 @@ export const LiveQueuePage: React.FC = () => {
                     <div className="queue-card-actions">
                       <button
                         className="btn-start-consult"
-                        onClick={() => updateAppointmentStatus(appt.id, 'in-progress')}
+                        disabled={!canClinic(getPermissionUser(), 'appointment.consult')} onClick={() => updateAppointmentStatus(appt.id, 'in-progress')}
                       >
                         <Play size={13} />
                         <span>Call In / Start</span>
@@ -261,7 +271,7 @@ export const LiveQueuePage: React.FC = () => {
                     <div className="queue-card-actions">
                       <button
                         className="btn-complete-visit"
-                        onClick={() => handleCompleteVisit(appt)}
+                        disabled={!canClinic(getPermissionUser(), 'appointment.consult')} onClick={() => handleCompleteVisit(appt)}
                         title="Complete consultation & generate invoice"
                       >
                         <Check size={13} />
@@ -410,6 +420,10 @@ export const LiveQueuePage: React.FC = () => {
               </div>
 
               <form onSubmit={handleRegisterWalkIn} className="walkin-form">
+{walkInError && <p role="alert">{walkInError}</p>}
+<label>Date of birth (required for a new patient)<input type="date" value={walkInDob} onChange={e => setWalkInDob(e.target.value)} /></label>
+<fieldset disabled={walkInSaving} style={{border:0,padding:0,margin:0}}>
+
                 <div className="form-row-2">
                   <label className="form-field">
                     <span>Patient Full Name *</span>
@@ -504,7 +518,7 @@ export const LiveQueuePage: React.FC = () => {
                     <span>Generate Token & Add to Queue</span>
                   </button>
                 </div>
-              </form>
+              </fieldset></form>
             </div>
           </div>,
           document.body

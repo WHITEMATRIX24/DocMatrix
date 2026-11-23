@@ -225,6 +225,8 @@ export const DoctorPerformancePage: React.FC = () => {
 
   return (
     <div className="rpt-page rpt-doctor-page" data-testid="feature-page-rep.doctors">
+      {canSeeMoney && backendData?.summary?.unassignedBilled !== undefined && <p>Unassigned billed revenue: {inr(backendData.summary.unassignedBilled)}. Invoices without a resolvable appointment or treatment-plan link are not attributed to a doctor.</p>}
+
       <ReportActions
         filename="doctors"
         headers={[

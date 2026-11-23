@@ -1,3 +1,4 @@
+import { canClinic, getPermissionUser } from '@/services/permissions'
 import React, { useMemo, useState, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Stethoscope, CheckCircle2, AlertTriangle, Layers, Save, UserRound, ArrowRight } from 'lucide-react'
@@ -9,6 +10,8 @@ import {
 } from '@/services/clinicStore'
 import './patientProfile.css'
 import './toothChart.css'
+import { apiClient } from '@/services/apiClient'
+import { hasAuthToken } from '@/services/clinicStore'
 import { ToothChart } from './ToothChart'
 
 type ConditionType = 'Healthy' | 'Caries' | 'Restored' | 'Missing' | 'Crown' | 'RCT'
@@ -20,15 +23,17 @@ type ToothSurface = typeof TOOTH_SURFACES[number]
 export const ToothChartPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const canWrite = canClinic(getPermissionUser(), 'clinical.write')
   const { patients = [], clinicalNotes = [], toothCharts = {} } = useClinicData()
 
   // Select patient
   const patient = useMemo(() => {
-    if (!id) return patients[0] || null
-    return patients.find((p) => p.id.toLowerCase() === id.toLowerCase()) || patients[0] || null
+    if (!id) return null
+    const matches = patients.filter((p) => [p.id, p.backendId].some(value => value?.toLowerCase() === id.toLowerCase()))
+    return matches.length === 1 ? matches[0] : null
   }, [patients, id])
 
-  const effectivePatientId = patient?.id || id || 'pt-1001'
+  const effectivePatientId = patient?.id || ''
 
   // Interactive tooth conditions state synced with store
   const [conditions, setConditions] = useState<Record<number, { condition: ConditionType; notes?: string }>>(() => {
@@ -40,15 +45,32 @@ export const ToothChartPage: React.FC = () => {
     setConditions(getToothConditionsForPatient(effectivePatientId) as Record<number, { condition: ConditionType; notes?: string }>)
   }, [effectivePatientId, toothCharts])
 
-  const [selectedTooth, setSelectedTooth] = useState<number | null>(46)
-  const [activeCondition, setActiveCondition] = useState<ConditionType>('RCT')
-  const [toothNote, setToothNote] = useState('Pulpitis. Second sitting RCT underway.')
+  const [selectedTooth, setSelectedTooth] = useState<number | null>(null)
+  const [activeCondition, setActiveCondition] = useState<ConditionType>('Healthy')
+  const [toothNote, setToothNote] = useState('')
 
   // Dentition mode — adult (32 teeth) or primary (20 teeth)
   const [dentitionMode, setDentitionMode] = useState<'adult' | 'primary'>('adult')
 
   // UI-only surface selection — informational, not persisted separately
   const [selectedSurface, setSelectedSurface] = useState<ToothSurface | null>(null)
+
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [history, setHistory] = useState<any[]>([])
+  const [historyVersion, setHistoryVersion] = useState(0)
+  const [historyError, setHistoryError] = useState('')
+  useEffect(() => {
+    setSelectedTooth(null); setToothNote(''); setActiveCondition('Healthy'); setSelectedSurface(null); setSaveError('')
+  }, [effectivePatientId])
+  useEffect(() => {
+    let active = true
+    setHistory([]); setHistoryError('')
+    if (effectivePatientId && hasAuthToken()) apiClient.get<any[]>(`/patients/${encodeURIComponent(effectivePatientId)}/tooth-chart/history`)
+      .then(rows => { if (active) setHistory(rows) })
+      .catch(() => { if (active) setHistoryError('Recorded chart history could not be loaded.') })
+    return () => { active = false }
+  }, [effectivePatientId, historyVersion])
 
   const selectTooth = (num: number) => {
     setSelectedTooth(num)
@@ -63,30 +85,38 @@ export const ToothChartPage: React.FC = () => {
     }
   }
 
-  const applyCondition = () => {
-    if (!selectedTooth) return
+  const applyCondition = async () => {
+    if (!patient || !selectedTooth || saving || !canWrite) return
     // Optionally prepend selected surface to notes as context
     const surfacePrefix = selectedSurface ? `[${selectedSurface}] ` : ''
     const finalNote = selectedSurface && toothNote && !toothNote.startsWith(`[${selectedSurface}]`)
       ? `${surfacePrefix}${toothNote}`
       : toothNote
-    setConditions((prev) => ({
-      ...prev,
-      [selectedTooth]: {
-        condition: activeCondition,
-        notes: finalNote
-      }
-    }))
-    saveToothConditionForPatient(
+    setSaving(true); setSaveError('');
+    try {
+    await saveToothConditionForPatient(
       effectivePatientId,
       selectedTooth,
       activeCondition as ToothConditionType,
       finalNote
     )
+    setHistoryVersion(v => v + 1)
+    } catch (error: any) { setSaveError(error.message || 'Tooth chart was not saved. Please retry.') }
+    finally { setSaving(false) }
   }
+
+  if (!patient) return (
+    <section role="alert" className="clinic-record-page">
+      <h1>Patient not found</h1>
+      <p>Open a patient record before editing their tooth chart.</p>
+      <Link to="/patients">Return to patients</Link>
+    </section>
+  )
 
   return (
     <section className="clinic-record-page pat-profile-page" data-testid="feature-page-pat.toothchart">
+      {saveError && <p role="alert">{saveError}</p>}
+      {!canWrite && <p>This chart is read-only for your role. A verified practitioner can record changes.</p>}
       {/* Back button */}
       <div>
         <Link
@@ -230,7 +260,7 @@ export const ToothChartPage: React.FC = () => {
                 <button
                   type="button"
                   className="pat-btn pat-btn-primary"
-                  onClick={applyCondition}
+                  onClick={applyCondition} disabled={saving || !canWrite}
                   style={{ padding: '6px 14px' }}
                 >
                   <Save size={13} /> Apply
@@ -240,6 +270,16 @@ export const ToothChartPage: React.FC = () => {
           </div>
         </div>
       )}
+      <section aria-label="Recorded tooth chart history" style={{ marginTop: 24 }}>
+        <h2>Recorded chart history</h2>
+        {historyError ? <p role="alert">{historyError}</p> : history.length ? <ol>{history.map(event => <li key={event.id}>
+          <strong>{new Date(event.createdAt).toLocaleString()}</strong> · {event.actorName}
+          <ul>{event.metadata?.changes?.map((change: any) => <li key={change.toothNumber}>
+            Tooth {change.toothNumber}: {change.before?.condition || 'Not recorded'} → {change.after.condition}
+            {change.after.notes && <p>{change.after.notes}</p>}
+          </li>)}</ul>
+        </li>)}</ol> : <p>No recorded changes yet. Earlier chart history was not captured.</p>}
+      </section>
     </section>
   )
 }

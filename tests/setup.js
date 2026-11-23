@@ -1,3 +1,4 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import '@testing-library/jest-dom'
 import { configure } from '@testing-library/dom'
 
@@ -9,7 +10,7 @@ globalThis.fetch = async () => {
   throw new Error('Network disabled in UI unit tests. Mock fetch or apiClient for API responses.')
 }
 
-// Ensure valid Web Storage API in Node 22+/25+ environments where native localStorage may be uninitialized
+// Ensure valid Web Storage API in Node 22+/25+ environments where native browserLocalStorage may be uninitialized
 const createMemoryStorage = () => {
   let store = new Map()
   return {
@@ -36,15 +37,15 @@ const createMemoryStorage = () => {
 }
 
 if (typeof window !== 'undefined') {
-  if (!window.localStorage || typeof window.localStorage.clear !== 'function') {
+  if (!browserLocalStorage || typeof browserLocalStorage.clear !== 'function') {
     const ls = createMemoryStorage()
-    Object.defineProperty(window, 'localStorage', { value: ls, configurable: true, writable: true })
-    Object.defineProperty(globalThis, 'localStorage', { value: ls, configurable: true, writable: true })
+    Object.defineProperty(window, 'browserLocalStorage', { value: ls, configurable: true, writable: true })
+    Object.defineProperty(globalThis, 'browserLocalStorage', { value: ls, configurable: true, writable: true })
   }
-  if (!window.sessionStorage || typeof window.sessionStorage.clear !== 'function') {
+  if (!browserSessionStorage || typeof browserSessionStorage.clear !== 'function') {
     const ss = createMemoryStorage()
-    Object.defineProperty(window, 'sessionStorage', { value: ss, configurable: true, writable: true })
-    Object.defineProperty(globalThis, 'sessionStorage', { value: ss, configurable: true, writable: true })
+    Object.defineProperty(window, 'browserSessionStorage', { value: ss, configurable: true, writable: true })
+    Object.defineProperty(globalThis, 'browserSessionStorage', { value: ss, configurable: true, writable: true })
   }
 }
 

@@ -1,3 +1,4 @@
+import { browserSessionStorage } from '@/services/browserStorage';
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Menu, X, ArrowRight, ArrowLeft, Check, UserRound, Stethoscope, Building2, FlaskConical, Pill,
@@ -24,8 +25,11 @@ export function getSafeNextPath(rawNext) {
   if (!rawNext) return '/dashboard'
   try {
     const decoded = decodeURIComponent(rawNext)
-    if (decoded.startsWith('/') && !decoded.startsWith('//') && !decoded.includes('://')) {
-      return decoded
+    if (!decoded.startsWith('/') || /[\\\x00-\x20\x7f]/.test(decoded)) return '/dashboard'
+    const base = new URL('https://docmatrix.invalid')
+    const target = new URL(decoded, base)
+    if (target.origin === base.origin && !target.pathname.startsWith('//')) {
+      return `${target.pathname}${target.search}${target.hash}`
     }
   } catch { }
   return '/dashboard'
@@ -795,13 +799,13 @@ export default function App() {
   const [lineTwo, setLineTwo] = useState('********************')
   const mosaicRef = useRef(null)
 
-  // Authenticated Staff User Session State (Holds user in state, checks both authService and sessionStorage)
+  // Authenticated Staff User Session State (Holds user in state, checks both authService and browserSessionStorage)
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const authUser = getCurrentUser()
       if (authUser) return authUser
 
-      const saved = sessionStorage.getItem('docmatrix-demo-session')
+      const saved = browserSessionStorage.getItem('docmatrix-demo-session')
       if (saved) {
         if (saved.startsWith('{')) {
           const parsed = JSON.parse(saved)
@@ -872,8 +876,9 @@ export default function App() {
   const handleLoginSuccess = (user) => {
     setCurrentUser(user)
     try {
-      sessionStorage.setItem('docmatrix-demo-session', user.id)
+      browserSessionStorage.setItem('docmatrix-demo-session', user.id)
     } catch { }
+    if (user?.accountSetupRequired) { clearAllClinicStores(); navigate('/account-security'); return; }
     initAllClinicStores(user?.clinicId)
     syncWithBackend().catch(() => {})
     const params = new URLSearchParams(location.search)
@@ -888,7 +893,7 @@ export default function App() {
     clearAllClinicStores()
     authLogout()
     try {
-      sessionStorage.removeItem('docmatrix-demo-session')
+      browserSessionStorage.removeItem('docmatrix-demo-session')
     } catch { }
     navigate('/')
     window.scrollTo({ top: 0, behavior: 'smooth' })

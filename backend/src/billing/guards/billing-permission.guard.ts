@@ -36,7 +36,7 @@ export class BillingPermissionGuard implements CanActivate {
     }
 
     if (user.isPlatformAdmin) {
-      return true;
+      throw new ForbiddenException('Platform administrator sessions cannot access clinic billing.');
     }
 
     if (!user.role) {

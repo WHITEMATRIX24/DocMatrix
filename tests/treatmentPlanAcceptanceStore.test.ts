@@ -1,15 +1,17 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { addTreatmentPlan, getClinicSnapshot, recordTreatmentPlanAcceptance, resetStoreForTesting } from '@/services/clinicStore';
 import { apiClient } from '@/services/apiClient';
 
-vi.mock('@/services/apiClient', () => ({ apiClient: { post: vi.fn(), get: vi.fn(async () => []) } }));
+vi.mock('@/services/apiClient', () => ({ getStoredToken: () => browserSessionStorage.getItem('docmatrix_auth_token'), apiClient: { post: vi.fn(), get: vi.fn(async () => []) } }));
 const dto = { versionNumber: 1, patientAcceptedByName: 'Synthetic Patient', acceptanceMethod: 'WRITTEN_CONSENT' as const, isStaffRecorded: true, evidenceDocumentId: 'consent' };
 function create() {
   const plan = addTreatmentPlan({ backendId: 'remote-plan', patientId: 'PAT-1', title: 'Synthetic', procedure: 'Synthetic', category: 'General', toothNumber: '', status: 'Proposed', cost: 100, doctor: 'Synthetic', notes: '' });
-  sessionStorage.setItem('docmatrix_auth_token', 'synthetic-test-token');
+  browserSessionStorage.setItem('docmatrix_auth_user', JSON.stringify({ role: 'DOCTOR', clinicId: 'clinic-a' }));
+  browserSessionStorage.setItem('docmatrix_auth_token', 'synthetic-test-token');
   return plan;
 }
-beforeEach(() => { localStorage.clear(); sessionStorage.clear(); resetStoreForTesting(); vi.clearAllMocks(); });
+beforeEach(() => { browserLocalStorage.clear(); browserSessionStorage.clear(); resetStoreForTesting(); vi.clearAllMocks(); });
 describe('Acceptance persistence', () => {
   it('leaves the plan proposed until the backend confirms acceptance', async () => {
     const plan = create();

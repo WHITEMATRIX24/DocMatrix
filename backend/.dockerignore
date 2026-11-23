@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+.env.*
+!.env.example
+.verification
+storage
+coverage
+*.log
+test-result.json

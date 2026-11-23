@@ -28,6 +28,7 @@ describe('PrescriptionsService - Multi-Tenant Clinical Prescriptions', () => {
 
   beforeEach(() => {
     mockPrisma = {
+      clinic: { findUnique: vi.fn(async () => ({ clinicalConfig: {} })) },
       prescription: {
         findMany: vi.fn(),
         findFirst: vi.fn(),
@@ -202,7 +203,7 @@ describe('PrescriptionsService - Multi-Tenant Clinical Prescriptions', () => {
       mockPrisma.prescription.findFirst.mockResolvedValue({
         id: 'rx-draft-1',
         clinicId: 'clinic-A',
-        status: 'DRAFT',
+        status: 'DRAFT', diagnosis: 'Synthetic diagnosis',
         items: [{ id: 'item-1', medicineName: 'Amoxicillin' }],
       });
 

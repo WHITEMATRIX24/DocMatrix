@@ -1,3 +1,5 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
+import { canClinic, getPermissionUser, type ClinicOperation } from '@/services/permissions'
 import { getCurrentUser } from '@/services/authService'
 import React, { useMemo, useState, useEffect } from 'react'
 import { Link, useParams, useSearchParams, useLocation, useNavigate } from 'react-router-dom'
@@ -164,13 +166,21 @@ export const PatientProfilePage: React.FC = () => {
     prescriptions = []
   } = useClinicData()
 
+  const allowed = (operation: ClinicOperation) => canClinic(getPermissionUser(), operation)
+  const tabAllowed = (tab: TabKey) => {
+    if (['medical', 'prescriptions', 'notes', 'plans'].includes(tab)) return allowed('clinical.read')
+    if (tab === 'billing') return allowed('billing.invoice.read')
+    if (tab === 'documents') return allowed('document.read')
+    if (tab === 'consents') return allowed('consent.read')
+    return true
+  }
   // Match patient by id (case-insensitive for safety)
   const patient = useMemo(() => {
     return patients.find((p) => p.id.toLowerCase() === (id || '').toLowerCase())
   }, [patients, id])
 
   // Resolve active tab based on pathname deep link (e.g. /patients/:id/timeline) or query param ?tab=...
-  const activeTab: TabKey = useMemo(() => {
+  const requestedTab: TabKey = useMemo(() => {
     const rawQuery = searchParams.get('tab')?.toLowerCase()
     if (rawQuery && TAB_KEYS.includes(rawQuery as TabKey)) return rawQuery as TabKey
     if (rawQuery === 'x-rays' || rawQuery === 'xrays' || rawQuery === 'radiographs') return 'documents'
@@ -186,6 +196,8 @@ export const PatientProfilePage: React.FC = () => {
     if (path.endsWith('/pending-treatments')) return 'plans'
     return 'overview'
   }, [location.pathname, searchParams])
+
+  const activeTab = tabAllowed(requestedTab) ? requestedTab : 'overview'
 
   // Switch tabs on the base profile URL so deep links like /patients/:id/timeline never pin the tab
   const setTab = (tab: TabKey) => {
@@ -525,8 +537,12 @@ export const PatientProfilePage: React.FC = () => {
   // Consent Modal State
   const [consentModalOpen, setConsentModalOpen] = useState(false)
   const [consentType, setConsentType] = useState('Informed Consent for Dental Treatment')
-  const [consentStatus, setConsentStatus] = useState<PatientConsentRecord['status']>('Signed')
+  const [consentStatus, setConsentStatus] = useState<PatientConsentRecord['status']>('Pending')
   const [consentNotes, setConsentNotes] = useState('')
+  const [consentText, setConsentText] = useState('')
+  const [consentSignature, setConsentSignature] = useState('')
+  const [consentError, setConsentError] = useState('')
+  const [consentSaving, setConsentSaving] = useState(false)
 
   const openEditModal = () => {
     if (!patient) return
@@ -556,11 +572,11 @@ export const PatientProfilePage: React.FC = () => {
     setEditModalOpen(true)
   }
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!patient) return
-    updatePatient(patient.id, editForm)
-    setEditModalOpen(false)
+    try { const updated = updatePatient(patient.id, editForm); await updated?._syncPromise; setEditModalOpen(false) }
+    catch (error: any) { window.alert(error.message || 'Patient changes could not be saved.') }
   }
 
   const closeUpload = () => {
@@ -625,11 +641,12 @@ export const PatientProfilePage: React.FC = () => {
 
       // 2. Fetch authenticated blob through fetch with auth header
       const downloadPath = doc.downloadUrl || `/patients/${encodeURIComponent(patient?.id || doc.patientId)}/documents/${encodeURIComponent(doc.id)}/download`
-      const token = sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token')
+      const token = browserSessionStorage.getItem('docmatrix_auth_token') || browserLocalStorage.getItem('docmatrix_auth_token')
       const baseUrl = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000'
       const cleanUrl = `${baseUrl.replace(/\/+$/, '')}${downloadPath.startsWith('/') ? downloadPath : `/${downloadPath}`}`
       const httpFetch = (globalThis as any)['fetch']
       const res = await httpFetch(cleanUrl, {
+        signal: AbortSignal.timeout(120000),
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
       if (!res.ok) throw new Error('Download failed with status ' + res.status)
@@ -669,21 +686,27 @@ export const PatientProfilePage: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const handleAddConsent = (e: React.FormEvent) => {
+  const handleAddConsent = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!patient || !consentType.trim()) return
-    addPatientConsent({
+    setConsentSaving(true); setConsentError('');
+    try {
+    const saved = addPatientConsent({
       patientId: patient.id,
       consentType: consentType.trim(),
+      consentText: consentText.trim() || undefined, signatureData: consentSignature.trim() || undefined,
       status: consentStatus,
       recordedBy: 'Attending Doctor',
       documentRef: `DMX-CNS-${Date.now().toString().slice(-6)}`,
       notes: consentNotes.trim() || undefined
     })
+    await saved._syncPromise;
     setConsentType('Informed Consent for Dental Treatment')
-    setConsentNotes('')
+    setConsentNotes(''); setConsentText(''); setConsentSignature('')
     setConsentModalOpen(false)
     setTab('consents')
+    } catch (error: any) { setConsentError(error.message || 'Consent was not saved.'); }
+    finally { setConsentSaving(false); }
   }
 
   if (!patient) {
@@ -781,35 +804,35 @@ export const PatientProfilePage: React.FC = () => {
             <button
               type="button"
               className="pat-btn pat-btn-secondary"
-              onClick={openEditModal}
+              disabled={!allowed('patient.write')} onClick={openEditModal}
               title="Edit patient demographics and medical summary"
             >
               <Edit3 size={14} />
               <span>Edit Patient</span>
             </button>
 
-            <Link
+            {allowed('clinical.read') && (<Link
               className="pat-btn pat-btn-secondary"
               to={`/patients/${patient.id}/tooth-chart`}
               title="View and mark interactive dental tooth chart"
             >
               <Layers size={14} />
               <span>Tooth Chart</span>
-            </Link>
+            </Link>)}
 
-            <Link
+            {allowed('appointment.schedule') && (<Link
               className="pat-btn pat-btn-primary"
               to={`/appointments/new?patientId=${patient.id}`}
               title="Schedule consultation or dental procedure"
             >
               <CalendarPlus size={14} />
               <span>Book Appointment</span>
-            </Link>
+            </Link>)}
 
             <button
               type="button"
               className="pat-btn pat-btn-secondary"
-              onClick={() => navigate(`/clinical/notes/new?patientId=${patient.backendId || patient.id}`)}
+              disabled={!allowed('clinical.write')} onClick={() => navigate(`/clinical/notes/new?patientId=${patient.backendId || patient.id}`)}
               title="Record or review clinical consultation note"
             >
               <FileText size={14} />
@@ -819,7 +842,7 @@ export const PatientProfilePage: React.FC = () => {
             <button
               type="button"
               className="pat-btn pat-btn-secondary"
-              onClick={() => setRxModalOpen(true)}
+              disabled={!allowed('clinical.write')} onClick={() => setRxModalOpen(true)}
               title="Author and issue digital prescription for this patient"
             >
               <Pill size={14} />
@@ -829,26 +852,26 @@ export const PatientProfilePage: React.FC = () => {
             <button
               type="button"
               className="pat-btn pat-btn-secondary"
-              onClick={() => setTpModalOpen(true)}
+              disabled={!allowed('treatment.write')} onClick={() => setTpModalOpen(true)}
               title="Create a multi-stage dental treatment plan and cost estimate"
             >
               <Stethoscope size={14} />
               <span>Plan Treatment</span>
             </button>
 
-            <Link
+            {allowed('billing.invoice.create') && (<Link
               className="pat-btn pat-btn-secondary"
               to={`/billing/invoices/new?patientId=${patient.id}`}
               title="Bill this patient"
             >
               <Receipt size={14} />
               <span>New Invoice</span>
-            </Link>
+            </Link>)}
           </div>
         </div>
 
         {/* High-visibility Medical Alert Banner */}
-        {medicalAlerts ? (
+        {(allowed('patient.write') || allowed('clinical.read')) && (medicalAlerts ? (
           <div className="pat-alert-banner" role="alert">
             <AlertTriangle size={18} style={{ flexShrink: 0, color: '#dc2626' }} />
             <div>
@@ -861,7 +884,7 @@ export const PatientProfilePage: React.FC = () => {
             <ShieldCheck size={14} />
             <span>No critical medical alerts or drug contraindications recorded.</span>
           </div>
-        )}
+        ))}
 
         <div className="pat-stats" aria-label="Patient summary">
           <button type="button" className="pat-stat" onClick={() => setTab('timeline')}>
@@ -880,10 +903,10 @@ export const PatientProfilePage: React.FC = () => {
             <span>Treatment pending</span>
             <strong>{pendingTreatments.length ? inr(billing.pendingPlanValue) : '—'}</strong>
           </button>
-          <button type="button" className={`pat-stat${billing.due > 0 ? ' is-due' : ''}`} onClick={() => setTab('billing')}>
+          {tabAllowed('billing') && (<button type="button" className={`pat-stat${billing.due > 0 ? ' is-due' : ''}`} onClick={() => setTab('billing')}>
             <span>Balance due</span>
             <strong>{inr(billing.due)}</strong>
-          </button>
+          </button>)}
         </div>
       </header>
 
@@ -898,14 +921,14 @@ export const PatientProfilePage: React.FC = () => {
           <span>Overview</span>
         </button>
 
-        <button
+        {tabAllowed('medical') && (<button
           type="button"
           className={`pat-tab-btn ${activeTab === 'medical' ? 'is-active' : ''}`}
           onClick={() => setTab('medical')}
         >
           <ShieldCheck size={15} />
           <span>Medical History</span>
-        </button>
+        </button>)}
 
         <button
           type="button"
@@ -919,16 +942,16 @@ export const PatientProfilePage: React.FC = () => {
           )}
         </button>
 
-        <button
+        {tabAllowed('billing') && (<button
           type="button"
           className={`pat-tab-btn ${activeTab === 'billing' ? 'is-active' : ''}`}
           onClick={() => setTab('billing')}
         >
           <Receipt size={15} />
           <span>Billing</span>
-        </button>
+        </button>)}
 
-        <button
+        {tabAllowed('documents') && (<button
           type="button"
           className={`pat-tab-btn ${activeTab === 'documents' ? 'is-active' : ''}`}
           onClick={() => setTab('documents')}
@@ -938,9 +961,9 @@ export const PatientProfilePage: React.FC = () => {
           {patientDocs.length > 0 && (
             <span className="pat-tab-badge">{patientDocs.length}</span>
           )}
-        </button>
+        </button>)}
 
-        <button
+        {tabAllowed('consents') && (<button
           type="button"
           className={`pat-tab-btn ${activeTab === 'consents' ? 'is-active' : ''}`}
           onClick={() => setTab('consents')}
@@ -950,9 +973,9 @@ export const PatientProfilePage: React.FC = () => {
           {patientConsentList.length > 0 && (
             <span className="pat-tab-badge">{patientConsentList.length}</span>
           )}
-        </button>
+        </button>)}
 
-        <button
+        {tabAllowed('prescriptions') && (<button
           type="button"
           className={`pat-tab-btn ${activeTab === 'prescriptions' ? 'is-active' : ''}`}
           onClick={() => setTab('prescriptions')}
@@ -962,9 +985,9 @@ export const PatientProfilePage: React.FC = () => {
           {patientPrescriptions.length > 0 && (
             <span className="pat-tab-badge">{patientPrescriptions.length}</span>
           )}
-        </button>
+        </button>)}
 
-        <button
+        {tabAllowed('notes') && (<button
           type="button"
           className={`pat-tab-btn ${activeTab === 'notes' ? 'is-active' : ''}`}
           onClick={() => setTab('notes')}
@@ -975,9 +998,9 @@ export const PatientProfilePage: React.FC = () => {
           {patientNotes.length > 0 && (
             <span className="pat-tab-badge">{patientNotes.length}</span>
           )}
-        </button>
+        </button>)}
 
-        <button
+        {tabAllowed('plans') && (<button
           type="button"
           className={`pat-tab-btn ${activeTab === 'plans' ? 'is-active' : ''}`}
           onClick={() => setTab('plans')}
@@ -988,7 +1011,7 @@ export const PatientProfilePage: React.FC = () => {
           {patientPlans.length > 0 && (
             <span className="pat-tab-badge">{patientPlans.length}</span>
           )}
-        </button>
+        </button>)}
       </nav>
 
       {/* 3. Tab Contents */}
@@ -1003,7 +1026,7 @@ export const PatientProfilePage: React.FC = () => {
                   <h3><UserRound size={16} /> Demographics & Contact</h3>
                   <button
                     type="button"
-                    onClick={openEditModal}
+                    disabled={!allowed('patient.write')} onClick={openEditModal}
                     className="pat-card-action"
                     style={{ background: 'none', border: 'none', cursor: 'pointer' }}
                   >
@@ -1045,14 +1068,14 @@ export const PatientProfilePage: React.FC = () => {
               <article className="pat-card">
                 <div className="pat-card-head">
                   <h3><ShieldCheck size={16} /> Medical Alerts & Screening</h3>
-                  <button
+                  {tabAllowed('medical') && (<button
                     type="button"
                     onClick={() => setTab('medical')}
                     className="pat-card-action"
                     style={{ background: 'none', border: 'none', cursor: 'pointer' }}
                   >
                     Full History →
-                  </button>
+                  </button>)}
                 </div>
                 <dl className="pat-dl">
                   <div className="pat-dl-row">
@@ -1258,9 +1281,9 @@ export const PatientProfilePage: React.FC = () => {
               <article className="pat-card">
                 <div className="pat-card-head">
                   <h3><Receipt size={16} /> Billing</h3>
-                  <button type="button" onClick={() => setTab('billing')} className="pat-card-action" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                  {tabAllowed('billing') && (<button type="button" onClick={() => setTab('billing')} className="pat-card-action" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
                     All invoices →
-                  </button>
+                  </button>)}
                 </div>
                 <div className="pat-money-row">
                   <div><span>Billed</span><strong>{inr(billing.billed)}</strong></div>
@@ -1282,20 +1305,20 @@ export const PatientProfilePage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <button
                     type="button"
-                    onClick={() => setRxModalOpen(true)}
+                    disabled={!allowed('clinical.write')} onClick={() => setRxModalOpen(true)}
                     className="pat-btn pat-btn-secondary pat-btn-sm"
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                   >
                     <Plus size={13} /> Issue Rx
                   </button>
-                  <button
+                  {tabAllowed('prescriptions') && (<button
                     type="button"
                     onClick={() => setTab('prescriptions')}
                     className="pat-card-action"
                     style={{ background: 'none', border: 'none', cursor: 'pointer' }}
                   >
                     All prescriptions ({patientPrescriptions.length}) →
-                  </button>
+                  </button>)}
                 </div>
               </div>
               {patientPrescriptions.length > 0 ? (
@@ -1373,20 +1396,20 @@ export const PatientProfilePage: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <button
                     type="button"
-                    onClick={() => navigate(`/clinical/notes/new?patientId=${patient?.backendId || patient?.id}`)}
+                    disabled={!allowed('clinical.write')} onClick={() => navigate(`/clinical/notes/new?patientId=${patient?.backendId || patient?.id}`)}
                     className="pat-btn pat-btn-secondary pat-btn-sm"
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                   >
                     <Plus size={13} /> New Note
                   </button>
-                  <button
+                  {tabAllowed('notes') && (<button
                     type="button"
                     onClick={() => setTab('notes')}
                     className="pat-card-action"
                     style={{ background: 'none', border: 'none', cursor: 'pointer' }}
                   >
                     All notes ({patientNotes.length}) →
-                  </button>
+                  </button>)}
                 </div>
               </div>
 
@@ -1486,7 +1509,7 @@ export const PatientProfilePage: React.FC = () => {
                   Screening data recorded during intake and verified by treating clinician.
                 </p>
               </div>
-              <button type="button" onClick={openEditModal} className="pat-btn pat-btn-secondary">
+              <button type="button" disabled={!allowed('patient.write')} onClick={openEditModal} className="pat-btn pat-btn-secondary">
                 <Edit3 size={13} aria-hidden="true" /> Edit Medical Details
               </button>
             </header>
@@ -1921,7 +1944,7 @@ export const PatientProfilePage: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <button
                   type="button"
-                  onClick={() => setRxModalOpen(true)}
+                  disabled={!allowed('clinical.write')} onClick={() => setRxModalOpen(true)}
                   className="pat-btn pat-btn-primary"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                 >
@@ -2032,7 +2055,7 @@ export const PatientProfilePage: React.FC = () => {
                 <p>No digital prescriptions or medication regimens have been authored for this patient yet.</p>
                 <button
                   type="button"
-                  onClick={() => setRxModalOpen(true)}
+                  disabled={!allowed('clinical.write')} onClick={() => setRxModalOpen(true)}
                   className="rx-btn rx-btn-primary rx-btn-sm"
                 >
                   <Plus size={13} /> Issue First Prescription
@@ -2054,7 +2077,7 @@ export const PatientProfilePage: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <button
                   type="button"
-                  onClick={() => navigate(`/clinical/notes/new?patientId=${patient?.backendId || patient?.id}`)}
+                  disabled={!allowed('clinical.write')} onClick={() => navigate(`/clinical/notes/new?patientId=${patient?.backendId || patient?.id}`)}
                   className="pat-btn pat-btn-primary"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                 >
@@ -2178,7 +2201,7 @@ export const PatientProfilePage: React.FC = () => {
                 <p>No structured clinical consultation notes have been recorded for this patient yet.</p>
                 <button
                   type="button"
-                  onClick={() => navigate(`/clinical/notes/new?patientId=${patient?.backendId || patient?.id}`)}
+                  disabled={!allowed('clinical.write')} onClick={() => navigate(`/clinical/notes/new?patientId=${patient?.backendId || patient?.id}`)}
                   className="cn-btn cn-btn-primary cn-btn-sm"
                 >
                   <Plus size={13} /> Add First Clinical Note
@@ -2200,7 +2223,7 @@ export const PatientProfilePage: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <button
                   type="button"
-                  onClick={() => setTpModalOpen(true)}
+                  disabled={!allowed('treatment.write')} onClick={() => setTpModalOpen(true)}
                   className="pat-btn pat-btn-primary"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                 >
@@ -2341,7 +2364,7 @@ export const PatientProfilePage: React.FC = () => {
                 <p>No multi-stage dental treatment plans or cost estimates have been authored for this patient yet.</p>
                 <button
                   type="button"
-                  onClick={() => setTpModalOpen(true)}
+                  disabled={!allowed('treatment.write')} onClick={() => setTpModalOpen(true)}
                   className="cn-btn cn-btn-primary cn-btn-sm"
                 >
                   <Plus size={13} /> Create First Treatment Plan
@@ -2670,6 +2693,7 @@ export const PatientProfilePage: React.FC = () => {
             </div>
 
             <form onSubmit={handleAddConsent}>
+              {consentError && <p role="alert">{consentError}</p>}
               <div className="pat-modal-body">
                 <div className="pat-form-group">
                   <label>Procedure / Consent Title</label>
@@ -2696,6 +2720,8 @@ export const PatientProfilePage: React.FC = () => {
                 </div>
 
                 <div className="pat-form-group">
+                  <label>Exact consent wording</label><textarea className="pat-form-textarea" required={consentStatus === 'Signed'} value={consentText} maxLength={20000} onChange={e => setConsentText(e.target.value)} />
+                  <label>Patient or guardian signature evidence</label><textarea className="pat-form-textarea" required={consentStatus === 'Signed'} value={consentSignature} onChange={e => setConsentSignature(e.target.value)} placeholder="Record the patient signature evidence from the consent ceremony" />
                   <label>Clinical Notes & Risk Discussion</label>
                   <textarea
                     className="pat-form-textarea"
@@ -2716,7 +2742,7 @@ export const PatientProfilePage: React.FC = () => {
                   Cancel
                 </button>
                 <button type="submit" className="pat-btn pat-btn-primary">
-                  Save Consent Record
+                  {consentSaving ? 'Saving…' : 'Save Consent Record'}
                 </button>
               </div>
             </form>

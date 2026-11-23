@@ -267,12 +267,12 @@ describe('DocMatrix Billing Role-Based Authorization & Tenant Isolation', () => 
       expect(guard.canActivate(createMockContext(controller.getInvoices, doctor))).toBe(true);
     });
 
-    it('allows PLATFORM_ADMIN to bypass staff role restrictions', () => {
+    it('rejects PLATFORM_ADMIN on clinic billing operations', () => {
       const platformAdmin = makeUser(StaffRole.DOCTOR, clinicAId, true);
 
-      expect(guard.canActivate(createMockContext(controller.voidInvoice, platformAdmin))).toBe(true);
-      expect(guard.canActivate(createMockContext(controller.refundPayment, platformAdmin))).toBe(true);
-      expect(guard.canActivate(createMockContext(controller.createTariff, platformAdmin))).toBe(true);
+      expect(() => guard.canActivate(createMockContext(controller.voidInvoice, platformAdmin))).toThrow(ForbiddenException);
+      expect(() => guard.canActivate(createMockContext(controller.refundPayment, platformAdmin))).toThrow(ForbiddenException);
+      expect(() => guard.canActivate(createMockContext(controller.createTariff, platformAdmin))).toThrow(ForbiddenException);
     });
   });
 

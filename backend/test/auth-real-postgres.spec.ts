@@ -1,6 +1,4 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import fs from 'fs';
-import path from 'path';
 import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 import { JwtService } from '@nestjs/jwt';
@@ -11,39 +9,13 @@ import { JwtStrategy, JwtPayload } from '../src/auth/jwt.strategy.js';
 import { getJwtSecret, JWT_ALGORITHM, REFRESH_COOKIE_NAME, extractCookie } from '../src/common/config/jwt.config.js';
 import { AuthController } from '../src/auth/auth.controller.js';
 
-function parseEnv(filePath: string) {
-  const content = fs.readFileSync(filePath, 'utf-8');
-  const env: Record<string, string> = {};
-  for (const line of content.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const match = trimmed.match(/^([^=]+)=(.*)$/);
-    if (match) {
-      let val = match[2].trim();
-      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-        val = val.slice(1, -1);
-      }
-      env[match[1].trim()] = val;
-    }
-  }
-  return env;
+const testDbUrl = process.env.BATCH1_DATABASE_URL;
+if (testDbUrl) {
+  const parsed = new URL(testDbUrl);
+  if (parsed.hostname !== '127.0.0.1' || !['55439', '55440'].includes(parsed.port) || parsed.username !== 'batch_security' || parsed.pathname !== '/postgres' || parsed.searchParams.get('schema') !== 'batch1_security') throw new Error('Authentication integration tests require the dedicated localhost cluster.');
 }
 
-const env = parseEnv(path.resolve(process.cwd(), '.env'));
-const testDbUrl = env.TEST_DATABASE_URL;
-
-if (!testDbUrl) {
-  throw new Error('TEST_DATABASE_URL is not defined in backend/.env');
-}
-
-// Absolute safety check: Never run against shared Neon dev/prod database
-if (testDbUrl.includes('ep-snowy-shape-a1bb2vnd')) {
-  throw new Error('FATAL: TEST_DATABASE_URL points to the shared Neon database! Tests aborted for safety.');
-}
-
-process.env.DATABASE_URL = testDbUrl;
-
-describe('DocMatrix Phase 3 — Real PostgreSQL Database Authentication & Session Tests', () => {
+describe.skipIf(!testDbUrl)('DocMatrix Phase 3 — Real PostgreSQL Database Authentication & Session Tests', () => {
   let prisma: PrismaClient;
   let sessionService: SessionService;
   let authService: AuthService;

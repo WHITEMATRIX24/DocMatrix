@@ -1,3 +1,4 @@
+import { matchesSession, updateSession } from '../../test/helpers/session-persistence.js';
 import 'reflect-metadata';
 import { randomBytes } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -23,6 +24,8 @@ class ProtectedController {
     return req.user;
   }
 }
+
+Reflect.defineMetadata('design:paramtypes', [AuthService], AuthController);
 
 // Uses the real Passport guard, JWT strategy, session service and token issuer.
 // Only persistence is synthetic: no environment file or external database is read.
@@ -101,10 +104,8 @@ describe('Finding #1: protected JWT access and issuance', () => {
         updateMany: vi.fn(async ({ where, data }: any) => {
           let count = 0;
           for (const row of rows.values()) {
-            if (
-              Object.entries(where).every(([key, value]) => row[key] === value)
-            ) {
-              Object.assign(row, data);
+            if (matchesSession(row, where)) {
+              updateSession(row, data);
               count++;
             }
           }
@@ -122,8 +123,9 @@ describe('Finding #1: protected JWT access and issuance', () => {
       recordEvent: vi.fn(),
     } as any);
     const fixture = await Test.createTestingModule({
-      controllers: [ProtectedController],
+      controllers: [ProtectedController, AuthController],
       providers: [
+        { provide: AuthService, useValue: auth },
         { provide: JwtAuthGuard, useValue: new JwtAuthGuard(new Reflector()) },
         { provide: JwtStrategy, useValue: new JwtStrategy(db, sessions) },
       ],
@@ -292,4 +294,27 @@ describe('Finding #1: protected JWT access and issuance', () => {
     );
     expect((await access(response.token)).status).toBe(200);
   });
+  it('logout clears its refresh cookie and invalidates protected access immediately', async () => {
+    const { session, refreshToken } = await sessions.createSession(user.id, user.clinicId);
+    const token = jwt.sign({ sub: user.id, sessionId: session.id });
+    expect((await access(token)).status).toBe(200);
+    const response = await request(app.getHttpServer()).post('/auth/logout')
+      .set('X-Requested-With', 'docmatrix-web').set('Authorization', `Bearer ${token}`)
+      .set('Cookie', `docmatrix_refresh_token=${refreshToken}`).send({});
+    expect(response.status).toBe(200);
+    expect(response.headers['set-cookie'].join(';')).toContain('docmatrix_refresh_token=;');
+    expect((await access(token)).status).toBe(401);
+    await expect(sessions.rotateRefreshToken(refreshToken)).rejects.toThrow(/revoked/);
+  });
+  it('logout retains CSRF protection and rejects a signed token owned by a different subject', async () => {
+    const { session } = await sessions.createSession(user.id, user.clinicId);
+    const token = jwt.sign({ sub: user.id, sessionId: session.id });
+    expect((await request(app.getHttpServer()).post('/auth/logout').set('Authorization', `Bearer ${token}`).send({})).status).toBe(403);
+    expect(await sessions.isSessionValid(session.id, user.id)).toBe(true);
+    const mismatched = jwt.sign({ sub: 'different-user', sessionId: session.id });
+    expect((await request(app.getHttpServer()).post('/auth/logout').set('X-Requested-With', 'docmatrix-web')
+      .set('Authorization', `Bearer ${mismatched}`).send({})).status).toBe(200);
+    expect(await sessions.isSessionValid(session.id, user.id)).toBe(true);
+  });
+
 });

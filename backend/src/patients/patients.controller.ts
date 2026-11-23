@@ -1,3 +1,4 @@
+import { LegalHoldDto } from './dto/legal-hold.dto.js';
 import { canPerform } from '../common/decorators/operation-permission.decorator.js';
 import { RequireOperation } from '../common/decorators/operation-permission.decorator.js';
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
@@ -47,6 +48,13 @@ export class PatientsController {
     @Body() dto: UpdatePatientDto,
   ) {
     return this.patientView(user, await this.patientsService.updatePatient(user.clinicId!, id, dto));
+  }
+
+  @Patch(':id/legal-hold')
+  @RequireOperation('patient.archive')
+  async legalHold(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string, @Body() dto: LegalHoldDto) {
+    await this.patientsService.getPatient(user.clinicId!, id);
+    return this.patientsService.setLegalHold(user.clinicId!, id, dto.legalHold);
   }
 
   @Delete(':id')

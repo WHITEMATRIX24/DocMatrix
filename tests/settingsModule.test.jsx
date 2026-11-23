@@ -1,3 +1,4 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -16,8 +17,8 @@ import { apiClient } from '@/services/apiClient'
 describe('DocMatrix — Complete Settings & Configuration Module Suite', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
-    localStorage.clear()
-    sessionStorage.clear()
+    browserLocalStorage.clear()
+    browserSessionStorage.clear()
     vi.clearAllMocks()
   })
 
@@ -86,7 +87,7 @@ describe('DocMatrix — Complete Settings & Configuration Module Suite', () => {
     expect(screen.getByRole('heading', { name: /Add Custom Procedure/i })).toBeInTheDocument()
   })
 
-  it('4. SecurityPage renders password update, active verified device, and Neon PITR backup', async () => {
+  it('4. SecurityPage renders password update, active verified device, and unverified recovery status', async () => {
     render(
       <MemoryRouter>
         <SecurityPage />
@@ -98,7 +99,8 @@ describe('DocMatrix — Complete Settings & Configuration Module Suite', () => {
     expect(screen.getByPlaceholderText(/Enter current password/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/Re-enter new password/i)).toBeInTheDocument()
 
-    expect(screen.getByText(/Neon Continuous PITR/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Database recovery verification/i })).toBeInTheDocument()
+    expect(screen.queryByText(/Neon Continuous PITR/i)).not.toBeInTheDocument()
     expect(screen.getByText(/Active Session & Verified Devices/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Terminate All Other Sessions/i })).toBeInTheDocument()
   })
@@ -111,10 +113,25 @@ describe('DocMatrix — Complete Settings & Configuration Module Suite', () => {
     )
 
     expect(screen.getByText(/Privacy, Consent & Data Protection Controls/i)).toBeInTheDocument()
-    expect(screen.getByText(/Digital Personal Data Protection \(DPDP\) Act 2023/i)).toBeInTheDocument()
+    expect(screen.getByText(/Consent records:/i)).toBeInTheDocument()
     expect(screen.getByText(/General Dental Examination & Preventive Care Consent/i)).toBeInTheDocument()
     expect(screen.getByText(/Informed Consent for Endodontic \(Root Canal\) Treatment/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Export Complete Patient Bundle \(JSON\)/i })).toBeInTheDocument()
+  })
+
+  it('withdraws consent through the patient endpoint only after persistence succeeds', async () => {
+    vi.spyOn(apiClient, 'get').mockImplementation(async path => path === '/clinical/consents' ? [{ id: 'consent-a', patientId: 'patient-a', status: 'Signed', consentType: 'General' }] : {});
+    const patch = vi.spyOn(apiClient, 'patch').mockRejectedValueOnce(new Error('Synthetic persistence unavailable'));
+    render(<MemoryRouter><PrivacySettingsPage /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Withdraw' }));
+    await screen.findByText('Synthetic persistence unavailable');
+    expect(screen.queryByText('Consent withdrawn successfully.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Withdraw' })).toBeInTheDocument();
+    expect(patch).toHaveBeenCalledWith('/patients/patient-a/consents/consent-a', { status: 'Revoked' });
+    patch.mockResolvedValueOnce({ status: 'Revoked' });
+    fireEvent.click(screen.getByRole('button', { name: 'Withdraw' }));
+    await screen.findByText('Consent withdrawn successfully.');
+    expect(screen.queryByRole('button', { name: 'Withdraw' })).not.toBeInTheDocument();
   })
 
   it('6. DataExchangePage renders patient CSV export, full JSON archive, and CSV dropzone', async () => {
@@ -126,7 +143,7 @@ describe('DocMatrix — Complete Settings & Configuration Module Suite', () => {
 
     expect(screen.getByText(/Data Export & Batch Import/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Export Patients \(\.CSV\)/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Download Full Archive \(\.JSON\)/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Download Record Archive \(\.JSON\)/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Sample Template/i })).toBeInTheDocument()
     expect(screen.getByText(/Click to select patient CSV file/i)).toBeInTheDocument()
   })

@@ -9,7 +9,11 @@ export class AuthenticatedUser {
   clinicId!: string | null;
   isPlatformAdmin!: boolean;
   isPrimaryContact!: boolean;
+  canPractice?: boolean;
+  practitionerVerifiedAt?: Date | string | null;
+  practitionerRegistration?: string | null;
   sessionId?: string;
+  authScope?: 'full' | 'account-setup';
 }
 
 export const CurrentUser = createParamDecorator(

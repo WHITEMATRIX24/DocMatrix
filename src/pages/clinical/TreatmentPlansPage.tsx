@@ -1,3 +1,4 @@
+import { canClinic, getPermissionUser } from '@/services/permissions'
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -39,6 +40,8 @@ type PlanStatusFilter =
 
 export const TreatmentPlansPage: React.FC = () => {
   const { treatmentPlans = [], patients = [] } = useClinicData();
+  const [statusError, setStatusError] = useState('');
+  const [savingStatus, setSavingStatus] = useState<string | null>(null);
   const [activeStatus, setActiveStatus] = useState<PlanStatusFilter>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPlanForModal, setSelectedPlanForModal] = useState<TreatmentPlanRecord | null>(null);
@@ -111,12 +114,17 @@ export const TreatmentPlansPage: React.FC = () => {
     };
   }, [treatmentPlans]);
 
-  const handleStatusChange = (id: string, newStatus: TreatmentPlanRecord['status']) => {
-    updateTreatmentPlanStatus(id, newStatus);
-    if (newStatus === 'Completed') {
-      const plan = (treatmentPlans as TreatmentPlanRecord[]).find((p) => p.id === id);
-      if (plan) setSelectedPlanForModal(plan);
-    }
+  const handleStatusChange = async (id: string, newStatus: TreatmentPlanRecord['status']) => {
+    if (savingStatus) return;
+    setStatusError(''); setSavingStatus(id);
+    try {
+      if (!await updateTreatmentPlanStatus(id, newStatus)) return;
+      if (newStatus === 'Completed') {
+        const plan = (treatmentPlans as TreatmentPlanRecord[]).find(p => p.id === id);
+        if (plan) setSelectedPlanForModal(plan);
+      }
+    } catch (error: any) { setStatusError(error.message || 'Treatment status was not saved.'); }
+    finally { setSavingStatus(null); }
   };
 
   const handleMigrateLegacy = async () => {
@@ -158,6 +166,7 @@ export const TreatmentPlansPage: React.FC = () => {
 
   return (
     <section className="clinic-record-page pat-profile-page" data-testid="feature-page-clin.plans">
+      {statusError && <p role="alert">{statusError}</p>}
       {/* Header */}
       <header
         className="clinic-record-header"
@@ -200,7 +209,7 @@ export const TreatmentPlansPage: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setIsCreateModalOpen(true)}
+            disabled={!canClinic(getPermissionUser(), 'treatment.write')} onClick={() => setIsCreateModalOpen(true)}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -269,7 +278,7 @@ export const TreatmentPlansPage: React.FC = () => {
           <button
             type="button"
             onClick={handleMigrateLegacy}
-            disabled={isMigrating}
+            disabled={isMigrating || !canClinic(getPermissionUser(), 'treatment.write')}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -437,7 +446,7 @@ export const TreatmentPlansPage: React.FC = () => {
                     <td>
                       <select
                         value={plan.status}
-                        onChange={(e) => handleStatusChange(plan.id, e.target.value as TreatmentPlanRecord['status'])}
+                        disabled={!!savingStatus || !canClinic(getPermissionUser(), 'treatment.write')} onChange={(e) => handleStatusChange(plan.id, e.target.value as TreatmentPlanRecord['status'])}
                         style={{
                           ...badgeStyle,
                           padding: '4px 8px',
@@ -449,11 +458,11 @@ export const TreatmentPlansPage: React.FC = () => {
                         }}
                       >
                         <option value="Proposed">Proposed</option>
-                        <option value="Accepted">Accepted</option>
+                        {plan.status === 'Accepted' && <option value="Accepted">Accepted</option>}
                         <option value="In Progress">In Progress</option>
                         <option value="Pending">Pending</option>
                         <option value="Completed">Completed</option>
-                        <option value="Rejected">Rejected</option>
+                        {plan.status === 'Rejected' && <option value="Rejected">Rejected</option>}
                       </select>
                     </td>
 

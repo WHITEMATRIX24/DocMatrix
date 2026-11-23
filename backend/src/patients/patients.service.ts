@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreatePatientDto } from './dto/create-patient.dto.js';
@@ -43,7 +44,7 @@ export class PatientsService {
       emergencyPhone: patient.emergencyPhone || '',
       relationship: patient.relationship || '',
       medicalSafetyAlerts: patient.medicalSafetyAlerts || null,
-      isActive: patient.isActive,
+      isActive: patient.isActive, legalHold: patient.legalHold, retentionArchivedAt: patient.retentionArchivedAt,
       createdAt: patient.createdAt.toISOString(),
       updatedAt: patient.updatedAt.toISOString(),
       appointments: patient.appointments,
@@ -96,11 +97,13 @@ export class PatientsService {
       throw new NotFoundException('Patient record not found.');
     }
 
+    const conflicting = await this.prisma.patient.findFirst({ where: { clinicId, id: { not: patient.id }, OR: [{ id: id }, { patientCode: id }] }, select: { id: true } });
+    if (conflicting && conflicting.id !== patient.id) throw new NotFoundException('Ambiguous patient identity. Correct the conflicting patient code before proceeding.');
     return this.serializePatient(patient);
   }
 
-  async generateNextPatientCode(clinicId: string): Promise<string> {
-    const existing = await this.prisma.patient.findMany({
+  async generateNextPatientCode(clinicId: string, client: Prisma.TransactionClient | PrismaService = this.prisma): Promise<string> {
+    const existing = await client.patient.findMany({
       where: { clinicId },
       select: { patientCode: true },
     });
@@ -114,11 +117,14 @@ export class PatientsService {
   }
 
   async createPatient(clinicId: string, dto: CreatePatientDto) {
+    return this.prisma.$transaction(async tx => {
+    const clinics = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`SELECT id FROM "Clinic" WHERE id = ${clinicId} FOR UPDATE`);
+    if (!clinics.length) throw new NotFoundException('Clinic not found.');
     let code = dto.patientCode?.trim();
     if (!code) {
-      code = await this.generateNextPatientCode(clinicId);
+      code = await this.generateNextPatientCode(clinicId, tx);
     } else {
-      const existingCode = await this.prisma.patient.findUnique({
+      const existingCode = await tx.patient.findUnique({
         where: {
           clinicId_patientCode: {
             clinicId,
@@ -128,13 +134,13 @@ export class PatientsService {
       });
 
       if (existingCode) {
-        code = await this.generateNextPatientCode(clinicId);
+        code = await this.generateNextPatientCode(clinicId, tx);
       }
     }
 
     const dob = new Date(dto.dateOfBirth);
 
-    const created = await this.prisma.patient.create({
+    const created = await tx.patient.create({
       data: {
         clinicId,
         patientCode: code,
@@ -158,6 +164,7 @@ export class PatientsService {
     });
 
     return this.serializePatient(created);
+    }, { maxWait: 10000, timeout: 20000 });
   }
 
   async updatePatient(clinicId: string, id: string, dto: UpdatePatientDto) {
@@ -185,6 +192,12 @@ export class PatientsService {
     });
 
     return this.serializePatient(updated);
+  }
+
+  async setLegalHold(clinicId: string, id: string, legalHold: boolean) {
+    const patient = await this.getPatient(clinicId, id);
+    await this.prisma.patient.update({ where: { id: patient.id, clinicId }, data: { legalHold } });
+    return { success: true, legalHold };
   }
 
   async archivePatient(clinicId: string, id: string) {

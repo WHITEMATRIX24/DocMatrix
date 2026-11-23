@@ -1,3 +1,5 @@
+import { apiClient } from '@/services/apiClient';
+import { canClinic, getPermissionUser } from '@/services/permissions'
 import React, { useState } from 'react';
 import {
   X,
@@ -30,6 +32,7 @@ export const PrescriptionDetailsModal: React.FC<PrescriptionDetailsModalProps> =
   onUpdated,
 }) => {
   const [cancelling, setCancelling] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +51,7 @@ export const PrescriptionDetailsModal: React.FC<PrescriptionDetailsModalProps> =
     try {
       setLoading(true);
       setError(null);
+      if (verificationCode) { await apiClient.post('/auth/mfa/step-up', { code: verificationCode }); setVerificationCode(''); }
       await finalizePrescription(prescription.id);
       onUpdated?.();
       onClose();
@@ -349,7 +353,7 @@ export const PrescriptionDetailsModal: React.FC<PrescriptionDetailsModalProps> =
         {/* Footer Actions */}
         <div className="rx-modal-footer">
           <div>
-            {!isCancelled && !cancelling && (
+            {!isCancelled && !cancelling && canClinic(getPermissionUser(), 'clinical.write') && (
               <button
                 type="button"
                 onClick={() => setCancelling(true)}
@@ -371,7 +375,7 @@ export const PrescriptionDetailsModal: React.FC<PrescriptionDetailsModalProps> =
               Print / Save as PDF
             </button>
 
-            {isDraft && onEditDraft && (
+            {isDraft && onEditDraft && canClinic(getPermissionUser(), 'clinical.write') && (
               <button
                 type="button"
                 onClick={() => onEditDraft(prescription)}
@@ -382,7 +386,8 @@ export const PrescriptionDetailsModal: React.FC<PrescriptionDetailsModalProps> =
               </button>
             )}
 
-            {isDraft && (
+            {isDraft && <label>Authenticator code (when required)<input autoComplete="one-time-code" value={verificationCode} onChange={event => setVerificationCode(event.target.value)} /></label>}
+            {isDraft && canClinic(getPermissionUser(), 'clinical.write') && (
               <button
                 type="button"
                 disabled={loading}

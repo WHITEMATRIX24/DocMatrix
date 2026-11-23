@@ -1,3 +1,4 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import React from 'react';
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
@@ -12,24 +13,24 @@ async function makePlan() {
   return createStructuredTreatmentPlan({patientId:'pt-1001',title:'Recovery test',stages:[{stageNumber:1,name:'Stage 1',items:[{procedureName:'Restoration',category:'Restorative',quantity:1,unitFee:1000,discount:0}]}]});
 }
 function authenticate(role='DOCTOR') {
-  sessionStorage.setItem(STORAGE_KEYS.USER,JSON.stringify({id:'doctor-a',role,clinicId:'clinic-a'}));
-  sessionStorage.setItem(STORAGE_KEYS.TOKEN,'synthetic-auth-token');
+  browserSessionStorage.setItem(STORAGE_KEYS.USER,JSON.stringify({id:'doctor-a',role,clinicId:'clinic-a'}));
+  browserSessionStorage.setItem(STORAGE_KEYS.TOKEN,'synthetic-auth-token');
 }
 describe('Treatment workflow failure recovery', () => {
-  beforeEach(() => {localStorage.clear();sessionStorage.clear();resetStoreForTesting();});
-  afterEach(() => {cleanup();vi.restoreAllMocks();localStorage.clear();sessionStorage.clear();});
+  beforeEach(() => {browserLocalStorage.clear();browserSessionStorage.clear();resetStoreForTesting();});
+  afterEach(() => {cleanup();vi.restoreAllMocks();browserLocalStorage.clear();browserSessionStorage.clear();});
 
   it('clears credentials immediately while logout revocation is pending', async () => {
     authenticate();
     let finish;
     const post=vi.spyOn(apiClient,'post').mockImplementation(()=> {
-      expect(sessionStorage.getItem(STORAGE_KEYS.TOKEN)).toBe('synthetic-auth-token');
+      expect(browserSessionStorage.getItem(STORAGE_KEYS.TOKEN)).toBe('synthetic-auth-token');
       return new Promise(resolve=>{finish=resolve;});
     });
     const pending=logout();
     expect(post).toHaveBeenCalledWith('/auth/logout',{});
-    expect(sessionStorage.getItem(STORAGE_KEYS.TOKEN)).toBeNull();
-    expect(sessionStorage.getItem(STORAGE_KEYS.USER)).toBeNull();
+    expect(browserSessionStorage.getItem(STORAGE_KEYS.TOKEN)).toBeNull();
+    expect(browserSessionStorage.getItem(STORAGE_KEYS.USER)).toBeNull();
     expect(getClinicSnapshot().patients).toEqual([]);
     finish({success:true});await pending;
   });

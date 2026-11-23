@@ -1,9 +1,20 @@
+import { isVerifiedPractitioner } from '../practitioner.policy.js';
 import { SetMetadata } from '@nestjs/common';
 import { StaffRole } from '@prisma/client';
 import type { AuthenticatedUser } from './current-user.decorator.js';
 
 export const OPERATION_KEY = 'docmatrix.operation';
 export type Operation =
+  | 'appointment.read'
+  | 'appointment.schedule'
+  | 'appointment.check_in'
+  | 'appointment.consult'
+  | 'treatment.read'
+  | 'treatment.write'
+  | 'report.summary'
+  | 'report.clinical'
+  | 'report.financial'
+  | 'report.follow_up'
   | 'clinical.read'
   | 'clinical.write'
   | 'document.read'
@@ -25,6 +36,16 @@ const intake = [...clinicians, StaffRole.RECEPTIONIST];
 export const OPERATION_ROLES: Readonly<
   Record<Operation, readonly StaffRole[]>
 > = {
+  'appointment.read': intake,
+  'appointment.schedule': [...admins, StaffRole.DOCTOR, StaffRole.RECEPTIONIST],
+  'appointment.check_in': intake,
+  'appointment.consult': [StaffRole.DOCTOR],
+  'treatment.read': clinicians,
+  'treatment.write': [...admins, StaffRole.DOCTOR],
+  'report.summary': [...intake, StaffRole.ACCOUNTANT],
+  'report.clinical': [...clinicians, StaffRole.ACCOUNTANT],
+  'report.financial': [...admins, StaffRole.ACCOUNTANT],
+  'report.follow_up': intake,
   'clinical.read': clinicians,
   'clinical.write': [StaffRole.DOCTOR],
   // Receptionist access is further restricted by document category in ClinicalService.
@@ -48,8 +69,9 @@ export function canPerform(
   user: AuthenticatedUser,
   operation: Operation,
 ): boolean {
+  if (['clinical.write', 'appointment.consult'].includes(operation) && isVerifiedPractitioner(user)) return !!user.clinicId;
   return (
-    user.isPlatformAdmin === true ||
+    !!user && user.isPlatformAdmin !== true && !!user.clinicId &&
     OPERATION_ROLES[operation].includes(user.role as StaffRole)
   );
 }

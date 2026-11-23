@@ -1,3 +1,7 @@
+import { surgeryConsentPolicy } from '../common/clinical-governance.js';
+import { clinicInstant, localParts } from '../common/clinic-time.js';
+import { practitionerWhere } from '../common/practitioner.policy.js';
+import { Prisma } from '@prisma/client';
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { AppointmentPriority, AppointmentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -9,6 +13,39 @@ import { CancelAppointmentDto } from './dto/cancel-appointment.dto.js';
 @Injectable()
 export class AppointmentsService {
   constructor(private prisma: PrismaService) {}
+
+  private async clinicSettings(clinicId: string, client: any = this.prisma) {
+    const clinic = await client.clinic.findUnique({ where: { id: clinicId } });
+    if (!clinic) throw new NotFoundException('Clinic not found.');
+    return { ...clinic, timezone: clinic.timezone || 'Asia/Kolkata' };
+  }
+  private async scheduleMutation<T>(clinicId: string, work: (tx: any, clinic: any) => Promise<T>) {
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM "Clinic" WHERE id = ${clinicId} FOR UPDATE`);
+      return work(tx, await this.clinicSettings(clinicId, tx));
+    }, { maxWait: 10000, timeout: 20000 });
+  }
+  private async assertSlot(tx: any, clinic: any, slot: { startTime: Date; endTime: Date; doctorId?: string | null; chair?: string | null; priority?: string; status?: string }, exceptId?: string) {
+    if (['CANCELLED', 'NO_SHOW'].includes(slot.status || '')) return;
+    if (slot.priority?.toUpperCase() !== 'EMERGENCY') {
+      const local = localParts(slot.startTime, clinic.timezone);
+      const day = new Date(`${local.date}T12:00:00Z`).getUTCDay();
+      const hours = clinic.extendedSettings?.workingHours || {};
+      const text = day === 0 ? hours.sunday || 'Closed' : day === 6 ? hours.saturday || '09:00 AM - 06:00 PM' : hours.weekdays || '09:00 AM - 08:00 PM';
+      if (/closed|emergency only/i.test(text)) throw new BadRequestException('The clinic is closed at this time.');
+      const matches = [...text.matchAll(/(\d{1,2}):(\d{2})\s*(AM|PM)?/gi)];
+      if (matches.length !== 2) throw new BadRequestException('Configure valid clinic working hours before booking.');
+      const minute = (m: RegExpMatchArray) => (m[3] ? Number(m[1]) % 12 + (m[3].toUpperCase() === 'PM' ? 12 : 0) : Number(m[1])) * 60 + Number(m[2]);
+      const startMinute = Number(local.time.slice(0,2))*60 + Number(local.time.slice(3));
+      const duration = (slot.endTime.getTime() - slot.startTime.getTime()) / 60000;
+      if (startMinute < minute(matches[0]) || startMinute + duration > minute(matches[1])) throw new BadRequestException('Appointment falls outside clinic working hours.');
+    }
+    const resources = [...(slot.doctorId ? [{ doctorId: slot.doctorId }] : []), ...(slot.chair ? [{ operatoryChair: slot.chair }] : [])];
+    if (resources.length && await tx.appointment.findFirst({ where: {
+      clinicId: clinic.id, ...(exceptId ? { id: { not: exceptId } } : {}),
+      status: { notIn: ['CANCELLED', 'NO_SHOW'] }, startTime: { lt: slot.endTime }, endTime: { gt: slot.startTime }, OR: resources,
+    } })) throw new BadRequestException('The doctor or chair already has an overlapping appointment.');
+  }
 
   private parseStatus(status?: string): AppointmentStatus {
     if (!status) return AppointmentStatus.SCHEDULED;
@@ -64,10 +101,9 @@ export class AppointmentsService {
     return AppointmentPriority.NORMAL;
   }
 
-  private serializeAppointment(appt: any) {
+  private serializeAppointment(appt: any, timezone = 'UTC') {
     const start = new Date(appt.startTime);
-    const dateStr = start.toISOString().slice(0, 10);
-    const timeStr = `${String(start.getUTCHours()).padStart(2, '0')}:${String(start.getUTCMinutes()).padStart(2, '0')}`;
+    const { date: dateStr, time: timeStr } = localParts(start, timezone);
 
     return {
       id: appt.id,
@@ -98,17 +134,19 @@ export class AppointmentsService {
     };
   }
 
-  private parseDateRange(dateStr: string): { startOfDay: Date; endOfDay: Date } {
-    const startOfDay = new Date(`${dateStr}T00:00:00.000Z`);
-    const endOfDay = new Date(`${dateStr}T23:59:59.999Z`);
+  private parseDateRange(dateStr: string, timezone = 'UTC'): { startOfDay: Date; endOfDay: Date } {
+    const startOfDay = clinicInstant(dateStr, '00:00', timezone);
+    const tomorrow = new Date(Date.parse(`${dateStr}T12:00:00Z`) + 86400000).toISOString().slice(0,10);
+    const endOfDay = new Date(clinicInstant(tomorrow, '00:00', timezone).getTime() - 1);
     return { startOfDay, endOfDay };
   }
 
   async listAppointments(clinicId: string, query: AppointmentQueryDto) {
+    const clinic = await this.clinicSettings(clinicId);
     const where: any = { clinicId };
 
     if (query.date) {
-      const { startOfDay, endOfDay } = this.parseDateRange(query.date);
+      const { startOfDay, endOfDay } = this.parseDateRange(query.date, clinic.timezone);
       where.startTime = { gte: startOfDay, lte: endOfDay };
     }
 
@@ -137,11 +175,11 @@ export class AppointmentsService {
       orderBy: { startTime: 'asc' },
     });
 
-    return appts.map((a) => this.serializeAppointment(a));
+    return appts.map((a) => this.serializeAppointment(a, clinic.timezone));
   }
 
-  async getAppointment(clinicId: string, id: string) {
-    const appt = await this.prisma.appointment.findFirst({
+  async getAppointment(clinicId: string, id: string, client: any = this.prisma, clinicContext?: any) {
+    const appt = await client.appointment.findFirst({
       where: { id, clinicId },
       include: {
         patient: true,
@@ -155,12 +193,14 @@ export class AppointmentsService {
       throw new NotFoundException('Appointment record not found.');
     }
 
-    return this.serializeAppointment(appt);
+    const clinic = clinicContext || await this.clinicSettings(clinicId, client);
+    return this.serializeAppointment(appt, clinic.timezone);
   }
 
   async createAppointment(clinicId: string, dto: CreateAppointmentDto) {
+    return this.scheduleMutation(clinicId, async (tx, clinic) => {
     // 1. Cross-clinic patient validation
-    const patient = await this.prisma.patient.findFirst({
+    const patient = await tx.patient.findFirst({
       where: {
         clinicId,
         OR: [{ id: dto.patientId }, { patientCode: dto.patientId }],
@@ -173,20 +213,19 @@ export class AppointmentsService {
     // 2. Doctor resolution and cross-clinic validation
     let resolvedDoctorId = dto.doctorId;
     if (!resolvedDoctorId && dto.doctorName) {
-      const doctorUser = await this.prisma.user.findFirst({
+      const doctorUser = await tx.user.findFirst({
         where: {
           clinicId,
-          fullName: { contains: dto.doctorName.trim(), mode: 'insensitive' },
+          fullName: { equals: dto.doctorName.trim(), mode: 'insensitive' }, ...practitionerWhere,
         },
       });
-      if (doctorUser) {
-        resolvedDoctorId = doctorUser.id;
-      }
+      if (!doctorUser) throw new BadRequestException('The selected doctor is not an active practitioner in this clinic.');
+      resolvedDoctorId = doctorUser.id;
     }
 
     if (resolvedDoctorId) {
-      const doctor = await this.prisma.user.findFirst({
-        where: { id: resolvedDoctorId, clinicId },
+      const doctor = await tx.user.findFirst({
+        where: { id: resolvedDoctorId, clinicId, ...practitionerWhere },
       });
       if (!doctor) {
         throw new BadRequestException('Invalid doctor: Doctor does not belong to your clinic.');
@@ -194,9 +233,9 @@ export class AppointmentsService {
     }
 
     // 3. Date & time calculation
-    const duration = dto.durationMinutes || 30;
-    const startIso = `${dto.date}T${dto.time}:00.000Z`;
-    const startTime = new Date(startIso);
+    const duration = dto.durationMinutes ?? 30;
+    if (!Number.isInteger(duration) || duration < 1 || duration > 1440) throw new BadRequestException('Duration must be between 1 and 1440 minutes.');
+    const startTime = clinicInstant(dto.date, dto.time, clinic.timezone);
     if (isNaN(startTime.getTime())) {
       throw new BadRequestException('Invalid date or time format. Expected YYYY-MM-DD and HH:MM.');
     }
@@ -205,7 +244,10 @@ export class AppointmentsService {
     const status = this.parseStatus(dto.status);
     const priority = this.parsePriority(dto.priority);
 
-    const created = await this.prisma.appointment.create({
+    await this.assertSlot(tx, clinic, { startTime, endTime, doctorId: resolvedDoctorId, chair: dto.chair, priority, status });
+
+    if (['IN_PROGRESS','COMPLETED'].includes(status)) await surgeryConsentPolicy(tx, clinicId, patient.id, { procedureName: dto.treatmentType });
+    const created = await tx.appointment.create({
       data: {
         clinicId,
         patientId: patient.id,
@@ -231,33 +273,43 @@ export class AppointmentsService {
       },
     });
 
-    return this.serializeAppointment(created);
+    return this.serializeAppointment(created, clinic.timezone);
+    });
   }
 
   async updateAppointment(clinicId: string, id: string, dto: UpdateAppointmentDto) {
-    const existing = await this.getAppointment(clinicId, id);
+    return this.scheduleMutation(clinicId, async (tx, clinic) => {
+    const existing = await this.getAppointment(clinicId, id, tx, clinic);
 
     let startTime = new Date(existing.startTime);
-    let duration = dto.durationMinutes ?? existing.durationMinutes;
+    const duration = dto.durationMinutes ?? existing.durationMinutes;
+    if (!Number.isInteger(duration) || duration < 1 || duration > 1440) throw new BadRequestException('Duration must be between 1 and 1440 minutes.');
 
     if (dto.date || dto.time) {
       const datePart = dto.date || existing.date;
       const timePart = dto.time || existing.time;
-      startTime = new Date(`${datePart}T${timePart}:00.000Z`);
+      startTime = clinicInstant(datePart, timePart, clinic.timezone);
     }
 
     const endTime = new Date(startTime.getTime() + duration * 60000);
 
     if (dto.doctorId) {
-      const doctor = await this.prisma.user.findFirst({
-        where: { id: dto.doctorId, clinicId },
+      const doctor = await tx.user.findFirst({
+        where: { id: dto.doctorId, clinicId, ...practitionerWhere },
       });
       if (!doctor) {
         throw new BadRequestException('Invalid doctor: Doctor does not belong to your clinic.');
       }
     }
 
-    const updated = await this.prisma.appointment.update({
+    if (dto.date || dto.time || dto.durationMinutes !== undefined || dto.doctorId !== undefined || dto.chair !== undefined || (['cancelled', 'no-show'].includes(existing.status) && dto.status && !['cancelled', 'no-show'].includes(dto.status)))
+    await this.assertSlot(tx, clinic, { startTime, endTime, doctorId: dto.doctorId ?? existing.doctorId, chair: dto.chair ?? existing.chair, priority: dto.priority ?? existing.priority, status: this.parseStatus(dto.status ?? existing.status) }, id);
+
+    if (dto.status && ['IN_PROGRESS','COMPLETED'].includes(this.parseStatus(dto.status))) {
+      const record = await tx.appointment.findFirst({ where: { id, clinicId }, select: { patientId: true, treatmentType: true } });
+      if (record) await surgeryConsentPolicy(tx, clinicId, record.patientId, { procedureName: dto.treatmentType || record.treatmentType || '' });
+    }
+    const updated = await tx.appointment.update({
       where: { id },
       data: {
         ...(dto.doctorId !== undefined && { doctorId: dto.doctorId || null }),
@@ -282,13 +334,15 @@ export class AppointmentsService {
       },
     });
 
-    return this.serializeAppointment(updated);
+    return this.serializeAppointment(updated, clinic.timezone);
+    });
   }
 
   async cancelAppointment(clinicId: string, id: string, dto: CancelAppointmentDto) {
-    await this.getAppointment(clinicId, id);
+    return this.scheduleMutation(clinicId, async (tx, clinic) => {
+    await this.getAppointment(clinicId, id, tx, clinic);
 
-    const cancelled = await this.prisma.appointment.update({
+    const cancelled = await tx.appointment.update({
       where: { id },
       data: {
         status: AppointmentStatus.CANCELLED,
@@ -306,13 +360,15 @@ export class AppointmentsService {
 
     return {
       message: 'Appointment successfully cancelled.',
-      appointment: this.serializeAppointment(cancelled),
+      appointment: this.serializeAppointment(cancelled, clinic.timezone),
     };
+    });
   }
 
   async getLiveQueue(clinicId: string, dateStr?: string) {
-    const todayStr = dateStr || new Date().toISOString().slice(0, 10);
-    const { startOfDay, endOfDay } = this.parseDateRange(todayStr);
+    const clinic = await this.clinicSettings(clinicId);
+    const todayStr = dateStr || localParts(new Date(), clinic.timezone).date;
+    const { startOfDay, endOfDay } = this.parseDateRange(todayStr, clinic.timezone);
 
     const appts = await this.prisma.appointment.findMany({
       where: {
@@ -331,7 +387,7 @@ export class AppointmentsService {
       orderBy: { startTime: 'asc' },
     });
 
-    const serialized = appts.map((a) => this.serializeAppointment(a));
+    const serialized = appts.map((a) => this.serializeAppointment(a, clinic.timezone));
 
     const waitingPatients = serialized.filter((a) => a.status === 'checked-in');
     const inConsultation = serialized.filter((a) => a.status === 'in-progress');

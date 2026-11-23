@@ -184,6 +184,8 @@ function ActiveLotItemRow({ batch, item, onAdjust, onUpdateBatch }: ActiveLotIte
 export const ItemsPage: React.FC = () => {
   const inventory = useAdaptiveInventory()
   const { patients = [] } = useClinicData()
+  const [terminalPatientId, setTerminalPatientId] = useState('')
+  const [deducting, setDeducting] = useState(false)
   const activePatient = patients.length > 0 ? patients[0] : null
   const location = useLocation()
   const initialTab = useMemo(() => {
@@ -325,13 +327,15 @@ export const ItemsPage: React.FC = () => {
   const [newInitialQty, setNewInitialQty] = useState(100)
   const [newInitialLocation, setNewInitialLocation] = useState('Central Storage')
   const [isSubmittingItem, setIsSubmittingItem] = useState(false)
+  const [newItemError, setNewItemError] = useState('')
 
   const handleAddNewItemSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newItemName.trim() || !newItemSku.trim()) return
+    if (isSubmittingItem || !newItemName.trim() || !newItemSku.trim()) return
 
     try {
       setIsSubmittingItem(true)
+      setNewItemError('')
       await createNewInventoryItem({
         sku: newItemSku.trim(),
         name: newItemName.trim(),
@@ -347,6 +351,8 @@ export const ItemsPage: React.FC = () => {
         } : undefined
       })
       setShowAddItemModal(false)
+    } catch (error: any) {
+      setNewItemError(error.message || 'Inventory item could not be saved.')
     } finally {
       setIsSubmittingItem(false)
     }
@@ -373,11 +379,13 @@ export const ItemsPage: React.FC = () => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   // Handle Delete Inventory Item
-  const handleDeleteItem = (itemId: string, sku?: string) => {
-    deleteInventoryItem(itemId, sku)
+  const handleDeleteItem = async (itemId: string, sku?: string) => {
+    try {
+    await deleteInventoryItem(itemId, sku)
     setAdjustModalData(null)
     setDeleteConfirmOpen(false)
     setEditAdjustItemName('')
+    } catch (error: any) { window.alert(error.message || 'Inventory change was not saved. Please retry.') }
   }
 
   // Reload terminal suggestions when doctor, procedure, or suggestion mode changes
@@ -476,16 +484,21 @@ export const ItemsPage: React.FC = () => {
   }
 
   // Terminal Confirm Actual Consumption
-  const handleTerminalConfirm = () => {
+  const handleTerminalConfirm = async () => {
+    if (deducting) return
     if (isSandboxOnly) {
       const simId = `SIM-${Date.now().toString().slice(-4)}`
       setRecentDeductionId(simId)
       return
     }
 
+    const patient = patients.find(p => p.id === terminalPatientId);
+    if (!patient) { window.alert('Select the patient for this consumption record.'); return }
+    setDeducting(true);
+    try {
     const audit = confirmConsumptionAndDeductStock({
-      patientId: 'pt-1001',
-      patientName: 'Meera Nambiar',
+      patientId: patient.backendId || patient.id,
+      patientName: `${patient.firstName} ${patient.lastName}`,
       doctorId: activeDoctor.id,
       doctorName: activeDoctor.name,
       procedureId: activeTemplate.procedureId,
@@ -504,15 +517,19 @@ export const ItemsPage: React.FC = () => {
       }))
     })
 
+    await audit._syncPromise
     setRecentDeductionId(audit.id)
+    } catch (error: any) { window.alert(error.message || 'Inventory deduction was not saved. Please retry.') }
+    finally { setDeducting(false) }
   }
 
   // Handle Add New Batch Submit
-  const handleAddBatchSubmit = (e: React.FormEvent) => {
+  const handleAddBatchSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!batchModalItem || !newBatchNumber || !newBatchExpiry || newBatchQty <= 0) return
 
-    addBatchToItem(batchModalItem.id, {
+    try {
+    await addBatchToItem(batchModalItem.id, {
       batchNumber: newBatchNumber.trim().toUpperCase(),
       expiryDate: newBatchExpiry,
       quantity: newBatchQty,
@@ -523,10 +540,11 @@ export const ItemsPage: React.FC = () => {
     setNewBatchNumber('')
     setNewBatchExpiry('')
     setNewBatchQty(100)
+    } catch (error: any) { window.alert(error.message || 'Inventory change was not saved. Please retry.') }
   }
 
   // Handle Inline Active Batch Lot and Expiry Editing
-  const handleActiveBatchUpdate = (
+  const handleActiveBatchUpdate = async (
     oldBatchNumber: string,
     updates: { newBatchNumber?: string; expiryDate?: string }
   ) => {
@@ -534,7 +552,8 @@ export const ItemsPage: React.FC = () => {
     const newLot = updates.newBatchNumber?.trim().toUpperCase() || oldBatchNumber
     const newExp = updates.expiryDate?.trim() || ''
 
-    updateItemBatch(batchModalItem.id, oldBatchNumber, {
+    try {
+    await updateItemBatch(batchModalItem.id, oldBatchNumber, {
       newBatchNumber: newLot,
       expiryDate: newExp
     })
@@ -555,15 +574,17 @@ export const ItemsPage: React.FC = () => {
         })
       }
     })
+    } catch (error: any) { window.alert(error.message || 'Inventory change was not saved. Please retry.') }
   }
 
   // Handle Quick Adjust Submit
-  const handleAdjustSubmit = (e: React.FormEvent) => {
+  const handleAdjustSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!adjustModalData) return
 
+    try {
     if (editAdjustItemName.trim() && editAdjustItemName.trim() !== adjustModalData.item.name) {
-      updateInventoryItem(adjustModalData.item.id, {
+      await updateInventoryItem(adjustModalData.item.id, {
         name: editAdjustItemName.trim()
       })
     }
@@ -572,7 +593,7 @@ export const ItemsPage: React.FC = () => {
     const qtyChanged = targetQty !== adjustModalData.batch.quantity
 
     if (lotRenamed || qtyChanged) {
-      updateItemBatch(adjustModalData.item.id, adjustModalData.batch.batchNumber, {
+      await updateItemBatch(adjustModalData.item.id, adjustModalData.batch.batchNumber, {
         newBatchNumber: lotRenamed ? editAdjustBatchNumber.trim().toUpperCase() : undefined,
         quantity: targetQty
       })
@@ -583,6 +604,7 @@ export const ItemsPage: React.FC = () => {
     setTargetQty(0)
     setEditAdjustItemName('')
     setEditAdjustBatchNumber('')
+    } catch (error: any) { window.alert(error.message || 'Inventory change was not saved. Please retry.') }
   }
 
   // Low Stock condition: totalStock <= reorderLevel (with safe default threshold)
@@ -1311,6 +1333,8 @@ export const ItemsPage: React.FC = () => {
                 </div>
               )}
 
+              {!isSandboxOnly && <label>Patient for consumption <select aria-label="Patient for consumption" value={terminalPatientId} onChange={e => { setTerminalPatientId(e.target.value); setRecentDeductionId(null) }}><option value="">Select a patient</option>{patients.map(p => <option key={p.id} value={p.id}>{p.firstName} {p.lastName} ({p.id})</option>)}</select></label>}
+              {inventory.items.some(item => item.stockMismatch) && <p role="alert">Some stock totals need reconciliation against batch records. Verify opening stock before changing these items.</p>}
               {/* Footer Actions */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', borderTop: '1px solid var(--line, #f1f5f9)', paddingTop: '18px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexWrap: 'wrap' }}>
@@ -1334,6 +1358,7 @@ export const ItemsPage: React.FC = () => {
                   type="button"
                   className="pat-btn pat-btn-primary"
                   onClick={handleTerminalConfirm}
+                  disabled={deducting}
                   style={{ padding: '10px 26px', fontSize: '14px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '8px', borderRadius: '12px' }}
                 >
                   <CheckCircle2 size={17} />
@@ -1370,6 +1395,7 @@ export const ItemsPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleAddNewItemSubmit}>
+              {newItemError && <p role="alert">{newItemError}</p>}
               <div className="ai-modal-body" style={{ gap: '14px', maxHeight: '70vh', overflowY: 'auto' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>

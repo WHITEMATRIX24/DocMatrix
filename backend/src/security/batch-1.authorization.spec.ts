@@ -95,7 +95,7 @@ describe('Batch 1 operation permissions and clinic status', () => {
     },
   );
 
-  it('#8 allows read-only reads, blocks writes, and preserves platform recovery', async () => {
+  it('#8 allows read-only reads, blocks writes, and blocks platform sessions on clinic routes', async () => {
     await expect(
       authorize(
         ClinicalNotesController,
@@ -122,7 +122,7 @@ describe('Batch 1 operation permissions and clinic status', () => {
         'PATCH',
         true,
       ),
-    ).resolves.toBe(true);
+    ).rejects.toThrow(/Platform administrator/);
   });
 
   it.each(['SUSPENDED', 'CLOSED'])(

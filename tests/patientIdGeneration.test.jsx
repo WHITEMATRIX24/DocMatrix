@@ -1,3 +1,4 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   generateNextPatientId,
@@ -9,8 +10,8 @@ import {
 
 describe('Simple and Straightforward Patient ID Generation', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
+    browserSessionStorage.clear()
+    browserLocalStorage.clear()
     resetStoreForTesting()
   })
 
@@ -77,8 +78,8 @@ describe('Simple and Straightforward Patient ID Generation', () => {
     expect(patient3.id).toBe('PAT-003')
   })
 
-  it('assigns sequential IDs when registerWalkIn creates a new patient', () => {
-    const appt = registerWalkIn({
+  it('assigns sequential IDs when registerWalkIn creates a new patient', async () => {
+    const appt = await registerWalkIn({
       patientName: 'Karan Patel',
       mobile: '9998887771',
       gender: 'male',

@@ -1,3 +1,5 @@
+import { getFeatureById } from '@/features/registry'
+import { canClinic, getPermissionUser } from '@/services/permissions'
 import React, { useEffect, useMemo } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Activity, BarChart3, BellRing, IndianRupee, Stethoscope } from 'lucide-react'
@@ -42,13 +44,13 @@ export default function ReportsWorkspace({ activeFeatureId, role, children }: { 
 
   const today = localDate()
   const canSeeMoney = canRoleSeeMoney(role)
-  const visibleTabs = tabs.filter((tab) => tab.id !== 'rep.revenue' || canSeeMoney)
+  const visibleTabs = tabs.filter(tab => (getFeatureById(tab.id)?.roles as readonly string[] | undefined)?.includes(role || ''))
 
   useEffect(() => {
     syncWithBackend().catch((e) => console.warn('[ReportsWorkspace] syncWithBackend error:', e))
     syncBillingMasterData().catch((e) => console.warn('[ReportsWorkspace] syncBillingMasterData error:', e))
     fetchAndSyncClinicStaff().catch((e) => console.warn('[ReportsWorkspace] fetchAndSyncClinicStaff error:', e))
-    syncFollowUpContactsWithBackend().catch((e) => console.warn('[ReportsWorkspace] syncFollowUpContactsWithBackend error:', e))
+    if (canClinic(getPermissionUser(), 'report.follow_up')) syncFollowUpContactsWithBackend().catch((e) => console.warn('[ReportsWorkspace] syncFollowUpContactsWithBackend error:', e))
   }, [])
 
   return (

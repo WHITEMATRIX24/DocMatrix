@@ -27,13 +27,13 @@ describe('TenantGuard', () => {
     expect(await guard.canActivate(ctx)).toBe(true);
   });
 
-  it('allows access if user is platform administrator even without clinicId', async () => {
+  it('rejects clinic access for platform administrators even without clinicId', async () => {
     const ctx = createMockContext({
       id: 'admin-1',
       clinicId: null,
       isPlatformAdmin: true,
     });
-    expect(await guard.canActivate(ctx)).toBe(true);
+    await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
   });
 
   it('rejects access with ForbiddenException if ordinary user has no clinicId', async () => {

@@ -1,3 +1,4 @@
+import { canClinic, getPermissionUser } from '@/services/permissions'
 import React, { useState } from 'react';
 import {
   X,
@@ -384,7 +385,7 @@ export const ClinicalNoteDetailsModal: React.FC<ClinicalNoteDetailsModalProps> =
               </div>
 
               {/* Add Addendum Form */}
-              <form onSubmit={handleAddendumSubmit} style={{ marginTop: '14px' }}>
+              {canClinic(getPermissionUser(), 'clinical.write') && (<form onSubmit={handleAddendumSubmit} style={{ marginTop: '14px' }}>
                 <div className="cn-form-group">
                   <label className="cn-label">Append New Addendum</label>
                   <textarea
@@ -411,7 +412,7 @@ export const ClinicalNoteDetailsModal: React.FC<ClinicalNoteDetailsModalProps> =
                     {submittingAddendum ? 'Adding...' : 'Add Addendum'}
                   </button>
                 </div>
-              </form>
+              </form>)}
             </section>
           )}
         </div>
@@ -436,7 +437,7 @@ export const ClinicalNoteDetailsModal: React.FC<ClinicalNoteDetailsModalProps> =
               Print Note
             </button>
 
-            {isDraft && onEdit && (
+            {isDraft && onEdit && canClinic(getPermissionUser(), 'clinical.write') && (
               <button
                 type="button"
                 className="cn-btn cn-btn-secondary"
@@ -447,7 +448,7 @@ export const ClinicalNoteDetailsModal: React.FC<ClinicalNoteDetailsModalProps> =
               </button>
             )}
 
-            {isDraft && onFinalize && (
+            {isDraft && onFinalize && canClinic(getPermissionUser(), 'clinical.write') && (
               <button
                 type="button"
                 className="cn-btn cn-btn-success"

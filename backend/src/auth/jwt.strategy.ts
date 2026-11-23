@@ -1,3 +1,5 @@
+import { authScope } from './mfa.service.js';
+import { isVerifiedPractitioner } from '../common/practitioner.policy.js';
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -6,6 +8,7 @@ import { SessionService } from './session.service.js';
 import { getJwtSecret, JWT_ALGORITHM } from '../common/config/jwt.config.js';
 
 export interface JwtPayload {
+  scope?: string;
   sub: string;
   sessionId: string;
   email: string;
@@ -51,7 +54,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         clinicId: true,
         isPlatformAdmin: true,
         isPrimaryContact: true,
-        isActive: true,
+        practitionerVerifiedAt: true, practitionerRegistration: true,
+        isActive: true, mfaEnabled: true, emailVerifiedAt: true,
       },
     });
 
@@ -74,6 +78,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     return {
       ...user,
+      canPractice: isVerifiedPractitioner(user),
+      authScope: payload.scope === 'account-setup' || authScope(user) !== 'full' ? 'account-setup' : 'full',
       sessionId: payload.sessionId,
     };
   }

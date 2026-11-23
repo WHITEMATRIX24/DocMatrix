@@ -1,3 +1,4 @@
+import { browserSessionStorage } from '@/services/browserStorage';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, cleanup, within } from '@testing-library/react';
@@ -7,8 +8,8 @@ import { resetStoreForTesting } from '../src/services/clinicStore';
 
 describe('Emergency Contact Form Readability & Theme Harmony', () => {
   beforeEach(() => {
-    sessionStorage.clear();
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101');
+    browserSessionStorage.clear();
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-101');
     resetStoreForTesting();
     document.documentElement.removeAttribute('data-theme');
   });

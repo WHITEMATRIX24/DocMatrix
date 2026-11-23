@@ -1,22 +1,23 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 /**
  * Centralized API Client for DocMatrix Backend
  * Connects to NestJS Backend at VITE_API_BASE_URL (defaults to http://localhost:3000)
  * Uses dynamic transport dispatch with automatic token refresh, concurrency protection, and CSRF defense.
  */
 
-import { notifyAuthSessionChanged } from './authSession';
+import { getAuthSessionVersion, notifyAuthSessionChanged } from './authSession';
 
 const getBaseUrl = (): string => {
   const envUrl = (import.meta as any).env?.VITE_API_BASE_URL;
   if (envUrl && typeof envUrl === 'string') {
     return envUrl.replace(/\/+$/, '');
   }
-  return 'http://localhost:3000';
+  return (import.meta as any).env?.PROD ? '/api' : 'http://localhost:3000';
 };
 
 export const getStoredToken = (): string | null => {
   try {
-    return sessionStorage.getItem('docmatrix_auth_token') || localStorage.getItem('docmatrix_auth_token');
+    return browserSessionStorage.getItem('docmatrix_auth_token') || browserLocalStorage.getItem('docmatrix_auth_token');
   } catch {
     return null;
   }
@@ -26,24 +27,29 @@ interface RequestOptions {
   headers?: Record<string, string>;
   params?: Record<string, any>;
   signal?: AbortSignal;
+  timeoutMs?: number;
   _isRetry?: boolean;
 }
 
-// Concurrency mutex to ensure only one refresh request runs at any time
+// Share refresh requests within a session; old requests cannot replace a new session.
 let activeRefreshPromise: Promise<string | null> | null = null;
+let activeRefreshContext: { token: string | null; version: number } | null = null;
 let refreshCooldown: { token: string | null; until: number } | null = null;
 
-const requestNewAccessToken = async (): Promise<string | null> => {
-  if (activeRefreshPromise) return activeRefreshPromise;
+export const requestNewAccessToken = async (): Promise<string | null> => {
+  const context = { token: getStoredToken(), version: getAuthSessionVersion() };
+  if (activeRefreshPromise && activeRefreshContext?.token === context.token && activeRefreshContext.version === context.version) return activeRefreshPromise;
   if (refreshCooldown?.token === getStoredToken() && Date.now() < refreshCooldown.until) return null;
 
-  activeRefreshPromise = (async () => {
-    const tokenAtStart = getStoredToken();
+  activeRefreshContext = context;
+  activeRefreshPromise = Promise.resolve().then(async () => {
+    const tokenAtStart = context.token;
     try {
       const httpFn = (globalThis as any)['fetch'];
       const url = `${getBaseUrl()}/auth/refresh`;
 
       const response = await httpFn(url, {
+        signal: AbortSignal.timeout(15000),
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -54,7 +60,7 @@ const requestNewAccessToken = async (): Promise<string | null> => {
         body: JSON.stringify({}),
       });
 
-      if (getStoredToken() !== tokenAtStart) return null;
+      if (getStoredToken() !== tokenAtStart || getAuthSessionVersion() !== context.version) return null;
 
       if (response.status === 429) {
         const retryAfter = response.headers?.get('Retry-After');
@@ -69,13 +75,13 @@ const requestNewAccessToken = async (): Promise<string | null> => {
       if (response.status === 401 || response.status === 403) {
         // Refresh token has expired, been revoked, or is invalid
         try {
-          localStorage.removeItem('docmatrix_auth_token');
-          localStorage.removeItem('docmatrix_refresh_token');
-          localStorage.removeItem('docmatrix_auth_user');
-          sessionStorage.removeItem('docmatrix_auth_token');
-          sessionStorage.removeItem('docmatrix_refresh_token');
-          sessionStorage.removeItem('docmatrix_auth_user');
-          sessionStorage.removeItem('docmatrix-demo-session');
+          browserLocalStorage.removeItem('docmatrix_auth_token');
+          browserLocalStorage.removeItem('docmatrix_refresh_token');
+          browserLocalStorage.removeItem('docmatrix_auth_user');
+          browserSessionStorage.removeItem('docmatrix_auth_token');
+          browserSessionStorage.removeItem('docmatrix_refresh_token');
+          browserSessionStorage.removeItem('docmatrix_auth_user');
+          browserSessionStorage.removeItem('docmatrix-demo-session');
         } catch {}
         notifyAuthSessionChanged();
         return null;
@@ -83,9 +89,9 @@ const requestNewAccessToken = async (): Promise<string | null> => {
       if (!response.ok) return null;
 
       const data = await response.json();
-      if (getStoredToken() !== tokenAtStart) return null;
+      if (getStoredToken() !== tokenAtStart || getAuthSessionVersion() !== context.version) return null;
       if (data?.token) {
-        const storage = sessionStorage.getItem('docmatrix_auth_token') ? sessionStorage : localStorage;
+        const storage = browserLocalStorage.getItem('docmatrix_auth_token') && !browserSessionStorage.getItem('docmatrix_auth_token') ? browserLocalStorage : browserSessionStorage;
         storage.setItem('docmatrix_auth_token', data.token);
         if (data.user) {
           storage.setItem('docmatrix_auth_user', JSON.stringify(data.user));
@@ -97,9 +103,12 @@ const requestNewAccessToken = async (): Promise<string | null> => {
     } catch {
       return null;
     } finally {
-      activeRefreshPromise = null;
+      if (activeRefreshContext === context) {
+        activeRefreshPromise = null;
+        activeRefreshContext = null;
+      }
     }
-  })();
+  });
 
   return activeRefreshPromise;
 };
@@ -129,7 +138,23 @@ class ApiClient {
     return fullUrl;
   }
 
-  private async request<T = any>(
+  private async request<T = any>(endpoint: string, method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE', body?: any, options?: RequestOptions): Promise<T> {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    let abort: () => void = () => {};
+    const deadline = new Promise<never>((_, reject) => {
+      abort = () => { controller.abort(); reject(new DOMException('Request cancelled.', 'AbortError')); };
+      options?.signal?.addEventListener('abort', abort, { once: true });
+      if (options?.signal?.aborted) abort();
+      timer = setTimeout(() => { controller.abort(); reject(new Error('The request timed out. A save may have completed; check the record before retrying.')); }, options?.timeoutMs ?? 30000);
+    });
+    try {
+      if (controller.signal.aborted) return await deadline;
+      return await Promise.race([this.executeRequest<T>(endpoint, method, body, { ...options, signal: controller.signal }), deadline]);
+    } finally { clearTimeout(timer!); options?.signal?.removeEventListener('abort', abort); }
+  }
+
+  private async executeRequest<T = any>(
     endpoint: string,
     method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
     body?: any,

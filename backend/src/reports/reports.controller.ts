@@ -11,6 +11,7 @@ import {
 import { ReportsService } from './reports.service.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { TenantGuard } from '../common/guards/tenant.guard.js';
+import { RequireOperation } from '../common/decorators/operation-permission.decorator.js';
 import {
   CurrentUser,
   AuthenticatedUser,
@@ -26,6 +27,7 @@ export class ReportsController {
   ) {}
 
   @Get('summary')
+  @RequireOperation('report.summary')
   getSummary(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ReportQueryDto,
@@ -34,6 +36,7 @@ export class ReportsController {
   }
 
   @Get('revenue')
+  @RequireOperation('report.financial')
   getRevenue(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ReportQueryDto,
@@ -42,6 +45,7 @@ export class ReportsController {
   }
 
   @Get('doctors')
+  @RequireOperation('report.clinical')
   getDoctors(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ReportQueryDto,
@@ -50,6 +54,7 @@ export class ReportsController {
   }
 
   @Get('treatments')
+  @RequireOperation('report.clinical')
   getTreatments(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ReportQueryDto,
@@ -58,14 +63,16 @@ export class ReportsController {
   }
 
   @Get('follow-ups')
+  @RequireOperation('report.follow_up')
   getFollowUps(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ReportQueryDto,
   ) {
-    return this.reportsService.getFollowUpsReport(user.clinicId!, query);
+    return this.reportsService.getFollowUpsReport(user.clinicId!, query, user);
   }
 
   @Post('follow-ups/:patientId/contact')
+  @RequireOperation('report.follow_up')
   markPatientContacted(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
@@ -78,6 +85,7 @@ export class ReportsController {
   }
 
   @Delete('follow-ups/:patientId/contact')
+  @RequireOperation('report.follow_up')
   unmarkPatientContacted(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,

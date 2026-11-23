@@ -1,9 +1,9 @@
+import { seedClinicFixture } from './fixtures/clinic'
 import React from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from '@/App';
-import { resetStoreForTesting } from '@/services/clinicStore';
 
 const renderAt = (url) =>
   render(
@@ -13,11 +13,7 @@ const renderAt = (url) =>
   );
 
 describe('Structured Clinical Notes Module', () => {
-  beforeEach(() => {
-    sessionStorage.clear();
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101');
-    resetStoreForTesting();
-  });
+  beforeEach(() => seedClinicFixture('DOCTOR'));
 
   describe('Clinic-Wide Clinical Notes Dashboard (/clinical/notes)', () => {
     it('renders heading, metric cards, status tabs, and consultation notes table', async () => {
@@ -64,27 +60,14 @@ describe('Structured Clinical Notes Module', () => {
       expect(screen.getByText('CN-1003')).toBeInTheDocument();
     });
 
-    it('opens structured streamlined modal when clicking "New Clinical Note"', async () => {
+    it('opens the consultation workspace with required fields and save/finalize actions', async () => {
       renderAt('/clinical/notes');
-
-      const newBtn = await screen.findByTestId('new-clinical-note-button', {}, { timeout: 10000 });
-      fireEvent.click(newBtn);
-
-      const dialog = await screen.findByRole('dialog');
-      expect(within(dialog).getByText(/New Dental Clinical Note/i)).toBeInTheDocument();
-
-      // Verify streamlined logical sections
-      expect(within(dialog).getByText(/1\. Consultation & Patient Complaint/i)).toBeInTheDocument();
-      expect(within(dialog).getByText(/2\. Clinical Examination & Diagnosis/i)).toBeInTheDocument();
-      expect(within(dialog).getByText(/3\. Treatment & Procedures Performed/i)).toBeInTheDocument();
-      expect(within(dialog).getByText(/4\. Treatment Plan & Follow-up/i)).toBeInTheDocument();
-
-      // Pain rating scale (0-10)
-      expect(within(dialog).getByText(/Pain Severity Rating/i)).toBeInTheDocument();
-
-      // Action buttons
-      expect(within(dialog).getByRole('button', { name: /Save as Draft/i })).toBeInTheDocument();
-      expect(within(dialog).getByRole('button', { name: /Finalize Note/i })).toBeInTheDocument();
+      fireEvent.click(await screen.findByTestId('new-clinical-note-button'));
+      const workspace = await screen.findByTestId('record-consultation-page');
+      expect(within(workspace).getByPlaceholderText(/Severe throbbing pain/i)).toBeInTheDocument();
+      expect(within(workspace).getByRole('combobox', { name: 'Patient' })).toBeEnabled();
+      expect(within(workspace).getAllByRole('button', { name: /Save as Draft/i }).length).toBeGreaterThan(0);
+      expect(within(workspace).getAllByRole('button', { name: /Finalize Note/i }).length).toBeGreaterThan(0);
     });
   });
 
@@ -110,12 +93,10 @@ describe('Structured Clinical Notes Module', () => {
       const recordBtn = await screen.findByRole('button', { name: /Record Consultation/i }, { timeout: 10000 });
       fireEvent.click(recordBtn);
 
-      const dialog = await screen.findByRole('dialog');
-      expect(within(dialog).getByText(/New Dental Clinical Note/i)).toBeInTheDocument();
-
-      // Verify patient selection is locked to active patient
-      const comboboxes = within(dialog).getAllByRole('combobox');
-      expect(comboboxes[0]).toBeDisabled();
+      const workspace = await screen.findByTestId('record-consultation-page');
+      expect(within(workspace).getByPlaceholderText(/Severe throbbing pain/i)).toBeInTheDocument();
+      const patientSelect = within(workspace).getByRole('combobox', { name: 'Patient' });
+      expect(patientSelect).toBeDisabled();
     });
 
     it('supports deep linking to the Clinical Notes tab and shows dedicated consultation history', async () => {
@@ -192,7 +173,7 @@ describe('Structured Clinical Notes Module', () => {
       fireEvent.click(printBtns[0]);
 
       const dialog = await screen.findByRole('dialog');
-      expect(within(dialog).getByText(/DOCMATRIX DENTAL CLINIC/i)).toBeInTheDocument();
+      expect(within(dialog).getByRole('heading', { name: 'Clinic' })).toBeInTheDocument();
       expect(within(dialog).getByText(/CLINICIAN INFORMATION/i)).toBeInTheDocument();
       expect(within(dialog).getByText(/PATIENT INFORMATION/i)).toBeInTheDocument();
       expect(within(dialog).getByText(/Print Now/i)).toBeInTheDocument();

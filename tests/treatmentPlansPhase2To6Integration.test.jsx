@@ -1,3 +1,4 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -17,8 +18,8 @@ import * as clinicStoreModule from '../src/services/clinicStore';
 
 describe('DocMatrix — Treatment Plans Final Implementation & Integration (Phases 2-6)', () => {
   beforeEach(() => {
-    sessionStorage.clear();
-    localStorage.clear();
+    browserSessionStorage.clear();
+    browserLocalStorage.clear();
     initClinicSession('demo-clinic-01');
   });
 

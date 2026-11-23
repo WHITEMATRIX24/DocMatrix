@@ -1,3 +1,4 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import React from 'react';
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react';
@@ -19,16 +20,16 @@ async function addDialog() {
 }
 describe('Owner-managed clinic staff',()=> {
   beforeEach(()=> {
-    localStorage.clear();sessionStorage.clear();
-    sessionStorage.setItem(STORAGE_KEYS.USER,JSON.stringify(owner));
-    sessionStorage.setItem(STORAGE_KEYS.TOKEN,'synthetic-access');
+    browserLocalStorage.clear();browserSessionStorage.clear();
+    browserSessionStorage.setItem(STORAGE_KEYS.USER,JSON.stringify(owner));
+    browserSessionStorage.setItem(STORAGE_KEYS.TOKEN,'synthetic-access');
     staff=[owner,{id:'doctor-a',fullName:'Dentist One',email:'doctor@clinic.test',role:'DOCTOR',isActive:true}];
     vi.spyOn(apiClient,'get').mockImplementation(async path=>path.endsWith('/roles')?roles:staff);
     vi.spyOn(apiClient,'post').mockImplementation(async (_path,data)=>{const member={id:'new-staff',...data,isActive:true};staff=[...staff,member];return member;});
     vi.spyOn(apiClient,'patch').mockImplementation(async (path,data)=>{staff=staff.map(s=>path.endsWith(s.id)?{...s,...data}:s);return staff.find(s=>path.endsWith(s.id));});
     vi.spyOn(apiClient,'delete').mockImplementation(async path=>{staff=staff.map(s=>path.endsWith(s.id)?{...s,isActive:false}:s);return {};});
   });
-  afterEach(()=>{cleanup();vi.restoreAllMocks();vi.unstubAllGlobals();localStorage.clear();sessionStorage.clear();});
+  afterEach(()=>{cleanup();vi.restoreAllMocks();vi.unstubAllGlobals();browserLocalStorage.clear();browserSessionStorage.clear();});
 
   it.each(['DOCTOR','RECEPTIONIST','ACCOUNTANT'])('owner creates %s using server-provided predefined role choices',async role=> {
     renderPage();const form=await addDialog();
@@ -120,26 +121,26 @@ describe('Owner-managed clinic staff',()=> {
   });
 
   it('clears cached authorization and legacy login after session revocation',async()=> {
-    sessionStorage.setItem(STORAGE_KEYS.LEGACY_SESSION,'owner-a');
+    browserSessionStorage.setItem(STORAGE_KEYS.LEGACY_SESSION,'owner-a');
     apiClient.get.mockRejectedValue(Object.assign(new Error('Session revoked'),{status:401}));
     expect(await restoreSession()).toBeNull();expect(getCurrentUser()).toBeNull();
-    expect(sessionStorage.getItem(STORAGE_KEYS.TOKEN)).toBeNull();expect(sessionStorage.getItem(STORAGE_KEYS.LEGACY_SESSION)).toBeNull();
+    expect(browserSessionStorage.getItem(STORAGE_KEYS.TOKEN)).toBeNull();expect(browserSessionStorage.getItem(STORAGE_KEYS.LEGACY_SESSION)).toBeNull();
   });
 
   it('cannot restore a profile returned after logout or cache a foreign-clinic directory',async()=> {
     let resolve;apiClient.get.mockImplementation(()=>new Promise(r=>{resolve=r;}));
-    const pending=restoreSession();sessionStorage.removeItem(STORAGE_KEYS.USER);sessionStorage.removeItem(STORAGE_KEYS.TOKEN);
+    const pending=restoreSession();browserSessionStorage.removeItem(STORAGE_KEYS.USER);browserSessionStorage.removeItem(STORAGE_KEYS.TOKEN);
     resolve(owner);expect(await pending).toBeNull();expect(getCurrentUser()).toBeNull();
-    sessionStorage.setItem(STORAGE_KEYS.USER,JSON.stringify({...owner,clinicId:'clinic-b'}));
+    browserSessionStorage.setItem(STORAGE_KEYS.USER,JSON.stringify({...owner,clinicId:'clinic-b'}));
     cacheClinicStaff([{id:'foreign',fullName:'Foreign doctor',role:'DOCTOR',isActive:true}],'clinic-a');
-    expect(localStorage.getItem(getStaffStorageKey('clinic-b'))).toBeNull();
+    expect(browserLocalStorage.getItem(getStaffStorageKey('clinic-b'))).toBeNull();
   });
   it('does not clear a newer login when an old profile request is rejected',async()=> {
     let reject;apiClient.get.mockImplementation(()=>new Promise((_resolve,r)=>{reject=r;}));
     const pending=restoreSession();
     const newUser={...owner,id:'owner-b',clinicId:'clinic-b'};
-    sessionStorage.setItem(STORAGE_KEYS.USER,JSON.stringify(newUser));
-    sessionStorage.setItem(STORAGE_KEYS.TOKEN,'newer-access-token');
+    browserSessionStorage.setItem(STORAGE_KEYS.USER,JSON.stringify(newUser));
+    browserSessionStorage.setItem(STORAGE_KEYS.TOKEN,'newer-access-token');
     reject(Object.assign(new Error('Old session revoked'),{status:401}));
     expect((await pending).id).toBe('owner-b');expect(getCurrentUser().clinicId).toBe('clinic-b');
   });

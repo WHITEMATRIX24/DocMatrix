@@ -1,3 +1,4 @@
+import { canClinic, getPermissionUser } from '@/services/permissions'
 import React, { useEffect, useMemo, useState } from 'react'
 import './calendar.css'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -25,7 +26,7 @@ import {
   isAuthenticatedClinic,
   updateAppointmentStatus,
   rescheduleAppointment,
-  cancelAppointment,
+  cancelAppointmentPersisted as cancelAppointment,
   generateWhatsAppMessage,
   sendAppointmentReminder,
   checkDentistAvailability,
@@ -217,7 +218,7 @@ export const AppointmentDetailPage: React.FC = () => {
     }
   }, [showReschedule, appointment, rescheduleDate, appointments])
 
-  const handleRescheduleSubmit = (e: React.FormEvent) => {
+  const handleRescheduleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!appointment) return
     setRescheduleError('')
@@ -241,6 +242,8 @@ export const AppointmentDetailPage: React.FC = () => {
       rescheduleReason || 'Patient requested reschedule.'
     )
 
+    try { await result._syncPromise } catch (error: any) { setRescheduleError(error.message || 'Reschedule was not saved.'); return }
+
     if (!result.success) {
       setRescheduleError(result.error || 'Conflict detected. Please choose another slot.')
       return
@@ -249,9 +252,9 @@ export const AppointmentDetailPage: React.FC = () => {
     setShowReschedule(false)
   }
 
-  const handleCancelSubmit = (e: React.FormEvent) => {
+  const handleCancelSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    cancelAppointment(appointment.id, cancelReason || 'Patient cancelled visit.')
+    try { await cancelAppointment(appointment.id, cancelReason || 'Patient cancelled visit.') } catch (error: any) { window.alert(error.message || 'Cancellation was not saved.'); return }
     setShowCancel(false)
   }
 
@@ -295,15 +298,15 @@ export const AppointmentDetailPage: React.FC = () => {
             id="appt-detail-status"
             className={`status-select-pill status-${appointment.status}`}
             value={appointment.status}
-            onChange={(e) => handleStatusChange(e.target.value as AppointmentStatus)}
+            disabled={!canClinic(getPermissionUser(), 'appointment.check_in')} onChange={(e) => handleStatusChange(e.target.value as AppointmentStatus)}
           >
-            <option value="scheduled">Scheduled</option>
-            <option value="confirmed">Confirmed</option>
+            <option value="scheduled" disabled={!canClinic(getPermissionUser(), 'appointment.schedule')}>Scheduled</option>
+            <option value="confirmed" disabled={!canClinic(getPermissionUser(), 'appointment.schedule')}>Confirmed</option>
             <option value="checked-in">Checked-in</option>
-            <option value="in-progress">In Consultation</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="no-show">No-Show</option>
+            <option value="in-progress" disabled={!canClinic(getPermissionUser(), 'appointment.consult')}>In Consultation</option>
+            <option value="completed" disabled={!canClinic(getPermissionUser(), 'appointment.consult')}>Completed</option>
+            <option value="cancelled" disabled={!canClinic(getPermissionUser(), 'appointment.schedule')}>Cancelled</option>
+            <option value="no-show" disabled={!canClinic(getPermissionUser(), 'appointment.schedule')}>No-Show</option>
           </select>
         </div>
       </div>
@@ -347,7 +350,7 @@ export const AppointmentDetailPage: React.FC = () => {
           <Sparkles size={15} />
           <span>Record Material Usage</span>
         </button>
-        <button type="button" className="btn-appt-action btn-reschedule" onClick={() => setShowReschedule(true)}>
+        <button type="button" className="btn-appt-action btn-reschedule" disabled={!canClinic(getPermissionUser(), 'appointment.schedule')} onClick={() => setShowReschedule(true)}>
           <RotateCcw size={15} />
           <span>Reschedule Booking</span>
         </button>
@@ -356,7 +359,7 @@ export const AppointmentDetailPage: React.FC = () => {
           <span>WhatsApp Reminder</span>
         </button>
         {appointment.status !== 'cancelled' && (
-          <button type="button" className="btn-appt-action btn-cancel-appt" onClick={() => setShowCancel(true)}>
+          <button type="button" className="btn-appt-action btn-cancel-appt" disabled={!canClinic(getPermissionUser(), 'appointment.schedule')} onClick={() => setShowCancel(true)}>
             <X size={15} />
             <span>Cancel Appointment</span>
           </button>

@@ -22,6 +22,7 @@ describe('InventoryService — Idempotency & Deduction Protection', () => {
         update: vi.fn(),
       },
       inventoryBatch: {
+        findMany: vi.fn().mockResolvedValueOnce([{ quantity: 10 }]).mockResolvedValue([{ quantity: 3 }, { quantity: 5 }]),
         findFirst: vi.fn(),
         update: vi.fn(),
       },
@@ -157,6 +158,7 @@ describe('InventoryService — Idempotency & Deduction Protection', () => {
   });
 
   it('permits legitimate additional material consumption under a different operationId', async () => {
+    prisma.inventoryBatch.findMany.mockReset().mockResolvedValueOnce([{ quantity: 4 }]).mockResolvedValue([{ quantity: 3 }]);
     const additionalDto: ConfirmDeductionDto = {
       operationId: 'op-deduct-002', // New operation ID
       treatmentId: 'trt-101',       // Same treatment
@@ -227,6 +229,7 @@ describe('InventoryService — Idempotency & Deduction Protection', () => {
       ],
     };
 
+    prisma.inventoryBatch.findMany.mockReset().mockResolvedValue([{ quantity: 3 }]);
     prisma.inventoryAudit.findFirst.mockResolvedValue(null);
     prisma.inventoryItem.findFirst.mockResolvedValue({
       id: 'mat-gauze',

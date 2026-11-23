@@ -1,10 +1,10 @@
+import { seedClinicFixture } from './fixtures/clinic'
 import React from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from '@/App';
 import '@/pages/patients/PatientProfilePage';
-import { resetStoreForTesting } from '@/services/clinicStore';
 
 const renderAt = (url) =>
   render(
@@ -14,11 +14,7 @@ const renderAt = (url) =>
   );
 
 describe('Patient Profile — Digital Prescriptions Integration', () => {
-  beforeEach(() => {
-    sessionStorage.clear();
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101');
-    resetStoreForTesting();
-  });
+  beforeEach(() => seedClinicFixture('DOCTOR'));
 
   it('renders "Issue Prescription" quick action in patient header and opens modal locked to patient', async () => {
     renderAt('/patients/pt-1001');
@@ -49,7 +45,7 @@ describe('Patient Profile — Digital Prescriptions Integration', () => {
 
     // Should list RX-1001 for pt-1001
     expect(screen.getByText('RX-1001')).toBeInTheDocument();
-    expect(screen.getByText(/Acute Periapical Abscess/i)).toBeInTheDocument();
+    expect(within(rxHeading.closest('article')).getByText(/Acute Periapical Abscess/i)).toBeInTheDocument();
   });
 
   it('displays Previously Prescribed Medications separately from Patient-Reported in Medical History', async () => {

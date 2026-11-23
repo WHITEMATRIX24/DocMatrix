@@ -20,6 +20,9 @@ describe('AppointmentsService - Cross-Clinic Isolation & Mapping', () => {
         findFirst: vi.fn(),
       },
     };
+    mockPrisma.clinic = { findUnique: vi.fn().mockResolvedValue({ id: 'c-1', timezone: 'UTC', extendedSettings: {} }) };
+    mockPrisma.$queryRaw = vi.fn().mockResolvedValue([]);
+    mockPrisma.$transaction = vi.fn(cb => cb(mockPrisma));
     service = new AppointmentsService(mockPrisma);
   });
 
@@ -29,7 +32,7 @@ describe('AppointmentsService - Cross-Clinic Isolation & Mapping', () => {
     await expect(
       service.createAppointment('clinic-A', {
         patientId: 'patient-from-clinic-B',
-        date: '2026-11-01',
+        date: '2026-11-02',
         time: '10:00',
       }),
     ).rejects.toThrow(BadRequestException);
@@ -43,7 +46,7 @@ describe('AppointmentsService - Cross-Clinic Isolation & Mapping', () => {
       service.createAppointment('clinic-A', {
         patientId: 'patient-A',
         doctorId: 'doctor-from-clinic-B',
-        date: '2026-11-01',
+        date: '2026-11-02',
         time: '10:00',
       }),
     ).rejects.toThrow(BadRequestException);
@@ -57,8 +60,8 @@ describe('AppointmentsService - Cross-Clinic Isolation & Mapping', () => {
       clinicId: 'c-1',
       patientId: 'p-1',
       doctorId: 'd-1',
-      startTime: new Date('2026-11-01T10:00:00.000Z'),
-      endTime: new Date('2026-11-01T10:30:00.000Z'),
+      startTime: new Date('2026-11-02T10:00:00.000Z'),
+      endTime: new Date('2026-11-02T10:30:00.000Z'),
       durationMinutes: 30,
       operatoryChair: 'Chair 1',
       treatmentType: 'Root Canal',
@@ -76,14 +79,14 @@ describe('AppointmentsService - Cross-Clinic Isolation & Mapping', () => {
     const result = await service.createAppointment('c-1', {
       patientId: 'p-1',
       doctorId: 'd-1',
-      date: '2026-11-01',
+      date: '2026-11-02',
       time: '10:00',
       status: 'checked-in',
     });
 
     expect(result.id).toBe('apt-1');
     expect(result.status).toBe('checked-in'); // Formatted to frontend lowercase convention
-    expect(result.date).toBe('2026-11-01');
+    expect(result.date).toBe('2026-11-02');
     expect(result.time).toBe('10:00');
     expect(result.doctor).toBe('Dr. Smith');
   });

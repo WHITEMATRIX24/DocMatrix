@@ -1,3 +1,5 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
+import { canClinic, getPermissionUser } from './permissions'
 import { useSyncExternalStore } from 'react'
 import { loadFromStorage, saveToStorage } from './storageService'
 import { DENTAL_TREATMENTS, type PaymentMode } from './clinicStore'
@@ -126,8 +128,8 @@ const getSeedServices = (): ServicePrice[] => {
 const storageKey = () => {
   try {
     const raw =
-      sessionStorage.getItem('docmatrix_auth_user') ||
-      localStorage.getItem('docmatrix_auth_user')
+      browserSessionStorage.getItem('docmatrix_auth_user') ||
+      browserLocalStorage.getItem('docmatrix_auth_user')
     const clinicId = raw ? JSON.parse(raw)?.clinicId : null
     if (clinicId) return `docmatrix_billing_${clinicId}`
   } catch {}
@@ -137,8 +139,8 @@ const storageKey = () => {
 const hasAuthToken = (): boolean => {
   try {
     return Boolean(
-      sessionStorage.getItem('docmatrix_auth_token') ||
-        localStorage.getItem('docmatrix_auth_token'),
+      browserSessionStorage.getItem('docmatrix_auth_token') ||
+        browserLocalStorage.getItem('docmatrix_auth_token'),
     )
   } catch {
     return false
@@ -151,16 +153,21 @@ const loaded = loadFromStorage<{ services?: ServicePrice[]; expenses?: ExpenseRe
 )
 
 let snapshot: BillingSnapshot = {
-  services: Array.isArray(loaded?.services) ? loaded!.services : getSeedServices(),
-  expenses: Array.isArray(loaded?.expenses) ? loaded!.expenses : [],
+  services: hasAuthToken() && !canClinic(getPermissionUser(), 'billing.tariff.read') ? [] : Array.isArray(loaded?.services) ? loaded!.services : getSeedServices(),
+  expenses: hasAuthToken() && !canClinic(getPermissionUser(), 'billing.expense.read') ? [] : Array.isArray(loaded?.expenses) ? loaded!.expenses : [],
   isLoading: false,
   error: null,
 }
 
+let sessionVersion = 0
 const listeners = new Set<() => void>()
 
 const commit = (next: Partial<BillingSnapshot>) => {
   snapshot = { ...snapshot, ...next }
+  if (hasAuthToken()) {
+    if (!canClinic(getPermissionUser(), 'billing.tariff.read')) snapshot.services = []
+    if (!canClinic(getPermissionUser(), 'billing.expense.read')) snapshot.expenses = []
+  }
   saveToStorage(storageKey(), {
     services: snapshot.services,
     expenses: snapshot.expenses,
@@ -190,13 +197,15 @@ export const getBillingSnapshot = () => snapshot
 export async function syncBillingMasterData(): Promise<void> {
   if (!hasAuthToken()) return
 
+  const version = sessionVersion
   commit({ isLoading: true, error: null })
   try {
     const [tariffs, expenses] = await Promise.all([
-      billingApi.getTariffs(),
-      billingApi.getExpenses(),
+      canClinic(getPermissionUser(), 'billing.tariff.read') ? billingApi.getTariffs() : [],
+      canClinic(getPermissionUser(), 'billing.expense.read') ? billingApi.getExpenses() : [],
     ])
 
+    if (version !== sessionVersion) return
     const mappedServices: ServicePrice[] = tariffs.map((t: BackendTariff) => ({
       id: t.id,
       name: t.name,
@@ -220,12 +229,13 @@ export async function syncBillingMasterData(): Promise<void> {
     }))
 
     commit({
-      services: mappedServices.length > 0 ? mappedServices : snapshot.services,
+      services: mappedServices,
       expenses: mappedExpenses,
       isLoading: false,
       error: null,
     })
   } catch (err: any) {
+    if (version !== sessionVersion) return
     console.warn('[billingStore] syncBillingMasterData failed:', err)
     commit({ isLoading: false, error: err.message || 'Failed to sync billing master data' })
   }
@@ -394,14 +404,15 @@ export async function deleteExpense(id: string) {
  * Initialize or switch clinic billing session
  */
 export function initBillingSession(clinicId?: string) {
+  sessionVersion++
   const key = clinicId ? `docmatrix_billing_${clinicId}` : storageKey()
   const loaded = loadFromStorage<{ services?: ServicePrice[]; expenses?: ExpenseRecord[] } | null>(
     key,
     null
   )
   snapshot = {
-    services: Array.isArray(loaded?.services) ? loaded!.services : getSeedServices(),
-    expenses: Array.isArray(loaded?.expenses) ? loaded!.expenses : [],
+    services: hasAuthToken() && !canClinic(getPermissionUser(), 'billing.tariff.read') ? [] : Array.isArray(loaded?.services) ? loaded!.services : getSeedServices(),
+    expenses: hasAuthToken() && !canClinic(getPermissionUser(), 'billing.expense.read') ? [] : Array.isArray(loaded?.expenses) ? loaded!.expenses : [],
     isLoading: false,
     error: null,
   }
@@ -412,9 +423,10 @@ export function initBillingSession(clinicId?: string) {
  * Clear clinic billing store on logout or account switch
  */
 export function clearBillingStore() {
+  sessionVersion++
   try {
-    localStorage.removeItem(storageKey())
-    localStorage.removeItem('docmatrix_v1_billing')
+    browserLocalStorage.removeItem(storageKey())
+    browserLocalStorage.removeItem('docmatrix_v1_billing')
   } catch {}
   snapshot = {
     services: getSeedServices(),

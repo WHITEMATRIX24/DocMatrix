@@ -1,3 +1,9 @@
+import { MfaService } from './mfa.service.js';
+import { EmailVerificationService } from './email-verification.service.js';
+import { MfaBeginDto, MfaCodeDto, VerifyEmailDto } from './dto/account-security.dto.js';
+import { PasswordRecoveryService } from './password-recovery.service.js';
+import { RequestPasswordResetDto, CompletePasswordResetDto } from './dto/password-recovery.dto.js';
+import { Optional, Inject } from '@nestjs/common';
 import {
   Body,
   Controller,
@@ -30,7 +36,30 @@ import { getAllowedOrigins } from '../common/config/cors.config.js';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private authService: AuthService, @Optional() @Inject(PasswordRecoveryService) private readonly recovery?: PasswordRecoveryService,
+    @Optional() @Inject(MfaService) private readonly mfa?: MfaService,
+    @Optional() @Inject(EmailVerificationService) private readonly emailVerification?: EmailVerificationService) {}
+
+  @UseGuards(JwtAuthGuard) @Post('mfa/setup')
+  setupMfa(@CurrentUser() user: AuthenticatedUser, @Body() dto: MfaBeginDto) { return this.mfa!.begin(user.id, dto.password); }
+  @UseGuards(JwtAuthGuard) @Post('mfa/confirm')
+  confirmMfa(@CurrentUser() user: AuthenticatedUser, @Body() dto: MfaCodeDto) { return this.mfa!.confirm(user.id, dto.code); }
+  @UseGuards(JwtAuthGuard) @Post('mfa/step-up')
+  stepUp(@CurrentUser() user: AuthenticatedUser, @Body() dto: MfaCodeDto) { return this.mfa!.stepUp(user.id, user.sessionId!, dto.code); }
+  @UseGuards(JwtAuthGuard) @Post('email/request')
+  requestEmail(@CurrentUser() user: AuthenticatedUser) { return this.emailVerification!.request(user.id); }
+  @Public() @Post('email/verify')
+  verifyEmail(@Body() dto: VerifyEmailDto) { return this.emailVerification!.complete(dto.token); }
+
+  @Public()
+  @Post('password-reset/request')
+  @HttpCode(HttpStatus.OK)
+  requestReset(@Body() dto: RequestPasswordResetDto) { return this.recovery!.request(dto.email); }
+
+  @Public()
+  @Post('password-reset/complete')
+  @HttpCode(HttpStatus.OK)
+  completeReset(@Body() dto: CompletePasswordResetDto) { return this.recovery!.complete(dto.token, dto.password); }
 
   /**
    * Validates CSRF defense headers on sensitive state-changing endpoints (/auth/refresh, /auth/logout).
@@ -46,7 +75,7 @@ export class AuthController {
 
     if (origin) {
       const allowed = getAllowedOrigins();
-      if (allowed.length > 0 && !allowed.includes(origin)) {
+      if (!allowed.includes(origin)) {
         throw new ForbiddenException(`CSRF check failed: Origin '${origin}' is not authorized.`);
       }
     }
@@ -62,7 +91,7 @@ export class AuthController {
   ) {
     const meta = {
       userAgent: req.headers['user-agent'],
-      ipAddress: (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress,
+      ipAddress: req.ip || req.socket.remoteAddress,
     };
     const result = await this.authService.login(loginDto, meta);
     if (result.refreshToken) {
@@ -99,7 +128,7 @@ export class AuthController {
   ) {
     const meta = {
       userAgent: req.headers['user-agent'],
-      ipAddress: (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress,
+      ipAddress: req.ip || req.socket.remoteAddress,
     };
     const result = await this.authService.registerClinic(dto, meta);
     if (result.refreshToken) {
@@ -128,7 +157,7 @@ export class AuthController {
 
     const meta = {
       userAgent: req.headers['user-agent'],
-      ipAddress: (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress,
+      ipAddress: req.ip || req.socket.remoteAddress,
     };
 
     const result = await this.authService.refreshSession(tokenToUse, meta);

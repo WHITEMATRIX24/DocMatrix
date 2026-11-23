@@ -1,3 +1,4 @@
+import { StrongPassword } from '../password.policy.js';
 import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class RegisterClinicDto {
@@ -15,7 +16,8 @@ export class RegisterClinicDto {
 
   @IsString()
   @IsNotEmpty()
-  @MinLength(8, { message: 'Password must be at least 8 characters long.' })
+  @MinLength(12, { message: 'Password must be at least 12 characters long.' })
+  @StrongPassword()
   password!: string;
 
   @IsString()

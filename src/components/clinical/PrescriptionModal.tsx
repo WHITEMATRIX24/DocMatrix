@@ -1,3 +1,4 @@
+import { useClinicalCatalogue } from '../../services/clinicalCatalogue';
 import React, { useState, useMemo } from 'react';
 import {
   X,
@@ -44,6 +45,7 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
   onSaved,
 }) => {
   const { patients } = useClinicData();
+  const { customMedicines } = useClinicalCatalogue();
 
   // Selected patient state
   const [selectedPatientId, setSelectedPatientId] = useState<string>(
@@ -406,14 +408,20 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
 
                   <div className="rx-form-grid-4">
                     <div className="rx-col-span-2 rx-form-group">
+                      <datalist id={`clinic-medicines-${index}`}>{customMedicines.map(m => <option key={m.id} value={m.name} />)}</datalist>
                       <label className="rx-label">
                         Medicine Name <span className="rx-req">*</span>
                       </label>
                       <input
                         type="text"
                         placeholder="e.g. Amoxicillin, Paracetamol"
+                        list={`clinic-medicines-${index}`}
                         value={item.medicineName}
-                        onChange={(e) => handleItemChange(index, 'medicineName', e.target.value)}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          const medicine = customMedicines.find(m => m.name === value);
+                          setItems(current => current.map((entry, i) => i !== index ? entry : { ...entry, medicineName: value, ...(medicine ? { frequency: medicine.frequency || entry.frequency, duration: medicine.duration || entry.duration, route: medicine.route || entry.route, instructions: medicine.instructions || entry.instructions } : {}) }));
+                        }}
                         className="rx-input"
                       />
                     </div>

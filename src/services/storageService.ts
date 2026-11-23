@@ -1,7 +1,8 @@
+import { browserLocalStorage } from '@/services/browserStorage';
 /**
  * Safe Browser Storage Utility for DocMatrix Prototype
  * 
- * Provides versioned, resilient localStorage persistence for client-side
+ * Provides versioned, resilient browserLocalStorage persistence for client-side
  * demo data. Protects against missing storage, quota errors, JSON parse errors,
  * and handles state migration cleanly.
  */
@@ -16,16 +17,16 @@ export const STORAGE_KEYS = {
 }
 
 /**
- * Check if browser localStorage is accessible and working
+ * Check if browser browserLocalStorage is accessible and working
  */
 export function isStorageAvailable(): boolean {
   try {
-    if (typeof window === 'undefined' || !window.localStorage) {
+    if (typeof window === 'undefined' || !browserLocalStorage) {
       return false
     }
     const testKey = '__storage_test__'
-    window.localStorage.setItem(testKey, testKey)
-    window.localStorage.removeItem(testKey)
+    browserLocalStorage.setItem(testKey, testKey)
+    browserLocalStorage.removeItem(testKey)
     return true
   } catch {
     return false
@@ -33,13 +34,13 @@ export function isStorageAvailable(): boolean {
 }
 
 /**
- * Safely read and parse data from localStorage
+ * Safely read and parse data from browserLocalStorage
  */
 export function loadFromStorage<T>(key: string, defaultValue: T): T {
   if (!isStorageAvailable()) return defaultValue
 
   try {
-    const raw = window.localStorage.getItem(key)
+    const raw = browserLocalStorage.getItem(key)
     if (!raw) return defaultValue
     const parsed = JSON.parse(raw)
     return parsed !== null && parsed !== undefined ? (parsed as T) : defaultValue
@@ -50,13 +51,13 @@ export function loadFromStorage<T>(key: string, defaultValue: T): T {
 }
 
 /**
- * Safely serialize and save data to localStorage
+ * Safely serialize and save data to browserLocalStorage
  */
 export function saveToStorage<T>(key: string, value: T): boolean {
   if (!isStorageAvailable()) return false
 
   try {
-    window.localStorage.setItem(key, JSON.stringify(value))
+    browserLocalStorage.setItem(key, JSON.stringify(value))
     return true
   } catch (error) {
     console.warn(`[storageService] Failed to save key "${key}":`, error)
@@ -65,12 +66,12 @@ export function saveToStorage<T>(key: string, value: T): boolean {
 }
 
 /**
- * Remove an item from localStorage safely
+ * Remove an item from browserLocalStorage safely
  */
 export function removeFromStorage(key: string): boolean {
   if (!isStorageAvailable()) return false
   try {
-    window.localStorage.removeItem(key)
+    browserLocalStorage.removeItem(key)
     return true
   } catch {
     return false

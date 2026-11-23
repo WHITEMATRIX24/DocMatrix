@@ -8,3 +8,6 @@ dist-ssr
 .DS_Store
 .originkit/
 audit-*/
+
+.verification/
+backend/.verification/

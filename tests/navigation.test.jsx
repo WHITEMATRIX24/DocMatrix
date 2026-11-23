@@ -1,3 +1,4 @@
+import { browserSessionStorage } from '@/services/browserStorage';
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -21,7 +22,7 @@ import { DEMO_USERS } from '../src/mocks/auth'
 
 describe('DocMatrix Architecture, Navigation & Security Validation', () => {
   beforeEach(() => {
-    sessionStorage.clear()
+    browserSessionStorage.clear()
     window.location.hash = ''
   })
 
@@ -74,7 +75,7 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
     unmountPrivacy()
 
     // App / Dashboard Page
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101')
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-101')
     const { unmount: unmountDash } = render(
       <MemoryRouter initialEntries={['/dashboard']}>
         <App />
@@ -204,7 +205,7 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
   })
 
   // 6. EMAIL & PASSWORD LOGIN FLOW
-  it('implements email and password authentication and stores ONLY user id in sessionStorage', async () => {
+  it('implements email and password authentication and stores ONLY user id in browserSessionStorage', async () => {
     const onLoginSuccess = vi.fn()
 
     render(
@@ -235,7 +236,7 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
       expect(onLoginSuccess).toHaveBeenCalled()
     })
     // SessionStorage must hold ONLY user id
-    const stored = sessionStorage.getItem('docmatrix-demo-session')
+    const stored = browserSessionStorage.getItem('docmatrix-demo-session')
     expect(stored).toBe('usr-101')
     expect(stored).not.toContain('{')
     expect(stored).not.toContain('role')
@@ -298,7 +299,7 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
     unmountDash()
 
     // Logged-in admin to /login -> redirects to /dashboard
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101')
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-101')
     const { unmount: unmountLoggedIn } = render(
       <MemoryRouter initialEntries={['/login']}>
         <App />
@@ -311,7 +312,7 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
   // 10. ROLE ACCESS & FORBIDDEN VIEW
   it('restricts /accounts and /settings for unauthorized roles and redirects to /forbidden', () => {
     // Receptionist (usr-103) accessing /accounts -> /forbidden
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-103')
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-103')
     const { unmount: unmountAccounts } = render(
       <MemoryRouter initialEntries={['/accounts']}>
         <App />
@@ -427,6 +428,7 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
 
   // 16. SAFE ?next REDIRECTION
   it('honours ?next ONLY for safe relative paths and rejects evil URLs', () => {
+    for (const value of ['/\\evil.com', '/%5cevil.com', '/%09/evil.com', '%2f%2fevil.com', '/%00evil']) expect(getSafeNextPath(value)).toBe('/dashboard')
     expect(getSafeNextPath('//evil.com')).toBe('/dashboard')
     expect(getSafeNextPath('http://evil.com')).toBe('/dashboard')
     expect(getSafeNextPath('https://evil.com')).toBe('/dashboard')
@@ -438,9 +440,9 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
   })
 
   // 17. LOGOUT CLEARS SESSION AND REDIRECTS TO /
-  it('clears sessionStorage and returns to / when user logs out', () => {
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101')
-    expect(sessionStorage.getItem('docmatrix-demo-session')).toBe('usr-101')
+  it('clears browserSessionStorage and opens login when user logs out', async () => {
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-101')
+    expect(browserSessionStorage.getItem('docmatrix-demo-session')).toBe('usr-101')
 
     render(
       <MemoryRouter initialEntries={['/dashboard']}>
@@ -455,8 +457,8 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
     const logoutBtn = screen.getByText('Log Out')
     fireEvent.click(logoutBtn)
 
-    expect(sessionStorage.getItem('docmatrix-demo-session')).toBeNull()
-    expect(screen.getByText(/Healthcare in Sync/i)).toBeInTheDocument()
+    expect(browserSessionStorage.getItem('docmatrix-demo-session')).toBeNull()
+    await waitFor(() => expect(screen.getByRole('heading', { name: /Welcome back/i })).toBeInTheDocument())
   })
 
   // 18. ACTIVE STATE OF NAVIGATION BUTTONS
@@ -473,7 +475,7 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
 
   // 19. DIRECT DEEP LINKING TO SUB-PAGES
   it('allows direct deep linking to a protected subpage when authenticated', async () => {
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101')
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-101')
     render(
       <MemoryRouter initialEntries={['/billing/invoices']}>
         <App />
@@ -513,7 +515,7 @@ describe('DocMatrix Architecture, Navigation & Security Validation', () => {
 
   // 21. PERSISTENT APPLICATION SHELL & INLINE SUBMODULE NAVIGATION (Acceptance Criteria)
   it('renders submodules inline within the persistent dashboard layout without redundant horizontal navigation', async () => {
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101')
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-101')
     render(
       <MemoryRouter initialEntries={['/dashboard']}>
         <App />

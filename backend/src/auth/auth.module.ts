@@ -1,3 +1,8 @@
+import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
+import { MfaService } from './mfa.service.js';
+import { EmailVerificationService } from './email-verification.service.js';
+import { PasswordRecoveryService } from './password-recovery.service.js';
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
@@ -21,7 +26,7 @@ import { PrismaModule } from '../prisma/prisma.module.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, SessionService],
+  providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }, MfaService, EmailVerificationService, PasswordRecoveryService, AuthService, JwtStrategy, SessionService],
   exports: [AuthService, SessionService, JwtModule, PassportModule],
 })
 export class AuthModule {}

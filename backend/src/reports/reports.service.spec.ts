@@ -181,6 +181,25 @@ describe('ReportsService', () => {
   });
 
   describe('getDoctorsReport', () => {
+    it('keeps identically named practitioners separate and includes verified owners', async () => {
+      prisma.user.findMany.mockResolvedValue([{id:'owner',fullName:'Same Name',role:'ORGANIZATION_ADMIN'}, {id:'doctor',fullName:'Same Name',role:'DOCTOR'}]);
+      prisma.appointment.findMany.mockResolvedValue([{id:'a',doctorId:'owner',doctorName:'Same Name',date:new Date('2026-10-05'),status:AppointmentStatus.COMPLETED}, {id:'b',doctorId:'doctor',doctorName:'Same Name',date:new Date('2026-10-05'),status:AppointmentStatus.NO_SHOW}]);
+      const result = await reportsService.getDoctorsReport(mockClinicId,mockOwnerUser,{fromDate:'2026-10-01',toDate:'2026-10-31'});
+      expect(result.doctors).toHaveLength(2);
+      expect(result.doctors.find(d=>d.doctorId==='owner')?.completed).toBe(1);
+      expect(result.doctors.find(d=>d.doctorId==='doctor')?.completed).toBe(0);
+      expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({where:expect.objectContaining({OR:expect.arrayContaining([expect.objectContaining({role:'ORGANIZATION_ADMIN'})])})}));
+    });
+
+    it('leaves unlinked revenue unassigned even when two doctors saw the same patient', async () => {
+      prisma.user.findMany.mockResolvedValue([{id:'a',fullName:'Doctor A'},{id:'b',fullName:'Doctor B'}]);
+      prisma.appointment.findMany.mockResolvedValue([{id:'appt-a',doctorId:'a',patientId:'p',date:new Date('2026-10-05'),status:AppointmentStatus.COMPLETED},{id:'appt-b',doctorId:'b',patientId:'p',date:new Date('2026-10-05'),status:AppointmentStatus.COMPLETED}]);
+      prisma.invoice.findMany.mockResolvedValue([{id:'unlinked',patientId:'p',status:InvoiceStatus.PAID,totalAmount:100,paidAmount:100,issuedAt:new Date('2026-10-05'),payments:[]}]);
+      const result=await reportsService.getDoctorsReport(mockClinicId,mockOwnerUser,{fromDate:'2026-10-01',toDate:'2026-10-31'});
+      expect(result.summary.unassignedBilled).toBe(100);
+      expect(result.doctors.every(d=>d.billed===0 && d.collected===0)).toBe(true);
+    });
+
     it('aggregates real database doctors, appointments, treatment plans, and linked invoices', async () => {
       prisma.user.findMany.mockResolvedValue([
         { id: 'doc-1', fullName: 'Dr. Anjali Menon', role: 'DOCTOR' },
@@ -359,7 +378,27 @@ describe('ReportsService', () => {
       const report = await reportsService.getFollowUpsReport(mockClinicId, {
         fromDate: '2026-10-01',
         toDate: '2026-10-31',
+      }, mockOwnerUser);
+
+      const frontDesk = await reportsService.getFollowUpsReport(mockClinicId, {
+        fromDate: '2026-10-01', toDate: '2026-10-31',
+      }, mockReceptionistUser);
+      const serialized = JSON.stringify(frontDesk);
+      expect(serialized).not.toContain('Composite filling');
+      expect(serialized).not.toContain('Penicillin');
+      expect(serialized).not.toContain('tooth 36');
+      expect(frontDesk.alertPatients).toEqual([]);
+      expect(frontDesk.current.plansAcceptedValue).toBe(0);
+      expect(frontDesk.previous.plansAcceptedValue).toBe(0);
+      const doctor = { ...mockOwnerUser, role: 'DOCTOR', isPrimaryContact: true };
+      expect(reportsService.canUserSeeMoney(doctor)).toBe(false);
+      expect(reportsService.canUserSeeMoney({ ...mockOwnerUser, isPlatformAdmin: true })).toBe(false);
+      expect(reportsService.canUserSeeMoney()).toBe(false);
+      const summary = await reportsService.getSummaryReport(mockClinicId, doctor, {
+        fromDate: '2026-10-01', toDate: '2026-10-31',
       });
+      expect(summary.current.plansAcceptedValue).toBe(0);
+      expect(summary.current.plansCompletedValue).toBe(0);
 
       expect(report.contactCounts.treatment).toBe(1);
       expect(report.contacts[0].patientName).toBe('Anil Varma');

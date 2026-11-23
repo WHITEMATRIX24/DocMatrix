@@ -1,3 +1,5 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
+import { seedClinicFixture } from './fixtures/clinic'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   isStorageAvailable,
@@ -13,29 +15,25 @@ import {
   updateAppointmentStatus,
   addClinicalNote,
   addTreatmentPlan,
-  updateTreatmentPlanStatus,
+  recordTreatmentPlanAcceptance,
   createInvoice,
   addPatientDocument,
   addPatientConsent,
   saveToothConditionForPatient,
   getToothConditionsForPatient,
   getClinicSnapshot,
-  resetStoreForTesting
 } from '@/services/clinicStore'
 
 describe('DocMatrix Demonstration Persistence Engine', () => {
-  beforeEach(() => {
-    window.localStorage.clear()
-    resetStoreForTesting()
-  })
+  beforeEach(() => seedClinicFixture('ORGANIZATION_ADMIN'))
 
   it('detects browser storage availability and handles missing storage gracefully', () => {
     expect(isStorageAvailable()).toBe(true)
     expect(loadFromStorage('non_existent_key', { fallback: true })).toEqual({ fallback: true })
   })
 
-  it('handles malformed JSON in localStorage without throwing or crashing', () => {
-    window.localStorage.setItem('corrupted_key', '{ bad json ...')
+  it('handles malformed JSON in browserLocalStorage without throwing or crashing', () => {
+    browserLocalStorage.setItem('corrupted_key', '{ bad json ...')
     const result = loadFromStorage('corrupted_key', { safe: true })
     expect(result).toEqual({ safe: true })
   })
@@ -67,7 +65,7 @@ describe('DocMatrix Demonstration Persistence Engine', () => {
     })
 
     // Verify written to storage
-    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.DATA) || '{}')
+    const stored = JSON.parse(browserLocalStorage.getItem(STORAGE_KEYS.DATA) || '{}')
     expect(stored.patients).toBeDefined()
     const foundInStorage = stored.patients.find((p) => p.id === newPt.id)
     expect(foundInStorage).toBeDefined()
@@ -80,7 +78,7 @@ describe('DocMatrix Demonstration Persistence Engine', () => {
       city: 'Trivandrum'
     })
 
-    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.DATA) || '{}')
+    const stored = JSON.parse(browserLocalStorage.getItem(STORAGE_KEYS.DATA) || '{}')
     const updated = stored.patients.find((p) => p.id === 'pt-1001')
     expect(updated.mobile).toBe('9999988888')
     expect(updated.city).toBe('Trivandrum')
@@ -102,7 +100,7 @@ describe('DocMatrix Demonstration Persistence Engine', () => {
     expect(appt.id).toBeDefined()
     updateAppointmentStatus(appt.id, 'completed', 'Cleaned teeth and polished')
 
-    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.DATA) || '{}')
+    const stored = JSON.parse(browserLocalStorage.getItem(STORAGE_KEYS.DATA) || '{}')
     const found = stored.appointments.find((a) => a.id === appt.id)
     expect(found).toBeDefined()
     expect(found.status).toBe('completed')
@@ -116,11 +114,11 @@ describe('DocMatrix Demonstration Persistence Engine', () => {
     expect(conditions[37].condition).toBe('Caries')
     expect(conditions[37].notes).toContain('Deep pit caries')
 
-    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.DATA) || '{}')
+    const stored = JSON.parse(browserLocalStorage.getItem(STORAGE_KEYS.DATA) || '{}')
     expect(stored.toothCharts['pt-1001'][37].condition).toBe('Caries')
   })
 
-  it('persists clinical notes, treatment plans, documents, and invoices', () => {
+  it('persists clinical notes, treatment plans, documents, and invoices', async () => {
     // 1. Clinical Note
     const note = addClinicalNote({
       patientId: 'pt-1001',
@@ -139,7 +137,7 @@ describe('DocMatrix Demonstration Persistence Engine', () => {
       doctor: 'Dr. Priya Nair',
       status: 'Proposed'
     })
-    updateTreatmentPlanStatus(plan.id, 'Accepted')
+    await recordTreatmentPlanAcceptance(plan.id, { versionNumber: 1, patientAcceptedByName: 'Synthetic Patient', acceptanceMethod: 'STAFF_RECORDED', isStaffRecorded: true })
 
     // 3. Invoice
     const invoice = createInvoice({
@@ -165,7 +163,7 @@ describe('DocMatrix Demonstration Persistence Engine', () => {
       recordedBy: 'Dr. Priya Nair'
     })
 
-    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.DATA) || '{}')
+    const stored = JSON.parse(browserLocalStorage.getItem(STORAGE_KEYS.DATA) || '{}')
     expect(stored.clinicalNotes.some((n) => n.id === note.id)).toBe(true)
     expect(stored.treatmentPlans.find((tp) => tp.id === plan.id).status).toBe('Accepted')
     expect(stored.invoices.some((i) => i.id === invoice.id)).toBe(true)
@@ -201,12 +199,12 @@ describe('DocMatrix Demonstration Persistence Engine', () => {
     })
 
     // Simulate Auth logout clearing only auth keys
-    window.sessionStorage.removeItem('docmatrix-demo-session')
-    window.sessionStorage.removeItem('docmatrix_auth_token')
-    window.sessionStorage.removeItem('docmatrix_auth_user')
+    browserSessionStorage.removeItem('docmatrix-demo-session')
+    browserSessionStorage.removeItem('docmatrix_auth_token')
+    browserSessionStorage.removeItem('docmatrix_auth_user')
 
-    // App data must remain in localStorage!
-    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEYS.DATA) || '{}')
+    // App data must remain in browserLocalStorage!
+    const stored = JSON.parse(browserLocalStorage.getItem(STORAGE_KEYS.DATA) || '{}')
     expect(stored.patients.some((p) => p.id === pt.id)).toBe(true)
   })
 })

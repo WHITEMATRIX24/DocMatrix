@@ -1,3 +1,4 @@
+import { practitionerWhere, isVerifiedPractitioner } from '../common/practitioner.policy.js';
 import { lockInventoryItems } from '../common/transaction-locks.js';
 import type { AuthenticatedUser } from '../common/decorators/current-user.decorator.js';
 import { Injectable, NotFoundException, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
@@ -12,6 +13,19 @@ export class InventoryService {
   private readonly logger = new Logger(InventoryService.name);
 
   constructor(private prisma: PrismaService) {}
+
+  private async assertStockConsistent(tx: any, clinicId: string, item: { id: string; totalStock: number }) {
+    const batches = await tx.inventoryBatch.findMany({ where: { clinicId, itemId: item.id } });
+    if (batches.reduce((sum: number, batch: any) => sum + batch.quantity, 0) !== item.totalStock) {
+      throw new BadRequestException('Stock requires reconciliation: the stored total differs from batch quantities. Verify opening stock before changing this item.');
+    }
+  }
+
+  private async synchronizeTotal(tx: any, clinicId: string, itemId: string) {
+    const batches = await tx.inventoryBatch.findMany({ where: { clinicId, itemId } });
+    const totalStock = batches.reduce((sum: number, batch: any) => sum + batch.quantity, 0);
+    return tx.inventoryItem.update({ where: { id: itemId }, data: { totalStock } });
+  }
 
   async getItems(clinicId: string) {
     const items = await this.prisma.inventoryItem.findMany({
@@ -32,7 +46,8 @@ export class InventoryService {
         name: i.name,
         category: i.category,
         unit: i.unit,
-        totalStock: i.batches.length > 0 ? computedTotal : i.totalStock,
+        totalStock: computedTotal,
+        stockMismatch: computedTotal !== i.totalStock,
         reorderLevel: i.reorderLevel,
         costPerUnit: i.costPerUnit,
         activeBatches: i.batches.map((b) => ({
@@ -46,6 +61,7 @@ export class InventoryService {
   }
 
   async createItem(clinicId: string, dto: CreateItemDto) {
+    if (dto.totalStock) throw new BadRequestException('Opening stock must be received through an inventory batch.');
     return this.prisma.inventoryItem.create({
       data: {
         clinicId,
@@ -53,7 +69,8 @@ export class InventoryService {
         name: dto.name,
         category: dto.category,
         unit: dto.unit,
-        totalStock: dto.totalStock ?? 0,
+        totalStock: dto.initialBatch?.quantity ?? 0,
+        ...(dto.initialBatch ? { batches: { create: { clinicId, batchNumber: dto.initialBatch.batchNumber, expiryDate: dto.initialBatch.expiryDate, quantity: dto.initialBatch.quantity, location: dto.initialBatch.location || 'Central Storage' } } } : {}),
         reorderLevel: dto.reorderLevel ?? 10,
         costPerUnit: dto.costPerUnit ?? 0,
       },
@@ -123,6 +140,7 @@ export class InventoryService {
     if (!item) {
       throw new NotFoundException('Inventory item not found');
     }
+    await this.assertStockConsistent(tx, clinicId, item);
 
     const existingBatch = await tx.inventoryBatch.findFirst({
       where: { clinicId, itemId: dto.itemId, batchNumber: dto.batchNumber },
@@ -151,12 +169,7 @@ export class InventoryService {
       });
     }
 
-    const updatedItem = await tx.inventoryItem.update({
-      where: { id: item.id },
-      data: {
-        totalStock: item.totalStock + dto.quantity,
-      },
-    });
+    const updatedItem = await this.synchronizeTotal(tx, clinicId, item.id);
 
     return { item: updatedItem, batch };
 
@@ -176,6 +189,7 @@ export class InventoryService {
     if (!item) {
       throw new NotFoundException('Inventory item not found');
     }
+    await this.assertStockConsistent(tx, clinicId, item);
 
     const batch = await tx.inventoryBatch.findFirst({
       where: { clinicId, itemId: item.id, batchNumber: dto.batchNumber },
@@ -220,6 +234,7 @@ export class InventoryService {
     if (!item) {
       throw new NotFoundException('Inventory item not found');
     }
+    await this.assertStockConsistent(tx, clinicId, item);
 
     const batch = await tx.inventoryBatch.findFirst({
       where: { clinicId, itemId: item.id, batchNumber: dto.batchNumber },
@@ -230,20 +245,14 @@ export class InventoryService {
 
     const newBatchQty = batch.quantity + dto.adjustmentAmount;
     if (newBatchQty < 0) throw new BadRequestException('Insufficient batch stock.');
-    const qtyDelta = newBatchQty - batch.quantity;
-    if (item.totalStock + qtyDelta < 0) throw new BadRequestException('Insufficient inventory stock.');
+
 
     const updatedBatch = await tx.inventoryBatch.update({
       where: { id: batch.id },
       data: { quantity: newBatchQty },
     });
 
-    const updatedItem = await tx.inventoryItem.update({
-      where: { id: item.id },
-      data: {
-        totalStock: item.totalStock + qtyDelta,
-      },
-    });
+    const updatedItem = await this.synchronizeTotal(tx, clinicId, item.id);
 
     return { item: updatedItem, batch: updatedBatch };
 
@@ -282,9 +291,9 @@ export class InventoryService {
       if (!patient) throw new NotFoundException('Patient not found in this clinic.');
       recorded.patientName = patient.firstName + ' ' + patient.lastName;
     }
-    const doctorId = dto.doctorId || (actor.role === 'DOCTOR' ? actor.id : undefined);
+    const doctorId = dto.doctorId || (isVerifiedPractitioner(actor) ? actor.id : undefined);
     if (doctorId) {
-      const doctor = await this.prisma.user.findFirst({ where: { id: doctorId, clinicId, role: 'DOCTOR', isActive: true } });
+      const doctor = await this.prisma.user.findFirst({ where: { id: doctorId, clinicId, ...practitionerWhere } });
       if (!doctor) throw new NotFoundException('Doctor not found in this clinic.');
       recorded.doctorId = doctor.id; recorded.doctorName = doctor.fullName;
     }
@@ -338,12 +347,9 @@ export class InventoryService {
             },
           });
           if (!item) throw new NotFoundException('Inventory item not found.');
+          await this.assertStockConsistent(tx, clinicId, item);
           if (item) {
-            if (item.totalStock < totalDeduct) throw new BadRequestException('Insufficient inventory stock.');
-            await tx.inventoryItem.update({
-              where: { id: item.id },
-              data: { totalStock: item.totalStock - totalDeduct },
-            });
+
 
             const batch = await tx.inventoryBatch.findFirst({
               where: { clinicId, itemId: item.id, batchNumber: mat.batchNumber },
@@ -355,6 +361,7 @@ export class InventoryService {
                 where: { id: batch.id },
                 data: { quantity: batch.quantity - totalDeduct },
               });
+              await this.synchronizeTotal(tx, clinicId, item.id);
             }
           }
         }

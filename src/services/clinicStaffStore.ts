@@ -1,3 +1,5 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
+import { getPermissionUser } from './permissions'
 import { useEffect, useState } from 'react'
 import { apiClient, getStoredToken } from './apiClient'
 
@@ -11,8 +13,8 @@ export interface ClinicStaffDoctor {
 export function getStaffClinicId(): string | null {
   try {
     const raw =
-      (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('docmatrix_auth_user') : null) ||
-      (typeof localStorage !== 'undefined' ? localStorage.getItem('docmatrix_auth_user') : null)
+      (typeof browserSessionStorage !== 'undefined' ? browserSessionStorage.getItem('docmatrix_auth_user') : null) ||
+      (typeof browserLocalStorage !== 'undefined' ? browserLocalStorage.getItem('docmatrix_auth_user') : null)
     if (raw) {
       return JSON.parse(raw)?.clinicId || null
     }
@@ -30,13 +32,13 @@ export function getStaffStorageKey(clinicId?: string): string {
 
 const listeners = new Set<() => void>()
 
-export function isClinicalStaffMember(p: { name?: string; fullName?: string; role?: string; isActive?: boolean }): boolean {
+export function isClinicalStaffMember(p: { name?: string; fullName?: string; role?: string; isActive?: boolean; canPractice?: boolean; practitionerVerifiedAt?: string; practitionerRegistration?: string; isPrimaryContact?: boolean }): boolean {
   const rawName = String(p?.fullName || p?.name || '').trim()
   if (!rawName) return false
   if (p.isActive === false) return false
   const role = String(p?.role || '').toUpperCase()
   // Requirement: Display only users whose role is exactly DOCTOR
-  if (role !== 'DOCTOR') return false
+  if (role !== 'DOCTOR' && !(role === 'ORGANIZATION_ADMIN' && p.isPrimaryContact && ((p.practitionerVerifiedAt && p.practitionerRegistration) || p.canPractice))) return false
   return true
 }
 
@@ -44,7 +46,7 @@ export function getStoredStaff(): ClinicStaffDoctor[] {
   const doctors: ClinicStaffDoctor[] = []
   const key = getStaffStorageKey()
   try {
-    const raw = localStorage.getItem(key)
+    const raw = browserLocalStorage.getItem(key)
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed)) {
@@ -64,8 +66,8 @@ export function getStoredStaff(): ClinicStaffDoctor[] {
   // Only include current logged-in user if their role is exactly DOCTOR
   try {
     const authRaw =
-      (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('docmatrix_auth_user') : null) ||
-      (typeof localStorage !== 'undefined' ? localStorage.getItem('docmatrix_auth_user') : null)
+      (typeof browserSessionStorage !== 'undefined' ? browserSessionStorage.getItem('docmatrix_auth_user') : null) ||
+      (typeof browserLocalStorage !== 'undefined' ? browserLocalStorage.getItem('docmatrix_auth_user') : null)
     if (authRaw) {
       const authUser = JSON.parse(authRaw)
       if (authUser && authUser.fullName && isClinicalStaffMember(authUser)) {
@@ -121,11 +123,12 @@ export function useClinicStaff() {
 
 export function cacheClinicStaff(staff: unknown[], clinicId = getStaffClinicId()): void {
   if (clinicId !== getStaffClinicId()) return
-  try { localStorage.setItem(getStaffStorageKey(clinicId || undefined), JSON.stringify(staff)) } catch {}
+  try { browserLocalStorage.setItem(getStaffStorageKey(clinicId || undefined), JSON.stringify(staff)) } catch {}
   notifyStaffUpdated()
 }
 
 export async function fetchAndSyncClinicStaff(): Promise<ClinicStaffDoctor[]> {
+  if (getPermissionUser()?.isPlatformAdmin) return []
   const clinicId = getStaffClinicId()
   if (!clinicId || !getStoredToken()) return getStoredStaff()
   try {
@@ -156,8 +159,8 @@ export async function fetchAndSyncClinicStaff(): Promise<ClinicStaffDoctor[]> {
 
 export function clearClinicStaffStore() {
   try {
-    localStorage.removeItem(getStaffStorageKey())
-    localStorage.removeItem('docmatrix_clinic_staff')
+    browserLocalStorage.removeItem(getStaffStorageKey())
+    browserLocalStorage.removeItem('docmatrix_clinic_staff')
   } catch {}
   staffCache = []
   notify()

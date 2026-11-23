@@ -1,3 +1,4 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -22,16 +23,16 @@ const renderWithRange = (ui) => {
 
 describe('DocMatrix Reports Reliability & Security Verification', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
+    browserSessionStorage.clear()
+    browserLocalStorage.clear()
     // Set authenticated token to trigger live authoritative mode
-    sessionStorage.setItem('docmatrix_auth_token', 'mock-jwt-token')
+    browserSessionStorage.setItem('docmatrix_auth_token', 'mock-jwt-token')
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
-    sessionStorage.clear()
-    localStorage.clear()
+    browserSessionStorage.clear()
+    browserLocalStorage.clear()
   })
 
   describe('RevenueReportPage Data Reliability', () => {

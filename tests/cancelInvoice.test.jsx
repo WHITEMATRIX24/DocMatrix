@@ -1,3 +1,4 @@
+import { browserSessionStorage } from '@/services/browserStorage';
 import React from 'react'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
@@ -15,9 +16,9 @@ import {
 
 describe('Cancel Invoice functionality', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101')
-    sessionStorage.setItem(
+    browserSessionStorage.clear()
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-101')
+    browserSessionStorage.setItem(
       'docmatrix_auth_user',
       JSON.stringify({
         id: 'usr-101',

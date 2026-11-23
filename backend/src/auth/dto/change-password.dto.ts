@@ -1,3 +1,4 @@
+import { StrongPassword } from '../password.policy.js';
 import { IsNotEmpty, IsString, MinLength } from 'class-validator';
 
 export class ChangePasswordDto {
@@ -7,7 +8,8 @@ export class ChangePasswordDto {
 
   @IsString()
   @IsNotEmpty({ message: 'New password is required.' })
-  @MinLength(8, { message: 'New password must be at least 8 characters long.' })
+  @MinLength(12, { message: 'New password must be at least 12 characters long.' })
+  @StrongPassword()
   newPassword!: string;
 }
 

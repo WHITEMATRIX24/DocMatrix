@@ -1,4 +1,6 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { ClinicExportService } from './clinic-export.service.js';
+import { ClinicalConfigDto } from './dto/clinical-config.dto.js';
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Put, Query, UseGuards, Optional, Header } from '@nestjs/common';
 import { StaffRole } from '@prisma/client';
 import { ClinicsService } from './clinics.service.js';
 import { UpdateClinicDto } from './dto/update-clinic.dto.js';
@@ -13,7 +15,14 @@ import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-use
 @UseGuards(JwtAuthGuard, TenantGuard, RolesGuard)
 @Controller('clinics')
 export class ClinicsController {
-  constructor(@Inject(ClinicsService) private clinicsService: ClinicsService) {}
+  constructor(@Inject(ClinicsService) private clinicsService: ClinicsService, @Optional() @Inject(ClinicExportService) private readonly exporter?: ClinicExportService) {}
+
+  @Roles(StaffRole.ORGANIZATION_ADMIN, StaffRole.BRANCH_ADMIN)
+  @Get('my-clinic/export')
+  @Header('Cache-Control', 'no-store')
+  exportRecords(@CurrentUser() user: AuthenticatedUser, @Query('patientId') patientId?: string) {
+    return this.exporter!.export(user.clinicId!, patientId, user);
+  }
 
   @Get('my-clinic')
   async getMyClinic(@CurrentUser() user: AuthenticatedUser) {
@@ -75,7 +84,7 @@ export class ClinicsController {
 
   @Roles(StaffRole.ORGANIZATION_ADMIN, StaffRole.BRANCH_ADMIN)
   @Put('my-clinic/clinical-config')
-  async updateClinicalConfig(@CurrentUser() user: AuthenticatedUser, @Body() config: any) {
+  async updateClinicalConfig(@CurrentUser() user: AuthenticatedUser, @Body() config: ClinicalConfigDto) {
     return this.clinicsService.updateClinicalConfig(user.clinicId!, config);
   }
 

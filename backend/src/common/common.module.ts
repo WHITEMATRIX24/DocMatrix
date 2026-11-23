@@ -1,3 +1,6 @@
+import { RetentionService } from './services/retention.service.js';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { SecurityAuditInterceptor } from './interceptors/security-audit.interceptor.js';
 import { Global, Module } from '@nestjs/common';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { RateLimiterService } from './services/rate-limiter.service.js';
@@ -9,7 +12,9 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter.js';
 @Module({
   providers: [
     RateLimiterService,
+    RetentionService,
     AuditLogService,
+    { provide: APP_INTERCEPTOR, useClass: SecurityAuditInterceptor },
     {
       provide: APP_GUARD,
       useClass: RateLimitGuard,

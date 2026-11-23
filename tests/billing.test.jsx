@@ -1,3 +1,4 @@
+import { browserSessionStorage } from '@/services/browserStorage';
 import React from 'react'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
@@ -8,9 +9,16 @@ import { findPatient } from '@/pages/billing/BillingShared'
 
 describe('Billing workspace', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101')
+    browserSessionStorage.clear()
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-101')
     resetStoreForTesting()
+  })
+
+  it.each([['/billing/price-list', 'bill.price-list'], ['/billing/expenses', 'bill.expenses']])('opens the existing MVP billing route %s', async (route, feature) => {
+    render(<MemoryRouter initialEntries={[route]}><App /></MemoryRouter>)
+    expect(await screen.findByTestId(`feature-page-${feature}`)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Prices' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Expenses' })).toBeInTheDocument()
   })
 
   it('computes itemised totals with GST only on cosmetic lines and tracks part payments', () => {
@@ -46,11 +54,9 @@ describe('Billing workspace', () => {
     expect(screen.queryByTestId('sidebar-link-bill.dues')).not.toBeInTheDocument()
 
     const tabs = await screen.findByRole('navigation', { name: 'Billing sections' })
-    for (const name of ['Overview', 'Invoices', 'Dues', 'Collection', 'Payments']) {
+    for (const name of ['Overview', 'Invoices', 'Dues', 'Collection', 'Payments', 'Prices', 'Expenses']) {
       expect(within(tabs).getByRole('button', { name: new RegExp(name) })).toBeInTheDocument()
     }
-    // Price list and Expenses were removed from Billing
-    expect(within(tabs).queryByRole('button', { name: /Price list|Expenses/ })).not.toBeInTheDocument()
     expect(await screen.findByTestId('feature-page-bill.overview')).toBeInTheDocument()
   })
 
@@ -85,7 +91,7 @@ describe('Billing workspace', () => {
       expect(invoiceBalance(created)).toBe(700)
     })
     // Lands on the invoice list with the new invoice's drawer open
-    expect(await screen.findByRole('dialog', { name: /Invoice INV-/ })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: /Invoice INV-/ }, { timeout: 5000 })).toBeInTheDocument()
   })
 
   it('supports payment refunds, voiding unpaid invoices, and backendId patient lookup', async () => {

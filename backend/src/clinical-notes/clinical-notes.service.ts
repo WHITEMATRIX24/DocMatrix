@@ -1,3 +1,4 @@
+import { isVerifiedPractitioner, practitionerWhere } from '../common/practitioner.policy.js';
 import { lockTenantRecord } from '../common/transaction-locks.js';
 import {
   BadRequestException,
@@ -22,7 +23,7 @@ export class ClinicalNotesService {
    * Finalization and auditable addenda strictly require DOCTOR role.
    */
   private assertAuthorizedDoctor(user: AuthenticatedUser): void {
-    if (user.role !== 'DOCTOR') {
+    if (!isVerifiedPractitioner(user)) {
       throw new ForbiddenException(
         'Unauthorized: Only verified medical/dental practitioners (DOCTOR role) are permitted to finalize clinical notes or append addenda.',
       );
@@ -89,7 +90,7 @@ export class ClinicalNotesService {
     // Resolve treating dentist
     const resolvedDoctorId = dto.doctorId || currentUser.id;
     const doctor = await this.prisma.user.findFirst({
-      where: { id: resolvedDoctorId, clinicId },
+      where: { id: resolvedDoctorId, clinicId, ...practitionerWhere },
     });
     if (!doctor) {
       throw new BadRequestException('Treating doctor not found in this clinic.');

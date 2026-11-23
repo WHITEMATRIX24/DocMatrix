@@ -1,3 +1,4 @@
+import { useClinicLetterhead } from '@/services/useClinicLetterhead';
 import React from 'react';
 import { Printer, X, AlertTriangle } from 'lucide-react';
 import { PrescriptionRecord } from '../../services/clinicStore';
@@ -15,13 +16,15 @@ interface PrescriptionPrintModalProps {
 export const PrescriptionPrintModal: React.FC<PrescriptionPrintModalProps> = ({
   prescription,
   onClose,
-  clinicName = 'DocMatrix Dental & Polyclinic Center',
-  clinicAddress = 'Medical Arts Complex, Suite 402, Bangalore, KA',
-  clinicPhone = '+91 80 4123 4567',
-  clinicEmail = 'care@docmatrix.health',
+  clinicName: suppliedName,
+  clinicAddress: suppliedAddress,
+  clinicPhone: suppliedPhone,
+  clinicEmail: suppliedEmail,
 }) => {
+  const letterhead = useClinicLetterhead({ name: suppliedName, address: suppliedAddress, phone: suppliedPhone, email: suppliedEmail });
+  const { name: clinicName, address: clinicAddress, phone: clinicPhone, email: clinicEmail } = letterhead;
   const handlePrint = () => {
-    window.print();
+    if (letterhead.ready) window.print();
   };
 
   const patient = prescription.patient;
@@ -36,6 +39,7 @@ export const PrescriptionPrintModal: React.FC<PrescriptionPrintModalProps> = ({
   return (
     <div className="rx-modal-overlay">
       <div className="rx-modal-dialog rx-modal-dialog-wide" role="dialog" aria-modal="true">
+        {!letterhead.ready && <p role={letterhead.error ? 'alert' : 'status'}>{letterhead.error || 'Loading clinic details…'}</p>}
         {/* Top Modal Controls (Hidden in Print) */}
         <div className="rx-modal-header no-print">
           <div className="rx-modal-header-info">
@@ -62,7 +66,7 @@ export const PrescriptionPrintModal: React.FC<PrescriptionPrintModalProps> = ({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
-              onClick={handlePrint}
+              onClick={handlePrint} disabled={!letterhead.ready}
               className="rx-btn rx-btn-primary"
             >
               <Printer />

@@ -1,3 +1,4 @@
+import { browserSessionStorage } from '@/services/browserStorage';
 import React, { useState, useEffect } from 'react'
 import {
   Building2, MapPin, Phone, Mail, Globe, Clock, FileText,
@@ -180,11 +181,11 @@ export const ClinicProfilePage: React.FC = () => {
 
       // Propagate clinicName update to browser session if applicable
       try {
-        const rawAuth = sessionStorage.getItem('docmatrix_auth_user')
+        const rawAuth = browserSessionStorage.getItem('docmatrix_auth_user')
         if (rawAuth) {
           const authUser = JSON.parse(rawAuth)
           authUser.clinicName = finalRecord.displayName || finalRecord.name
-          sessionStorage.setItem('docmatrix_auth_user', JSON.stringify(authUser))
+          browserSessionStorage.setItem('docmatrix_auth_user', JSON.stringify(authUser))
         }
       } catch { }
     } catch (err: any) {

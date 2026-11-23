@@ -45,6 +45,27 @@ export class BillingService {
     @Optional() private readonly auditLog?: AuditLogService,
   ) {}
 
+  // Invoice preparation needs prices and item identifiers, not clinical notes or charts.
+  async getBillableTreatmentPlans(clinicId: string) {
+    const plans = await this.prisma.treatmentPlan.findMany({
+      where: { clinicId },
+      select: {
+        id: true, planNumber: true, patientId: true, status: true,
+        subtotal: true, discount: true, tax: true, totalEstimatedCost: true,
+        currentVersion: true, createdAt: true,
+        patient: { select: { patientCode: true, firstName: true, lastName: true } },
+        stages: { orderBy: { stageNumber: 'asc' }, select: {
+          id: true, stageNumber: true, status: true, estimatedCost: true,
+          items: { select: { id: true, procedureCode: true, procedureName: true,
+            category: true, quantity: true, unitFee: true, discount: true, netFee: true, status: true } },
+        } },
+      },
+    });
+    return plans.map(plan => ({ ...plan, billingContextOnly: true, title: plan.planNumber,
+      stages: plan.stages.map(stage => ({ ...stage, name: `Stage ${stage.stageNumber}` })),
+    }));
+  }
+
   private async reserveTreatmentItems(tx: Prisma.TransactionClient, clinicId: string,
     items: Array<{ treatmentPlanItemId?: string | null }>, excludeInvoiceId?: string): Promise<void> {
     const requested = items.map(item => item.treatmentPlanItemId).filter((id): id is string => !!id);
