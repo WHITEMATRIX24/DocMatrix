@@ -45,7 +45,16 @@ import {
   type InvoiceRecord
 } from '@/services/clinicStore'
 import { autoGenerateInvoiceForConsultation } from '@/services/billingAutoInvoice'
+import { sendCallInWhatsAppMessage } from '@/services/whatsappService'
 import { InvoiceDrawer } from '@/pages/billing/BillingShared'
+import {
+  InvoiceSuccessToast,
+  type InvoiceSuccessToastData,
+} from '@/components/shared/InvoiceSuccessToast'
+import {
+  CallInToast,
+  type CallInToastData,
+} from '@/components/shared/CallInToast'
 
 type CalendarViewMode = 'day' | 'week' | 'dentist'
 
@@ -53,6 +62,8 @@ export const CalendarPage: React.FC = () => {
   const navigate = useNavigate()
   const { appointments, patients } = useClinicData()
   const [activeInvoice, setActiveInvoice] = useState<InvoiceRecord | null>(null)
+  const [invoiceToast, setInvoiceToast] = useState<InvoiceSuccessToastData | null>(null)
+  const [callInToast, setCallInToast] = useState<CallInToastData | null>(null)
 
   // Selected date
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -211,6 +222,32 @@ export const CalendarPage: React.FC = () => {
     }
   }
 
+  const triggerCallInWhatsApp = async (appt: AppointmentRecord) => {
+    const patient = getPatient(appt.patientId)
+    try {
+      const res = await sendCallInWhatsAppMessage(appt, patient)
+      if (res.status === 'sent') {
+        setCallInToast({
+          type: 'success',
+          title: 'Patient Called-In & WhatsApp Sent',
+          message: `WhatsApp message sent to ${res.patientName} (${res.recipient}).`,
+        })
+      } else if (res.status === 'invalid_phone' || res.status === 'error') {
+        setCallInToast({
+          type: 'error',
+          title: 'Patient Called-In — WhatsApp Not Sent',
+          message: res.error || 'Could not send WhatsApp message.',
+        })
+      }
+    } catch (err: any) {
+      setCallInToast({
+        type: 'error',
+        title: 'Patient Called-In — WhatsApp Failed',
+        message: err?.message || 'Unexpected error sending WhatsApp notification.',
+      })
+    }
+  }
+
   // Quick 1-click status advancement on card
   const handleQuickAdvanceStatus = (e: React.MouseEvent, appt: AppointmentRecord) => {
     e.stopPropagation()
@@ -218,7 +255,17 @@ export const CalendarPage: React.FC = () => {
     if (appt.status === 'scheduled' || appt.status === 'confirmed') nextStatus = 'checked-in'
     else if (appt.status === 'checked-in') nextStatus = 'in-progress'
     else if (appt.status === 'in-progress') nextStatus = 'completed'
-    updateAppointmentStatus(appt.id, nextStatus)
+
+    const isCallIn = appt.status === 'checked-in' && nextStatus === 'in-progress'
+    updateAppointmentStatus(
+      appt.id,
+      nextStatus,
+      isCallIn ? 'Patient called in to consultation room' : undefined
+    )
+
+    if (isCallIn) {
+      void triggerCallInWhatsApp(appt)
+    }
 
     if (nextStatus === 'completed') {
       const res = autoGenerateInvoiceForConsultation({
@@ -226,7 +273,10 @@ export const CalendarPage: React.FC = () => {
         patientId: appt.patientId,
       })
       if (res.invoice) {
-        setActiveInvoice(res.invoice)
+        setInvoiceToast({
+          invoiceNumber: res.invoice.id,
+          amount: res.invoice.amount,
+        })
       }
     }
   }
@@ -1303,16 +1353,28 @@ export const CalendarPage: React.FC = () => {
                 <select
                   value={activeAppt.status}
                   onChange={(e) => {
+                    const prevStatus = activeAppt.status
                     const newStatus = e.target.value as AppointmentStatus
-                    updateAppointmentStatus(activeAppt.id, newStatus)
+                    const isCallIn = prevStatus === 'checked-in' && newStatus === 'in-progress'
+                    updateAppointmentStatus(
+                      activeAppt.id,
+                      newStatus,
+                      isCallIn ? 'Patient called in to consultation room' : undefined
+                    )
                     setActiveAppt({ ...activeAppt, status: newStatus })
+                    if (isCallIn) {
+                      void triggerCallInWhatsApp(activeAppt)
+                    }
                     if (newStatus === 'completed') {
                       const res = autoGenerateInvoiceForConsultation({
                         appointment: activeAppt,
                         patientId: activeAppt.patientId,
                       })
                       if (res.invoice) {
-                        setActiveInvoice(res.invoice)
+                        setInvoiceToast({
+                          invoiceNumber: res.invoice.id,
+                          amount: res.invoice.amount,
+                        })
                       }
                     }
                   }}
@@ -1384,7 +1446,10 @@ export const CalendarPage: React.FC = () => {
                       patientId: activeAppt.patientId,
                     })
                     if (res.invoice) {
-                      setActiveInvoice(res.invoice)
+                      setInvoiceToast({
+                        invoiceNumber: res.invoice.id,
+                        amount: res.invoice.amount,
+                      })
                     }
                   }}
                   title="Finalize consultation and preview invoice"
@@ -1694,6 +1759,18 @@ export const CalendarPage: React.FC = () => {
           onDone={() => setActiveInvoice(null)}
         />
       )}
+
+      {/* Invoice Generated Success Toast */}
+      <InvoiceSuccessToast
+        toast={invoiceToast}
+        onClose={() => setInvoiceToast(null)}
+      />
+
+      {/* Call-In WhatsApp Notification Toast */}
+      <CallInToast
+        toast={callInToast}
+        onClose={() => setCallInToast(null)}
+      />
     </div>
   )
 }

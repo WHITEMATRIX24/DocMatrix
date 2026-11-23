@@ -4,13 +4,12 @@ import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { FEATURE_REGISTRY } from '@/features/registry'
 import { getActiveFeatureForPath, resolveFeatureRoute } from '@/features/navigationMatcher'
 import ClinicDashboard from '@/pages/dashboard/ClinicDashboard'
-import ThemeToggle, { applyTheme, getThemePreference } from '@/components/ThemeToggle'
+import ThemeToggle from '@/components/ThemeToggle'
 import {
   Calendar, Users, Stethoscope, Receipt, BookOpen, Package, MessageSquare, Globe,
   BarChart3, Settings, LayoutDashboard, LogOut, Menu, X, ChevronRight, ChevronDown,
   Check, ShieldAlert, Search, Bell, CircleAlert, PackageOpen, FlaskConical,
-  RefreshCw, AlertCircle,
-  Sun, Moon, Monitor
+  RefreshCw, AlertCircle
 } from 'lucide-react'
 import { useClinicData, retrySync, isDemoSession } from '@/services/clinicStore'
 import { useAdaptiveInventory } from '@/services/adaptiveInventoryStore'
@@ -174,7 +173,6 @@ export default function StaffPortal({
   const headerSearchRef = useRef(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [currentTime, setCurrentTime] = useState('11:20 AM')
-  const [themePref, setThemePref] = useState(getThemePreference)
 
   const isDemo = isDemoSession()
   const { patients = [] } = useClinicData() || {}
@@ -224,16 +222,6 @@ export default function StaffPortal({
     }
     return notifs
   }, [isDemo, patients, inventoryItems])
-
-  useEffect(() => {
-    const handleThemeChange = (e) => {
-      if (e.detail?.preference) {
-        setThemePref(e.detail.preference)
-      }
-    }
-    window.addEventListener('docmatrix-theme-changed', handleThemeChange)
-    return () => window.removeEventListener('docmatrix-theme-changed', handleThemeChange)
-  }, [])
 
   // Close popovers on click outside or Escape
   useEffect(() => {
@@ -714,42 +702,6 @@ export default function StaffPortal({
                       <div className="dmx-popover-divider" style={{ margin: '8px 0 4px' }} />
                     </div>
                   )}
-                  <div className="dmx-popover-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '4px' }}>
-                    <span>Theme Appearance</span>
-                    <span style={{ fontSize: '10px', textTransform: 'none', fontWeight: 600, color: 'var(--teal-primary)' }}>
-                      {themePref === 'system' ? 'System Default' : themePref === 'dark' ? 'Dark Mode' : 'Bright Mode'}
-                    </span>
-                  </div>
-                  <div className="dmx-theme-options-grid">
-                    <button
-                      type="button"
-                      onClick={() => applyTheme('system')}
-                      className={`dmx-theme-option-btn ${themePref === 'system' ? 'is-active' : ''}`}
-                      title="Follow System OS Default (Dark / Bright)"
-                    >
-                      <Monitor size={12} />
-                      <span>System</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => applyTheme('light')}
-                      className={`dmx-theme-option-btn ${themePref === 'light' ? 'is-active' : ''}`}
-                      title="Bright / Light Mode"
-                    >
-                      <Sun size={12} />
-                      <span>Bright</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => applyTheme('dark')}
-                      className={`dmx-theme-option-btn ${themePref === 'dark' ? 'is-active' : ''}`}
-                      title="Dark Mode"
-                    >
-                      <Moon size={12} />
-                      <span>Dark</span>
-                    </button>
-                  </div>
-                  <div className="dmx-popover-divider" />
                   <button
                     className="dmx-role-item dmx-logout"
                     onClick={() => { setRoleDropdownOpen(false); if (onLogout) onLogout() }}

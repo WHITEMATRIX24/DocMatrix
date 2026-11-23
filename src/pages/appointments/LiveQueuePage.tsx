@@ -28,11 +28,22 @@ import {
   type InvoiceRecord
 } from '@/services/clinicStore'
 import { autoGenerateInvoiceForConsultation } from '@/services/billingAutoInvoice'
+import { sendCallInWhatsAppMessage } from '@/services/whatsappService'
 import { InvoiceDrawer } from '@/pages/billing/BillingShared'
+import {
+  InvoiceSuccessToast,
+  type InvoiceSuccessToastData,
+} from '@/components/shared/InvoiceSuccessToast'
+import {
+  CallInToast,
+  type CallInToastData,
+} from '@/components/shared/CallInToast'
 
 export const LiveQueuePage: React.FC = () => {
   const { appointments, patients } = useClinicData()
   const [activeInvoice, setActiveInvoice] = useState<InvoiceRecord | null>(null)
+  const [invoiceToast, setInvoiceToast] = useState<InvoiceSuccessToastData | null>(null)
+  const [callInToast, setCallInToast] = useState<CallInToastData | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [walkInForm, setWalkInForm] = useState({
     patientName: '',
@@ -64,6 +75,34 @@ export const LiveQueuePage: React.FC = () => {
     }
   }, [modalOpen])
 
+  const handleCallInVisit = (appt: AppointmentRecord) => {
+    updateAppointmentStatus(appt.id, 'in-progress', 'Patient called in to consultation room')
+    const patient = patients.find((p) => p.id === appt.patientId || p.backendId === appt.patientId)
+    void sendCallInWhatsAppMessage(appt, patient)
+      .then((res) => {
+        if (res.status === 'sent') {
+          setCallInToast({
+            type: 'success',
+            title: 'Patient Called-In & WhatsApp Sent',
+            message: `WhatsApp message sent to ${res.patientName} (${res.recipient}).`,
+          })
+        } else if (res.status === 'invalid_phone' || res.status === 'error') {
+          setCallInToast({
+            type: 'error',
+            title: 'Patient Called-In — WhatsApp Not Sent',
+            message: res.error || 'Could not send WhatsApp message.',
+          })
+        }
+      })
+      .catch((err: any) => {
+        setCallInToast({
+          type: 'error',
+          title: 'Patient Called-In — WhatsApp Failed',
+          message: err?.message || 'Unexpected error sending WhatsApp notification.',
+        })
+      })
+  }
+
   const handleCompleteVisit = (appt: AppointmentRecord) => {
     updateAppointmentStatus(appt.id, 'completed')
     const result = autoGenerateInvoiceForConsultation({
@@ -71,7 +110,10 @@ export const LiveQueuePage: React.FC = () => {
       patientId: appt.patientId,
     })
     if (result.invoice) {
-      setActiveInvoice(result.invoice)
+      setInvoiceToast({
+        invoiceNumber: result.invoice.id,
+        amount: result.invoice.amount,
+      })
     }
   }
 
@@ -216,7 +258,8 @@ export const LiveQueuePage: React.FC = () => {
                     <div className="queue-card-actions">
                       <button
                         className="btn-start-consult"
-                        disabled={!canClinic(getPermissionUser(), 'appointment.consult')} onClick={() => updateAppointmentStatus(appt.id, 'in-progress')}
+                        disabled={!canClinic(getPermissionUser(), 'appointment.consult')}
+                        onClick={() => handleCallInVisit(appt)}
                       >
                         <Play size={13} />
                         <span>Call In / Start</span>
@@ -533,6 +576,18 @@ export const LiveQueuePage: React.FC = () => {
           onDone={() => setActiveInvoice(null)}
         />
       )}
+
+      {/* Invoice Generated Success Toast */}
+      <InvoiceSuccessToast
+        toast={invoiceToast}
+        onClose={() => setInvoiceToast(null)}
+      />
+
+      {/* Call-In WhatsApp Notification Toast */}
+      <CallInToast
+        toast={callInToast}
+        onClose={() => setCallInToast(null)}
+      />
     </div>
   )
 }

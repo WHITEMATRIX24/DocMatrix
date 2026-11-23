@@ -44,6 +44,7 @@ interface SearchableSelectProps {
   disabled?: boolean;
   hasError?: boolean;
   ariaLabel?: string;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -54,12 +55,17 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   disabled = false,
   hasError = false,
   ariaLabel,
+  onOpenChange,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    onOpenChange?.(isOpen);
+  }, [isOpen, onOpenChange]);
 
   const selectedOption = useMemo(
     () => options.find((opt) => opt.value === value),
@@ -112,14 +118,19 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
           disabled={disabled}
           placeholder={selectedOption ? selectedOption.label : placeholder || 'Search or select...'}
           value={inputValue}
-          onFocus={(e) => {
+          onFocus={() => {
             if (disabled) return;
             setIsOpen(true);
-            e.target.select();
+            setTimeout(() => {
+              inputRef.current?.select();
+            }, 0);
           }}
           onClick={() => {
             if (disabled) return;
             if (!isOpen) setIsOpen(true);
+            setTimeout(() => {
+              inputRef.current?.select();
+            }, 0);
           }}
           onChange={(e) => {
             setIsTyping(true);
@@ -131,10 +142,12 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
               setIsOpen(false);
               setIsTyping(false);
               setSearchQuery('');
+              inputRef.current?.blur();
             } else if (e.key === 'Enter') {
               e.preventDefault();
               if (filteredOptions.length > 0) {
                 handleSelect(filteredOptions[0].value);
+                inputRef.current?.blur();
               }
             } else if (e.key === 'ArrowDown' && !isOpen) {
               setIsOpen(true);
@@ -144,11 +157,13 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
         />
         <div
           className="cn-searchable-select-arrow"
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             if (disabled) return;
             setIsOpen((prev) => !prev);
             inputRef.current?.focus();
           }}
+          title="Toggle options"
         >
           <ChevronDown size={16} />
         </div>
@@ -696,6 +711,9 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmFinalizeOpen, setConfirmFinalizeOpen] = useState(false);
+  const [patientDropdownOpen, setPatientDropdownOpen] = useState(false);
+  const [consultTypeDropdownOpen, setConsultTypeDropdownOpen] = useState(false);
+  const isConsultationSectionActive = patientDropdownOpen || consultTypeDropdownOpen;
 
   // Master procedure autocomplete / combobox state
   const { services: billingServices = [] } = useBillingData();
@@ -1150,7 +1168,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
   const formContent = (
     <>
       {error && (
-        <div className="cn-safety-banner" style={{ background: 'rgba(220, 38, 38, 0.1)', color: '#dc2626' }}>
+        <div className="cn-safety-banner cn-safety-banner-error">
           <AlertTriangle />
           <span>{error}</span>
         </div>
@@ -1172,7 +1190,10 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
       )}
 
       {/* Section 1: Consultation Details */}
-      <section className="cn-form-section">
+      <section
+        className={`cn-form-section cn-form-section-consultation ${isConsultationSectionActive ? 'is-dropdown-active' : ''}`}
+        style={{ zIndex: isConsultationSectionActive ? 120 : undefined }}
+      >
         <h3 className="cn-form-section-title">
           <Clock /> 1. Consultation Information
         </h3>
@@ -1196,6 +1217,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
               disabled={Boolean(defaultPatientId || initialNote?.isFinalized)}
               hasError={Boolean(validationErrors.patient)}
               ariaLabel="Patient"
+              onOpenChange={setPatientDropdownOpen}
             />
             {validationErrors.patient && (
               <div className="cn-field-error">{validationErrors.patient}</div>
@@ -1233,6 +1255,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
               placeholder="Search or select consultation type..."
               disabled={Boolean(initialNote?.isFinalized)}
               ariaLabel="Consultation Type"
+              onOpenChange={setConsultTypeDropdownOpen}
             />
           </div>
         </div>
@@ -1912,7 +1935,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
                       error.toLowerCase().includes('privilege') ||
                       error.toLowerCase().includes('practitioner') ||
                       error.toLowerCase().includes('unauthorized')) && (
-                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#991b1b' }}>
+                        <div className="cn-dialog-error-tip">
                           Finalization requires verified practitioner access.
                           Contact your clinic administrator if practitioner access is missing.
                         </div>
@@ -1921,26 +1944,13 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
                 </div>
               )}
 
-              <p style={{ margin: 0, fontSize: '13px', lineHeight: 1.5, color: 'var(--text-main, #334155)' }}>
+              <p className="cn-modal-dialog-notice">
                 Once finalized, this consultation record becomes a signed, read-only legal medical document.
                 Further updates can only be recorded as auditable clinical addenda.
               </p>
 
               {currentUser?.role && !canClinic(currentUser, 'clinical.write') && !error && (
-                <div
-                  style={{
-                    marginTop: '12px',
-                    padding: '8px 12px',
-                    background: 'rgba(245, 158, 11, 0.1)',
-                    border: '1px solid rgba(245, 158, 11, 0.25)',
-                    borderRadius: '8px',
-                    color: '#b45309',
-                    fontSize: '12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}
-                >
+                <div className="cn-role-warning-banner">
                   <ShieldAlert size={16} style={{ flexShrink: 0 }} />
                   <span>
                     Signed in as <strong>{currentUser.role.replace(/_/g, ' ')}</strong>. Note finalization requires verified practitioner access.
@@ -2022,8 +2032,9 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
                   className="cn-cat-back-btn"
                   onClick={() => setIsProcedureCatalogueOpen(false)}
                   aria-label="Back to clinical note"
+                  title="Back to clinical note"
                 >
-                  <ArrowLeft size={16} /> Back to Note
+                  <ArrowLeft size={16} />
                 </button>
                 <div>
                   <h2 id="proc-catalogue-heading" className="cn-cat-title">

@@ -36,6 +36,10 @@ import {
 } from '@/services/clinicStore'
 import { autoGenerateInvoiceForConsultation } from '@/services/billingAutoInvoice'
 import { InvoiceDrawer } from '@/pages/billing/BillingShared'
+import {
+  InvoiceSuccessToast,
+  type InvoiceSuccessToastData,
+} from '@/components/shared/InvoiceSuccessToast'
 
 const TIME_SLOTS = [
   '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
@@ -127,6 +131,7 @@ export const AppointmentDetailPage: React.FC = () => {
   const [cancelReason, setCancelReason] = useState('')
   const [whatsAppType, setWhatsAppType] = useState<'confirmation' | 'reminder_24h' | 'reminder_2h' | 'recall'>('confirmation')
   const [activeInvoice, setActiveInvoice] = useState<InvoiceRecord | null>(null)
+  const [invoiceToast, setInvoiceToast] = useState<InvoiceSuccessToastData | null>(null)
 
   useEffect(() => {
     if (appointment) {
@@ -169,7 +174,10 @@ export const AppointmentDetailPage: React.FC = () => {
         patientId: appointment.patientId,
       })
       if (res.invoice) {
-        setActiveInvoice(res.invoice)
+        setInvoiceToast({
+          invoiceNumber: res.invoice.id,
+          amount: res.invoice.amount,
+        })
       }
     }
   }
@@ -628,6 +636,12 @@ export const AppointmentDetailPage: React.FC = () => {
           onDone={() => setActiveInvoice(null)}
         />
       )}
+
+      {/* Invoice Generated Success Toast */}
+      <InvoiceSuccessToast
+        toast={invoiceToast}
+        onClose={() => setInvoiceToast(null)}
+      />
     </section>
   )
 }

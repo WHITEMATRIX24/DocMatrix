@@ -1,5 +1,5 @@
 // Only non-sensitive UI preferences may survive a browser reload.
-const publicKeys = new Set(['docmatrix_theme', 'docmatrix-theme', 'docmatrix_remember_email', 'docmatrix_language']);
+const publicKeys = new Set(['docmatrix_theme', 'docmatrix-theme', 'docmatrix-theme-pref', 'docmatrix_remember_email', 'docmatrix_language']);
 const safePreference = (key: string) => publicKeys.has(key) || /^(?:theme|i18nextLng|docmatrix[_-](?:theme|language))$/.test(key);
 export function createPrivateStorage(native?: Storage): Storage {
   const values = new Map<string, string>();

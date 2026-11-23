@@ -97,9 +97,6 @@ export default function AppointmentsWorkspace({ activeFeatureId, children }: App
           } else if (tab.id === 'appt.calendar' && todayAppts.length > 0) {
             badge = todayAppts.length
             badgeColor = '#0b8185'
-          } else if (tab.id === 'appt.details-list' && appointments.length > 0) {
-            badge = appointments.length
-            badgeColor = '#64748b'
           }
 
           return (
