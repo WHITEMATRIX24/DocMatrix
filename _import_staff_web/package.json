@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "predev": "node -e \"console.error('Archived prototype: use Doc_matrix-main/Doc_matrix-main. Do not deploy this copy.'); process.exit(1)\"",
+    "prebuild": "node -e \"console.error('Archived prototype: use Doc_matrix-main/Doc_matrix-main. Do not deploy this copy.'); process.exit(1)\"",
+    "prepreview": "node -e \"console.error('Archived prototype: use Doc_matrix-main/Doc_matrix-main. Do not deploy this copy.'); process.exit(1)\""
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -55,4 +58,3 @@
     "vitest": "^2.1.8"
   }
 }
-

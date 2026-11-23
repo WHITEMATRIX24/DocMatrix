@@ -8,7 +8,12 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "preinstall": "node -e \"console.error('Archived prototype: use Doc_matrix-main/Doc_matrix-main. Do not deploy this copy.'); process.exit(1)\"",
+    "predev": "node -e \"console.error('Archived prototype: use Doc_matrix-main/Doc_matrix-main. Do not deploy this copy.'); process.exit(1)\"",
+    "prebuild": "node -e \"console.error('Archived prototype: use Doc_matrix-main/Doc_matrix-main. Do not deploy this copy.'); process.exit(1)\"",
+    "prestart": "node -e \"console.error('Archived prototype: use Doc_matrix-main/Doc_matrix-main. Do not deploy this copy.'); process.exit(1)\"",
+    "prepreview": "node -e \"console.error('Archived prototype: use Doc_matrix-main/Doc_matrix-main. Do not deploy this copy.'); process.exit(1)\""
   },
   "dependencies": {
     "@fontsource/instrument-sans": "^5.3.0",

@@ -294,8 +294,6 @@ export default function StaffPortal({
                 >
                   <span className="dmx-nav-icon"><IconComp size={18} /></span>
                   <span className="dmx-nav-text">{areaName}</span>
-                  <span className="dmx-nav-count">{visibleFeatures.length}</span>
-                  <ChevronRight size={14} className="dmx-nav-chevron" />
                 </button>
 
                 {/* Smooth in-navbar dropdown of submodules on hover */}
