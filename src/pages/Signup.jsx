@@ -152,7 +152,7 @@ export default function Signup({ onLoginSuccess }) {
   return (
     <div className="login-page signup-page">
       {/* Top Navigation Bar */}
-      <AuthNavbar currentView="signup" />
+      <AuthNavbar currentView="signup" showSiteNavigation={false} />
 
       {/* 3:2 Aspect Ratio Preserving Stage */}
       <div className="login-stage signup-stage">

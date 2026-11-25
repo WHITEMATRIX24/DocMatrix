@@ -14,7 +14,6 @@ export default function PlatformAdminPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const requestVersion = useRef(0);
@@ -61,7 +60,7 @@ export default function PlatformAdminPage() {
     event.preventDefault();
     if (busy) return;
     setBusy(true); setError('');
-    try { const user = await loginPlatformAdmin(email, password, code); setPassword(''); setCode(''); if (user.accountSetupRequired) { window.location.assign('/account-security'); return; } await loadDashboard(); }
+    try { const user = await loginPlatformAdmin(email, password); setPassword(''); if (user.accountSetupRequired) { window.location.assign('/account-security'); return; } await loadDashboard(); }
     catch (e: any) {
       setError(e?.status === 403 ? 'This account is not authorized for platform administration.' :
         e?.status === 401 ? 'Incorrect email or password.' : 'Unable to sign in. Please try again.');
@@ -82,7 +81,6 @@ export default function PlatformAdminPage() {
           <form onSubmit={signIn}>
             <label htmlFor="platform-email">Email address</label><input id="platform-email" type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} disabled={busy} />
             <label htmlFor="platform-password">Password</label><input id="platform-password" type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} disabled={busy} />
-            <label>Authenticator or recovery code<input autoComplete="one-time-code" value={code} onChange={e => setCode(e.target.value)} disabled={busy} /></label>
             {error && <p role="alert">{error}</p>}<button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in to platform'}</button>
           </form><Link to="/login">Clinic staff login</Link>
         </>}

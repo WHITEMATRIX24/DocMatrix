@@ -19,7 +19,6 @@ export default function Login({ onLoginSuccess }) {
   // Form input states
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [code, setCode] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
 
   // Validation error states
@@ -128,7 +127,7 @@ export default function Login({ onLoginSuccess }) {
     setLoading(true)
     try {
       // Requirement 4 & 5: Mock auth with demo account
-      const { user } = await login(email, password, rememberMe, code)
+      const { user } = await login(email, password, rememberMe)
       handleAuthSuccess(user)
     } catch (err) {
       setAuthError(err.message || 'Incorrect email or password')
@@ -142,7 +141,7 @@ export default function Login({ onLoginSuccess }) {
   return (
     <div className="login-page">
       {/* Top Navigation Bar */}
-      <AuthNavbar currentView="login" />
+      <AuthNavbar currentView="login" showSiteNavigation={false} />
 
       {/* 3:2 Aspect Ratio Preserving Stage */}
       <div className="login-stage">
@@ -185,7 +184,6 @@ export default function Login({ onLoginSuccess }) {
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} noValidate className="login-auth-form">
-            <label>Authenticator or recovery code (if enabled)<input autoComplete="one-time-code" value={code} onChange={e => setCode(e.target.value)} /></label>
             {/* Email Address Field */}
             <div className="input-field-group">
               <label htmlFor="login-email" className="input-field-label">
