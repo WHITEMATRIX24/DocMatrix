@@ -16,6 +16,7 @@ import {
   Sparkles,
   Plus,
   User,
+  MessageCircle,
 } from 'lucide-react';
 import {
   useClinicData,
@@ -27,6 +28,7 @@ import {
 } from '../../services/clinicStore';
 import { useBillingData } from '../../services/billingStore';
 import { getCurrentUser } from '../../services/authService';
+import { PostTreatmentInstructionsModal } from './PostTreatmentInstructionsModal';
 import '../../pages/clinical/clinicalNotes.css';
 
 export interface SearchableSelectOption {
@@ -98,8 +100,8 @@ export const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const inputValue = isTyping
     ? searchQuery
     : selectedOption
-    ? selectedOption.label
-    : '';
+      ? selectedOption.label
+      : '';
 
   return (
     <div
@@ -726,6 +728,53 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
   const [catalogueSelectedCategory, setCatalogueSelectedCategory] = useState('ALL');
   const [catalogueSelectedProc, setCatalogueSelectedProc] = useState<DentalProcedureOption | null>(null);
 
+  // Post-treatment aftercare modal state
+  const [showAftercareModal, setShowAftercareModal] = useState(false);
+
+  const currentNoteForAftercare: ClinicalNoteRecord = useMemo(() => {
+    return {
+      id: initialNote?.id || 'new-consultation',
+      noteNumber: initialNote?.noteNumber || 'CN-NEW',
+      patientId: selectedPatientId,
+      doctorId: currentUser?.id || 'doc-1',
+      doctorName: currentUser?.name || 'Attending Doctor',
+      visitDate: consultationDate ? consultationDate.slice(0, 10) : new Date().toISOString().slice(0, 10),
+      consultationDate: consultationDate || new Date().toISOString(),
+      consultationType: consultationType as any,
+      complaint: chiefComplaint,
+      chiefComplaint: chiefComplaint,
+      findings: '',
+      plan: '',
+      primaryDiagnosis,
+      treatmentPerformed,
+      treatmentToothNumber,
+      treatmentDescription,
+      patientAdvice,
+      followUpRequired,
+      followUpDate: followUpRequired && followUpDate ? new Date(followUpDate).toISOString() : undefined,
+      followUpInstructions,
+      status: initialNote?.isFinalized ? 'FINALIZED' : 'DRAFT',
+      createdAt: new Date().toISOString(),
+      patient: activePatient,
+    } as ClinicalNoteRecord;
+  }, [
+    initialNote,
+    selectedPatientId,
+    currentUser,
+    consultationDate,
+    consultationType,
+    chiefComplaint,
+    primaryDiagnosis,
+    treatmentPerformed,
+    treatmentToothNumber,
+    treatmentDescription,
+    patientAdvice,
+    followUpRequired,
+    followUpDate,
+    followUpInstructions,
+    activePatient,
+  ]);
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -1170,21 +1219,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
         </div>
       )}
 
-      {/* Safety Alerts Banner */}
-      {safetyAlerts.length > 0 && (
-        <div className="cn-safety-banner">
-          <ShieldAlert />
-          <div>
-            <strong>Medical Safety & Allergy Alerts for Patient:</strong>
-            <ul style={{ margin: '4px 0 0', paddingLeft: '18px' }}>
-              {safetyAlerts.map((alert, idx) => (
-                <li key={idx}>{alert}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
-
       {/* Section 1: Consultation Details */}
       <section
         className={`cn-form-section cn-form-section-consultation ${isConsultationSectionActive ? 'is-dropdown-active' : ''}`}
@@ -1210,7 +1244,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
               }}
               options={patientOptions}
               placeholder="Search or select patient..."
-              disabled={Boolean(initialNote?.isFinalized)}
+              disabled={Boolean(defaultPatientId) || Boolean(initialNote) || Boolean(initialNote?.isFinalized)}
               hasError={Boolean(validationErrors.patient)}
               ariaLabel="Patient"
               onOpenChange={setPatientDropdownOpen}
@@ -1263,14 +1297,14 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
           <FileText /> 2. Chief Complaint
         </h3>
         <div className="cn-form-group">
-          <label className="cn-label cn-label-required">
+          <label htmlFor="cn-input-chief-complaint" className="cn-label cn-label-required">
             Patient's Primary Concern / Reason for Visit
           </label>
           <input
             id="cn-input-chief-complaint"
             type="text"
             list="cn-chief-complaint-suggestions"
-            placeholder="e.g. Severe throbbing pain in lower right posterior quadrant radiating to ear for 2 days"
+            aria-label="Patient's Primary Concern / Reason for Visit"
             value={chiefComplaint}
             onChange={(e) => {
               setChiefComplaint(e.target.value);
@@ -1306,7 +1340,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
             <label className="cn-label">Symptoms</label>
             <textarea
               rows={2}
-              placeholder="e.g. Continuous throbbing ache, exacerbated by cold and lying down"
               value={symptoms}
               onChange={(e) => setSymptoms(e.target.value)}
               className="cn-textarea"
@@ -1317,7 +1350,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
             <label className="cn-label">Duration of Symptoms</label>
             <textarea
               rows={2}
-              placeholder="e.g. 3 days, 2 weeks, intermittent since last month"
               value={symptomDuration}
               onChange={(e) => setSymptomDuration(e.target.value)}
               className="cn-textarea"
@@ -1363,7 +1395,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
           <label className="cn-label">Medical & Dental History Notes</label>
           <input
             type="text"
-            placeholder="e.g. Previous root canal therapy on #45 2 years ago; hypertensive controlled on Amlodipine"
             value={historyNotes}
             onChange={(e) => setHistoryNotes(e.target.value)}
             className="cn-input"
@@ -1381,7 +1412,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
             <label className="cn-label">Extraoral Examination</label>
             <textarea
               rows={2}
-              placeholder="e.g. Normal facial symmetry, TMJ smooth without clicking, submandibular lymph nodes non-tender"
               value={extraoralFindings}
               onChange={(e) => setExtraoralFindings(e.target.value)}
               className="cn-textarea"
@@ -1392,7 +1422,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
             <label className="cn-label">Intraoral Examination</label>
             <textarea
               rows={2}
-              placeholder="e.g. Generalized marginal gingival inflammation, calculus Grade 1 on lingual of lower anteriors"
               value={intraoralFindings}
               onChange={(e) => setIntraoralFindings(e.target.value)}
               className="cn-textarea"
@@ -1405,7 +1434,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
             <label className="cn-label">Tooth-Specific Findings</label>
             <textarea
               rows={2}
-              placeholder="e.g. Tooth #46: Deep disto-occlusal cavitated lesion into dentin, vertical percussion tender (+), cold lingering 15s"
               value={toothSpecificFindings}
               onChange={(e) => setToothSpecificFindings(e.target.value)}
               className="cn-textarea"
@@ -1416,7 +1444,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
             <label className="cn-label">Periodontal Evaluation</label>
             <textarea
               rows={2}
-              placeholder="e.g. Probing depths 2-3mm physiological, bleeding on probing localized to quadrant 4, no mobility"
               value={periodontalFindings}
               onChange={(e) => setPeriodontalFindings(e.target.value)}
               className="cn-textarea"
@@ -1428,7 +1455,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
           <label className="cn-label">General Examination Summary</label>
           <textarea
             rows={2}
-            placeholder="Comprehensive synthesis of examination and diagnostic findings"
             value={examinationNotes}
             onChange={(e) => setExaminationNotes(e.target.value)}
             className="cn-textarea"
@@ -1443,12 +1469,12 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
         </h3>
         <div className="cn-form-grid-2">
           <div className="cn-form-group">
-            <label className="cn-label cn-label-required">Primary Diagnosis</label>
+            <label htmlFor="cn-input-primary-diagnosis" className="cn-label cn-label-required">Primary Diagnosis</label>
             <input
               id="cn-input-primary-diagnosis"
               type="text"
               list="cn-diagnosis-suggestions"
-              placeholder="e.g. Symptomatic Irreversible Pulpitis with Acute Apical Periodontitis (Tooth #46)"
+              aria-label="Primary Diagnosis"
               value={primaryDiagnosis}
               onChange={(e) => {
                 setPrimaryDiagnosis(e.target.value);
@@ -1477,7 +1503,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
             <label className="cn-label">Diagnostic Notes / Differentials</label>
             <input
               type="text"
-              placeholder="e.g. Confirmed via IOPA radiograph showing periapical PDL widening"
               value={diagnosisNotes}
               onChange={(e) => setDiagnosisNotes(e.target.value)}
               className="cn-input"
@@ -1643,7 +1668,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
             <label className="cn-label">Tooth Number / Quadrant</label>
             <input
               type="text"
-              placeholder="e.g. Tooth 46, Q4"
               value={treatmentToothNumber}
               onChange={(e) => setTreatmentToothNumber(e.target.value)}
               className="cn-input"
@@ -1655,7 +1679,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
           <label className="cn-label">Detailed Step-by-Step Procedure Description</label>
           <textarea
             rows={2}
-            placeholder="e.g. 2% Lignocaine with 1:80000 adrenaline administered via IANB. Rubber dam isolation placed. Caries excavated, access prepared. Coronal pulp extirpated. Canal working lengths confirmed via apex locator (MB 21mm, ML 21mm, Distal 20.5mm). Copious 3% NaOCl irrigation. Calcipex placed. Cavit temporary seal placed."
             value={treatmentDescription}
             onChange={(e) => setTreatmentDescription(e.target.value)}
             className="cn-textarea"
@@ -1666,7 +1689,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
         <div className="cn-form-group cn-materials-group">
           <div className="cn-materials-label-row">
             <div className="cn-materials-label-left">
-              <label className="cn-label" style={{ marginBottom: 0 }}>Materials & Instruments Used</label>
+              <label htmlFor="cn-input-materials-used" className="cn-label" style={{ marginBottom: 0 }}>Materials & Instruments Used</label>
               {currentMaterialsList.length > 0 && (
                 <span className="cn-materials-count-tag">
                   {currentMaterialsList.length} item{currentMaterialsList.length === 1 ? '' : 's'}
@@ -1688,7 +1711,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
           <input
             id="cn-input-materials-used"
             type="text"
-            placeholder="e.g. 2% Lignocaine, Rubber Dam, Endo-Z bur, ProTaper Gold, NaOCl 3%, Cavit"
+            aria-label="Materials & Instruments Used"
             value={materialsUsed}
             onChange={(e) => setMaterialsUsed(e.target.value)}
             className="cn-input"
@@ -1766,7 +1789,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
                   ref={otherMaterialInputRef}
                   type="text"
                   className="cn-mat-other-input"
-                  placeholder="Type custom material / instrument name (e.g. MTA Angelus, Teflon tape)..."
+                  placeholder="Type custom material or instrument name..."
                   value={otherMaterialText}
                   onChange={(e) => setOtherMaterialText(e.target.value)}
                   onKeyDown={(e) => {
@@ -1808,7 +1831,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
           <label className="cn-label">Immediate Treatment Outcome</label>
           <input
             type="text"
-            placeholder="e.g. Immediate pressure release, patient stable and comfortable"
             value={treatmentOutcome}
             onChange={(e) => setTreatmentOutcome(e.target.value)}
             className="cn-input"
@@ -1826,7 +1848,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
             <label className="cn-label">Recommended Planned Treatment</label>
             <textarea
               rows={2}
-              placeholder="e.g. Sitting 2 RCT obturation in 5 days; post-endodontic core buildup and zirconia crown"
               value={treatmentRecommendations}
               onChange={(e) => setTreatmentRecommendations(e.target.value)}
               className="cn-textarea"
@@ -1837,7 +1858,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
             <label className="cn-label">Referral Notes / Specialist Consult</label>
             <textarea
               rows={2}
-              placeholder="e.g. Orthodontic evaluation advised once endodontic treatment is completed"
               value={referralNotes}
               onChange={(e) => setReferralNotes(e.target.value)}
               className="cn-textarea"
@@ -1878,7 +1898,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
             <label className="cn-label">Follow-up Instructions</label>
             <textarea
               rows={2}
-              placeholder="e.g. Return in 5 days for obturation sitting; contact clinic if unexpected swelling occurs"
               value={followUpInstructions}
               onChange={(e) => setFollowUpInstructions(e.target.value)}
               className="cn-textarea"
@@ -1890,7 +1909,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
           <label className="cn-label">Patient Advice & Home Care</label>
           <input
             type="text"
-            placeholder="e.g. Soft diet on left side, do not chew hard nuts on right side until crown is placed"
             value={patientAdvice}
             onChange={(e) => setPatientAdvice(e.target.value)}
             className="cn-input"
@@ -2058,7 +2076,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
                 <input
                   type="text"
                   autoFocus
-                  placeholder="Search by procedure name, CDT code (e.g. D3310, D7140), or dental specialty..."
+                  placeholder="Search by procedure name, CDT code, or dental specialty..."
                   value={catalogueSearchQuery}
                   onChange={(e) => setCatalogueSearchQuery(e.target.value)}
                   onKeyDown={(e) => {
@@ -2246,6 +2264,15 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
           </div>
         </div>
       )}
+
+      {/* Post-Treatment WhatsApp Aftercare Modal */}
+      {showAftercareModal && (
+        <PostTreatmentInstructionsModal
+          note={currentNoteForAftercare}
+          patient={activePatient}
+          onClose={() => setShowAftercareModal(false)}
+        />
+      )}
     </>
   );
 
@@ -2287,18 +2314,6 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
                   </h1>
                 </div>
               </div>
-
-              <div className="cn-record-header-actions">
-                <button
-                  type="button"
-                  className="cn-btn cn-btn-success"
-                  onClick={handleOpenFinalizeConfirm}
-                  disabled={loading}
-                >
-                  <CheckCircle2 size={15} />
-                  <span>Finalize Note</span>
-                </button>
-              </div>
             </div>
           </div>
 
@@ -2322,6 +2337,17 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
             </div>
 
             <div className="cn-record-footer-actions">
+              <button
+                type="button"
+                className="cn-btn pti-btn-whatsapp"
+                onClick={() => setShowAftercareModal(true)}
+                title="Generate Post-Treatment Instructions via WhatsApp"
+                data-testid="aftercare-instructions-footer-btn"
+              >
+                <MessageCircle size={15} />
+                <span>WhatsApp Aftercare</span>
+              </button>
+
               <button
                 type="button"
                 className="cn-btn cn-btn-secondary"
@@ -2397,7 +2423,17 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
             Cancel
           </button>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="cn-btn pti-btn-whatsapp"
+              onClick={() => setShowAftercareModal(true)}
+              title="Generate Post-Treatment Instructions via WhatsApp"
+            >
+              <MessageCircle size={15} />
+              <span>WhatsApp Aftercare</span>
+            </button>
+
             <button
               type="button"
               className="cn-btn cn-btn-secondary"

@@ -56,6 +56,7 @@ import { PrescriptionPrintModal } from '@/components/clinical/PrescriptionPrintM
 import { ClinicalNoteModal } from '@/components/clinical/ClinicalNoteModal'
 import { ClinicalNoteDetailsModal } from '@/components/clinical/ClinicalNoteDetailsModal'
 import { ClinicalNotePrintModal } from '@/components/clinical/ClinicalNotePrintModal'
+import { PostTreatmentInstructionsModal } from '@/components/clinical/PostTreatmentInstructionsModal'
 import { TreatmentPlanModal } from '@/components/clinical/TreatmentPlanModal'
 import { TreatmentPlanDetailsModal } from '@/components/clinical/TreatmentPlanDetailsModal'
 import { TreatmentPlanPrintModal } from '@/components/clinical/TreatmentPlanPrintModal'
@@ -203,6 +204,7 @@ export const PatientProfilePage: React.FC = () => {
   const [editingNote, setEditingNote] = useState<ClinicalNoteRecord | null>(null)
   const [viewingNote, setViewingNote] = useState<ClinicalNoteRecord | null>(null)
   const [printingNote, setPrintingNote] = useState<ClinicalNoteRecord | null>(null)
+  const [aftercareNote, setAftercareNote] = useState<ClinicalNoteRecord | null>(null)
 
   // Treatment plan modal state
   const [tpModalOpen, setTpModalOpen] = useState(false)
@@ -887,12 +889,13 @@ export const PatientProfilePage: React.FC = () => {
         </div>
       </header>
 
-      {/* 2. Unified 5 Profile Navigation Tabs */}
+      {/* 2. Unified Profile Navigation Tabs */}
       <nav className="pat-nav-tabs" aria-label="Patient Profile Sections">
         <button
           type="button"
           className={`pat-tab-btn ${activeTab === 'overview' ? 'is-active' : ''}`}
           onClick={() => setTab('overview')}
+          data-testid="tab-overview"
         >
           <Activity size={15} />
           <span>Overview</span>
@@ -902,6 +905,7 @@ export const PatientProfilePage: React.FC = () => {
           type="button"
           className={`pat-tab-btn ${activeTab === 'medical' ? 'is-active' : ''}`}
           onClick={() => setTab('medical')}
+          data-testid="tab-medical"
         >
           <ShieldCheck size={15} />
           <span>Medical History</span>
@@ -911,6 +915,7 @@ export const PatientProfilePage: React.FC = () => {
           type="button"
           className={`pat-tab-btn ${activeTab === 'timeline' ? 'is-active' : ''}`}
           onClick={() => setTab('timeline')}
+          data-testid="tab-timeline"
         >
           <Clock size={15} />
           <span>Activity</span>
@@ -923,6 +928,7 @@ export const PatientProfilePage: React.FC = () => {
           type="button"
           className={`pat-tab-btn ${activeTab === 'billing' ? 'is-active' : ''}`}
           onClick={() => setTab('billing')}
+          data-testid="tab-billing"
         >
           <Receipt size={15} />
           <span>Billing</span>
@@ -932,6 +938,7 @@ export const PatientProfilePage: React.FC = () => {
           type="button"
           className={`pat-tab-btn ${activeTab === 'documents' ? 'is-active' : ''}`}
           onClick={() => setTab('documents')}
+          data-testid="tab-documents"
         >
           <FileText size={15} />
           <span>X-rays & Documents</span>
@@ -944,6 +951,7 @@ export const PatientProfilePage: React.FC = () => {
           type="button"
           className={`pat-tab-btn ${activeTab === 'consents' ? 'is-active' : ''}`}
           onClick={() => setTab('consents')}
+          data-testid="tab-consents"
         >
           <CheckCircle2 size={15} />
           <span>Consent Records</span>
@@ -956,6 +964,7 @@ export const PatientProfilePage: React.FC = () => {
           type="button"
           className={`pat-tab-btn ${activeTab === 'prescriptions' ? 'is-active' : ''}`}
           onClick={() => setTab('prescriptions')}
+          data-testid="tab-prescriptions"
         >
           <Pill size={15} />
           <span>Prescriptions</span>
@@ -2128,6 +2137,15 @@ export const PatientProfilePage: React.FC = () => {
                                 >
                                   <Eye size={13} /> View
                                 </button>
+                                <button
+                                  type="button"
+                                  className="cn-btn cn-btn-secondary cn-btn-sm"
+                                  onClick={() => setAftercareNote(note)}
+                                  title="Post-Treatment WhatsApp Instructions"
+                                  data-testid="patient-profile-aftercare-btn"
+                                >
+                                  <MessageCircle size={13} style={{ color: '#25D366' }} /> Aftercare
+                                </button>
                                 {isDraft && (
                                   <button
                                     type="button"
@@ -2824,6 +2842,14 @@ export const PatientProfilePage: React.FC = () => {
         <ClinicalNotePrintModal
           note={printingNote}
           onClose={() => setPrintingNote(null)}
+        />
+      )}
+
+      {aftercareNote && (
+        <PostTreatmentInstructionsModal
+          note={aftercareNote}
+          patient={aftercareNote.patient || patient}
+          onClose={() => setAftercareNote(null)}
         />
       )}
 

@@ -49,7 +49,7 @@ describe('ClinicalNoteModal — Validation and Finalize Workflow', () => {
     );
 
     // Enter chief complaint
-    const chiefComplaintInput = screen.getByPlaceholderText(/Severe throbbing pain/i);
+    const chiefComplaintInput = screen.getByLabelText(/Patient's Primary Concern/i);
     fireEvent.change(chiefComplaintInput, { target: { value: 'Severe tooth pain in upper molar' } });
 
     // Click Finalize Note
@@ -82,11 +82,11 @@ describe('ClinicalNoteModal — Validation and Finalize Workflow', () => {
     );
 
     // Enter chief complaint
-    const chiefComplaintInput = screen.getByPlaceholderText(/Severe throbbing pain/i);
+    const chiefComplaintInput = screen.getByLabelText(/Patient's Primary Concern/i);
     fireEvent.change(chiefComplaintInput, { target: { value: 'Severe tooth pain in upper molar' } });
 
     // Enter primary diagnosis
-    const diagnosisInput = screen.getByPlaceholderText(/Symptomatic Irreversible Pulpitis/i);
+    const diagnosisInput = screen.getByLabelText(/Primary Diagnosis/i);
     fireEvent.change(diagnosisInput, { target: { value: 'Acute Apical Periodontitis' } });
 
     // Click Finalize Note
@@ -135,10 +135,10 @@ describe('ClinicalNoteModal — Validation and Finalize Workflow', () => {
     );
 
     // Enter required fields
-    fireEvent.change(screen.getByPlaceholderText(/Severe throbbing pain/i), {
+    fireEvent.change(screen.getByLabelText(/Patient's Primary Concern/i), {
       target: { value: 'Severe tooth pain in upper molar' },
     });
-    fireEvent.change(screen.getByPlaceholderText(/Symptomatic Irreversible Pulpitis/i), {
+    fireEvent.change(screen.getByLabelText(/Primary Diagnosis/i), {
       target: { value: 'Acute Apical Periodontitis' },
     });
 
@@ -402,7 +402,7 @@ describe('ClinicalNoteModal — Validation and Finalize Workflow', () => {
       const procedureInput = screen.getByPlaceholderText(/Search or type procedure/i);
       fireEvent.change(procedureInput, { target: { value: 'Composite Restoration' } });
 
-      const materialsInput = screen.getByPlaceholderText(/Endo-Z bur/i);
+      const materialsInput = screen.getByLabelText(/Materials & Instruments Used/i);
       expect(materialsInput).toHaveValue('');
 
       // Click "37% Etchant Gel" chip
@@ -439,7 +439,7 @@ describe('ClinicalNoteModal — Validation and Finalize Workflow', () => {
       const autoFillBtn = screen.getByRole('button', { name: /Auto-fill standard set/i });
       fireEvent.click(autoFillBtn);
 
-      const materialsInput = screen.getByPlaceholderText(/Endo-Z bur/i);
+      const materialsInput = screen.getByLabelText(/Materials & Instruments Used/i);
       expect(materialsInput.value).toContain('Rubber Dam Kit');
       expect(materialsInput.value).toContain('ProTaper Gold Rotary Files');
       expect(materialsInput.value).toContain('AH Plus Sealer');
@@ -471,7 +471,7 @@ describe('ClinicalNoteModal — Validation and Finalize Workflow', () => {
       const addBtn = screen.getByRole('button', { name: /^Add$/i });
       fireEvent.click(addBtn);
 
-      const materialsInput = screen.getByPlaceholderText(/Endo-Z bur/i);
+      const materialsInput = screen.getByLabelText(/Materials & Instruments Used/i);
       expect(materialsInput.value).toContain('MTA Angelus Root Repair');
 
       // The custom material should now be displayed as an active chip

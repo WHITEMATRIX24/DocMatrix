@@ -198,11 +198,12 @@ describe('Appointment Booking & Reschedule Slot Availability', () => {
     }
 
     // Changing the date updates slot availability dynamically
+    const futureDate = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
     const dateInput = screen.getByLabelText(/selected date/i)
-    fireEvent.change(dateInput, { target: { value: '2026-11-25' } })
+    fireEvent.change(dateInput, { target: { value: futureDate } })
 
     await waitFor(() => {
-      // On 2026-11-25, 11:30 should now be available since there's no conflict on this new date
+      // On a future date, 11:30 should now be available since there's no conflict on this new date
       const updatedSlotBtns = screen.getAllByRole('button').filter((b) => b.textContent?.includes(':'))
       const btn1130Updated = updatedSlotBtns.find((b) => b.textContent?.includes('11:30'))
       expect(btn1130Updated).toBeDefined()

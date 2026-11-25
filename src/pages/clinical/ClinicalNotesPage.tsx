@@ -12,6 +12,7 @@ import {
   RotateCw,
   Calendar,
   AlertCircle,
+  MessageCircle,
 } from 'lucide-react';
 import {
   useClinicData,
@@ -22,6 +23,7 @@ import {
 import { ClinicalNoteModal } from '../../components/clinical/ClinicalNoteModal';
 import { ClinicalNoteDetailsModal } from '../../components/clinical/ClinicalNoteDetailsModal';
 import { ClinicalNotePrintModal } from '../../components/clinical/ClinicalNotePrintModal';
+import { PostTreatmentInstructionsModal } from '../../components/clinical/PostTreatmentInstructionsModal';
 import './clinicalNotes.css';
 
 export const ClinicalNotesPage: React.FC = () => {
@@ -47,6 +49,7 @@ export const ClinicalNotesPage: React.FC = () => {
   const [editingNote, setEditingNote] = useState<ClinicalNoteRecord | null>(null);
   const [viewingNote, setViewingNote] = useState<ClinicalNoteRecord | null>(null);
   const [printingNote, setPrintingNote] = useState<ClinicalNoteRecord | null>(null);
+  const [aftercareNote, setAftercareNote] = useState<ClinicalNoteRecord | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = async () => {
@@ -343,6 +346,16 @@ export const ClinicalNotesPage: React.FC = () => {
                             <Eye /> View
                           </button>
 
+                          <button
+                            type="button"
+                            className="cn-btn cn-btn-secondary cn-btn-sm"
+                            onClick={() => setAftercareNote(note)}
+                            title="Post-Treatment WhatsApp Instructions"
+                            data-testid="aftercare-instructions-action"
+                          >
+                            <MessageCircle size={13} style={{ color: '#25D366' }} /> Aftercare
+                          </button>
+
                           {isDraft && (
                             <button
                               type="button"
@@ -452,6 +465,15 @@ export const ClinicalNotesPage: React.FC = () => {
         <ClinicalNotePrintModal
           note={printingNote}
           onClose={() => setPrintingNote(null)}
+        />
+      )}
+
+      {/* Post-Treatment WhatsApp Aftercare Modal */}
+      {aftercareNote && (
+        <PostTreatmentInstructionsModal
+          note={aftercareNote}
+          patient={aftercareNote.patient || patients.find((p) => p.id === aftercareNote.patientId)}
+          onClose={() => setAftercareNote(null)}
         />
       )}
     </div>

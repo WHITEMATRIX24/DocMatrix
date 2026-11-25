@@ -73,12 +73,8 @@ describe('Treatment Plans & Integrated Cost Estimates Module', () => {
         await screen.findByRole('button', { name: /Plan Treatment/i }, { timeout: 10000 })
       ).toBeInTheDocument();
 
-      // Navigate to Clinical section to access secondary tabs
-      const clinicalTab = await screen.findByTestId('tab-clinical');
-      fireEvent.click(clinicalTab);
-
-      // Check tab exists
-      const plansTab = screen.getByTestId('tab-treatment-plans');
+      // Check tab exists and click it
+      const plansTab = await screen.findByTestId('tab-treatment-plans');
       expect(plansTab).toBeInTheDocument();
       fireEvent.click(plansTab);
 

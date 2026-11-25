@@ -11,11 +11,13 @@ import {
   Send,
   User,
   ShieldAlert,
+  MessageCircle,
 } from 'lucide-react';
 import {
   ClinicalNoteRecord,
   addClinicalNoteAddendum,
 } from '../../services/clinicStore';
+import { PostTreatmentInstructionsModal } from './PostTreatmentInstructionsModal';
 import '../../pages/clinical/clinicalNotes.css';
 
 interface ClinicalNoteDetailsModalProps {
@@ -36,6 +38,7 @@ export const ClinicalNoteDetailsModal: React.FC<ClinicalNoteDetailsModalProps> =
   const isFinal = note.status === 'FINALIZED';
   const isDraft = !isFinal;
 
+  const [showInstructions, setShowInstructions] = useState(false);
   const [addendumText, setAddendumText] = useState('');
   const [submittingAddendum, setSubmittingAddendum] = useState(false);
   const [addendumError, setAddendumError] = useState<string | null>(null);
@@ -426,13 +429,24 @@ export const ClinicalNoteDetailsModal: React.FC<ClinicalNoteDetailsModalProps> =
             Close
           </button>
 
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="cn-btn pti-btn-whatsapp"
+              onClick={() => setShowInstructions(true)}
+              title="Generate and share post-treatment instructions via WhatsApp"
+              data-testid="open-aftercare-instructions-button"
+            >
+              <MessageCircle size={15} />
+              <span>WhatsApp Aftercare</span>
+            </button>
+
             <button
               type="button"
               className="cn-btn cn-btn-secondary"
               onClick={() => onPrint(note)}
             >
-              <Printer />
+              <Printer size={15} />
               Print Note
             </button>
 
@@ -460,6 +474,14 @@ export const ClinicalNoteDetailsModal: React.FC<ClinicalNoteDetailsModalProps> =
           </div>
         </div>
       </div>
+
+      {showInstructions && (
+        <PostTreatmentInstructionsModal
+          note={note}
+          patient={note.patient}
+          onClose={() => setShowInstructions(false)}
+        />
+      )}
     </div>
   );
 };

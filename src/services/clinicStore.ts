@@ -577,17 +577,669 @@ export interface EnquiryRecord {
   createdAt: string;
 }
 
-const initialPatients: PatientRecord[] = [];
-const initialAppointments: AppointmentRecord[] = [];
 const initialToothConditions: ToothConditionRecord[] = [];
-const initialClinicalNotes: ClinicalNoteRecord[] = [];
-const initialInvoices: InvoiceRecord[] = [];
-const initialTreatmentPlans: TreatmentPlanRecord[] = [];
-const initialPatientDocuments: PatientDocumentRecord[] = [];
-const initialPatientConsents: PatientConsentRecord[] = [];
-const initialToothCharts: ClinicToothCharts = {};
-export const initialPrescriptions: PrescriptionRecord[] = [];
-export const initialEnquiries: EnquiryRecord[] = [];
+const initialPatients: PatientRecord[] = [
+  {
+    id: 'pt-1001',
+    firstName: 'Meera',
+    lastName: 'Nambiar',
+    age: '34',
+    dateOfBirth: '1990-04-12',
+    gender: 'female',
+    mobile: '9447123456',
+    countryCode: '+91',
+    email: 'meera.nambiar@example.com',
+    language: 'English, Malayalam',
+    city: 'Kochi',
+    state: 'Kerala',
+    postalCode: '682001',
+    address: '42 Orchid Park, Marine Drive',
+    emergencyName: 'Suresh Nambiar',
+    emergencyPhone: '9447123457',
+    relationship: 'Spouse',
+    allergies: 'yes',
+    allergiesDetails: 'Penicillin allergy, Latex sensitivity',
+    medications: 'yes',
+    medicationsDetails: 'Amoxicillin contraindicated; Paracetamol as needed',
+    conditions: 'yes',
+    conditionsDetails: 'Mild Asthma',
+    createdAt: '2026-01-10T10:00:00.000Z'
+  },
+  {
+    id: 'PAT-1001',
+    firstName: 'Aarav',
+    lastName: 'Sharma',
+    age: '32',
+    dateOfBirth: '1992-05-14',
+    gender: 'male',
+    mobile: '9845012345',
+    countryCode: '+91',
+    email: 'aarav.sharma@example.com',
+    language: 'English, Hindi',
+    city: 'Kochi',
+    state: 'Kerala',
+    postalCode: '682001',
+    address: '14/2 Palm Meadows',
+    emergencyName: 'Meera Sharma',
+    emergencyPhone: '9845012346',
+    relationship: 'Spouse',
+    allergies: 'yes',
+    allergiesDetails: 'Penicillin, Latex gloves',
+    medications: 'no',
+    medicationsDetails: '',
+    conditions: 'no',
+    conditionsDetails: '',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'PAT-1002',
+    firstName: 'Devika',
+    lastName: 'Menon',
+    age: '28',
+    dateOfBirth: '1996-08-22',
+    gender: 'female',
+    mobile: '9744123456',
+    countryCode: '+91',
+    email: 'devika.menon@example.com',
+    language: 'Malayalam, English',
+    city: 'Ernakulam',
+    state: 'Kerala',
+    postalCode: '682016',
+    address: '8B Sky High Towers',
+    emergencyName: 'Ramesh Menon',
+    emergencyPhone: '9744123457',
+    relationship: 'Father',
+    allergies: 'no',
+    allergiesDetails: '',
+    medications: 'no',
+    medicationsDetails: '',
+    conditions: 'no',
+    conditionsDetails: '',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'PAT-1003',
+    firstName: 'Marcus',
+    lastName: 'Vance',
+    age: '45',
+    dateOfBirth: '1979-11-03',
+    gender: 'male',
+    mobile: '9655234567',
+    countryCode: '+91',
+    email: 'marcus.v@example.com',
+    language: 'English',
+    city: 'Kochi',
+    state: 'Kerala',
+    postalCode: '682020',
+    address: 'Seaside Villa 4',
+    emergencyName: 'Linda Vance',
+    emergencyPhone: '9655234568',
+    relationship: 'Spouse',
+    allergies: 'no',
+    allergiesDetails: '',
+    medications: 'yes',
+    medicationsDetails: 'Blood pressure medication (Amlodipine 5mg)',
+    conditions: 'yes',
+    conditionsDetails: 'Hypertension',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'PAT-1004',
+    firstName: 'Ananya',
+    lastName: 'Iyer',
+    age: '19',
+    dateOfBirth: '2005-02-17',
+    gender: 'female',
+    mobile: '9446345678',
+    countryCode: '+91',
+    email: 'ananya.iyer@example.com',
+    language: 'Tamil, English',
+    city: 'Kochi',
+    state: 'Kerala',
+    postalCode: '682035',
+    address: 'College Road, Lane 2',
+    emergencyName: 'Suresh Iyer',
+    emergencyPhone: '9446345679',
+    relationship: 'Father',
+    allergies: 'no',
+    allergiesDetails: '',
+    medications: 'no',
+    medicationsDetails: '',
+    conditions: 'no',
+    conditionsDetails: '',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'PAT-1005',
+    firstName: 'Rohit',
+    lastName: 'Verma',
+    age: '37',
+    dateOfBirth: '1987-07-30',
+    gender: 'male',
+    mobile: '9123456789',
+    countryCode: '+91',
+    email: 'rohit.v@example.com',
+    language: 'Hindi, English',
+    city: 'Kochi',
+    state: 'Kerala',
+    postalCode: '682011',
+    address: 'Green Park View, Apt 304',
+    emergencyName: 'Pooja Verma',
+    emergencyPhone: '9123456780',
+    relationship: 'Spouse',
+    allergies: 'no',
+    allergiesDetails: '',
+    medications: 'no',
+    medicationsDetails: '',
+    conditions: 'no',
+    conditionsDetails: '',
+    createdAt: new Date().toISOString()
+  }
+]
+
+const initialAppointments: AppointmentRecord[] = [
+  {
+    id: 'APT-1001',
+    patientId: 'pt-1001',
+    doctor: 'Dr. Arun Kumar',
+    chair: 'Chair 1',
+    treatmentType: 'Root Canal Treatment (Session 2/3)',
+    visitType: 'Dental procedure',
+    date: getTodayDateStr(),
+    time: '11:00',
+    durationMinutes: 45,
+    status: 'in-progress',
+    priority: 'urgent',
+    notes: 'Access opening completed. Bio-mechanical preparation and irrigation with NaOCl. Temp Cavit placed.',
+    checkInTime: '10:45',
+    consultationStartTime: '11:02',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'APT-1000',
+    patientId: 'pt-1001',
+    doctor: 'Dr. Arun Kumar',
+    chair: 'Chair 1',
+    treatmentType: 'Emergency Pain Relief Consultation',
+    visitType: 'Consultation',
+    date: '2026-10-24',
+    time: '14:30',
+    durationMinutes: 30,
+    status: 'completed',
+    priority: 'urgent',
+    notes: 'Acute irreversible pulpitis in #46. Emergency pulpectomy performed.',
+    completedTime: '15:15',
+    createdAt: '2026-10-24T09:00:00.000Z'
+  },
+  {
+    id: 'APT-2001',
+    patientId: 'PAT-1001',
+    doctor: 'Dr. Arun Kumar',
+    chair: 'Chair 1',
+    treatmentType: 'Orthodontic Bracket Adjustment',
+    visitType: 'Follow-up',
+    date: getTodayDateStr(),
+    time: '09:30',
+    durationMinutes: 30,
+    status: 'in-progress',
+    priority: 'normal',
+    notes: 'Upper archwire activation and check bracket alignment on 14, 24.',
+    checkInTime: '09:20',
+    consultationStartTime: '09:32',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'APT-2002',
+    patientId: 'PAT-1002',
+    doctor: 'Dr. Priya Nair',
+    chair: 'Chair 2',
+    treatmentType: 'Root Canal Treatment (Single Sitting)',
+    visitType: 'Dental treatment',
+    date: getTodayDateStr(),
+    time: '10:00',
+    durationMinutes: 60,
+    status: 'checked-in',
+    priority: 'urgent',
+    notes: 'Severe pain on lower right first molar (#46). Pulpitis test positive.',
+    checkInTime: '09:50',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'APT-2003',
+    patientId: 'PAT-1003',
+    doctor: 'Dr. Tariq Antoun',
+    chair: 'Chair 3',
+    treatmentType: 'Surgical Wisdom Tooth Removal',
+    visitType: 'Consultation',
+    date: getTodayDateStr(),
+    time: '11:30',
+    durationMinutes: 60,
+    status: 'scheduled',
+    priority: 'normal',
+    notes: 'Pre-op evaluation for impacted third molar extraction.',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'APT-2004',
+    patientId: 'PAT-1004',
+    doctor: 'Dr. Arun Kumar',
+    chair: 'Chair 1',
+    treatmentType: 'Clear Aligner Scan & Assessment',
+    visitType: 'Check-up',
+    date: getTodayDateStr(),
+    time: '14:00',
+    durationMinutes: 45,
+    status: 'confirmed',
+    priority: 'normal',
+    notes: 'iTero digital scan for Invisalign treatment plan stage 1.',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'APT-2005',
+    patientId: 'PAT-1005',
+    doctor: 'Dr. Sarah Thomas',
+    chair: 'Chair 4',
+    treatmentType: 'Ultrasonic Scaling & Polishing',
+    visitType: 'Cleaning',
+    date: getTodayDateStr(),
+    time: '15:30',
+    durationMinutes: 45,
+    status: 'scheduled',
+    priority: 'normal',
+    notes: 'Routine 6-month prophylaxis and calculus removal.',
+    createdAt: new Date().toISOString()
+  }
+]
+
+
+const initialClinicalNotes: ClinicalNoteRecord[] = [
+  {
+    id: 'NOT-1001',
+    noteNumber: 'CN-1001',
+    patientId: 'pt-1001',
+    doctorId: 'doc-001',
+    doctorName: 'Dr. Sarah Mitchell',
+    consultationDate: '2026-10-24T15:00:00.000Z',
+    consultationType: 'EMERGENCY',
+    status: 'FINALIZED',
+    finalizedAt: '2026-10-24T15:30:00.000Z',
+    finalizedByName: 'Dr. Sarah Mitchell',
+    chiefComplaint: 'Severe throbbing pain in lower right posterior quadrant radiating to ear for 2 days.',
+    symptoms: 'Spontaneous pain, heightened at night, aggravated by hot fluids.',
+    symptomDuration: '48 hours',
+    painSeverity: 8,
+    historyNotes: 'Patient took OTC Ibuprofen with transient minimal relief.',
+    extraoralFindings: 'No visible facial asymmetry or extraoral lymphadenopathy.',
+    intraoralFindings: 'Deep disto-occlusal caries on tooth #46 involving pulp. Tenderness on vertical percussion positive.',
+    toothSpecificFindings: 'Tooth 46: Non-vital response to thermal testing, percussion sensitive.',
+    periodontalFindings: 'Probing depths 2-3mm, normal physiological mobility Grade 0.',
+    examinationNotes: 'Deep occlusal caries on tooth #46 involving pulp. Tenderness on vertical percussion positive. Cold test elicited prolonged lingering pain.',
+    primaryDiagnosis: 'Symptomatic Irreversible Pulpitis with Acute Apical Periodontitis (#46)',
+    treatmentPerformed: 'Pulpectomy and Emergency Access Opening on #46',
+    treatmentToothNumber: '46',
+    treatmentDescription: 'Local anesthesia administered (2% Lignocaine with 1:80000 adrenaline). Rubber dam isolation achieved. Caries excavated, pulp chamber de-roofed, coronal pulp extirpated. Working length established. Formocresol pellet and Cavit temporary seal placed.',
+    materialsUsed: 'Rubber Dam, Cavit, Lignocaine 2%, EDTA gel',
+    treatmentOutcome: 'Immediate alleviation of pressure; patient comfortable post-op.',
+    treatmentRecommendations: 'Complete 2nd sitting Root Canal Treatment followed by core build-up and full coverage zirconia crown.',
+    followUpRequired: true,
+    followUpDate: '2026-10-28',
+    followUpInstructions: 'Soft diet on right side, avoid hard/sticky food. Return if swelling develops.',
+    patientAdvice: 'Avoid chewing on right side until definitive restoration is bonded.',
+    visitDate: '2026-10-24',
+    complaint: 'Severe throbbing pain in lower right posterior quadrant radiating to ear for 2 days.',
+    findings: 'Deep occlusal caries on tooth #46 involving pulp. Tenderness on vertical percussion positive. Cold test elicited prolonged lingering pain.',
+    plan: 'Single/two sitting Root Canal Treatment on #46 followed by full coverage crown. Patient allergic to Penicillin; prescribed Erythromycin.',
+    createdAt: '2026-10-24T15:00:00.000Z'
+  },
+  {
+    id: 'NOT-1002',
+    noteNumber: 'CN-1002',
+    patientId: 'pt-1001',
+    doctorId: 'doc-001',
+    doctorName: 'Dr. Sarah Mitchell',
+    consultationDate: new Date().toISOString(),
+    consultationType: 'FOLLOW_UP',
+    status: 'FINALIZED',
+    finalizedAt: new Date().toISOString(),
+    finalizedByName: 'Dr. Sarah Mitchell',
+    chiefComplaint: 'Follow-up for second sitting RCT on #46.',
+    symptoms: 'Asymptomatic. Patient reports complete resolution of throbbing pain.',
+    painSeverity: 0,
+    intraoralFindings: 'Temporary restoration intact, gingiva surrounding #46 healthy without sinus tract.',
+    toothSpecificFindings: 'Tooth 46: Percussion negative, palpation negative.',
+    examinationNotes: 'Symptom-free. Temporary filling intact. Working length confirmed at 21mm MB, 21mm ML, 20.5mm Distal via RVG.',
+    primaryDiagnosis: 'Previously Initiated Root Canal Therapy (#46)',
+    treatmentPerformed: 'Biomechanical Preparation and Calcium Hydroxide Dressing (#46)',
+    treatmentToothNumber: '46',
+    treatmentDescription: 'Canals negotiated and shaped with ProTaper Gold rotary files up to F2. 3% NaOCl and 17% EDTA irrigation with sonic activation. Canals dried with paper points. Calcium hydroxide placed. Cavit sealed.',
+    materialsUsed: 'ProTaper Gold, NaOCl 3%, EDTA 17%, Calcipex, Cavit',
+    treatmentOutcome: 'Canals thoroughly prepared and dried.',
+    treatmentRecommendations: 'Obturation with gutta-percha and bioceramic sealer at next visit.',
+    followUpRequired: true,
+    followUpDate: '2026-11-08',
+    followUpInstructions: 'Continue routine oral hygiene. Schedule appointment for obturation.',
+    visitDate: getTodayDateStr(),
+    complaint: 'Follow-up for second sitting RCT on #46.',
+    findings: 'Symptom-free. Temporary filling intact. Working length confirmed at 21mm MB, 21mm ML, 20.5mm Distal via RVG.',
+    plan: 'Canal biomechanical preparation with ProTaper Gold rotary files. Calcium hydroxide intracanal medicament. Next: Obturation.',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: 'NOT-1003',
+    noteNumber: 'CN-1003',
+    patientId: 'PAT-1001',
+    doctorId: 'doc-002',
+    doctorName: 'Dr. Alex Vance',
+    consultationDate: '2026-10-18T11:00:00.000Z',
+    consultationType: 'ROUTINE_CHECKUP',
+    status: 'DRAFT',
+    chiefComplaint: 'Routine 6-month orthodontic bracket review and check-up.',
+    symptoms: 'Mild tightness after previous archwire change.',
+    painSeverity: 1,
+    intraoralFindings: 'Alignment progressing well. Mild supra-gingival calculus on lower anteriors.',
+    examinationNotes: 'Alignment progressing well. Mild supra-gingival calculus on lower anteriors.',
+    primaryDiagnosis: 'Class I Malocclusion with mild anterior crowding; Generalized mild gingivitis',
+    treatmentPerformed: 'Orthodontic Wire Adjustment & Bracket Inspection',
+    treatmentDescription: '0.016x0.022 NiTi upper and lower archwires engaged. Ligatures replaced.',
+    treatmentRecommendations: 'Full mouth ultrasonic scaling and prophy scheduled.',
+    followUpRequired: true,
+    followUpDate: '2026-11-20',
+    followUpInstructions: 'Maintain interdental brushing around brackets.',
+    visitDate: '2026-10-18',
+    complaint: 'Routine 6-month orthodontic bracket review and check-up.',
+    findings: 'Alignment progressing well. Mild supra-gingival calculus on lower anteriors.',
+    plan: '0.016x0.022 NiTi archwire engaged. Ultrasonic scaling scheduled.',
+    createdAt: '2026-10-18T11:00:00.000Z'
+  }
+]
+
+const initialInvoices: InvoiceRecord[] = [
+  {
+    id: 'INV-1001',
+    patientId: 'pt-1001',
+    description: 'Root Canal Treatment (#46) - Sitting 1 & 2',
+    amount: 3500,
+    status: 'Paid',
+    createdAt: '2026-10-24T15:15:00.000Z',
+    payments: [{ id: 'PAY-1001', amount: 3500, mode: 'UPI', reference: 'UPI-448210', receivedAt: '2026-10-24T15:20:00.000Z' }]
+  },
+  {
+    id: 'INV-1002',
+    patientId: 'pt-1001',
+    description: 'Zirconia Monolithic Crown (Post-RCT restoration)',
+    amount: 6000,
+    status: 'Unpaid',
+    createdAt: new Date().toISOString()
+  }
+]
+
+const initialTreatmentPlans: TreatmentPlanRecord[] = [
+  {
+    id: 'TRT-1001',
+    patientId: 'pt-1001',
+    procedure: 'Root Canal Treatment & Rotary Shaping',
+    category: 'Endodontics',
+    toothNumber: '46',
+    status: 'In Progress',
+    cost: 4500,
+    doctor: 'Dr. Arun Kumar',
+    notes: 'Working length established. Second sitting underway.',
+    date: '2026-10-24'
+  },
+  {
+    id: 'TRT-1002',
+    patientId: 'pt-1001',
+    procedure: 'CAD/CAM Zirconia Crown Restoration',
+    category: 'Prosthodontics',
+    toothNumber: '46',
+    status: 'Pending',
+    cost: 6500,
+    doctor: 'Dr. Arun Kumar',
+    notes: 'Scheduled post-obturation. Tooth preparation and digital optical scan pending.',
+    date: '2026-10-24'
+  },
+  {
+    id: 'TRT-1003',
+    patientId: 'pt-1001',
+    procedure: 'Comprehensive Ultrasonic Scaling & Polishing',
+    category: 'Preventive',
+    toothNumber: 'Full Mouth',
+    status: 'Accepted',
+    cost: 1200,
+    doctor: 'Dr. Priya Nair',
+    notes: 'Mild calculus accumulation.',
+    date: '2026-10-24'
+  },
+  {
+    id: 'TRT-1004',
+    patientId: 'PAT-1001',
+    procedure: 'Clear Aligner Assessment & Refinement Scan',
+    category: 'Orthodontics',
+    toothNumber: 'Upper & Lower',
+    status: 'In Progress',
+    cost: 3000,
+    doctor: 'Dr. Arun Kumar',
+    notes: 'Tray 14 of 20 evaluation.',
+    date: '2026-10-15'
+  },
+  {
+    id: 'TRT-1005',
+    patientId: 'PAT-1002',
+    procedure: 'Single Sitting Root Canal (#36)',
+    category: 'Endodontics',
+    toothNumber: '36',
+    status: 'Proposed',
+    cost: 4500,
+    doctor: 'Dr. Priya Nair',
+    notes: 'Awaiting patient approval.',
+    date: getTodayDateStr()
+  },
+  {
+    id: 'TRT-1006',
+    patientId: 'PAT-1003',
+    procedure: 'Surgical Wisdom Tooth Removal (#38)',
+    category: 'Oral Surgery',
+    toothNumber: '38',
+    status: 'Pending',
+    cost: 5000,
+    doctor: 'Dr. Tariq Antoun',
+    notes: 'Impaction class II position B. Pre-op bloods required.',
+    date: '2026-10-20'
+  }
+]
+
+const initialPatientDocuments: PatientDocumentRecord[] = [
+  {
+    id: 'DOC-1001',
+    patientId: 'pt-1001',
+    title: 'Diagnostic Digital RVG X-Ray (#46 Periapical)',
+    category: 'Radiology',
+    fileName: 'RVG_46_pre_op_periapical.dcm',
+    fileSize: '4.2 MB',
+    uploadDate: '2026-10-24',
+    doctor: 'Dr. Arun Kumar',
+    url: '/records/xray-sample.png'
+  },
+  {
+    id: 'DOC-1002',
+    patientId: 'pt-1001',
+    title: 'Full Mouth Orthopantomogram (OPG Scan)',
+    category: 'Radiology',
+    fileName: 'OPG_panoramic_nambiar_meera.jpg',
+    fileSize: '8.7 MB',
+    uploadDate: '2026-10-24',
+    doctor: 'Dr. Arun Kumar',
+    url: '/records/opg-sample.png'
+  },
+  {
+    id: 'DOC-1003',
+    patientId: 'pt-1001',
+    title: 'Working Length Determination Radiograph (#46)',
+    category: 'Radiology',
+    fileName: 'RVG_46_working_length_21mm.dcm',
+    fileSize: '3.9 MB',
+    uploadDate: getTodayDateStr(),
+    doctor: 'Dr. Arun Kumar'
+  }
+]
+
+const initialPatientConsents: PatientConsentRecord[] = [
+  {
+    id: 'CNS-1001',
+    patientId: 'pt-1001',
+    consentType: 'Informed Consent for Endodontic Root Canal Therapy',
+    status: 'Signed',
+    dateRecorded: '2026-10-24',
+    recordedBy: 'Dr. Arun Kumar',
+    documentRef: 'DMX-CONSENT-RCT-2026-089',
+    notes: 'Procedure risks, alternative treatment (extraction), and post-op crown necessity explained. Patient signed digitally.'
+  },
+  {
+    id: 'CNS-1002',
+    patientId: 'pt-1001',
+    consentType: 'Local Anesthesia Administration Consent',
+    status: 'Signed',
+    dateRecorded: '2026-10-24',
+    recordedBy: 'Dr. Arun Kumar',
+    documentRef: 'DMX-CONSENT-LA-2026-089',
+    notes: 'Lignocaine 2% with 1:80000 adrenaline verified safe with medical history.'
+  },
+  {
+    id: 'CNS-1003',
+    patientId: 'pt-1001',
+    consentType: 'CAD/CAM Prosthetic Restoration Consent',
+    status: 'Pending',
+    dateRecorded: getTodayDateStr(),
+    recordedBy: 'Dr. Arun Kumar',
+    documentRef: 'DMX-CONSENT-PROS-2026-114',
+    notes: 'Awaiting digital signature upon final margin preparation.'
+  }
+]
+
+const initialToothCharts: ClinicToothCharts = {
+  'pt-1001': {
+    46: { condition: 'RCT', notes: 'Pulpitis. Second sitting RCT underway. Bio-mechanical preparation completed.' },
+    36: { condition: 'Caries', notes: 'Occlusal pit and fissure caries. Composite restoration recommended.' },
+    16: { condition: 'Restored', notes: 'Occlusal composite restoration placed 2025.' },
+    24: { condition: 'Healthy', notes: 'Normal vitality and intact margins.' }
+  }
+}
+
+
+export interface PrescriptionItemRecord {
+  id: string
+  prescriptionId?: string
+  medicineName: string
+  strength?: string
+  dosage: string
+  route?: string
+  frequency: string
+  duration: string
+  quantity?: number
+  instructions?: string
+}
+
+export interface PrescriptionRecord {
+  id: string
+  clinicId?: string
+  patientId: string
+  doctorId: string
+  prescriptionNumber: string
+  diagnosis: string
+  clinicalNotes?: string
+  status: 'DRAFT' | 'FINALIZED' | 'CANCELLED'
+  prescribedAt: string
+  finalizedAt?: string
+  finalizedById?: string
+  cancelledAt?: string
+  cancelledById?: string
+  cancellationReason?: string
+  createdAt?: string
+  items: PrescriptionItemRecord[]
+  patient?: {
+    id: string
+    patientCode?: string
+    firstName: string
+    lastName: string
+    gender?: string
+    dateOfBirth?: string
+    mobile?: string
+    medicalSafetyAlerts?: string[]
+  }
+  doctor?: {
+    id: string
+    fullName: string
+    email?: string
+    role?: string
+  }
+}
+
+export const initialPrescriptions: PrescriptionRecord[] = [
+  {
+    id: 'rx-demo-001',
+    patientId: 'pt-1001',
+    doctorId: 'doc-001',
+    prescriptionNumber: 'RX-1001',
+    diagnosis: 'Acute Periapical Abscess (Tooth 16)',
+    clinicalNotes: 'Initiated endodontic emergency relief. Warm saline rinses recommended.',
+    status: 'FINALIZED',
+    prescribedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    finalizedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    items: [
+      {
+        id: 'rxi-1',
+        medicineName: 'Amoxicillin + Clavulanic Acid',
+        strength: '625 mg',
+        dosage: '1 tablet',
+        route: 'Oral',
+        frequency: '1-0-1 (Twice daily)',
+        duration: '5 days',
+        quantity: 10,
+        instructions: 'Take immediately after food with plenty of water',
+      },
+      {
+        id: 'rxi-2',
+        medicineName: 'Ibuprofen + Paracetamol',
+        strength: '400mg / 325mg',
+        dosage: '1 tablet',
+        route: 'Oral',
+        frequency: '1-0-1 (Twice daily)',
+        duration: '3 days',
+        quantity: 6,
+        instructions: 'Take strictly after meals for inflammatory pain',
+      },
+    ],
+  },
+  {
+    id: 'rx-demo-002',
+    patientId: 'pt-1002',
+    doctorId: 'doc-001',
+    prescriptionNumber: 'RX-1002',
+    diagnosis: 'Generalized Chronic Marginal Gingivitis',
+    clinicalNotes: 'Post ultrasonic scaling. Advised soft bristled toothbrush technique.',
+    status: 'DRAFT',
+    prescribedAt: new Date().toISOString(),
+    items: [
+      {
+        id: 'rxi-3',
+        medicineName: 'Chlorhexidine Gluconate Mouthwash',
+        strength: '0.2% w/v',
+        dosage: '10 ml',
+        route: 'Topical Oral Rinse',
+        frequency: '0-1-1 (Twice daily)',
+        duration: '14 days',
+        quantity: 1,
+        instructions: 'Rinse undiluted for 30 seconds after brushing. Avoid food/drink for 30 minutes.',
+      },
+    ],
+  },
+]
+
+export const initialEnquiries: EnquiryRecord[] = [
+  { id: 'enq-001', name: 'Ananya Pillai', phone: '+91 98472 33445', request: 'New patient · Cleaning', status: 'PENDING', createdAt: 'Today, 9:42 AM' },
+  { id: 'enq-002', name: 'Vivek Menon', phone: '+91 98460 54321', request: 'Existing patient · Tooth pain', status: 'PENDING', createdAt: 'Today, 9:18 AM' },
+  { id: 'enq-003', name: 'Sara Thomas', phone: '+91 97455 11223', request: 'New patient · Consultation', status: 'PENDING', createdAt: 'Yesterday, 5:36 PM' },
+]
 
 interface StoredClinicSnapshot {
   enquiries?: EnquiryRecord[]

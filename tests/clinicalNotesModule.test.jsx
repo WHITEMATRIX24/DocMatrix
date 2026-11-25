@@ -64,27 +64,23 @@ describe('Structured Clinical Notes Module', () => {
       expect(screen.getByText('CN-1003')).toBeInTheDocument();
     });
 
-    it('opens structured streamlined modal when clicking "New Clinical Note"', async () => {
+    it('opens structured streamlined consultation recorder when clicking "New Clinical Note"', async () => {
       renderAt('/clinical/notes');
 
       const newBtn = await screen.findByTestId('new-clinical-note-button', {}, { timeout: 10000 });
       fireEvent.click(newBtn);
 
-      const dialog = await screen.findByRole('dialog');
-      expect(within(dialog).getByText(/New Dental Clinical Note/i)).toBeInTheDocument();
+      const page = await screen.findByTestId('record-consultation-page');
+      expect(within(page).getByRole('heading', { name: /Record Dental Consultation/i })).toBeInTheDocument();
 
       // Verify streamlined logical sections
-      expect(within(dialog).getByText(/1\. Consultation & Patient Complaint/i)).toBeInTheDocument();
-      expect(within(dialog).getByText(/2\. Clinical Examination & Diagnosis/i)).toBeInTheDocument();
-      expect(within(dialog).getByText(/3\. Treatment & Procedures Performed/i)).toBeInTheDocument();
-      expect(within(dialog).getByText(/4\. Treatment Plan & Follow-up/i)).toBeInTheDocument();
-
-      // Pain rating scale (0-10)
-      expect(within(dialog).getByText(/Pain Severity Rating/i)).toBeInTheDocument();
+      expect(within(page).getByText(/1\.\s*CONSULTATION INFORMATION/i)).toBeInTheDocument();
+      expect(within(page).getByText(/2\.\s*CHIEF COMPLAINT/i)).toBeInTheDocument();
+      expect(within(page).getByText(/3\.\s*SYMPTOMS & HISTORY/i)).toBeInTheDocument();
 
       // Action buttons
-      expect(within(dialog).getByRole('button', { name: /Save as Draft/i })).toBeInTheDocument();
-      expect(within(dialog).getByRole('button', { name: /Finalize Note/i })).toBeInTheDocument();
+      expect(within(page).getByRole('button', { name: /Save as Draft/i })).toBeInTheDocument();
+      expect(within(page).getAllByRole('button', { name: /Finalize Note/i })[0]).toBeInTheDocument();
     });
   });
 
@@ -110,11 +106,11 @@ describe('Structured Clinical Notes Module', () => {
       const recordBtn = await screen.findByRole('button', { name: /Record Consultation/i }, { timeout: 10000 });
       fireEvent.click(recordBtn);
 
-      const dialog = await screen.findByRole('dialog');
-      expect(within(dialog).getByText(/New Dental Clinical Note/i)).toBeInTheDocument();
+      const page = await screen.findByTestId('record-consultation-page');
+      expect(within(page).getByRole('heading', { name: /Record Dental Consultation/i })).toBeInTheDocument();
 
       // Verify patient selection is locked to active patient
-      const comboboxes = within(dialog).getAllByRole('combobox');
+      const comboboxes = within(page).getAllByRole('combobox');
       expect(comboboxes[0]).toBeDisabled();
     });
 
