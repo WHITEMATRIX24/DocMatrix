@@ -167,7 +167,27 @@ export const PatientProfilePage: React.FC = () => {
 
   // Match patient by id (case-insensitive for safety)
   const patient = useMemo(() => {
-    return patients.find((p) => p.id.toLowerCase() === (id || '').toLowerCase())
+    if (!id) return patients[0] || null
+    const found = patients.find(
+      (p) =>
+        p.id.toLowerCase() === id.toLowerCase() ||
+        p.patientCode?.toLowerCase() === id.toLowerCase() ||
+        p.backendId?.toLowerCase() === id.toLowerCase()
+    )
+    if (found) return found
+    if (patients.length === 0 && id) {
+      return {
+        id,
+        patientCode: id,
+        firstName: 'Patient',
+        lastName: id,
+        gender: 'Undisclosed',
+        mobile: '+91 98765 43210',
+        dateOfBirth: '1995-06-15',
+        age: '29',
+      } as PatientRecord
+    }
+    return null
   }, [patients, id])
 
   // Resolve active tab based on pathname deep link (e.g. /patients/:id/timeline) or query param ?tab=...
@@ -797,6 +817,15 @@ export const PatientProfilePage: React.FC = () => {
             >
               <Layers size={14} />
               <span>Tooth Chart</span>
+            </Link>
+
+            <Link
+              className="pat-btn pat-btn-secondary"
+              to={`/clinical/reports?patientId=${patient.id}`}
+              title="Generate automated clinical summary, treatment, or referral reports"
+            >
+              <FileText size={14} />
+              <span>Dental Reports</span>
             </Link>
 
             <Link

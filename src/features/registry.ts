@@ -210,6 +210,16 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
     "inNav": false
   },
   {
+    "id": "clin.reports",
+    "name": "Dental Reports",
+    "description": "Automated patient clinical summaries, consultation notes, treatment history, and referral letters",
+    "source": "Part 1",
+    "phase": "launch",
+    "area": "Clinical",
+    "route": "/clinical/reports",
+    "inNav": false
+  },
+  {
     "id": "bill.invoices",
     "name": "Itemised invoices",
     "description": "Itemised PDF invoices, part payments, UPI QR on the bill",

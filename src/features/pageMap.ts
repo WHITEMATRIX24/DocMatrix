@@ -143,6 +143,13 @@ export const LAUNCH_PAGE_MAP: PageMeta[] = [
     importFn: () => import('@/pages/clinical/TreatmentEstimatesPage'),
   },
   {
+    id: 'clin.reports',
+    area: 'clinical',
+    filename: 'DentalReportsPage.tsx',
+    componentName: 'DentalReportsPage',
+    importFn: () => import('@/pages/clinical/DentalReportsPage'),
+  },
+  {
     id: 'bill.invoices',
     area: 'billing',
     filename: 'InvoicesPage.tsx',

@@ -1,0 +1,803 @@
+/* Automated Dental Reports Styles */
+
+.dr-container {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 24px;
+  color: #1e293b;
+  font-family: inherit;
+}
+
+/* Header */
+.dr-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.dr-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dr-header-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #e6f7f5;
+  color: #0d9488;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dr-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.dr-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  margin: 4px 0 0 0;
+}
+
+.dr-header-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Patient Selector Bar */
+.dr-patient-selector-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.dr-patient-search-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.dr-patient-search-box {
+  position: relative;
+  flex: 1;
+  min-width: 280px;
+}
+
+.dr-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+}
+
+.dr-patient-input {
+  width: 100%;
+  padding: 10px 14px 10px 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.dr-patient-input:focus {
+  border-color: #0d9488;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.1);
+}
+
+.dr-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.dr-dropdown-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background-color 0.15s ease;
+}
+
+.dr-dropdown-item:hover {
+  background: #f8fafc;
+}
+
+.dr-dropdown-item.is-selected {
+  background: #f0fdf4;
+}
+
+.dr-patient-meta {
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* Selected Patient Banner */
+.dr-patient-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.dr-patient-banner-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.dr-patient-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #ccfbf1;
+  color: #0f766e;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+}
+
+.dr-patient-details-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: #0f172a;
+}
+
+.dr-patient-details-sub {
+  font-size: 13px;
+  color: #64748b;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.dr-alert-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+/* Grid Layout */
+.dr-main-grid {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .dr-main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Left Sidebar: Type & Configuration */
+.dr-sidebar-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dr-section-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.dr-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #475569;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Report Types List */
+.dr-type-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dr-type-card {
+  padding: 10px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: #ffffff;
+}
+
+.dr-type-card:hover {
+  border-color: #0d9488;
+  background: #f0fdfa;
+}
+
+.dr-type-card.is-active {
+  border-color: #0d9488;
+  background: #f0fdfa;
+  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.15);
+}
+
+.dr-type-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.dr-type-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dr-type-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.dr-type-card.is-active .dr-type-badge {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
+.dr-type-desc {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+/* Parameters Form */
+.dr-form-group {
+  margin-bottom: 14px;
+}
+
+.dr-form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 6px;
+}
+
+.dr-form-select,
+.dr-form-input,
+.dr-form-textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.dr-form-select:focus,
+.dr-form-input:focus,
+.dr-form-textarea:focus {
+  border-color: #0d9488;
+}
+
+.dr-generate-btn {
+  width: 100%;
+  padding: 12px;
+  background: #0d9488;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background-color 0.15s ease;
+  box-shadow: 0 2px 4px rgba(13, 148, 136, 0.2);
+}
+
+.dr-generate-btn:hover {
+  background: #0f766e;
+}
+
+.dr-generate-btn:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+/* Right Content: Report Preview & Toolbar */
+.dr-content-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dr-toolbar {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.dr-toolbar-left {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.dr-view-tab {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dr-view-tab.is-active {
+  background: #e6f7f5;
+  color: #0d9488;
+  border-color: #ccfbf1;
+}
+
+.dr-toolbar-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.dr-btn {
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.dr-btn-primary {
+  background: #0d9488;
+  color: #ffffff;
+}
+
+.dr-btn-primary:hover {
+  background: #0f766e;
+}
+
+.dr-btn-secondary {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+.dr-btn-secondary:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.dr-btn-success {
+  background: #16a34a;
+  color: #ffffff;
+}
+
+.dr-btn-success:hover {
+  background: #15803d;
+}
+
+/* Printable Dental Document Sheet */
+.dr-report-sheet {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 40px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  min-height: 800px;
+  position: relative;
+}
+
+/* Document Header (Letterhead) */
+.dr-doc-letterhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid #0d9488;
+  padding-bottom: 20px;
+  margin-bottom: 24px;
+  gap: 20px;
+}
+
+.dr-doc-clinic-name {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.dr-doc-clinic-sub {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+.dr-doc-report-tag {
+  text-align: right;
+}
+
+.dr-doc-report-id {
+  font-size: 12px;
+  font-family: monospace;
+  font-weight: 700;
+  color: #0d9488;
+  background: #f0fdfa;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.dr-doc-report-date {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+/* Document Title Bar */
+.dr-doc-title-bar {
+  text-align: center;
+  margin-bottom: 24px;
+  padding: 10px;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.dr-doc-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Patient Demographic Grid in Sheet */
+.dr-doc-patient-box {
+  background: #fcfcfc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.dr-doc-field-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 2px;
+}
+
+.dr-doc-field-val {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+/* Executive Summary Callout */
+.dr-doc-summary-box {
+  background: #f0fdfa;
+  border-left: 4px solid #0d9488;
+  padding: 14px 18px;
+  border-radius: 0 8px 8px 0;
+  margin-bottom: 24px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #134e4a;
+}
+
+/* Document Sections */
+.dr-doc-section {
+  margin-bottom: 24px;
+}
+
+.dr-doc-section-header {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dr-doc-section-content {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #334155;
+  white-space: pre-line;
+}
+
+/* Odontogram Status Grid in Report */
+.dr-doc-odont-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.dr-doc-odont-item {
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 12px;
+  background: #ffffff;
+}
+
+.dr-doc-odont-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.dr-doc-odont-val {
+  font-weight: 700;
+  margin-top: 2px;
+  color: #0f172a;
+}
+
+/* Clinical Tables */
+.dr-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.dr-doc-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 600;
+  text-align: left;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.dr-doc-table td {
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  color: #1e293b;
+}
+
+.dr-doc-table tr:nth-child(even) td {
+  background: #fafafa;
+}
+
+/* Doctor Signature Block */
+.dr-doc-signoff-block {
+  margin-top: 48px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-top: 24px;
+  border-top: 1px solid #e2e8f0;
+  page-break-inside: avoid;
+}
+
+.dr-doc-signoff-doc {
+  text-align: right;
+  min-width: 240px;
+}
+
+.dr-doc-sign-line {
+  font-family: monospace;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.dr-doc-sign-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.dr-doc-sign-title {
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* Empty State */
+.dr-empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.dr-empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px auto;
+}
+
+.dr-empty-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 6px;
+}
+
+.dr-empty-sub {
+  font-size: 13px;
+  color: #64748b;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+/* Saved Reports Drawer / List */
+.dr-saved-reports-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(2px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.dr-saved-dialog {
+  background: #ffffff;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 720px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.dr-saved-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dr-saved-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.dr-saved-card {
+  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+}
+
+.dr-saved-card:hover {
+  background: #f8fafc;
+}
+
+/* PRINT MEDIA QUERY - Strict Pixel-Perfect Printable Output */
+@media print {
+  /* Hide all app chrome, sidebars, buttons, headers */
+  body * {
+    visibility: hidden;
+  }
+
+  .dr-report-sheet,
+  .dr-report-sheet * {
+    visibility: visible;
+  }
+
+  .dr-report-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20px !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .dr-no-print {
+    display: none !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 15mm;
+  }
+}

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { Activity, BarChart3, BellRing, IndianRupee, Stethoscope } from 'lucide-react'
+import { Activity, BarChart3, BellRing, IndianRupee, Stethoscope, FileText } from 'lucide-react'
 import { localDate } from '@/pages/billing/BillingShared'
 import { syncWithBackend } from '@/services/clinicStore'
 import { syncBillingMasterData } from '@/services/billingStore'
@@ -15,7 +15,8 @@ const tabs: ReportTab[] = [
   { id: 'rep.revenue', label: 'Revenue', path: '/reports/revenue', icon: IndianRupee },
   { id: 'rep.doctors', label: 'Doctors', path: '/reports/doctors', icon: Stethoscope },
   { id: 'rep.treatments', label: 'Treatments', path: '/reports/treatments', icon: Activity },
-  { id: 'rep.followups', label: 'Follow-ups & bookings', path: '/reports/follow-ups', icon: BellRing }
+  { id: 'rep.followups', label: 'Follow-ups & bookings', path: '/reports/follow-ups', icon: BellRing },
+  { id: 'clin.reports', label: 'Patient Dental Reports', path: '/clinical/reports', icon: FileText }
 ]
 
 /** One Reports hub: a shared date range (kept in the URL so it survives tab changes) and a tab per report. */
