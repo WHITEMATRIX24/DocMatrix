@@ -265,7 +265,7 @@ describe('Reusable Dental Prescription Templates Feature', () => {
       expect(screen.getByText(/Acute Dentoalveolar Abscess & Space Infection/i)).toBeInTheDocument();
 
       // Apply template
-      const applyBtn = screen.getByRole('button', { name: /Apply Template & Customize/i });
+      const applyBtn = screen.getAllByRole('button', { name: /Apply Template & Customize/i })[0];
       fireEvent.click(applyBtn);
 
       // New Prescription modal should now be open prefilled with the abscess template

@@ -4,8 +4,6 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
 import { restoreSession } from './services/authService'
 import { installIdleSessionLock } from './services/idleSession'
-await restoreSession()
-installIdleSessionLock()
 import { applyTheme, getThemePreference, initSystemThemeListener } from './components/ThemeToggle'
 import './styles.css'
 import './portal.css'
@@ -28,6 +26,8 @@ import '@fontsource/manrope/600.css'
 import '@fontsource/manrope/700.css'
 import '@fontsource/manrope/800.css'
 
+restoreSession().catch(() => {})
+installIdleSessionLock()
 applyTheme(getThemePreference(), false)
 initSystemThemeListener()
 
