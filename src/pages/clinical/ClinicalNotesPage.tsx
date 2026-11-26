@@ -51,6 +51,8 @@ export const ClinicalNotesPage: React.FC = () => {
   const [printingNote, setPrintingNote] = useState<ClinicalNoteRecord | null>(null);
   const [aftercareNote, setAftercareNote] = useState<ClinicalNoteRecord | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [finalizingId, setFinalizingId] = useState<string | null>(null);
+  const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -60,12 +62,25 @@ export const ClinicalNotesPage: React.FC = () => {
 
   const handleFinalizeDraft = async (note: ClinicalNoteRecord) => {
     try {
-      await finalizeClinicalNote(note.id);
+      setFinalizingId(note.id);
+      const finalized = await finalizeClinicalNote(note.id);
       if (viewingNote?.id === note.id) {
-        setViewingNote((prev) => (prev ? { ...prev, status: 'FINALIZED' } : null));
+        setViewingNote((prev) => (prev ? { ...prev, status: 'FINALIZED', finalizedAt: finalized.finalizedAt, finalizedByName: finalized.finalizedByName } : null));
       }
-    } catch (err) {
+      setFeedbackMsg({
+        type: 'success',
+        text: `Consultation note ${finalized.noteNumber || note.noteNumber || note.id} finalized successfully.`,
+      });
+      setTimeout(() => setFeedbackMsg(null), 4000);
+    } catch (err: any) {
       console.error('Failed to finalize clinical note:', err);
+      setFeedbackMsg({
+        type: 'error',
+        text: err?.message || 'Failed to finalize clinical note.',
+      });
+      setTimeout(() => setFeedbackMsg(null), 5000);
+    } finally {
+      setFinalizingId(null);
     }
   };
 
@@ -126,6 +141,27 @@ export const ClinicalNotesPage: React.FC = () => {
 
   return (
     <div className="cn-workspace" data-testid="feature-page-clin.notes">
+      {/* Toast feedback banner */}
+      {feedbackMsg && (
+        <div
+          className={`cn-feedback-toast ${feedbackMsg.type === 'success' ? 'cn-feedback-toast-success' : 'cn-feedback-toast-error'}`}
+          role="status"
+        >
+          <div className="cn-feedback-toast-content">
+            {feedbackMsg.type === 'success' ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+            <span>{feedbackMsg.text}</span>
+          </div>
+          <button
+            type="button"
+            className="cn-feedback-toast-close"
+            onClick={() => setFeedbackMsg(null)}
+            aria-label="Close notification"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Header section */}
       <div className="cn-header">
         <div className="cn-title-group">
@@ -373,8 +409,17 @@ export const ClinicalNotesPage: React.FC = () => {
                               className="cn-btn cn-btn-success cn-btn-sm"
                               onClick={() => handleFinalizeDraft(note)}
                               title="Finalize Consultation Note"
+                              disabled={finalizingId === note.id}
                             >
-                              <CheckCircle2 /> Finalize
+                              {finalizingId === note.id ? (
+                                <>
+                                  <RotateCw size={13} className="cn-spin" /> Finalizing...
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 size={13} /> Finalize
+                                </>
+                              )}
                             </button>
                           )}
 

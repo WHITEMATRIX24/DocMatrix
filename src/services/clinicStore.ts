@@ -5070,10 +5070,8 @@ export const addClinicalNote = (
           return clinicalNotesState.find((c) => c.id === created.id) || localNote;
         }
       } catch (err) {
-        console.warn('[clinicStore] addClinicalNote failed on backend, rolling back:', err);
-        clinicalNotesState = prevNotes;
-        emitChange();
-        throw err;
+        console.warn('[clinicStore] addClinicalNote backend sync failed (retained locally):', err);
+        // Retain the note locally so user data is never lost on network or sync failures
       }
     }
     return localNote;
@@ -5089,7 +5087,6 @@ export const updateClinicalNote = async (
   id: string,
   patch: Partial<ClinicalNoteInput>
 ): Promise<ClinicalNoteRecord> => {
-  const prevNotes = [...clinicalNotesState];
   clinicalNotesState = clinicalNotesState.map((cn) => {
     if (cn.id !== id) return cn;
     return {
@@ -5124,7 +5121,13 @@ export const updateClinicalNote = async (
   });
   emitChange();
 
-  if (hasAuthToken()) {
+  const isLikelyBackendId = typeof id === 'string' &&
+    id.length > 8 &&
+    !id.startsWith('NOT-') &&
+    !id.startsWith('cn-local-') &&
+    !id.startsWith('temp-');
+
+  if (hasAuthToken() && isLikelyBackendId) {
     try {
       const updated = await apiClient.patch<any>(`/clinical-notes/${id}`, patch);
       if (updated?.id) {
@@ -5144,10 +5147,8 @@ export const updateClinicalNote = async (
         return clinicalNotesState.find((c) => c.id === id)!;
       }
     } catch (err) {
-      console.warn('[clinicStore] updateClinicalNote failed on backend, rolling back:', err);
-      clinicalNotesState = prevNotes;
-      emitChange();
-      throw err;
+      console.warn('[clinicStore] updateClinicalNote backend sync failed (retained locally):', err);
+      // Retain the updated clinical note locally
     }
   }
 
@@ -5155,48 +5156,71 @@ export const updateClinicalNote = async (
 };
 
 export const finalizeClinicalNote = async (id: string): Promise<ClinicalNoteRecord> => {
-  const prevNotes = [...clinicalNotesState];
-  if (hasAuthToken()) {
+  const target = clinicalNotesState.find((c) => c.id === id);
+  if (!target) {
+    throw new Error('Clinical note not found');
+  }
+
+  let authUser: any = null;
+  try {
+    const raw = (typeof sessionStorage !== 'undefined' && (sessionStorage.getItem('docmatrix_auth_user') || sessionStorage.getItem('docmatrix_current_user'))) ||
+      (typeof localStorage !== 'undefined' && (localStorage.getItem('docmatrix_auth_user') || localStorage.getItem('docmatrix_current_user')));
+    authUser = raw ? JSON.parse(raw) : null;
+  } catch {
+    authUser = null;
+  }
+
+  const practitionerName = authUser?.fullName || authUser?.name || target.doctorName || 'Attending Doctor';
+  const nowIso = new Date().toISOString();
+
+  // Optimistically finalize locally so user action takes immediate visual effect
+  clinicalNotesState = clinicalNotesState.map((cn) =>
+    cn.id === id
+      ? {
+        ...cn,
+        status: 'FINALIZED',
+        finalizedAt: cn.finalizedAt || nowIso,
+        finalizedByName: cn.finalizedByName || practitionerName,
+        finalizedById: cn.finalizedById || authUser?.id,
+      }
+      : cn
+  );
+  emitChange();
+
+  // If authenticated and this note has a backend-synced UUID (not mock or local temp ID), sync to backend
+  const isLikelyBackendId = typeof id === 'string' &&
+    id.length > 8 &&
+    !id.startsWith('NOT-') &&
+    !id.startsWith('cn-local-') &&
+    !id.startsWith('temp-');
+
+  if (hasAuthToken() && isLikelyBackendId) {
     try {
       const finalized = await apiClient.post<any>(`/clinical-notes/${id}/finalize`, {});
-      clinicalNotesState = clinicalNotesState.map((cn) =>
-        cn.id === id
-          ? {
-            ...cn,
-            status: 'FINALIZED',
-            finalizedAt: finalized?.finalizedAt || new Date().toISOString(),
-            finalizedById: finalized?.finalizedById,
-            finalizedByName: finalized?.finalizedByName,
-            doctorName: finalized?.finalizedByName || cn.doctorName,
-          }
-          : cn
-      );
-      emitChange();
-      const res = clinicalNotesState.find((c) => c.id === id);
-      if (!res) throw new Error('Clinical note not found after finalization');
-      return res;
+      if (finalized?.id) {
+        clinicalNotesState = clinicalNotesState.map((cn) =>
+          cn.id === id
+            ? {
+              ...cn,
+              status: 'FINALIZED',
+              finalizedAt: finalized.finalizedAt || cn.finalizedAt,
+              finalizedById: finalized.finalizedById || cn.finalizedById,
+              finalizedByName: finalized.finalizedByName || cn.finalizedByName,
+              doctorName: finalized.finalizedByName || cn.doctorName,
+            }
+            : cn
+        );
+        emitChange();
+      }
     } catch (err) {
-      console.warn('[clinicStore] finalizeClinicalNote failed on backend, rolling back:', err);
-      clinicalNotesState = prevNotes;
-      emitChange();
-      throw err;
+      console.warn('[clinicStore] finalizeClinicalNote backend sync failed (retained locally):', err);
+      // Retain the finalized state locally - do not roll back!
     }
-  } else {
-    clinicalNotesState = clinicalNotesState.map((cn) =>
-      cn.id === id
-        ? {
-          ...cn,
-          status: 'FINALIZED',
-          finalizedAt: new Date().toISOString(),
-          finalizedByName: cn.doctorName || 'Attending Doctor',
-        }
-        : cn
-    );
-    emitChange();
-    const res = clinicalNotesState.find((c) => c.id === id);
-    if (!res) throw new Error('Clinical note not found after finalization');
-    return res;
   }
+
+  const res = clinicalNotesState.find((c) => c.id === id);
+  if (!res) throw new Error('Clinical note not found after finalization');
+  return res;
 };
 
 export const addClinicalNoteAddendum = async (

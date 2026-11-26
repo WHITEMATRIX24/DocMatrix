@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from '@/App';
 import { resetStoreForTesting } from '@/services/clinicStore';
@@ -62,6 +62,26 @@ describe('Structured Clinical Notes Module', () => {
       const searchInput = screen.getByPlaceholderText(/Search by Note #/i);
       fireEvent.change(searchInput, { target: { value: 'orthodontic' } });
       expect(screen.getByText('CN-1003')).toBeInTheDocument();
+    });
+
+    it('finalizes a draft clinical note when the Finalize button is clicked in the table', async () => {
+      renderAt('/clinical/notes');
+
+      // Filter by Drafts to find CN-1003
+      const draftTab = await screen.findByRole('button', { name: /^Drafts/i }, { timeout: 10000 });
+      fireEvent.click(draftTab);
+
+      const finalizeBtn = screen.getByTitle('Finalize Consultation Note');
+      expect(finalizeBtn).toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.click(finalizeBtn);
+      });
+
+      // Feedback toast appears
+      expect(await screen.findByText(/finalized successfully/i)).toBeInTheDocument();
+      // It is no longer in Drafts view
+      expect(screen.queryByTitle('Finalize Consultation Note')).not.toBeInTheDocument();
     });
 
     it('opens structured streamlined consultation recorder when clicking "New Clinical Note"', async () => {
