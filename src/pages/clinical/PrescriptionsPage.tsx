@@ -11,6 +11,7 @@ import {
   Eye,
   Edit3,
   RotateCw,
+  Zap,
 } from 'lucide-react';
 import {
   useClinicData,
@@ -20,6 +21,8 @@ import {
 import { PrescriptionModal } from '../../components/clinical/PrescriptionModal';
 import { PrescriptionPrintModal } from '../../components/clinical/PrescriptionPrintModal';
 import { PrescriptionDetailsModal } from '../../components/clinical/PrescriptionDetailsModal';
+import { PrescriptionTemplateModal } from '../../components/clinical/PrescriptionTemplateModal';
+import { PrescriptionTemplate } from '../../services/prescriptionTemplateService';
 import './prescriptions.css';
 
 export const PrescriptionsPage: React.FC = () => {
@@ -32,6 +35,8 @@ export const PrescriptionsPage: React.FC = () => {
 
   // Modals state
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [selectedTemplateForNewRx, setSelectedTemplateForNewRx] = useState<PrescriptionTemplate | null>(null);
   const [editingPrescription, setEditingPrescription] = useState<PrescriptionRecord | null>(null);
   const [viewingPrescription, setViewingPrescription] = useState<PrescriptionRecord | null>(null);
   const [printingPrescription, setPrintingPrescription] = useState<PrescriptionRecord | null>(null);
@@ -102,6 +107,15 @@ export const PrescriptionsPage: React.FC = () => {
 
         <div className="rx-header-actions">
           <button
+            onClick={() => setIsTemplateModalOpen(true)}
+            className="rx-btn rx-btn-secondary"
+            title="Browse standard procedure prescription templates"
+            data-testid="browse-prescription-templates-btn"
+          >
+            <Zap size={16} style={{ color: '#0d9488' }} />
+            Procedure Templates
+          </button>
+          <button
             onClick={handleRefresh}
             disabled={refreshing}
             className="rx-btn rx-btn-secondary"
@@ -111,7 +125,11 @@ export const PrescriptionsPage: React.FC = () => {
             Refresh
           </button>
           <button
-            disabled={!canClinic(getPermissionUser(), 'clinical.write')} onClick={() => setIsNewModalOpen(true)}
+            disabled={!canClinic(getPermissionUser(), 'clinical.write')}
+            onClick={() => {
+              setSelectedTemplateForNewRx(null);
+              setIsNewModalOpen(true);
+            }}
             className="rx-btn rx-btn-primary"
           >
             <Plus />
@@ -365,12 +383,28 @@ export const PrescriptionsPage: React.FC = () => {
         )}
       </div>
 
+      {/* Template Selector Modal */}
+      <PrescriptionTemplateModal
+        isOpen={isTemplateModalOpen}
+        onClose={() => setIsTemplateModalOpen(false)}
+        onSelectTemplate={(tpl) => {
+          setSelectedTemplateForNewRx(tpl);
+          setIsTemplateModalOpen(false);
+          setIsNewModalOpen(true);
+        }}
+      />
+
       {/* New Prescription Modal */}
       {isNewModalOpen && (
         <PrescriptionModal
-          onClose={() => setIsNewModalOpen(false)}
+          initialTemplate={selectedTemplateForNewRx}
+          onClose={() => {
+            setIsNewModalOpen(false);
+            setSelectedTemplateForNewRx(null);
+          }}
           onSaved={(saved) => {
             setIsNewModalOpen(false);
+            setSelectedTemplateForNewRx(null);
             setViewingPrescription(saved);
           }}
         />

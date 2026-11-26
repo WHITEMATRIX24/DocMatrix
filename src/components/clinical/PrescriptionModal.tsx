@@ -1,7 +1,7 @@
 import { useClinicalCatalogue } from '../../services/clinicalCatalogue';
 import { getClinicNow } from '../../services/appointmentPolicy';
 import { prescriptionConsultations, defaultPrescriptionConsultation } from '../../services/prescriptionDiagnosis';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   Plus,
@@ -10,6 +10,9 @@ import {
   FileCheck2,
   Save,
   Pill,
+  Zap,
+  BookmarkPlus,
+  Check,
 } from 'lucide-react';
 import {
   PrescriptionRecord,
@@ -19,10 +22,17 @@ import {
   updatePrescription,
   finalizePrescription,
 } from '../../services/clinicStore';
+import {
+  PrescriptionTemplate,
+  checkPatientAllergiesForTemplate,
+} from '../../services/prescriptionTemplateService';
+import { PrescriptionTemplateModal } from './PrescriptionTemplateModal';
+import { SavePrescriptionTemplateModal } from './SavePrescriptionTemplateModal';
 import '../../pages/clinical/prescriptions.css';
 
 interface PrescriptionModalProps {
   initialPrescription?: PrescriptionRecord | null;
+  initialTemplate?: PrescriptionTemplate | null;
   defaultPatientId?: string;
   defaultClinicalNoteId?: string;
   defaultAppointmentId?: string;
@@ -44,6 +54,7 @@ const COMMON_ROUTES = ['Oral', 'Topical', 'Sublingual', 'Inhalation', 'Other'];
 
 export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
   initialPrescription,
+  initialTemplate,
   defaultPatientId,
   defaultClinicalNoteId,
   defaultAppointmentId,
@@ -62,7 +73,7 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
   );
 
   const [clinicalNotes, setClinicalNotes] = useState(
-    initialPrescription?.clinicalNotes || ''
+    initialPrescription?.clinicalNotes || initialTemplate?.defaultClinicalNotes || ''
   );
   const [prescribedAt, setPrescribedAt] = useState(
     initialPrescription?.prescribedAt
@@ -84,6 +95,18 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
           instructions: it.instructions || '',
           tempId: it.id,
         }))
+      : initialTemplate?.items && initialTemplate.items.length > 0
+      ? initialTemplate.items.map((it, idx) => ({
+          medicineName: it.medicineName,
+          strength: it.strength || '',
+          dosage: it.dosage || '1 tablet',
+          route: it.route || 'Oral',
+          frequency: it.frequency || '1-0-1 (Twice daily)',
+          duration: it.duration || '5 days',
+          quantity: it.quantity || 10,
+          instructions: it.instructions || 'Take after meals',
+          tempId: `tpl-init-${idx}`,
+        }))
       : [
           {
             medicineName: '',
@@ -102,6 +125,14 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Template Modal State
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false);
+  const [appliedTemplateNotice, setAppliedTemplateNotice] = useState<string | null>(
+    initialTemplate ? `Applied template: "${initialTemplate.title}". You can customize any field below.` : null
+  );
+  const [templateAllergyWarning, setTemplateAllergyWarning] = useState<string[] | null>(null);
+
   // Find active patient details
   const activePatient = useMemo(() => {
     return patients.find(
@@ -118,13 +149,44 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
   const sourceId = sourceChoice?.context === contextKey ? sourceChoice.id : defaultConsultation?.id || '';
   const selectedConsultation = consultations.find(note => note.id === sourceId);
   const [diagnosisOverride, setDiagnosisOverride] = useState<{ context: string; value: string } | null>(
-    initialPrescription?.diagnosis?.trim() ? { context: contextKey, value: initialPrescription.diagnosis } : null
+    initialPrescription?.diagnosis?.trim()
+      ? { context: contextKey, value: initialPrescription.diagnosis }
+      : initialTemplate?.defaultDiagnosis
+      ? { context: contextKey, value: initialTemplate.defaultDiagnosis }
+      : null
   );
   const diagnosis = diagnosisOverride?.context === contextKey ? diagnosisOverride.value : selectedConsultation?.primaryDiagnosis?.trim() || '';
 
   const medicalAlerts: string[] =
     (activePatient as any)?.medicalAlerts ||
     (activePatient?.allergiesDetails ? [activePatient.allergiesDetails] : []);
+
+  const handleApplyTemplate = (template: PrescriptionTemplate) => {
+    setDiagnosisOverride({ context: contextKey, value: template.defaultDiagnosis });
+    if (!clinicalNotes.trim()) {
+      setClinicalNotes(template.defaultClinicalNotes);
+    }
+    setItems(
+      template.items.map((it, idx) => ({
+        medicineName: it.medicineName,
+        strength: it.strength || '',
+        dosage: it.dosage || '1 tablet',
+        route: it.route || 'Oral',
+        frequency: it.frequency || '1-0-1 (Twice daily)',
+        duration: it.duration || '5 days',
+        quantity: it.quantity || 10,
+        instructions: it.instructions || 'Take after meals',
+        tempId: `tpl-med-${Date.now()}-${idx}`,
+      }))
+    );
+
+    const warnings = checkPatientAllergiesForTemplate(template, medicalAlerts);
+    setTemplateAllergyWarning(warnings.length > 0 ? warnings : null);
+    setAppliedTemplateNotice(
+      `Applied template: "${template.title}". Customize any medication or instructions below.`
+    );
+    setError(null);
+  };
 
   const handleAddItem = () => {
     setItems((prev) => [
@@ -398,6 +460,38 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
             </div>
           </div>
 
+          {/* Applied Template Notice & Allergy Warnings */}
+          {appliedTemplateNotice && (
+            <div className="rxt-applied-banner" role="status">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Check size={16} />
+                <span>{appliedTemplateNotice}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAppliedTemplateNotice(null)}
+                className="rxt-banner-close"
+                title="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {templateAllergyWarning && templateAllergyWarning.length > 0 && (
+            <div className="rx-alert-box rx-alert-danger" role="alert">
+              <AlertTriangle />
+              <div>
+                <strong>Prescription Allergy Safety Warning:</strong>
+                <ul style={{ margin: '4px 0 0', paddingLeft: '16px' }}>
+                  {templateAllergyWarning.map((w, idx) => (
+                    <li key={idx}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
           {/* Section 3: Medication Items */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div className="rx-med-head">
@@ -409,14 +503,40 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
                   {items.length} {items.length === 1 ? 'drug' : 'drugs'}
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={handleAddItem}
-                className="rx-btn rx-btn-secondary rx-btn-sm"
-              >
-                <Plus />
-                Add Medication
-              </button>
+
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsTemplateModalOpen(true)}
+                  className="rx-btn rx-btn-secondary rx-btn-sm rxt-template-trigger-btn"
+                  title="Choose from standard procedure prescription templates"
+                  data-testid="open-prescription-templates-btn"
+                >
+                  <Zap size={14} style={{ color: '#0d9488' }} />
+                  <span>Procedure Templates</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSaveTemplateModalOpen(true)}
+                  className="rx-btn rx-btn-secondary rx-btn-sm"
+                  title="Save current medications as a reusable template"
+                  disabled={items.length === 0 || !items[0].medicineName.trim()}
+                  data-testid="save-prescription-template-btn"
+                >
+                  <BookmarkPlus size={14} />
+                  <span>Save as Template</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleAddItem}
+                  className="rx-btn rx-btn-secondary rx-btn-sm"
+                >
+                  <Plus />
+                  Add Medication
+                </button>
+              </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -602,6 +722,27 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Template Selector Modal */}
+      <PrescriptionTemplateModal
+        isOpen={isTemplateModalOpen}
+        onClose={() => setIsTemplateModalOpen(false)}
+        onSelectTemplate={handleApplyTemplate}
+        patientName={activePatient ? `${activePatient.firstName} ${activePatient.lastName}` : undefined}
+        patientAllergies={medicalAlerts}
+      />
+
+      {/* Save Custom Template Modal */}
+      <SavePrescriptionTemplateModal
+        isOpen={isSaveTemplateModalOpen}
+        onClose={() => setIsSaveTemplateModalOpen(false)}
+        onSaved={(newTpl) => {
+          setAppliedTemplateNotice(`Custom template "${newTpl.title}" saved successfully to reusable library.`);
+        }}
+        defaultDiagnosis={diagnosis}
+        defaultClinicalNotes={clinicalNotes}
+        items={items}
+      />
     </div>
   );
 };
