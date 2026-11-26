@@ -84,13 +84,12 @@ export const PrescriptionTemplateModal: React.FC<PrescriptionTemplateModalProps>
         <div className="rx-modal-header rxt-header">
           <div className="rx-modal-header-info">
             <div className="rx-modal-header-icon" style={{ background: 'rgba(13, 148, 136, 0.12)', color: '#0d9488' }}>
-              <Zap size={22} />
+              <Zap size={20} />
             </div>
             <div className="rx-modal-header-text">
               <h2>Reusable Dental Prescription Templates</h2>
               <p>
-                Standard procedure protocols for dental practice · Select to customize for{' '}
-                <strong>{patientName || 'patient'}</strong>
+                Standard clinical protocols for common procedures{patientName ? ` · Patient: ${patientName}` : ''}
               </p>
             </div>
           </div>
@@ -100,7 +99,7 @@ export const PrescriptionTemplateModal: React.FC<PrescriptionTemplateModalProps>
             className="rx-modal-close-btn"
             aria-label="Close templates"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
@@ -123,7 +122,7 @@ export const PrescriptionTemplateModal: React.FC<PrescriptionTemplateModalProps>
             <Search size={16} />
             <input
               type="text"
-              placeholder="Search templates by procedure (e.g. RCT, Extraction, Implant, Abscess), drug, or diagnosis..."
+              placeholder="Search procedures or medications..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="rxt-search-input"
@@ -208,12 +207,6 @@ export const PrescriptionTemplateModal: React.FC<PrescriptionTemplateModalProps>
                     </div>
 
                     <h3 className="rxt-card-title">{template.title}</h3>
-                    <p className="rxt-card-desc">{template.description}</p>
-
-                    <div className="rxt-diag-box">
-                      <span className="rxt-diag-label">Default Diagnosis:</span>
-                      <span className="rxt-diag-value">{template.defaultDiagnosis}</span>
-                    </div>
 
                     {/* Allergy Warning Strip */}
                     {hasAllergyConflict && (
@@ -231,32 +224,27 @@ export const PrescriptionTemplateModal: React.FC<PrescriptionTemplateModalProps>
                     )}
 
                     {/* Medications List */}
-                    <div className="rxt-meds-section">
-                      <span className="rxt-meds-title">
-                        <Pill size={13} /> {template.items.length} Prescribed Medications:
-                      </span>
-                      <div className="rxt-meds-list">
-                        {template.items.map((it, idx) => (
-                          <div key={idx} className="rxt-med-item">
-                            <div className="rxt-med-main">
-                              <span className="rxt-med-name">
-                                {it.medicineName} {it.strength ? `(${it.strength})` : ''}
-                              </span>
-                              {it.purpose && (
-                                <span className="rxt-med-purpose">{it.purpose}</span>
-                              )}
-                            </div>
-                            <div className="rxt-med-sub">
-                              <span className="rxt-med-spec">
-                                <strong>Dose:</strong> {it.dosage} · <strong>Freq:</strong> {it.frequency} · <strong>Duration:</strong> {it.duration}
-                              </span>
-                              {it.instructions && (
-                                <span className="rxt-med-inst">"{it.instructions}"</span>
-                              )}
-                            </div>
+                    <div className="rxt-meds-list">
+                      {template.items.map((it, idx) => (
+                        <div key={idx} className="rxt-med-item">
+                          <div className="rxt-med-main">
+                            <span className="rxt-med-name">
+                              {it.medicineName} {it.strength ? `(${it.strength})` : ''}
+                            </span>
+                            {it.purpose && (
+                              <span className="rxt-med-purpose">{it.purpose}</span>
+                            )}
                           </div>
-                        ))}
-                      </div>
+                          <div className="rxt-med-sub">
+                            <span className="rxt-med-spec">
+                              {it.dosage ? `${it.dosage} · ` : ''}{it.frequency} · {it.duration}
+                            </span>
+                            {it.instructions && (
+                              <span className="rxt-med-inst">{it.instructions}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
 
                     {template.cautionNotes && (
@@ -304,10 +292,7 @@ export const PrescriptionTemplateModal: React.FC<PrescriptionTemplateModalProps>
         </div>
 
         {/* Footer */}
-        <div className="rx-modal-footer">
-          <span style={{ fontSize: '12.5px', color: 'var(--text-muted, #64748b)' }}>
-            💡 Selected template pre-fills medication rows and clinical diagnosis. You can adjust all dosages, frequencies, and advice on the next step.
-          </span>
+        <div className="rx-modal-footer" style={{ justifyContent: 'flex-end' }}>
           <button
             type="button"
             className="rx-btn rx-btn-secondary"

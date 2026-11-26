@@ -258,7 +258,7 @@ describe('Reusable Dental Prescription Templates Feature', () => {
       expect(abscessCard).toBeInTheDocument();
 
       // Search templates
-      const searchBox = screen.getByPlaceholderText(/Search templates by procedure/i);
+      const searchBox = screen.getByPlaceholderText(/Search procedures/i);
       fireEvent.change(searchBox, { target: { value: 'Metronidazole' } });
 
       // Should show Acute Dentoalveolar Abscess

@@ -1444,11 +1444,11 @@
 .rxt-card {
   display: flex;
   flex-direction: column;
-  border-radius: var(--rx-radius-md);
+  border-radius: var(--rx-radius-lg);
   border: 1px solid var(--line, #e2e8f0);
   background: var(--surface, #ffffff);
-  padding: 16px 18px;
-  gap: 10px;
+  padding: 18px 20px;
+  gap: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   transition: all 0.2s ease;
 }
@@ -1695,11 +1695,11 @@
 .rxt-med-item {
   display: flex;
   flex-direction: column;
-  padding: 8px 10px;
+  padding: 8px 11px;
   border-radius: var(--rx-radius-sm);
   background: var(--surface-2, #f8fafc);
   border: 1px solid var(--line, #edf2f7);
-  gap: 2px;
+  gap: 3px;
 }
 
 :root[data-theme="dark"] .rxt-med-item {
@@ -1725,13 +1725,15 @@
 }
 
 .rxt-med-purpose {
-  font-size: 10.5px;
-  font-weight: 500;
-  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
   border-radius: 4px;
   background: rgba(13, 148, 136, 0.1);
   color: #0d9488;
   white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 :root[data-theme="dark"] .rxt-med-purpose {
@@ -1748,17 +1750,23 @@
 }
 
 .rxt-med-spec {
-  color: var(--text, #475569);
+  color: var(--text-strong, #334155);
+  font-weight: 600;
+  font-size: 11.5px;
 }
 
 :root[data-theme="dark"] .rxt-med-spec {
-  color: #94a3b8;
+  color: #cbd5e1;
 }
 
 .rxt-med-inst {
-  font-style: italic;
   font-size: 11px;
   color: var(--text-muted, #64748b);
+  line-height: 1.35;
+}
+
+:root[data-theme="dark"] .rxt-med-inst {
+  color: #94a3b8;
 }
 
 .rxt-caution-note {
@@ -1779,7 +1787,7 @@
 }
 
 .rxt-card-footer {
-  margin-top: 6px;
+  margin-top: auto;
   padding-top: 10px;
   border-top: 1px solid var(--line, #f1f5f9);
 }
