@@ -121,7 +121,7 @@ describe('Patients Module Refactoring & Clinical Centralization', () => {
     expect(screen.getByRole('link', { name: /Tooth Chart/i })).toBeInTheDocument()
 
     // Main record tabs
-    const tabs = ['Overview', 'Medical History', 'Activity', 'Billing', 'Documents', 'Consent Records']
+    const tabs = ['Overview', 'Medical History', 'Clinical', 'Billing', 'Documents', 'Activity']
     for (const tab of tabs) {
       expect(screen.getByRole('button', { name: new RegExp(tab, 'i') })).toBeInTheDocument()
     }
@@ -140,8 +140,8 @@ describe('Patients Module Refactoring & Clinical Centralization', () => {
     expect(screen.getByText(/Diagnostic Records & Radiographs/i)).toBeInTheDocument()
     expect(screen.getByText(/Diagnostic Digital RVG X-Ray/i)).toBeInTheDocument()
 
-    // Switch to Consent Records Tab
-    fireEvent.click(within(screen.getByRole('navigation', { name: 'Patient Profile Sections' })).getByRole('button', { name: /Consent Records/i }))
+    // Switch to Consent Records Sub-Tab (under Documents)
+    fireEvent.click(screen.getByTestId('tab-consents'))
     expect(screen.getByText(/Informed Consent & Regulatory Records/i)).toBeInTheDocument()
     expect(screen.getByText(/Informed Consent for Endodontic Root Canal Therapy/i)).toBeInTheDocument()
   })
