@@ -70,7 +70,8 @@ describe('Treatment Plans & Integrated Cost Estimates Module', () => {
       ).toBeInTheDocument();
 
       // Navigate to Clinical section to access secondary tabs
-      await screen.findByRole('navigation', { name: 'Patient Profile Sections' });
+      const clinicalTab = await screen.findByTestId('tab-clinical');
+      fireEvent.click(clinicalTab);
 
       // Check tab exists
       const plansTab = screen.getByTestId('tab-treatment-plans');
