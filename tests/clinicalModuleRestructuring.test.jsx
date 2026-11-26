@@ -119,8 +119,11 @@ describe('DocMatrix — Clinical Module Restructuring & Navigation Verification'
       </MemoryRouter>
     )
 
-    // Verify tab button exists with new label
-    const docsTabBtn = screen.getByRole('button', { name: /X-rays & Documents/i })
+    // Verify Documents main tab and X-rays & Documents sub-tab are active
+    const docsMainBtn = screen.getByTestId('tab-documents-main')
+    expect(docsMainBtn).toBeInTheDocument()
+    expect(docsMainBtn).toHaveClass('is-active')
+    const docsTabBtn = screen.getByTestId('tab-documents')
     expect(docsTabBtn).toBeInTheDocument()
     expect(docsTabBtn).toHaveClass('is-active')
 

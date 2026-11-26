@@ -4348,19 +4348,8 @@ export const saveFullToothChartForPatient = (
 export const resetStoreForTesting = () => {
   pendingAppointmentMutations.clear();
   setAppointmentScheduleConfig();
-  removeFromStorage(STORAGE_KEYS.DATA)
-  patientsState = [...initialPatients]
-  appointmentsState = [...initialAppointments]
-  clinicalNotesState = [...initialClinicalNotes]
-  invoicesState = [...initialInvoices]
-  treatmentPlansState = [...initialTreatmentPlans]
-  patientDocumentsState = [...initialPatientDocuments]
-  patientConsentsState = [...initialPatientConsents]
-  toothChartsState = { ...initialToothCharts }
-  enquiriesState = [...initialEnquiries]
-  prescriptionsState = [...initialPrescriptions]
-  walkInCounter = 101
-  emitChange()
+  clearClinicStore();
+  walkInCounter = 101;
 }
 
 
