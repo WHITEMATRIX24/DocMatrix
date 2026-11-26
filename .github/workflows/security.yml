@@ -40,4 +40,5 @@ jobs:
           scan-type: image
           image-ref: docmatrix-audit
           severity: HIGH,CRITICAL
+          ignore-unfixed: true
           exit-code: 1

@@ -13,6 +13,8 @@ export type MedicalAnswer = 'yes' | 'no' | 'unknown'
 export interface PatientRecord {
   id: string
   backendId?: string
+  patientCode?: string
+  medicalSafetyAlerts?: string[]
   firstName: string
   lastName: string
   age: string

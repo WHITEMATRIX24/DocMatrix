@@ -741,7 +741,7 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
         }}
         defaultDiagnosis={diagnosis}
         defaultClinicalNotes={clinicalNotes}
-        items={items}
+        items={items.map(item => ({ ...item, strength: item.strength || '', route: item.route || '', instructions: item.instructions || '' }))}
       />
     </div>
   );
