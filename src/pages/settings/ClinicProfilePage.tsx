@@ -1,3 +1,4 @@
+import { setAppointmentScheduleConfig } from '@/services/appointmentPolicy'
 import { browserSessionStorage } from '@/services/browserStorage';
 import React, { useState, useEffect } from 'react'
 import {
@@ -175,6 +176,7 @@ export const ClinicProfilePage: React.FC = () => {
       })
 
       const finalRecord = updated && updated.name ? updated : formData
+      setAppointmentScheduleConfig({ timezone: finalRecord.timezone, workingHours: finalRecord.workingHours })
       setFormData(finalRecord)
       setInitialData(finalRecord)
       setFeedback({ type: 'success', message: 'Clinic profile & letterhead configuration saved successfully.' })

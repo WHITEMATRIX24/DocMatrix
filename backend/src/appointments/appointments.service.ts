@@ -1,8 +1,10 @@
+import { randomBytes } from 'crypto';
 import { surgeryConsentPolicy } from '../common/clinical-governance.js';
 import { clinicInstant, localParts } from '../common/clinic-time.js';
 import { practitionerWhere } from '../common/practitioner.policy.js';
 import { Prisma } from '@prisma/client';
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { canTransition } from './appointment-policy.js';
 import { AppointmentPriority, AppointmentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CreateAppointmentDto } from './dto/create-appointment.dto.js';
@@ -13,6 +15,11 @@ import { CancelAppointmentDto } from './dto/cancel-appointment.dto.js';
 @Injectable()
 export class AppointmentsService {
   constructor(private prisma: PrismaService) {}
+
+  async getSchedulingConfig(clinicId: string) {
+    const clinic = await this.clinicSettings(clinicId);
+    return { timezone: clinic.timezone, workingHours: (clinic.extendedSettings as any)?.workingHours || {} };
+  }
 
   private async clinicSettings(clinicId: string, client: any = this.prisma) {
     const clinic = await client.clinic.findUnique({ where: { id: clinicId } });
@@ -48,7 +55,8 @@ export class AppointmentsService {
   }
 
   private parseStatus(status?: string): AppointmentStatus {
-    if (!status) return AppointmentStatus.SCHEDULED;
+    if (status === undefined) return AppointmentStatus.SCHEDULED;
+    if (typeof status !== 'string' || !status.trim()) throw new BadRequestException('Unsupported appointment status.');
     const s = status.toLowerCase().trim();
     switch (s) {
       case 'checked-in':
@@ -68,8 +76,9 @@ export class AppointmentsService {
       case 'no_show':
         return AppointmentStatus.NO_SHOW;
       case 'scheduled':
-      default:
         return AppointmentStatus.SCHEDULED;
+      default:
+        throw new BadRequestException('Unsupported appointment status.');
     }
   }
 
@@ -94,11 +103,13 @@ export class AppointmentsService {
   }
 
   private parsePriority(priority?: string): AppointmentPriority {
-    if (!priority) return AppointmentPriority.NORMAL;
+    if (priority === undefined) return AppointmentPriority.NORMAL;
+    if (typeof priority !== 'string' || !priority.trim()) throw new BadRequestException('Unsupported appointment priority.');
     const p = priority.toLowerCase().trim();
     if (p === 'urgent') return AppointmentPriority.URGENT;
     if (p === 'emergency') return AppointmentPriority.EMERGENCY;
-    return AppointmentPriority.NORMAL;
+    if (p === 'normal') return AppointmentPriority.NORMAL;
+    throw new BadRequestException('Unsupported appointment priority.');
   }
 
   private serializeAppointment(appt: any, timezone = 'UTC') {
@@ -131,6 +142,14 @@ export class AppointmentsService {
       isWalkIn: appt.isWalkIn,
       createdAt: appt.createdAt.toISOString(),
       updatedAt: appt.updatedAt.toISOString(),
+      bookingRef: appt.bookingRef || undefined,
+      revisitOfId: appt.revisitOfId || undefined,
+      revision: appt.revision || 0,
+      rescheduleHistory: appt.rescheduleHistory || [],
+      statusHistory: appt.statusHistory || [],
+      checkInTime: appt.checkInTime ? localParts(new Date(appt.checkInTime), timezone).time : undefined,
+      consultationStartTime: appt.consultationStartTime ? localParts(new Date(appt.consultationStartTime), timezone).time : undefined,
+      completedTime: appt.completedTime ? localParts(new Date(appt.completedTime), timezone).time : undefined,
     };
   }
 
@@ -197,8 +216,18 @@ export class AppointmentsService {
     return this.serializeAppointment(appt, clinic.timezone);
   }
 
-  async createAppointment(clinicId: string, dto: CreateAppointmentDto) {
+  async createAppointment(clinicId: string, dto: CreateAppointmentDto, actorId?: string) {
     return this.scheduleMutation(clinicId, async (tx, clinic) => {
+    if (dto.bookingRef) {
+      const previous = await tx.appointment.findFirst({ where: { clinicId, bookingRef: dto.bookingRef }, include: { patient: true, doctor: true } });
+      if (previous) return this.serializeAppointment(previous, clinic.timezone);
+    }
+    if (dto.revisitOfId) {
+      const prior = await tx.appointment.findFirst({ where: { clinicId, id: dto.revisitOfId } });
+      if (!prior || prior.status !== 'COMPLETED') throw new BadRequestException('A revisit must reference a completed visit in this clinic.');
+      const patient = await tx.patient.findFirst({ where: { clinicId, OR: [{ id: dto.patientId }, { patientCode: dto.patientId }] } });
+      if (!patient || patient.id !== prior.patientId) throw new BadRequestException('A revisit must belong to the same patient.');
+    }
     // 1. Cross-clinic patient validation
     const patient = await tx.patient.findFirst({
       where: {
@@ -234,7 +263,7 @@ export class AppointmentsService {
 
     // 3. Date & time calculation
     const duration = dto.durationMinutes ?? 30;
-    if (!Number.isInteger(duration) || duration < 1 || duration > 1440) throw new BadRequestException('Duration must be between 1 and 1440 minutes.');
+    if (!Number.isInteger(duration) || duration < 5 || duration > 1440) throw new BadRequestException('Duration must be between 5 and 1440 minutes.');
     const startTime = clinicInstant(dto.date, dto.time, clinic.timezone);
     if (isNaN(startTime.getTime())) {
       throw new BadRequestException('Invalid date or time format. Expected YYYY-MM-DD and HH:MM.');
@@ -243,6 +272,7 @@ export class AppointmentsService {
 
     const status = this.parseStatus(dto.status);
     const priority = this.parsePriority(dto.priority);
+    if (!['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'].includes(status)) throw new BadRequestException('New appointments must be scheduled, confirmed or checked in.');
 
     await this.assertSlot(tx, clinic, { startTime, endTime, doctorId: resolvedDoctorId, chair: dto.chair, priority, status });
 
@@ -262,6 +292,10 @@ export class AppointmentsService {
         priority,
         notes: dto.notes || null,
         isWalkIn: dto.isWalkIn ?? false,
+        bookingRef: dto.bookingRef || `APT-${randomBytes(3).toString('hex').toUpperCase()}`,
+        revisitOfId: dto.revisitOfId || null,
+        statusHistory: [{ status: this.formatStatus(status), timestamp: new Date().toISOString(), note: 'Appointment booked.', actorId: actorId || null }],
+        ...(status === 'CHECKED_IN' ? { checkInTime: new Date() } : {}),
       },
       include: {
         patient: {
@@ -277,17 +311,29 @@ export class AppointmentsService {
     });
   }
 
-  async updateAppointment(clinicId: string, id: string, dto: UpdateAppointmentDto) {
+  async updateAppointment(clinicId: string, id: string, dto: UpdateAppointmentDto, actorId?: string) {
     return this.scheduleMutation(clinicId, async (tx, clinic) => {
     const existing = await this.getAppointment(clinicId, id, tx, clinic);
+    if (dto.expectedRevision !== undefined && dto.expectedRevision !== existing.revision) throw new ConflictException('This appointment changed. Refresh it before trying again.');
+    const nextStatus = dto.status !== undefined ? this.formatStatus(this.parseStatus(dto.status)) : existing.status;
+    const moved = (dto.date !== undefined && dto.date !== existing.date) || (dto.time !== undefined && dto.time !== existing.time);
+    const scheduleChanged = moved || dto.durationMinutes !== undefined || dto.doctorId !== undefined || dto.chair !== undefined;
+    if (scheduleChanged && !['scheduled', 'confirmed'].includes(existing.status)) throw new BadRequestException('Only upcoming appointments can be rescheduled. Book a separate revisit for a completed visit.');
+    if (!canTransition(existing.status, nextStatus)) throw new BadRequestException(`Cannot change ${existing.status} to ${nextStatus}.`);
+    const reason = (dto.reason || dto.cancellationReason || '').trim();
+    if (existing.status === 'cancelled' && reason && reason !== existing.cancellationReason) throw new BadRequestException('This appointment is already cancelled. Its cancellation reason is preserved.');
+    if (nextStatus === 'cancelled' && existing.status !== 'cancelled' && !reason) throw new BadRequestException('Enter a reason for cancellation.');
+    if (moved && !reason) throw new BadRequestException('Enter a reason for rescheduling.');
+    const eventTime = new Date();
+    const statusChanged = nextStatus !== existing.status;
 
     let startTime = new Date(existing.startTime);
     const duration = dto.durationMinutes ?? existing.durationMinutes;
-    if (!Number.isInteger(duration) || duration < 1 || duration > 1440) throw new BadRequestException('Duration must be between 1 and 1440 minutes.');
+    if (!Number.isInteger(duration) || duration < 5 || duration > 1440) throw new BadRequestException('Duration must be between 5 and 1440 minutes.');
 
-    if (dto.date || dto.time) {
-      const datePart = dto.date || existing.date;
-      const timePart = dto.time || existing.time;
+    if (dto.date !== undefined || dto.time !== undefined) {
+      const datePart = dto.date ?? existing.date;
+      const timePart = dto.time ?? existing.time;
       startTime = clinicInstant(datePart, timePart, clinic.timezone);
     }
 
@@ -302,16 +348,24 @@ export class AppointmentsService {
       }
     }
 
-    if (dto.date || dto.time || dto.durationMinutes !== undefined || dto.doctorId !== undefined || dto.chair !== undefined || (['cancelled', 'no-show'].includes(existing.status) && dto.status && !['cancelled', 'no-show'].includes(dto.status)))
+    if (scheduleChanged || dto.priority !== undefined || statusChanged)
     await this.assertSlot(tx, clinic, { startTime, endTime, doctorId: dto.doctorId ?? existing.doctorId, chair: dto.chair ?? existing.chair, priority: dto.priority ?? existing.priority, status: this.parseStatus(dto.status ?? existing.status) }, id);
 
     if (dto.status && ['IN_PROGRESS','COMPLETED'].includes(this.parseStatus(dto.status))) {
+      if (nextStatus === 'in-progress' && existing.doctorId && await tx.appointment.findFirst({ where: { clinicId, doctorId: existing.doctorId, status: 'IN_PROGRESS', id: { not: id } } })) throw new BadRequestException('This doctor already has a consultation in progress.');
       const record = await tx.appointment.findFirst({ where: { id, clinicId }, select: { patientId: true, treatmentType: true } });
       if (record) await surgeryConsentPolicy(tx, clinicId, record.patientId, { procedureName: dto.treatmentType || record.treatmentType || '' });
     }
     const updated = await tx.appointment.update({
       where: { id },
       data: {
+        revision: { increment: 1 },
+        ...(moved ? { rescheduleHistory: [...existing.rescheduleHistory, { previousDate: existing.date, previousTime: existing.time, newDate: dto.date || existing.date, newTime: dto.time || existing.time, reason, changedAt: eventTime.toISOString(), actorId: actorId || null }] } : {}),
+        ...(statusChanged || moved ? { statusHistory: [...existing.statusHistory, { status: nextStatus, timestamp: eventTime.toISOString(), note: reason || `Status updated to ${nextStatus}`, actorId: actorId || null }] } : {}),
+        ...(nextStatus === 'cancelled' ? { cancellationReason: reason || existing.cancellationReason } : {}),
+        ...(statusChanged && nextStatus === 'checked-in' ? { checkInTime: eventTime } : {}),
+        ...(statusChanged && nextStatus === 'in-progress' ? { consultationStartTime: eventTime } : {}),
+        ...(statusChanged && nextStatus === 'completed' ? { completedTime: eventTime } : {}),
         ...(dto.doctorId !== undefined && { doctorId: dto.doctorId || null }),
         ...(dto.date || dto.time ? { startTime, endTime } : {}),
         ...(dto.durationMinutes !== undefined && { durationMinutes: duration, endTime }),
@@ -322,7 +376,6 @@ export class AppointmentsService {
         ...(dto.priority !== undefined && { priority: this.parsePriority(dto.priority) }),
         ...(dto.notes !== undefined && { notes: dto.notes || null }),
         ...(dto.isWalkIn !== undefined && { isWalkIn: dto.isWalkIn }),
-        ...(dto.cancellationReason !== undefined && { cancellationReason: dto.cancellationReason || null }),
       },
       include: {
         patient: {
@@ -338,31 +391,9 @@ export class AppointmentsService {
     });
   }
 
-  async cancelAppointment(clinicId: string, id: string, dto: CancelAppointmentDto) {
-    return this.scheduleMutation(clinicId, async (tx, clinic) => {
-    await this.getAppointment(clinicId, id, tx, clinic);
-
-    const cancelled = await tx.appointment.update({
-      where: { id },
-      data: {
-        status: AppointmentStatus.CANCELLED,
-        cancellationReason: dto.reason.trim(),
-      },
-      include: {
-        patient: {
-          select: { firstName: true, lastName: true, patientCode: true, mobile: true },
-        },
-        doctor: {
-          select: { id: true, fullName: true, role: true },
-        },
-      },
-    });
-
-    return {
-      message: 'Appointment successfully cancelled.',
-      appointment: this.serializeAppointment(cancelled, clinic.timezone),
-    };
-    });
+  async cancelAppointment(clinicId: string, id: string, dto: CancelAppointmentDto, actorId?: string) {
+    if (!dto.reason?.trim()) throw new BadRequestException('Enter a reason for cancellation.');
+    return { message: 'Appointment successfully cancelled.', appointment: await this.updateAppointment(clinicId, id, { status: 'cancelled', reason: dto.reason }, actorId) };
   }
 
   async getLiveQueue(clinicId: string, dateStr?: string) {

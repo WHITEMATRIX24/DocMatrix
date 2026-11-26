@@ -1,3 +1,4 @@
+import { PrescriptionModal } from './PrescriptionModal';
 import { canClinic, getPermissionUser } from '@/services/permissions'
 import React, { useState } from 'react';
 import {
@@ -38,6 +39,7 @@ export const ClinicalNoteDetailsModal: React.FC<ClinicalNoteDetailsModalProps> =
   const isDraft = !isFinal;
 
   const [addendumText, setAddendumText] = useState('');
+  const [issuingPrescription, setIssuingPrescription] = useState(false);
   const [submittingAddendum, setSubmittingAddendum] = useState(false);
   const [addendumError, setAddendumError] = useState<string | null>(null);
 
@@ -76,6 +78,13 @@ export const ClinicalNoteDetailsModal: React.FC<ClinicalNoteDetailsModalProps> =
         day: 'numeric',
       })
     : note.visitDate;
+
+  if (issuingPrescription) return <PrescriptionModal
+    defaultPatientId={note.patient?.id || note.patientId}
+    defaultClinicalNoteId={note.id}
+    onClose={() => setIssuingPrescription(false)}
+    onSaved={() => setIssuingPrescription(false)}
+  />;
 
   return (
     <div className="cn-modal-overlay">
@@ -428,6 +437,7 @@ export const ClinicalNoteDetailsModal: React.FC<ClinicalNoteDetailsModalProps> =
           </button>
 
           <div style={{ display: 'flex', gap: '8px' }}>
+            {isFinal && canClinic(getPermissionUser(), 'clinical.write') && <button type="button" className="cn-btn cn-btn-primary" onClick={() => setIssuingPrescription(true)}>Issue Prescription</button>}
             <button
               type="button"
               className="cn-btn cn-btn-secondary"

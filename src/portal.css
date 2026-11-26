@@ -9,6 +9,7 @@
   --surface: rgba(255, 255, 255, 0.68);
   --surface-alt: rgba(240, 244, 244, 0.72);
   --surface-raised: rgba(255, 255, 255, 0.88);
+  --surface-hover: rgba(16, 42, 42, 0.04);
   --surface-sunken: rgba(16, 42, 42, 0.05);
   --line: rgba(16, 42, 42, 0.08);
   --line-strong: rgba(16, 42, 42, 0.14);
@@ -102,6 +103,7 @@
   --surface: rgba(24, 36, 37, 0.58);
   --surface-alt: rgba(255, 255, 255, 0.045);
   --surface-raised: rgba(20, 31, 32, 0.9);
+  --surface-hover: rgba(255, 255, 255, 0.05);
   --surface-sunken: rgba(255, 255, 255, 0.05);
   --line: rgba(220, 245, 240, 0.08);
   --line-strong: rgba(220, 245, 240, 0.14);

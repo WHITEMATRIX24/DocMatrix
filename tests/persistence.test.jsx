@@ -98,6 +98,8 @@ describe('DocMatrix Demonstration Persistence Engine', () => {
     })
 
     expect(appt.id).toBeDefined()
+    updateAppointmentStatus(appt.id, 'checked-in')
+    updateAppointmentStatus(appt.id, 'in-progress')
     updateAppointmentStatus(appt.id, 'completed', 'Cleaned teeth and polished')
 
     const stored = JSON.parse(browserLocalStorage.getItem(STORAGE_KEYS.DATA) || '{}')

@@ -1,5 +1,6 @@
+import { getClinicNow, useClinicToday } from '@/services/appointmentPolicy'
 import { canClinic, getPermissionUser } from '@/services/permissions'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import './calendar.css'
 import { Link } from 'react-router-dom'
@@ -22,6 +23,7 @@ import {
   useClinicData,
   registerWalkIn,
   updateAppointmentStatus,
+  generateBookingRef,
   DENTISTS,
   type AppointmentRecord,
   type AppointmentPriority,
@@ -41,6 +43,10 @@ import {
 
 export const LiveQueuePage: React.FC = () => {
   const { appointments, patients } = useClinicData()
+  const clinicToday = useClinicToday()
+  const [actionSaving, setActionSaving] = useState(false)
+  const [actionError, setActionError] = useState('')
+  const walkInAttempt = useRef(generateBookingRef())
   const [activeInvoice, setActiveInvoice] = useState<InvoiceRecord | null>(null)
   const [invoiceToast, setInvoiceToast] = useState<InvoiceSuccessToastData | null>(null)
   const [callInToast, setCallInToast] = useState<CallInToastData | null>(null)
@@ -75,16 +81,20 @@ export const LiveQueuePage: React.FC = () => {
     }
   }, [modalOpen])
 
-  const handleCallInVisit = (appt: AppointmentRecord) => {
-    updateAppointmentStatus(appt.id, 'in-progress', 'Patient called in to consultation room')
+  const handleCallInVisit = async (appt: AppointmentRecord) => {
+    if (actionSaving) return
+    setActionSaving(true); setActionError('')
+    try { await updateAppointmentStatus(appt.id, 'in-progress', 'Patient called in to consultation room') }
+    catch (error: any) { setActionError(error.message || 'Call-in was not saved.'); setActionSaving(false); return }
+    setActionSaving(false)
     const patient = patients.find((p) => p.id === appt.patientId || p.backendId === appt.patientId)
     void sendCallInWhatsAppMessage(appt, patient)
       .then((res) => {
-        if (res.status === 'sent') {
+        if (res.status === 'opened') {
           setCallInToast({
             type: 'success',
-            title: 'Patient Called-In & WhatsApp Sent',
-            message: `WhatsApp message sent to ${res.patientName} (${res.recipient}).`,
+            title: 'Patient Called-In — WhatsApp Opened',
+            message: `WhatsApp compose window opened for ${res.patientName} (${res.recipient}).`,
           })
         } else if (res.status === 'invalid_phone' || res.status === 'error') {
           setCallInToast({
@@ -103,18 +113,24 @@ export const LiveQueuePage: React.FC = () => {
       })
   }
 
-  const handleCompleteVisit = (appt: AppointmentRecord) => {
-    updateAppointmentStatus(appt.id, 'completed')
+  const handleCompleteVisit = async (appt: AppointmentRecord) => {
+    if (actionSaving) return
+    setActionSaving(true); setActionError('')
+    try {
+    await updateAppointmentStatus(appt.id, 'completed')
     const result = autoGenerateInvoiceForConsultation({
       appointment: appt,
       patientId: appt.patientId,
     })
     if (result.invoice) {
+      const invoice = await result.invoice
       setInvoiceToast({
-        invoiceNumber: result.invoice.id,
-        amount: result.invoice.amount,
+        invoiceNumber: invoice.id,
+        amount: invoice.amount,
       })
     }
+    } catch (error: any) { setActionError(error.message || 'Completion was not saved.') }
+    finally { setActionSaving(false) }
   }
 
   const handleOpenConsultationBilling = (appt: AppointmentRecord) => {
@@ -138,6 +154,7 @@ export const LiveQueuePage: React.FC = () => {
     setWalkInSaving(true); setWalkInError('');
     try {
     await registerWalkIn({
+      bookingRef: walkInAttempt.current,
       dateOfBirth: walkInDob,
       patientName: walkInForm.patientName.trim(),
       mobile: walkInForm.mobile.trim(),
@@ -158,11 +175,20 @@ export const LiveQueuePage: React.FC = () => {
       priority: 'normal'
     })
     setModalOpen(false)
+    walkInAttempt.current = generateBookingRef()
     } catch (error: any) { setWalkInError(error.message || 'Walk-in was not saved.'); }
     finally { setWalkInSaving(false); }
   }
 
-  const today = new Date().toISOString().slice(0, 10)
+  const handleCheckIn = async (appt: AppointmentRecord) => {
+    if (actionSaving) return
+    setActionSaving(true); setActionError('')
+    try { await updateAppointmentStatus(appt.id, 'checked-in', 'Patient arrived at clinic.') }
+    catch (error: any) { setActionError(error.message || 'Check-in was not saved.') }
+    finally { setActionSaving(false) }
+  }
+
+  const today = clinicToday
   const todayAppointments = appointments.filter((a) => a.date === today && a.status !== 'cancelled')
 
   // Filter queue columns
@@ -175,6 +201,7 @@ export const LiveQueuePage: React.FC = () => {
 
   return (
     <div className="live-queue-page" data-testid="feature-page-appt.queue">
+      {actionError && <p role="alert">{actionError}</p>}
       {/* Top Banner & Stats */}
       <div className="queue-summary-banner">
         <div className="queue-metric-card">
@@ -258,7 +285,7 @@ export const LiveQueuePage: React.FC = () => {
                     <div className="queue-card-actions">
                       <button
                         className="btn-start-consult"
-                        disabled={!canClinic(getPermissionUser(), 'appointment.consult')}
+                        disabled={actionSaving || !canClinic(getPermissionUser(), 'appointment.consult')}
                         onClick={() => handleCallInVisit(appt)}
                       >
                         <Play size={13} />
@@ -314,7 +341,7 @@ export const LiveQueuePage: React.FC = () => {
                     <div className="queue-card-actions">
                       <button
                         className="btn-complete-visit"
-                        disabled={!canClinic(getPermissionUser(), 'appointment.consult')} onClick={() => handleCompleteVisit(appt)}
+                        disabled={actionSaving || !canClinic(getPermissionUser(), 'appointment.consult')} onClick={() => handleCompleteVisit(appt)}
                         title="Complete consultation & generate invoice"
                       >
                         <Check size={13} />
@@ -371,7 +398,7 @@ export const LiveQueuePage: React.FC = () => {
                     <div className="queue-card-actions">
                       <button
                         className="btn-checkin-arrival"
-                        onClick={() => updateAppointmentStatus(appt.id, 'checked-in', 'Patient arrived at clinic.')}
+                        disabled={actionSaving} onClick={() => void handleCheckIn(appt)}
                       >
                         <UserPlus size={13} />
                         <span>Check-In Patient</span>

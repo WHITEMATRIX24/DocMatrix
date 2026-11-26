@@ -6,6 +6,7 @@ import { useSyncExternalStore } from 'react'
 import { loadFromStorage, saveToStorage, removeFromStorage, STORAGE_KEYS } from './storageService'
 import { apiClient } from './apiClient'
 import { billingApi, toFrontendStatus, toFrontendMode, toBackendMode, type BackendInvoice } from './billingApi'
+import { canRescheduleAppointment, canTransitionAppointment, clinicHours, getClinicNow, setAppointmentScheduleConfig } from './appointmentPolicy'
 
 export type MedicalAnswer = 'yes' | 'no' | 'unknown'
 
@@ -67,6 +68,8 @@ export interface AppointmentRecord {
   id: string
   backendId?: string
   bookingRef?: string
+  revisitOfId?: string
+  revision?: number
   patientId: string
   patientName?: string
   doctor: string
@@ -410,9 +413,7 @@ export interface TreatmentType {
 }
 
 export const getTodayDateStr = (): string => {
-  const d = new Date()
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
-  return d.toISOString().slice(0, 10)
+  return getClinicNow().date
 }
 
 const DENTIST_COLORS = ['#0ea5e9', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#6366f1'];
@@ -541,6 +542,7 @@ export interface PrescriptionItemRecord {
 }
 
 export interface PrescriptionRecord {
+  clinicalNoteId?: string;
   id: string;
   clinicId?: string;
   patientId: string;
@@ -884,6 +886,7 @@ export const useClinicData = () => {
  * Initialize or switch clinic session. Cancels any in-flight sync requests.
  */
 export const initClinicSession = (clinicId?: string) => {
+  setAppointmentScheduleConfig();
   mutationContextVersion++;
   currentSyncVersion++;
   const isAuth = isAuthenticatedClinic();
@@ -978,6 +981,23 @@ const loadBookingRefMap = (): Record<string, string> => {
 };
 
 let bookingRefMap: Record<string, string> = loadBookingRefMap();
+
+export const generateBookingRef = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `APT-${crypto.randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase()}`;
+  }
+  return `APT-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+};
+
+export const formatShortBookingRef = (refOrId?: string): string => {
+  if (!refOrId) return '';
+  const clean = refOrId.trim();
+  if (clean.startsWith('APT-')) {
+    const suffix = clean.slice(4).replace(/-/g, '');
+    return `APT-${(suffix.length > 8 ? suffix.slice(0, 6) : suffix).toUpperCase()}`;
+  }
+  return clean.length > 8 ? clean.replace(/-/g, '').slice(0, 8).toUpperCase() : clean.toUpperCase();
+};
 
 export const registerBookingRef = (bookingRef: string, backendId: string) => {
   if (!bookingRef || !backendId) return;
@@ -1168,13 +1188,8 @@ export const resolvePlanDoctor = (
 };
 
 export const mapRemoteAppointment = (a: any): AppointmentRecord => {
-  const resolvedChair = a.chair || a.operatoryChair || 'Chair 1';
-  const dentistByChair = DENTISTS.find((d) => d.chair === resolvedChair);
-  const resolvedDoctor = (a.doctor && a.doctor !== 'Unassigned' && isClinicalDoctorName(a.doctor))
-    ? a.doctor
-    : (a.doctorName && a.doctorName !== 'Unassigned' && isClinicalDoctorName(a.doctorName))
-      ? a.doctorName
-      : (dentistByChair ? dentistByChair.name : (a.doctor || a.doctorName || 'Unassigned'));
+  const resolvedChair = a.chair || a.operatoryChair || undefined;
+  const resolvedDoctor = a.doctor || a.doctorName || 'Unassigned';
   const existing = appointmentsState.find(
     (entry) => entry.id === a.id || entry.backendId === a.id
   );
@@ -1185,7 +1200,15 @@ export const mapRemoteAppointment = (a: any): AppointmentRecord => {
   return {
     id: a.id,
     backendId: a.id,
-    bookingRef: mappedRef,
+    bookingRef: a.bookingRef || mappedRef,
+    revisitOfId: a.revisitOfId,
+    revision: a.revision ?? 0,
+    rescheduleHistory: a.rescheduleHistory || [],
+    statusHistory: a.statusHistory || [],
+    cancellationReason: a.cancellationReason || undefined,
+    checkInTime: a.checkInTime,
+    consultationStartTime: a.consultationStartTime,
+    completedTime: a.completedTime,
     patientId: a.patientCode || a.patient?.patientCode || a.patientId,
     patientName: a.patientName || (a.patient ? `${a.patient.firstName || ''} ${a.patient.lastName || ''}`.trim() : undefined),
     doctor: resolvedDoctor,
@@ -1266,6 +1289,7 @@ export const syncWithBackend = async (): Promise<void> => {
     return;
   }
 
+  if (pendingAppointmentMutations.size) return;
   const syncVersion = ++currentSyncVersion;
   syncStatusState = 'LOADING';
   syncErrorState = null;
@@ -1286,6 +1310,7 @@ export const syncWithBackend = async (): Promise<void> => {
       remoteClinicalNotes,
       remoteTreatmentPlans,
       remoteInvoices,
+      schedulingConfig,
     ] = await Promise.all([
       allowed('patient.read') ? apiClient.get<any[]>('/patients?includeArchived=true') : [],
       allowed('appointment.read') ? apiClient.get<any[]>('/appointments') : [],
@@ -1298,6 +1323,7 @@ export const syncWithBackend = async (): Promise<void> => {
       allowed('treatment.read') ? apiClient.get<any>('/treatment-plans')
         : allowed('billing.invoice.read') ? apiClient.get<any[]>('/billing/treatment-plans') : [],
       allowed('billing.invoice.read') ? billingApi.getInvoices({ limit: 500 }) : { data: [] },
+      allowed('appointment.read') ? apiClient.get<any>('/appointments/scheduling-config') : {},
     ]);
 
     // Also trigger master billing data sync (tariffs, expenses) in background
@@ -1306,6 +1332,7 @@ export const syncWithBackend = async (): Promise<void> => {
       .catch((e) => console.warn('[clinicStore] syncBillingMasterData failed:', e));
 
     if (syncVersion !== currentSyncVersion) return;
+    setAppointmentScheduleConfig(schedulingConfig);
 
     const mappedPatients: PatientRecord[] = Array.isArray(remotePatients)
       ? remotePatients.map((p: any) => ({
@@ -1393,6 +1420,7 @@ export const syncWithBackend = async (): Promise<void> => {
         patientId: p.patientId,
         doctorId: p.doctorId,
         prescriptionNumber: p.prescriptionNumber,
+        clinicalNoteId: p.clinicalNoteId,
         diagnosis: p.diagnosis,
         clinicalNotes: p.clinicalNotes || '',
         status: p.status,
@@ -1640,6 +1668,7 @@ export const syncWithBackend = async (): Promise<void> => {
     );
 
     patientsState = mappedPatients;
+    if (pendingAppointmentMutations.size) return;
     appointmentsState = [...inFlightAppts, ...mappedAppts];
     toothChartsState = remoteCharts && typeof remoteCharts === 'object' ? (remoteCharts as ClinicToothCharts) : {};
     patientDocumentsState = mappedDocs;
@@ -1706,13 +1735,28 @@ export const checkDentistAvailability = (
   date: string,
   time: string,
   durationMinutes = 30,
-  excludeAppointmentId?: string
+  excludeAppointmentId?: string,
+  requestedChair?: string,
+  priority: AppointmentPriority = 'normal'
 ): AvailabilityResult => {
-  const dentist = DENTISTS.find((d) => d.name === doctorName)
-  if (!dentist) {
-    return { available: true } // Custom doctor not in strict list
+  const dentist = DENTISTS.find((d) => d.name.trim().toLowerCase() === doctorName.trim().toLowerCase())
+  const [h, m] = time.split(':').map(Number)
+  const start = h * 60 + m
+  const requestedDate = new Date(`${date}T12:00:00Z`)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time) || !Number.isInteger(durationMinutes) || durationMinutes < 5 || durationMinutes > 1440 || !Number.isFinite(requestedDate.getTime()) || requestedDate.toISOString().slice(0, 10) !== date) return { available: false, reason: 'Enter a valid date, time and duration.' }
+  const chair = requestedChair || dentist?.chair
+  const requestedStart = Date.parse(`${date}T${time}:00Z`) / 60000
+  const conflict = appointmentsState.find(a => !matchesAppointmentId(a, excludeAppointmentId || '') && !['cancelled', 'no-show'].includes(a.status) &&
+    (a.doctor.trim().toLowerCase() === doctorName.trim().toLowerCase() || !!chair && a.chair === chair) &&
+    requestedStart < Date.parse(`${a.date}T${a.time}:00Z`) / 60000 + (a.durationMinutes || 30) && requestedStart + durationMinutes > Date.parse(`${a.date}T${a.time}:00Z`) / 60000)
+  if (conflict) return { available: false, reason: `Doctor or chair already has appointment (${conflict.id}) at ${conflict.time}.` }
+  if (priority === 'emergency') return { available: true }
+  if (isAuthenticatedClinic() || !dentist) {
+    const hours = clinicHours(date)
+    if (!hours) return { available: false, reason: 'The clinic is closed at this time.' }
+    if (start < hours[0] || start + durationMinutes > hours[1]) return { available: false, reason: 'Appointment falls outside clinic working hours.' }
+    return { available: true }
   }
-
   // Check day of week
   const parsedDate = new Date(`${date}T12:00:00`)
   const dayOfWeek = parsedDate.getDay() // 0 = Sunday
@@ -1756,37 +1800,7 @@ export const checkDentistAvailability = (
     }
   }
 
-  // Check for double booking conflicts with other active appointments
-  const conflicting = appointmentsState.find((appt) => {
-    if (appt.id === excludeAppointmentId) return false
-    if (appt.doctor !== doctorName || appt.date !== date) return false
-    if (appt.status === 'cancelled' || appt.status === 'no-show') return false
-
-    const [aH, aM] = appt.time.split(':').map(Number)
-    const apptStart = aH * 60 + aM
-    const apptDuration = appt.durationMinutes || 30
-    const apptEnd = apptStart + apptDuration
-
-    // Overlap condition
-    return reqStart < apptEnd && reqEnd > apptStart
-  })
-
-  if (conflicting) {
-    return {
-      available: false,
-      reason: `${dentist.name} already has appointment (${conflicting.id}) booked from ${conflicting.time} to ${formatEndTime(conflicting.time, conflicting.durationMinutes || 30)}.`
-    }
-  }
-
   return { available: true }
-}
-
-const formatEndTime = (startTime: string, durationMinutes: number) => {
-  const [h, m] = startTime.split(':').map(Number)
-  const total = h * 60 + m + durationMinutes
-  const endH = Math.floor(total / 60)
-  const endM = total % 60
-  return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1804,14 +1818,24 @@ export const bookAppointment = (data: {
   durationMinutes?: number
   priority?: AppointmentPriority
   notes?: string
+  revisitOfId?: string
+  bookingRef?: string
 }): AppointmentRecord => {
+  if (isAuthenticatedClinic() && !canClinic(getPermissionUser(), 'appointment.schedule')) throw new Error('Your role cannot book appointments.');
+  if (data.revisitOfId) {
+    const previous = findAppointment(appointmentsState, data.revisitOfId);
+    if (!previous || previous.status !== 'completed' || previous.patientId !== data.patientId) throw new Error('Select a completed visit for the same patient before booking a revisit.');
+  }
   const dentist = DENTISTS.find((d) => d.name === data.doctor)
   const chair = data.chair || dentist?.chair || 'Chair 1'
-  const localId = `APT-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`
+  const mutationSession = getClinicMutationVersion();
+  const localId = data.bookingRef || generateBookingRef()
 
   const newAppt: AppointmentRecord = {
     id: localId,
     bookingRef: localId,
+    revisitOfId: data.revisitOfId,
+    revision: 0,
     patientId: data.patientId,
     doctor: data.doctor,
     chair,
@@ -1841,7 +1865,7 @@ export const bookAppointment = (data: {
     const token = typeof browserSessionStorage !== 'undefined'
       ? (browserSessionStorage.getItem('docmatrix_auth_token') || browserLocalStorage.getItem('docmatrix_auth_token'))
       : null;
-    if (token) {
+    if (token && isAuthenticatedClinic()) {
       (newAppt as any)._syncing = true;
       const syncTask = async () => {
         const patient = patientsState.find((p) => p.id === data.patientId || p.backendId === data.patientId) as any;
@@ -1850,7 +1874,10 @@ export const bookAppointment = (data: {
         }
         const targetPatientId = patient?.backendId || patient?.id || data.patientId;
 
+        if (getClinicMutationVersion() !== mutationSession) throw new Error('Session changed.');
         const created = await apiClient.post('/appointments', {
+          bookingRef: localId,
+          revisitOfId: data.revisitOfId,
           patientId: targetPatientId,
           doctorName: data.doctor,
           chair,
@@ -1862,9 +1889,13 @@ export const bookAppointment = (data: {
           priority: data.priority || 'normal',
           notes: data.notes || '',
         });
+        if (getClinicMutationVersion() !== mutationSession) throw new Error('Session changed.');
+        if (!created?.id) throw new Error('Appointment saving was not confirmed.');
+        currentSyncVersion++;
         (newAppt as any)._syncing = false;
         if (created?.id) {
           registerBookingRef(localId, created.id);
+          Object.assign(newAppt, mapRemoteAppointment(created));
           newAppt.backendId = created.id;
           newAppt.bookingRef = localId;
           if (created.id !== newAppt.id) {
@@ -1891,142 +1922,62 @@ export const bookAppointment = (data: {
 
       const syncPromise = syncTask().catch((err) => {
         (newAppt as any)._syncing = false;
-        console.error('[clinicStore] bookAppointment sync failed (retained locally):', err);
+        if (getClinicMutationVersion() === mutationSession) {
+          appointmentsState = appointmentsState.filter(a => a !== newAppt && a.bookingRef !== localId);
+          reportPersistenceFailure('Appointment booking', err);
+        }
+        throw err;
       });
       (newAppt as any)._syncPromise = syncPromise;
+      void syncPromise.catch(() => {});
     }
   } catch { /* ignore */ }
 
   return newAppt
 }
 
+const pendingAppointmentMutations = new Set<string>();
+
 export const rescheduleAppointment = (
-  appointmentId: string,
-  newDate: string,
-  newTime: string,
-  reason: string
+  appointmentId: string, newDate: string, newTime: string, reason: string
 ): { success: boolean; error?: string; _syncPromise?: Promise<void> } => {
-  const mutationSession = getClinicMutationVersion();
-  const appt = findAppointment(appointmentsState, appointmentId)
-  if (!appt) return { success: false, error: 'Appointment not found.' }
-
-  const availability = checkDentistAvailability(
-    appt.doctor,
-    newDate,
-    newTime,
-    appt.durationMinutes || 30,
-    appt.id
-  )
-
-  // Only hard-block true appointment double-booking overlaps; allow overriding shift/lunch hours when explicitly rescheduling
-  const isDoubleBooking = Boolean(!availability.available && availability.reason?.includes('already has appointment'))
-  if (isDoubleBooking) {
-    return { success: false, error: availability.reason }
-  }
-
-  const resolvedReason = reason?.trim() || 'Patient requested new time slot.'
-
-  const rescheduleLog: RescheduleRecord = {
-    previousDate: appt.date,
-    previousTime: appt.time,
-    newDate,
-    newTime,
-    reason: resolvedReason,
-    changedAt: new Date().toISOString()
-  }
-
-  const history = appt.rescheduleHistory || []
-
-  appointmentsState = appointmentsState.map((entry) => {
-    if (!matchesAppointmentId(entry, appointmentId)) return entry
-    return {
-      ...entry,
-      date: newDate,
-      time: newTime,
-      status: 'scheduled',
-      rescheduleHistory: [...history, rescheduleLog],
-      statusHistory: [
-        ...(entry.statusHistory || []),
-        {
-          status: 'scheduled',
-          timestamp: new Date().toISOString(),
-          note: `Rescheduled to ${newDate} at ${newTime}. Reason: ${resolvedReason}`
-        }
-      ]
-    }
-  })
-
-  emitChange()
-
-  let persistence: Promise<void> | undefined;
-  // Background sync to backend if authenticated
-  try {
-    const token = typeof browserSessionStorage !== 'undefined'
-      ? (browserSessionStorage.getItem('docmatrix_auth_token') || browserLocalStorage.getItem('docmatrix_auth_token'))
-      : null;
-    const targetId = appt.backendId || resolveAppointmentId(appointmentId);
-    if (token && targetId && !targetId.startsWith('APT-')) {
-      persistence = apiClient.patch(`/appointments/${targetId}`, {
-        date: newDate,
-        time: newTime,
-        status: 'SCHEDULED',
-      }).catch((err) => {
-        if (getClinicMutationVersion() !== mutationSession) throw err;
-        appointmentsState = appointmentsState.map(entry => matchesAppointmentId(entry, appointmentId) ? appt : entry);
-        reportPersistenceFailure('Appointment reschedule', err);
-        throw err;
-      });
-    }
-  } catch { /* ignore */ }
-
-  void persistence?.catch(() => {});
-  return { success: true, _syncPromise: persistence }
+  const context = getClinicMutationVersion();
+  const appt = findAppointment(appointmentsState, appointmentId);
+  if (!appt) return { success: false, error: 'Appointment not found.' };
+  if (isAuthenticatedClinic() && !canClinic(getPermissionUser(), 'appointment.schedule')) return { success: false, error: 'Your role cannot reschedule appointments.' };
+  if (!canRescheduleAppointment(appt.status)) return { success: false, error: 'Only upcoming appointments can be rescheduled. Book a separate revisit for a completed visit.' };
+  if ((appt as any)._syncing || pendingAppointmentMutations.has(appt.id) || (hasAuthToken() && !appt.backendId && appt.id.startsWith('APT-'))) return { success: false, error: 'This appointment is still saving. Please wait and try again.' };
+  if (appt.date === newDate && appt.time === newTime) return { success: true };
+  const available = checkDentistAvailability(appt.doctor, newDate, newTime, appt.durationMinutes || 30, appt.id, appt.chair, appt.priority);
+  if (!available.available) return { success: false, error: available.reason };
+  const resolvedReason = reason.trim();
+  if (!resolvedReason) return { success: false, error: 'Enter a reason for rescheduling.' };
+  const timestamp = new Date().toISOString();
+  const next = { ...appt, date: newDate, time: newTime,
+    rescheduleHistory: [...(appt.rescheduleHistory || []), { previousDate: appt.date, previousTime: appt.time, newDate, newTime, reason: resolvedReason, changedAt: timestamp }],
+    statusHistory: [...(appt.statusHistory || []), { status: appt.status, timestamp, note: resolvedReason }] };
+  const apply = (remote?: any) => {
+    if (getClinicMutationVersion() !== context) throw new Error('Session changed.');
+    currentSyncVersion++;
+    appointmentsState = appointmentsState.map(a => matchesAppointmentId(a, appointmentId) ? remote?.id ? { ...next, ...mapRemoteAppointment(remote) } : next : a);
+    emitChange();
+  };
+  if (!hasAuthToken()) { apply(); return { success: true }; }
+  pendingAppointmentMutations.add(appt.id);
+  const persistence = apiClient.patch(`/appointments/${appt.backendId || appt.id}`, { date: newDate, time: newTime, reason: resolvedReason, expectedRevision: appt.revision ?? 0 })
+    .then(remote => { apply(remote); })
+    .catch(error => { if (getClinicMutationVersion() === context) reportPersistenceFailure('Appointment reschedule', error); throw error; })
+    .finally(() => { pendingAppointmentMutations.delete(appt.id); });
+  void persistence.catch(() => {});
+  return { success: true, _syncPromise: persistence };
 }
 
-export const cancelAppointment = (appointmentId: string, reason: string, persist = true): boolean => {
-  const appt = findAppointment(appointmentsState, appointmentId)
-  if (!appt) return false
-
-  appointmentsState = appointmentsState.map((entry) => {
-    if (!matchesAppointmentId(entry, appointmentId)) return entry
-    return {
-      ...entry,
-      status: 'cancelled',
-      cancellationReason: reason,
-      statusHistory: [
-        ...(entry.statusHistory || []),
-        {
-          status: 'cancelled',
-          timestamp: new Date().toISOString(),
-          note: `Cancelled. Reason: ${reason}`
-        }
-      ]
-    }
-  })
-
-  emitChange()
-
-  // Background sync to backend if authenticated
-  try {
-    const token = typeof browserSessionStorage !== 'undefined'
-      ? (browserSessionStorage.getItem('docmatrix_auth_token') || browserLocalStorage.getItem('docmatrix_auth_token'))
-      : null;
-    const targetId = appt.backendId || resolveAppointmentId(appointmentId);
-    if (persist && token && targetId) {
-      apiClient.post(`/appointments/${targetId}/cancel`, { reason }).catch(error => { appointmentsState = appointmentsState.map(entry => matchesAppointmentId(entry, appointmentId) ? appt : entry); reportPersistenceFailure('Appointment cancellation', error); });
-    }
-  } catch { /* ignore */ }
-
-  return true
-}
+export const cancelAppointment = (appointmentId: string, reason: string) => cancelAppointmentPersisted(appointmentId, reason);
 
 export async function cancelAppointmentPersisted(appointmentId: string, reason: string): Promise<boolean> {
-  const mutationSession = getClinicMutationVersion();
-  const appt = findAppointment(appointmentsState, appointmentId);
-  if (!appt) throw new Error('Appointment not found.');
-  if (hasAuthToken()) await apiClient.post(`/appointments/${appt.backendId || resolveAppointmentId(appointmentId)}/cancel`, { reason });
-  if (getClinicMutationVersion() !== mutationSession) return false;
-  return cancelAppointment(appointmentId, reason, false);
+  if (!reason.trim()) throw new Error('Enter a reason for cancellation.');
+  await updateAppointmentStatus(appointmentId, 'cancelled', reason.trim());
+  return true;
 }
 
 type AppointmentCompletedListener = (appointment: AppointmentRecord) => void
@@ -2049,75 +2000,42 @@ export const triggerAppointmentCompleted = (appointment: AppointmentRecord) => {
   })
 }
 
-export const updateAppointmentStatus = (
-  appointmentId: string,
-  status: AppointmentStatus,
-  note?: string
-) => {
+export const updateAppointmentStatus = (appointmentId: string, status: AppointmentStatus, note?: string): Promise<AppointmentRecord> => {
   if (isAuthenticatedClinic()) {
     const operation = ['in-progress', 'completed'].includes(status) ? 'appointment.consult' : status === 'checked-in' ? 'appointment.check_in' : 'appointment.schedule';
     if (!canClinic(getPermissionUser(), operation)) throw new Error('Your role cannot change this appointment status.');
   }
-  const previousAppointments = appointmentsState;
-  const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  const appt = findAppointment(appointmentsState, appointmentId)
-
-  appointmentsState = appointmentsState.map((entry) => {
-    if (!matchesAppointmentId(entry, appointmentId)) return entry
-
-    const updates: Partial<AppointmentRecord> = { status }
-
-    if (status === 'checked-in' && !entry.checkInTime) {
-      updates.checkInTime = now
-    } else if (status === 'in-progress' && !entry.consultationStartTime) {
-      updates.consultationStartTime = now
-    } else if (status === 'completed' && !entry.completedTime) {
-      updates.completedTime = now
-    }
-
-    return {
-      ...entry,
-      ...updates,
-      statusHistory: [
-        ...(entry.statusHistory || []),
-        {
-          status,
-          timestamp: new Date().toISOString(),
-          note: note || `Status updated to ${status}`
-        }
-      ]
-    }
-  })
-
-  emitChange()
-
-  if (status === 'completed') {
-    const updated = appointmentsState.find((a) => matchesAppointmentId(a, appointmentId))
-    if (updated) {
-      triggerAppointmentCompleted(updated)
-    }
-  }
-
-  // Background sync to backend if authenticated
-  try {
-    const token = typeof browserSessionStorage !== 'undefined'
-      ? (browserSessionStorage.getItem('docmatrix_auth_token') || browserLocalStorage.getItem('docmatrix_auth_token'))
-      : null;
-    const targetId = appt?.backendId || resolveAppointmentId(appointmentId);
-    if (token && targetId) {
-      apiClient.patch(`/appointments/${targetId}`, {
-        status,
-        ...(canClinic(getPermissionUser(), 'appointment.schedule') ? { notes: note } : {}),
-      }).catch((error) => {
-        if (appointmentsState.some(entry => matchesAppointmentId(entry, appointmentId) && entry.status === status)) {
-          appointmentsState = appointmentsState.map(entry => matchesAppointmentId(entry, appointmentId)
-            ? previousAppointments.find(previous => matchesAppointmentId(previous, appointmentId)) || entry : entry);
-          emitChange();
-        }
-        reportPersistenceFailure('Appointment status change', error);
-      });
-    }
-  } catch { /* ignore */ }
+  const context = getClinicMutationVersion();
+  const appt = findAppointment(appointmentsState, appointmentId);
+  if (!appt) throw new Error('Appointment not found.');
+  if (!canTransitionAppointment(appt.status, status)) throw new Error(`Cannot change ${appt.status} to ${status}.`);
+  if (status === appt.status) return Promise.resolve(appt);
+  if (status === 'cancelled' && !note?.trim()) throw new Error('Enter a reason for cancellation.');
+  if ((appt as any)._syncing || pendingAppointmentMutations.has(appt.id)) throw new Error('This appointment is still saving.');
+  const time = getClinicNow().time;
+  const next: AppointmentRecord = { ...appt, status,
+    ...(status === 'checked-in' ? { checkInTime: time } : {}),
+    ...(status === 'in-progress' ? { consultationStartTime: time } : {}),
+    ...(status === 'completed' ? { completedTime: time } : {}),
+    ...(status === 'cancelled' ? { cancellationReason: note!.trim() } : {}),
+    statusHistory: [...(appt.statusHistory || []), { status, timestamp: new Date().toISOString(), note: note || `Status updated to ${status}` }] };
+  const apply = (remote?: any) => {
+    if (getClinicMutationVersion() !== context) throw new Error('Session changed.');
+    const confirmed = remote?.id ? { ...next, ...mapRemoteAppointment(remote) } : next;
+    currentSyncVersion++;
+    appointmentsState = appointmentsState.map(a => matchesAppointmentId(a, appointmentId) ? confirmed : a);
+    emitChange();
+    if (status === 'completed') triggerAppointmentCompleted(confirmed);
+    return confirmed;
+  };
+  if (!hasAuthToken()) return Promise.resolve(apply());
+  if (!appt.backendId && appt.id.startsWith('APT-')) throw new Error('Wait for the appointment to finish saving.');
+  pendingAppointmentMutations.add(appt.id);
+  const persistence = apiClient.patch(`/appointments/${appt.backendId || appt.id}`, { status, reason: note, expectedRevision: appt.revision ?? 0 })
+    .then(apply).catch(error => { if (getClinicMutationVersion() === context) reportPersistenceFailure('Appointment status change', error); throw error; })
+    .finally(() => { pendingAppointmentMutations.delete(appt.id); });
+  void persistence.catch(() => {});
+  return persistence;
 }
 
 export const generateNextPatientId = (existingPatients: PatientRecord[] = patientsState): string => {
@@ -2146,7 +2064,9 @@ export const registerWalkIn = async (data: {
   complaint: string
   doctor: string
   priority: AppointmentPriority
+  bookingRef?: string
 }): Promise<AppointmentRecord> => {
+  if (isAuthenticatedClinic() && !canClinic(getPermissionUser(), 'appointment.schedule')) throw new Error('Your role cannot register walk-in appointments.');
   const [firstName, ...rest] = data.patientName.split(' ')
   const lastName = rest.join(' ') || ''
 
@@ -2177,11 +2097,11 @@ export const registerWalkIn = async (data: {
       emergencyName: '',
       emergencyPhone: '',
       relationship: '',
-      allergies: 'no',
+      allergies: 'unknown',
       allergiesDetails: '',
-      medications: 'no',
+      medications: 'unknown',
       medicationsDetails: '',
-      conditions: 'no',
+      conditions: 'unknown',
       conditionsDetails: '',
       createdAt: new Date().toISOString()
     }
@@ -2197,9 +2117,8 @@ export const registerWalkIn = async (data: {
 
   const dentist = DENTISTS.find((d) => d.name === data.doctor)
   const token = `${CLINIC_CONFIG.walkInTokenPrefix}${walkInCounter++}`
-  const now = new Date()
-  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-  const localId = `APT-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`
+  const currentTime = getClinicNow().time
+  const localId = data.bookingRef || generateBookingRef()
 
   const walkInAppt: AppointmentRecord = {
     id: localId,
@@ -2232,16 +2151,18 @@ export const registerWalkIn = async (data: {
 
   if (hasAuthToken()) {
     const created: any = await apiClient.post('/appointments', {
-      patientId: patient.backendId || patient.id, doctorName: data.doctor,
+      patientId: patient.backendId || patient.id, doctorName: data.doctor, chair: walkInAppt.chair, bookingRef: localId,
       treatmentType: data.complaint || 'General Dental Consultation', visitType: 'Walk-In Consultation',
       date: getTodayDateStr(), time: currentTime, durationMinutes: 30, status: 'checked-in',
       priority: data.priority || 'normal', isWalkIn: true,
     });
     if (!created?.id) throw new Error('Appointment saving was not confirmed. Check the queue before retrying.');
+    Object.assign(walkInAppt, mapRemoteAppointment(created));
     walkInAppt.backendId = created.id; walkInAppt.id = created.id;
   }
   if (context !== getClinicMutationVersion()) throw new Error('Session changed.');
-  appointmentsState = [walkInAppt, ...appointmentsState]; emitChange();
+  currentSyncVersion++;
+  appointmentsState = [walkInAppt, ...appointmentsState.filter(a => a.id !== walkInAppt.id)]; emitChange();
   return walkInAppt;
 }
 
@@ -2511,6 +2432,7 @@ export function createItemisedInvoice(details: {
   const treatmentDesc = details.items.map((i) => i.name).join(', ')
   const todayStr = new Date().toISOString().slice(0, 10)
   const existingSameConsultation = invoicesState.find((inv) => {
+    if (details.appointmentId || inv.appointmentId) return false
     if (inv.status === 'Void') return false
     if (inv.patientId !== details.patientId) return false
     const invDate = (inv.createdAt || '').slice(0, 10)
@@ -3762,6 +3684,8 @@ export const saveFullToothChartForPatient = (
 }
 
 export const resetStoreForTesting = () => {
+  pendingAppointmentMutations.clear();
+  setAppointmentScheduleConfig();
   removeFromStorage(STORAGE_KEYS.DATA)
   patientsState = [...initialPatients]
   appointmentsState = [...initialAppointments]
@@ -3858,6 +3782,7 @@ export const dismissEnquiry = (id: string): void => {
 // -----------------------------------------------------------------------------
 
 export const addPrescription = async (prescription: {
+  clinicalNoteId?: string
   patientId: string
   doctorId?: string
   diagnosis: string
@@ -3887,6 +3812,7 @@ export const addPrescription = async (prescription: {
     patientId: matchedPatient?.backendId || prescription.patientId,
     doctorId: prescription.doctorId || 'doc-current',
     prescriptionNumber: optimisticNumber,
+    clinicalNoteId: prescription.clinicalNoteId,
     diagnosis: prescription.diagnosis.trim(),
     clinicalNotes: prescription.clinicalNotes?.trim() || '',
     status: 'DRAFT',
@@ -3925,6 +3851,7 @@ export const addPrescription = async (prescription: {
       const created = await apiClient.post<any>('/prescriptions', {
         patientId: matchedPatient?.backendId || prescription.patientId,
         doctorId: prescription.doctorId,
+        clinicalNoteId: prescription.clinicalNoteId,
         diagnosis: prescription.diagnosis.trim(),
         clinicalNotes: prescription.clinicalNotes?.trim() || undefined,
         prescribedAt: prescription.prescribedAt || undefined,
@@ -3963,6 +3890,7 @@ export const addPrescription = async (prescription: {
 export const updatePrescription = async (
   id: string,
   patch: {
+    clinicalNoteId?: string | null
     diagnosis?: string
     clinicalNotes?: string
     prescribedAt?: string
@@ -3983,6 +3911,7 @@ export const updatePrescription = async (
     if (rx.id !== id) return rx;
     return {
       ...rx,
+      ...(patch.clinicalNoteId !== undefined ? { clinicalNoteId: patch.clinicalNoteId || undefined } : {}),
       ...(patch.diagnosis !== undefined ? { diagnosis: patch.diagnosis.trim() } : {}),
       ...(patch.clinicalNotes !== undefined ? { clinicalNotes: patch.clinicalNotes.trim() } : {}),
       ...(patch.prescribedAt !== undefined ? { prescribedAt: patch.prescribedAt } : {}),
@@ -4118,6 +4047,7 @@ export const refreshPrescriptions = async (): Promise<void> => {
         patientId: p.patientId,
         doctorId: p.doctorId,
         prescriptionNumber: p.prescriptionNumber,
+        clinicalNoteId: p.clinicalNoteId,
         diagnosis: p.diagnosis,
         clinicalNotes: p.clinicalNotes || '',
         status: p.status,

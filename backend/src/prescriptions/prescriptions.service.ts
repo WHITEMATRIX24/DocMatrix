@@ -21,6 +21,12 @@ import { Prisma } from '@prisma/client';
 export class PrescriptionsService {
   constructor(private prisma: PrismaService) {}
 
+  private async validateConsultation(client: any, clinicId: string, patientId: string, clinicalNoteId?: string | null) {
+    if (!clinicalNoteId) return;
+    const note = await client.clinicalNote.findFirst({ where: { id: clinicalNoteId, clinicId, patientId, status: 'FINALIZED' } });
+    if (!note || !note.primaryDiagnosis?.trim()) throw new BadRequestException('Select a finalized consultation with a diagnosis for this patient in this clinic.');
+  }
+
   /**
    * Verified clinical prescriber authorization guard.
    * Administrative and auxiliary roles must NOT have prescribing privileges.
@@ -91,6 +97,7 @@ export class PrescriptionsService {
 
     // 4. Concurrency-safe transaction allocating Rx number and creating records
     return this.prisma.$transaction(async (tx) => {
+      await this.validateConsultation(tx, clinicId, dto.patientId, dto.clinicalNoteId);
       const prescriptionNumber = await this.allocatePrescriptionNumber(
         tx,
         clinicId,
@@ -107,6 +114,7 @@ export class PrescriptionsService {
           doctorId: resolvedDoctorId,
           prescriptionNumber,
           diagnosis: dto.diagnosis.trim(),
+          clinicalNoteId: dto.clinicalNoteId || null,
           clinicalNotes: dto.clinicalNotes?.trim() || null,
           status: 'DRAFT',
           prescribedAt: prescribedDate,
@@ -179,6 +187,8 @@ export class PrescriptionsService {
       );
     }
 
+    if (dto.clinicalNoteId !== undefined) await this.validateConsultation(tx, clinicId, existing.patientId, dto.clinicalNoteId);
+
     return (async () => {
       // If new medication items were supplied, replace existing items atomically
       if (dto.items && dto.items.length > 0) {
@@ -205,6 +215,7 @@ export class PrescriptionsService {
         where: { id },
         data: {
           ...(dto.diagnosis !== undefined && { diagnosis: dto.diagnosis.trim() }),
+          ...(dto.clinicalNoteId !== undefined && { clinicalNoteId: dto.clinicalNoteId }),
           ...(dto.clinicalNotes !== undefined && {
             clinicalNotes: dto.clinicalNotes?.trim() || null,
           }),

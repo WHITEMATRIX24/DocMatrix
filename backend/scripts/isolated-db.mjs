@@ -26,6 +26,6 @@ try {
   await run(['node_modules/prisma/build/index.js', 'migrate', 'deploy']);
   await run(['node_modules/prisma/build/index.js', 'db', 'execute', '--schema', 'prisma/schema.prisma', '--file', 'prisma/migrations/20261119101000_reconcile_existing_integration_schema/migration.sql']);
   await run(['node_modules/prisma/build/index.js', 'migrate', 'diff', '--from-schema-datasource', 'prisma/schema.prisma', '--to-schema-datamodel', 'prisma/schema.prisma', '--exit-code']);
-  if (!process.argv.includes('--browser-only')) await run(['node_modules/vitest/vitest.mjs', 'run', 'src/security/batch-1.postgres.spec.ts', 'test/auth-real-postgres.spec.ts', 'src/security/hardening.postgres.spec.ts', '--maxWorkers=1']);
+  if (!process.argv.includes('--browser-only')) await run(['node_modules/vitest/vitest.mjs', 'run', ...(process.argv.includes('--appointments') ? ['src/appointments/workflow.postgres.spec.ts'] : ['src/security/batch-1.postgres.spec.ts', 'test/auth-real-postgres.spec.ts', 'src/security/hardening.postgres.spec.ts']), '--maxWorkers=1']);
   if (process.argv.includes('--browser') || process.argv.includes('--browser-only')) await run(['scripts/browser-smoke.mjs']);
 } finally { if (server && server.exitCode === null) { const exited = new Promise(resolve => server.once('exit', resolve)); server.kill(); await exited; } }

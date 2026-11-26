@@ -1,4 +1,6 @@
-import { canClinic, getPermissionUser } from '@/services/permissions'
+import { validateWhatsAppPhone } from '@/services/whatsappService'
+import { canRescheduleAppointment, canTransitionAppointment, getAppointmentTimeSlots, getClinicNow, useClinicToday } from '@/services/appointmentPolicy'
+import { canClinic, getPermissionUser, type ClinicOperation } from '@/services/permissions'
 import React, { useEffect, useMemo, useState } from 'react'
 import './calendar.css'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -16,7 +18,8 @@ import {
   Stethoscope,
   Activity,
   History,
-  Sparkles
+  Sparkles,
+  ChevronDown
 } from 'lucide-react'
 import { TreatmentMaterialUsageModal } from '@/components/inventory/TreatmentMaterialUsageModal'
 import {
@@ -30,6 +33,7 @@ import {
   generateWhatsAppMessage,
   sendAppointmentReminder,
   checkDentistAvailability,
+  formatShortBookingRef,
   type AppointmentStatus,
   type PatientRecord,
   type InvoiceRecord
@@ -41,16 +45,23 @@ import {
   type InvoiceSuccessToastData,
 } from '@/components/shared/InvoiceSuccessToast'
 
-const TIME_SLOTS = [
-  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
+
+
+const STATUS_OPTIONS: { value: AppointmentStatus; label: string; permission?: string }[] = [
+  { value: 'scheduled', label: 'Scheduled', permission: 'appointment.schedule' },
+  { value: 'confirmed', label: 'Confirmed', permission: 'appointment.schedule' },
+  { value: 'checked-in', label: 'Checked-in' },
+  { value: 'in-progress', label: 'In Consultation', permission: 'appointment.consult' },
+  { value: 'completed', label: 'Completed', permission: 'appointment.consult' },
+  { value: 'cancelled', label: 'Cancelled', permission: 'appointment.schedule' },
+  { value: 'no-show', label: 'No-Show', permission: 'appointment.schedule' },
 ]
 
 export const AppointmentDetailPage: React.FC = () => {
   const navigate = useNavigate()
   const { id } = useParams()
   const { patients, appointments } = useClinicData()
+  const clinicToday = useClinicToday()
 
   const appointment = useMemo(() => findAppointment(appointments, id), [appointments, id])
   const [isFetching, setIsFetching] = useState<boolean>(() => !appointment && Boolean(id) && isAuthenticatedClinic())
@@ -119,6 +130,8 @@ export const AppointmentDetailPage: React.FC = () => {
 
   // Modals state
   const [showReschedule, setShowReschedule] = useState(false)
+  const [statusSaving, setStatusSaving] = useState(false)
+  const [actionError, setActionError] = useState('')
   const [showCancel, setShowCancel] = useState(false)
   const [showWhatsApp, setShowWhatsApp] = useState(false)
   const [showMaterialModal, setShowMaterialModal] = useState(false)
@@ -127,6 +140,8 @@ export const AppointmentDetailPage: React.FC = () => {
   const [rescheduleTime, setRescheduleTime] = useState(appointment?.time || '10:00')
   const [rescheduleReason, setRescheduleReason] = useState('')
   const [rescheduleError, setRescheduleError] = useState('')
+  const [rescheduleSaving, setRescheduleSaving] = useState(false)
+  const TIME_SLOTS = getAppointmentTimeSlots(rescheduleDate, appointment?.priority)
 
   const [cancelReason, setCancelReason] = useState('')
   const [whatsAppType, setWhatsAppType] = useState<'confirmation' | 'reminder_24h' | 'reminder_2h' | 'recall'>('confirmation')
@@ -139,6 +154,74 @@ export const AppointmentDetailPage: React.FC = () => {
       setRescheduleTime(appointment.time)
     }
   }, [appointment?.id, appointment?.date, appointment?.time])
+
+  const handleStatusChange = async (newStatus: AppointmentStatus) => {
+    if (!appointment || statusSaving) return
+    if (newStatus === 'cancelled') { setCancelReason(''); setShowCancel(true); return }
+    setStatusSaving(true); setActionError('')
+    try {
+    await updateAppointmentStatus(appointment.id, newStatus)
+    if (newStatus === 'completed') {
+      setShowMaterialModal(true)
+      const res = autoGenerateInvoiceForConsultation({
+        appointment,
+        patientId: appointment.patientId,
+      })
+      if (res.invoice) {
+        const invoice = await res.invoice
+        setInvoiceToast({
+          invoiceNumber: invoice.id,
+          amount: invoice.amount,
+        })
+      }
+    }
+    } catch (error: any) { setActionError(error.message || 'Status change was not saved.') }
+    finally { setStatusSaving(false) }
+  }
+
+  // Check availability of each time slot for rescheduling
+  const getRescheduleSlotAvailability = (slot: string) => {
+    if (!appointment || !rescheduleDate) return { available: true }
+    return checkDentistAvailability(
+      appointment.doctor,
+      rescheduleDate,
+      slot,
+      appointment.durationMinutes || 30,
+      appointment.id, appointment.chair, appointment.priority
+    )
+  }
+
+  // Auto-adjust rescheduleTime if currently selected slot is unavailable on the chosen date
+  useEffect(() => {
+    if (!showReschedule || !appointment || !rescheduleDate) return
+    const currentStatus = checkDentistAvailability(
+      appointment.doctor,
+      rescheduleDate,
+      rescheduleTime,
+      appointment.durationMinutes || 30,
+      appointment.id, appointment.chair, appointment.priority
+    )
+    if (!currentStatus.available) {
+      const firstAvail = TIME_SLOTS.find((s) => {
+        const res = checkDentistAvailability(
+          appointment.doctor,
+          rescheduleDate,
+          s,
+          appointment.durationMinutes || 30,
+          appointment.id, appointment.chair, appointment.priority
+        )
+        return res.available
+      })
+      if (firstAvail) {
+        setRescheduleTime(firstAvail)
+        setRescheduleError('')
+      } else {
+        setRescheduleError(currentStatus.reason || `${appointment.doctor} has no available slots on ${rescheduleDate}.`)
+      }
+    } else {
+      setRescheduleError('')
+    }
+  }, [showReschedule, appointment, rescheduleDate, appointments])
 
   if (isFetching && !appointment) {
     return (
@@ -165,69 +248,9 @@ export const AppointmentDetailPage: React.FC = () => {
     )
   }
 
-  const handleStatusChange = (newStatus: AppointmentStatus) => {
-    updateAppointmentStatus(appointment.id, newStatus)
-    if (newStatus === 'completed') {
-      setShowMaterialModal(true)
-      const res = autoGenerateInvoiceForConsultation({
-        appointment,
-        patientId: appointment.patientId,
-      })
-      if (res.invoice) {
-        setInvoiceToast({
-          invoiceNumber: res.invoice.id,
-          amount: res.invoice.amount,
-        })
-      }
-    }
-  }
-
-  // Check availability of each time slot for rescheduling
-  const getRescheduleSlotAvailability = (slot: string) => {
-    if (!appointment || !rescheduleDate) return { available: true }
-    return checkDentistAvailability(
-      appointment.doctor,
-      rescheduleDate,
-      slot,
-      appointment.durationMinutes || 30,
-      appointment.id
-    )
-  }
-
-  // Auto-adjust rescheduleTime if currently selected slot is unavailable on the chosen date
-  useEffect(() => {
-    if (!showReschedule || !appointment || !rescheduleDate) return
-    const currentStatus = checkDentistAvailability(
-      appointment.doctor,
-      rescheduleDate,
-      rescheduleTime,
-      appointment.durationMinutes || 30,
-      appointment.id
-    )
-    if (!currentStatus.available) {
-      const firstAvail = TIME_SLOTS.find((s) => {
-        const res = checkDentistAvailability(
-          appointment.doctor,
-          rescheduleDate,
-          s,
-          appointment.durationMinutes || 30,
-          appointment.id
-        )
-        return res.available
-      })
-      if (firstAvail) {
-        setRescheduleTime(firstAvail)
-        setRescheduleError('')
-      } else {
-        setRescheduleError(currentStatus.reason || `${appointment.doctor} has no available slots on ${rescheduleDate}.`)
-      }
-    } else {
-      setRescheduleError('')
-    }
-  }, [showReschedule, appointment, rescheduleDate, appointments])
-
   const handleRescheduleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (rescheduleSaving) return
     if (!appointment) return
     setRescheduleError('')
 
@@ -236,13 +259,14 @@ export const AppointmentDetailPage: React.FC = () => {
       rescheduleDate,
       rescheduleTime,
       appointment.durationMinutes || 30,
-      appointment.id
+      appointment.id, appointment.chair, appointment.priority
     )
     if (!slotCheck.available) {
       setRescheduleError(slotCheck.reason || 'Selected time slot is unavailable. Please select an available slot.')
       return
     }
 
+    setRescheduleSaving(true)
     const result = rescheduleAppointment(
       appointment.id,
       rescheduleDate,
@@ -250,7 +274,7 @@ export const AppointmentDetailPage: React.FC = () => {
       rescheduleReason || 'Patient requested reschedule.'
     )
 
-    try { await result._syncPromise } catch (error: any) { setRescheduleError(error.message || 'Reschedule was not saved.'); return }
+    try { await result._syncPromise } catch (error: any) { setRescheduleError(error.message || 'Reschedule was not saved.'); return } finally { setRescheduleSaving(false) }
 
     if (!result.success) {
       setRescheduleError(result.error || 'Conflict detected. Please choose another slot.')
@@ -262,23 +286,23 @@ export const AppointmentDetailPage: React.FC = () => {
 
   const handleCancelSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    try { await cancelAppointment(appointment.id, cancelReason || 'Patient cancelled visit.') } catch (error: any) { window.alert(error.message || 'Cancellation was not saved.'); return }
+    try { await cancelAppointment(appointment.id, cancelReason) } catch (error: any) { window.alert(error.message || 'Cancellation was not saved.'); return }
     setShowCancel(false)
   }
 
   const handleSendWhatsApp = () => {
     const message = generateWhatsAppMessage(whatsAppType, appointment, patient)
-    sendAppointmentReminder(appointment.id, 'whatsapp')
 
-    const phone = patient.mobile.replace(/\D/g, '')
-    const url = `https://wa.me/91${phone}?text=${encodeURIComponent(message)}`
-    window.open(url, '_blank')
+
+    const phone = validateWhatsAppPhone(patient.mobile, patient.countryCode)
+    if (!phone.valid) { setActionError(phone.error || 'Invalid phone number.'); return }
+    const opened = window.open(`https://wa.me/${phone.digits}?text=${encodeURIComponent(message)}`, '_blank')
+    if (!opened) { setActionError('WhatsApp window was blocked. Allow popups and try again.'); return }
+    opened.opener = null
     setShowWhatsApp(false)
   }
 
-  const shortRef = appointment.bookingRef
-    ? appointment.bookingRef
-    : (appointment.id.length > 14 ? appointment.id.slice(0, 8).toUpperCase() : appointment.id)
+  const shortRef = formatShortBookingRef(appointment.bookingRef || appointment.id)
 
   return (
     <section className="appointment-simple-panel appointment-detail-panel" data-testid="feature-page-appt.detail">
@@ -296,26 +320,35 @@ export const AppointmentDetailPage: React.FC = () => {
             <CalendarDays size={20} />
           </div>
           <div>
-            <h2 title={appointment.id}>Booking #{shortRef}</h2>
+            <h2 title={appointment.id}>Booking <span className="appointment-ref-code">#{shortRef}</span></h2>
             <p>Booked on {new Date(appointment.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
           </div>
         </div>
         <div className="status-dropdown-wrap">
           <label htmlFor="appt-detail-status">Status</label>
-          <select
-            id="appt-detail-status"
-            className={`status-select-pill status-${appointment.status}`}
-            value={appointment.status}
-            disabled={!canClinic(getPermissionUser(), 'appointment.check_in')} onChange={(e) => handleStatusChange(e.target.value as AppointmentStatus)}
-          >
-            <option value="scheduled" disabled={!canClinic(getPermissionUser(), 'appointment.schedule')}>Scheduled</option>
-            <option value="confirmed" disabled={!canClinic(getPermissionUser(), 'appointment.schedule')}>Confirmed</option>
-            <option value="checked-in">Checked-in</option>
-            <option value="in-progress" disabled={!canClinic(getPermissionUser(), 'appointment.consult')}>In Consultation</option>
-            <option value="completed" disabled={!canClinic(getPermissionUser(), 'appointment.consult')}>Completed</option>
-            <option value="cancelled" disabled={!canClinic(getPermissionUser(), 'appointment.schedule')}>Cancelled</option>
-            <option value="no-show" disabled={!canClinic(getPermissionUser(), 'appointment.schedule')}>No-Show</option>
-          </select>
+          <div className={`status-select-pill status-${appointment.status}`}>
+            <span className="status-select-text">
+              {STATUS_OPTIONS.find((s) => s.value === appointment.status)?.label || appointment.status}
+            </span>
+            <ChevronDown size={14} className="status-select-chevron" />
+            <select
+              id="appt-detail-status"
+              className="status-select-native"
+              value={appointment.status}
+              disabled={statusSaving || !canClinic(getPermissionUser(), 'appointment.check_in')}
+              onChange={(e) => handleStatusChange(e.target.value as AppointmentStatus)}
+            >
+              {STATUS_OPTIONS.map((opt) => (
+                <option
+                  key={opt.value}
+                  value={opt.value}
+                  disabled={!canTransitionAppointment(appointment.status, opt.value) || Boolean(opt.permission && !canClinic(getPermissionUser(), opt.permission as ClinicOperation))}
+                >
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -347,8 +380,11 @@ export const AppointmentDetailPage: React.FC = () => {
         </div>
       </div>
 
+      {actionError && <p role="alert">{actionError}</p>}
       {/* Action Buttons: Materials, Reschedule, WhatsApp, Cancel */}
       <div className="appointment-action-controls">
+        {appointment.status === 'completed' && canClinic(getPermissionUser(), 'appointment.schedule') && <Link className="btn-appt-action" to={`/appointments/new?patientId=${encodeURIComponent(appointment.patientId)}&revisitOfId=${encodeURIComponent(appointment.backendId || appointment.id)}`}>Book Revisit</Link>}
+        {appointment.revisitOfId && <Link to={`/appointments/${appointment.revisitOfId}`}>Previous visit</Link>}
         <button
           type="button"
           className="btn-appt-action btn-appt-materials"
@@ -358,7 +394,7 @@ export const AppointmentDetailPage: React.FC = () => {
           <Sparkles size={15} />
           <span>Record Material Usage</span>
         </button>
-        <button type="button" className="btn-appt-action btn-reschedule" disabled={!canClinic(getPermissionUser(), 'appointment.schedule')} onClick={() => setShowReschedule(true)}>
+        <button type="button" className="btn-appt-action btn-reschedule" disabled={rescheduleSaving || !canRescheduleAppointment(appointment.status) || !canClinic(getPermissionUser(), 'appointment.schedule')} onClick={() => setShowReschedule(true)}>
           <RotateCcw size={15} />
           <span>Reschedule Booking</span>
         </button>
@@ -366,7 +402,7 @@ export const AppointmentDetailPage: React.FC = () => {
           <Send size={15} />
           <span>WhatsApp Reminder</span>
         </button>
-        {appointment.status !== 'cancelled' && (
+        {canTransitionAppointment(appointment.status, 'cancelled') && appointment.status !== 'cancelled' && (
           <button type="button" className="btn-appt-action btn-cancel-appt" disabled={!canClinic(getPermissionUser(), 'appointment.schedule')} onClick={() => setShowCancel(true)}>
             <X size={15} />
             <span>Cancel Appointment</span>
@@ -485,7 +521,7 @@ export const AppointmentDetailPage: React.FC = () => {
                   <input
                     type="date"
                     required
-                    min={new Date().toISOString().slice(0, 10)}
+                    min={getClinicNow().date}
                     value={rescheduleDate}
                     onChange={(e) => {
                       setRescheduleDate(e.target.value)
@@ -537,7 +573,7 @@ export const AppointmentDetailPage: React.FC = () => {
                 <button
                   type="submit"
                   className="btn-confirm-reschedule"
-                  disabled={!getRescheduleSlotAvailability(rescheduleTime).available}
+                  disabled={rescheduleSaving || !getRescheduleSlotAvailability(rescheduleTime).available}
                   style={{
                     opacity: !getRescheduleSlotAvailability(rescheduleTime).available ? 0.6 : 1,
                     cursor: !getRescheduleSlotAvailability(rescheduleTime).available ? 'not-allowed' : 'pointer'

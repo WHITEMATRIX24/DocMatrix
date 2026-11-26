@@ -772,6 +772,7 @@ export class ReportsService {
           specialization: meta.specialization,
           appointments: myAppts.length,
           completed: myCompleted.length,
+          patients: new Set(myCompleted.map((a: any) => a.patientId)).size,
           noShows,
           cancelled,
           attendancePct: closed

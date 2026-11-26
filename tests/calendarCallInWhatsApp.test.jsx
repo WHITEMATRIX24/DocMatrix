@@ -105,7 +105,7 @@ describe('Calendar Call-In — Automatic Patient WhatsApp Notification', () => {
       },
     ]
 
-    windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => ({ opener: null }))
 
     vi.spyOn(clinicStore, 'useClinicData').mockImplementation(() => ({
       patients: patientsData,
@@ -165,7 +165,7 @@ describe('Calendar Call-In — Automatic Patient WhatsApp Notification', () => {
   })
 
   describe('Calendar Check-In and Call-In Workflow', () => {
-    it('clicking Check-In updates status to checked-in without sending Call-In WhatsApp', () => {
+    it('clicking Check-In updates status to checked-in without sending Call-In WhatsApp', async () => {
       appointmentsData = [appointmentsData[0]]
 
       render(
@@ -200,9 +200,7 @@ describe('Calendar Call-In — Automatic Patient WhatsApp Notification', () => {
         'Patient called in to consultation room'
       )
 
-      await waitFor(() => {
-        expect(windowOpenSpy).toHaveBeenCalledTimes(1)
-      })
+      await waitFor(() => expect(windowOpenSpy).toHaveBeenCalledTimes(1))
       const [openedUrl] = windowOpenSpy.mock.calls[0]
       expect(openedUrl).toContain('https://wa.me/919876543210?text=')
       const decodedUrl = decodeURIComponent(openedUrl)
@@ -210,11 +208,11 @@ describe('Calendar Call-In — Automatic Patient WhatsApp Notification', () => {
       expect(decodedUrl).toContain('SmileCraft Dental Studio')
       expect(decodedUrl).toContain('consultation room')
 
-      expect(clinicStore.sendAppointmentReminder).toHaveBeenCalledWith('APT-WA-02', 'call_in')
+      expect(clinicStore.sendAppointmentReminder).not.toHaveBeenCalled()
 
       const toast = await screen.findByTestId('callin-whatsapp-toast')
       expect(toast).toHaveClass('is-success')
-      expect(toast).toHaveTextContent('Patient Called-In & WhatsApp Sent')
+      expect(toast).toHaveTextContent('Patient Called-In — WhatsApp Opened')
       expect(toast).toHaveTextContent('Asha Nair')
       expect(toast).toHaveTextContent('+91 9876543210')
     })
@@ -226,12 +224,12 @@ describe('Calendar Call-In — Automatic Patient WhatsApp Notification', () => {
       const first = await sendCallInWhatsAppMessage(appt, patient)
       const second = await sendCallInWhatsAppMessage(appt, patient)
 
-      expect(first.status).toBe('sent')
-      expect(first.sent).toBe(true)
+      expect(first.status).toBe('opened')
+      expect(first.sent).toBe(false)
       expect(second.status).toBe('duplicate')
       expect(second.sent).toBe(false)
-      expect(windowOpenSpy).toHaveBeenCalledTimes(1)
-      expect(clinicStore.sendAppointmentReminder).toHaveBeenCalledTimes(1)
+      await waitFor(() => expect(windowOpenSpy).toHaveBeenCalledTimes(1))
+      expect(clinicStore.sendAppointmentReminder).not.toHaveBeenCalled()
     })
 
     it('does not block Call-In status update when patient mobile number is missing or invalid', async () => {

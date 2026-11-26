@@ -88,6 +88,10 @@ describe('Appointment Booking & Reschedule Slot Availability', () => {
 
     const rescheduleBtn = screen.getByTitle(/reschedule an appointment/i)
     fireEvent.click(rescheduleBtn)
+    if (screen.queryByLabelText('Appointment to reschedule')) {
+      const picker = screen.getByLabelText('Appointment to reschedule')
+      fireEvent.change(picker, { target: { value: picker.options[1].value } })
+    }
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /reschedule appointment/i })).toBeInTheDocument()
@@ -201,7 +205,7 @@ describe('Appointment Booking & Reschedule Slot Availability', () => {
 
     // Changing the date updates slot availability dynamically
     const dateInput = screen.getByLabelText(/selected date/i)
-    fireEvent.change(dateInput, { target: { value: '2026-11-25' } })
+    fireEvent.change(dateInput, { target: { value: '2030-01-07' } })
 
     await waitFor(() => {
       // On 2026-11-25, 11:30 should now be available since there's no conflict on this new date

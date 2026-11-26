@@ -1,6 +1,15 @@
-import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Min, Max } from 'class-validator';
 
 export class UpdateAppointmentDto {
+  @IsInt()
+  @Min(0)
+  @IsOptional()
+  expectedRevision?: number;
+
+  @IsString()
+  @IsOptional()
+  reason?: string;
+
   @IsString()
   @IsOptional()
   doctorId?: string;
@@ -15,6 +24,7 @@ export class UpdateAppointmentDto {
 
   @IsInt()
   @Min(5)
+  @Max(1440)
   @IsOptional()
   durationMinutes?: number;
 

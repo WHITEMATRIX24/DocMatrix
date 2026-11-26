@@ -42,6 +42,7 @@ describe('PrescriptionsService - Multi-Tenant Clinical Prescriptions', () => {
       patient: {
         findFirst: vi.fn(),
       },
+      clinicalNote: { findFirst: vi.fn() },
       user: {
         findFirst: vi.fn(),
       },
@@ -117,6 +118,23 @@ describe('PrescriptionsService - Multi-Tenant Clinical Prescriptions', () => {
   });
 
   describe('Transactional Creation & Concurrency-Safe Number Allocation', () => {
+    it('persists the selected finalized consultation alongside the diagnosis snapshot', async () => {
+      mockPrisma.patient.findFirst.mockResolvedValue({ id: 'p-1', clinicId: 'clinic-A' });
+      mockPrisma.user.findFirst.mockResolvedValue({ id: 'doc-1' });
+      mockPrisma.clinicalNote.findFirst.mockResolvedValue({ id: 'note-1', primaryDiagnosis: 'Recorded diagnosis' });
+      mockPrisma.prescription.create.mockResolvedValue({ id: 'rx-linked', clinicalNoteId: 'note-1', diagnosis: 'Reviewed diagnosis' });
+      await service.createPrescription('clinic-A', mockDoctorUser, { patientId: 'p-1', clinicalNoteId: 'note-1', diagnosis: 'Reviewed diagnosis', items: [{ medicineName: 'Synthetic medicine', dosage: 'Recorded dosage', frequency: 'Recorded frequency', duration: 'Recorded duration' }] });
+      expect(mockPrisma.clinicalNote.findFirst).toHaveBeenCalledWith({ where: { id: 'note-1', clinicId: 'clinic-A', patientId: 'p-1', status: 'FINALIZED' } });
+      expect(mockPrisma.prescription.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ clinicalNoteId: 'note-1', diagnosis: 'Reviewed diagnosis' }) }));
+    });
+    it.each(['another clinic', 'another patient', 'draft note'])('rejects a consultation from %s before creating the prescription', async () => {
+      mockPrisma.patient.findFirst.mockResolvedValue({ id: 'p-1', clinicId: 'clinic-A' });
+      mockPrisma.user.findFirst.mockResolvedValue({ id: 'doc-1' });
+      // The scoped lookup returns no finalized note for this patient and clinic.
+      mockPrisma.clinicalNote.findFirst.mockResolvedValue(null);
+      await expect(service.createPrescription('clinic-A', mockDoctorUser, { patientId: 'p-1', clinicalNoteId: 'unrelated-note', diagnosis: 'Diagnosis', items: [{ medicineName: 'Synthetic medicine', dosage: 'Recorded dosage', frequency: 'Recorded frequency', duration: 'Recorded duration' }] })).rejects.toThrow('finalized consultation');
+      expect(mockPrisma.prescription.create).not.toHaveBeenCalled();
+    });
     it('creates a draft prescription with concurrency-safe RX number and items', async () => {
       mockPrisma.patient.findFirst.mockResolvedValue({ id: 'p-1', clinicId: 'clinic-A' });
       mockPrisma.user.findFirst.mockResolvedValue({ id: 'doc-1', clinicId: 'clinic-A', role: 'DOCTOR' });

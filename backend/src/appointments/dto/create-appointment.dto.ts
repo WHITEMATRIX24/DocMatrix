@@ -1,6 +1,14 @@
-import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Min, Max } from 'class-validator';
 
 export class CreateAppointmentDto {
+  @IsString()
+  @IsOptional()
+  bookingRef?: string;
+
+  @IsString()
+  @IsOptional()
+  revisitOfId?: string;
+
   @IsString()
   @IsNotEmpty({ message: 'patientId is required.' })
   patientId!: string;
@@ -23,6 +31,7 @@ export class CreateAppointmentDto {
 
   @IsInt()
   @Min(5)
+  @Max(1440)
   @IsOptional()
   durationMinutes?: number;
 

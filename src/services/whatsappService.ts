@@ -1,6 +1,5 @@
 import {
   generateWhatsAppMessage,
-  sendAppointmentReminder,
   type AppointmentRecord,
   type PatientRecord,
 } from './clinicStore'
@@ -12,7 +11,7 @@ export interface PhoneValidationResult {
   error?: string
 }
 
-export type CallInWhatsAppStatus = 'sent' | 'duplicate' | 'invalid_phone' | 'error'
+export type CallInWhatsAppStatus = 'opened' | 'duplicate' | 'invalid_phone' | 'error'
 
 export interface CallInWhatsAppResult {
   status: CallInWhatsAppStatus
@@ -34,7 +33,6 @@ export function clearCallInNotificationCache(): void {
 export function hasCallInWhatsAppBeenSent(appointment: AppointmentRecord): boolean {
   if (sentCallInAppointments.has(appointment.id)) return true
   if (appointment.backendId && sentCallInAppointments.has(appointment.backendId)) return true
-  if (appointment.remindersSent?.some((r) => r.type === 'call_in')) return true
   return false
 }
 
@@ -102,7 +100,7 @@ export function validateWhatsAppPhone(
 }
 
 /**
- * Automatically dispatches a Call-In WhatsApp message to the patient.
+ * Opens WhatsApp with a prepared call-in message. The user confirms sending there.
  * Non-blocking, deduplicated per appointment, validates phone number, and handles errors gracefully.
  */
 export async function sendCallInWhatsAppMessage(
@@ -122,7 +120,7 @@ export async function sendCallInWhatsAppMessage(
     return {
       status: 'duplicate',
       sent: false,
-      error: 'Call-In WhatsApp message was already sent for this appointment.',
+      error: 'The WhatsApp compose window was already opened for this appointment.',
     }
   }
 
@@ -158,15 +156,17 @@ export async function sendCallInWhatsAppMessage(
     const whatsappUrl = `https://wa.me/${phoneCheck.digits}?text=${encodeURIComponent(text)}`
 
     if (typeof window !== 'undefined' && typeof window.open === 'function') {
-      window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
+      const opened = window.open(whatsappUrl, '_blank')
+      if (!opened) throw new Error('WhatsApp window was blocked. Allow popups and try again.')
+      opened.opener = null
     }
 
     // Record in appointment reminders log
-    sendAppointmentReminder(appointment.id, 'call_in')
+    // Opening a compose window does not confirm sending or delivery.
 
     return {
-      status: 'sent',
-      sent: true,
+      status: 'opened',
+      sent: false,
       patientName,
       recipient: phoneCheck.display,
       text,

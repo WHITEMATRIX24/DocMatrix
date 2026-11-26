@@ -1,4 +1,6 @@
 import { useClinicalCatalogue } from '../../services/clinicalCatalogue';
+import { getClinicNow } from '../../services/appointmentPolicy';
+import { prescriptionConsultations, defaultPrescriptionConsultation } from '../../services/prescriptionDiagnosis';
 import React, { useState, useMemo } from 'react';
 import {
   X,
@@ -22,6 +24,8 @@ import '../../pages/clinical/prescriptions.css';
 interface PrescriptionModalProps {
   initialPrescription?: PrescriptionRecord | null;
   defaultPatientId?: string;
+  defaultClinicalNoteId?: string;
+  defaultAppointmentId?: string;
   onClose: () => void;
   onSaved: (prescription: PrescriptionRecord) => void;
 }
@@ -41,10 +45,12 @@ const COMMON_ROUTES = ['Oral', 'Topical', 'Sublingual', 'Inhalation', 'Other'];
 export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
   initialPrescription,
   defaultPatientId,
+  defaultClinicalNoteId,
+  defaultAppointmentId,
   onClose,
   onSaved,
 }) => {
-  const { patients } = useClinicData();
+  const { patients, clinicalNotes: consultationNotes } = useClinicData();
   const { customMedicines } = useClinicalCatalogue();
 
   // Selected patient state
@@ -55,14 +61,13 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
       (patients[0]?.backendId || patients[0]?.id || '')
   );
 
-  const [diagnosis, setDiagnosis] = useState(initialPrescription?.diagnosis || '');
   const [clinicalNotes, setClinicalNotes] = useState(
     initialPrescription?.clinicalNotes || ''
   );
   const [prescribedAt, setPrescribedAt] = useState(
     initialPrescription?.prescribedAt
       ? initialPrescription.prescribedAt.slice(0, 10)
-      : new Date().toISOString().slice(0, 10)
+      : getClinicNow().date
   );
 
   // Dynamic medication items
@@ -105,6 +110,17 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
         p.backendId?.toLowerCase() === selectedPatientId.toLowerCase()
     );
   }, [patients, selectedPatientId]);
+
+  const contextKey = `${selectedPatientId}|${initialPrescription?.id || prescribedAt}`;
+  const consultations = prescriptionConsultations(consultationNotes || [], activePatient, selectedPatientId);
+  const defaultConsultation = defaultPrescriptionConsultation(consultations, prescribedAt, initialPrescription?.clinicalNoteId || defaultClinicalNoteId, defaultAppointmentId);
+  const [sourceChoice, setSourceChoice] = useState<{ context: string; id: string } | null>(null);
+  const sourceId = sourceChoice?.context === contextKey ? sourceChoice.id : defaultConsultation?.id || '';
+  const selectedConsultation = consultations.find(note => note.id === sourceId);
+  const [diagnosisOverride, setDiagnosisOverride] = useState<{ context: string; value: string } | null>(
+    initialPrescription?.diagnosis?.trim() ? { context: contextKey, value: initialPrescription.diagnosis } : null
+  );
+  const diagnosis = diagnosisOverride?.context === contextKey ? diagnosisOverride.value : selectedConsultation?.primaryDiagnosis?.trim() || '';
 
   const medicalAlerts: string[] =
     (activePatient as any)?.medicalAlerts ||
@@ -186,6 +202,7 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
       if (initialPrescription?.id) {
         // Update existing draft
         await updatePrescription(initialPrescription.id, {
+          clinicalNoteId: sourceId || null,
           diagnosis: diagnosis.trim(),
           clinicalNotes: clinicalNotes.trim(),
           prescribedAt,
@@ -206,6 +223,7 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
         } else {
           savedRecord = {
             ...initialPrescription,
+            clinicalNoteId: sourceId || undefined,
             diagnosis,
             clinicalNotes,
             prescribedAt,
@@ -216,6 +234,7 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
         // Create new prescription
         const created = await addPrescription({
           patientId: activePatient?.backendId || selectedPatientId,
+          clinicalNoteId: sourceId || undefined,
           diagnosis: diagnosis.trim(),
           clinicalNotes: clinicalNotes.trim(),
           prescribedAt,
@@ -293,7 +312,7 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
           {/* Section 1: Patient Selection & Date */}
           <div className="rx-form-grid-3">
             <div className="rx-col-span-2 rx-form-group">
-              <label className="rx-label">
+              <label className="rx-label" htmlFor="rx-patient">
                 Patient Selection
                 {defaultPatientId && (
                   <span style={{ marginLeft: '8px', textTransform: 'none', color: 'var(--rx-teal)', fontWeight: 600 }}>
@@ -302,7 +321,8 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
                 )}
               </label>
               <select
-                disabled={Boolean(defaultPatientId)}
+                id="rx-patient"
+                disabled={Boolean(defaultPatientId || initialPrescription)}
                 value={selectedPatientId}
                 onChange={(e) => setSelectedPatientId(e.target.value)}
                 className="rx-select"
@@ -316,8 +336,9 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
             </div>
 
             <div className="rx-form-group">
-              <label className="rx-label">Prescription Date</label>
+              <label className="rx-label" htmlFor="rx-date">Prescription Date</label>
               <input
+                id="rx-date"
                 type="date"
                 value={prescribedAt}
                 onChange={(e) => setPrescribedAt(e.target.value)}
@@ -337,17 +358,30 @@ export const PrescriptionModal: React.FC<PrescriptionModalProps> = ({
             </div>
           )}
 
+          <div className="rx-form-group">
+            <label className="rx-label" htmlFor="rx-consultation-source">Consultation / Treatment</label>
+            <select id="rx-consultation-source" className="rx-select" value={sourceId} onChange={e => {
+              setSourceChoice({ context: contextKey, id: e.target.value });
+              setDiagnosisOverride(null);
+            }}>
+              <option value="">{consultations.length ? 'Select a consultation, or enter a diagnosis manually' : 'No finalized consultation diagnosis available'}</option>
+              {consultations.map(note => <option key={note.id} value={note.id}>{(note.visitDate || note.consultationDate || '').slice(0, 10)} · {note.noteNumber || note.id} · {note.treatmentPerformed || note.primaryDiagnosis}</option>)}
+            </select>
+            {selectedConsultation && <small>Diagnosis from consultation {selectedConsultation.noteNumber || selectedConsultation.id}.</small>}
+          </div>
+
           {/* Section 2: Diagnosis & Clinical Consultation Notes */}
           <div className="rx-form-grid">
             <div className="rx-form-group">
-              <label className="rx-label">
+              <label className="rx-label" htmlFor="rx-diagnosis">
                 Clinical Diagnosis <span className="rx-req">*</span>
               </label>
               <input
+                id="rx-diagnosis"
                 type="text"
                 placeholder="e.g. Acute Irreversible Pulpitis, Dental Caries"
                 value={diagnosis}
-                onChange={(e) => setDiagnosis(e.target.value)}
+                onChange={(e) => setDiagnosisOverride({ context: contextKey, value: e.target.value })}
                 className="rx-input"
               />
             </div>

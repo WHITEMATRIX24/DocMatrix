@@ -48,6 +48,10 @@ export class CreatePrescriptionItemDto {
 
 export class CreatePrescriptionDto {
   @IsUUID()
+  @IsOptional()
+  clinicalNoteId?: string;
+
+  @IsUUID()
   @IsNotEmpty()
   patientId!: string;
 

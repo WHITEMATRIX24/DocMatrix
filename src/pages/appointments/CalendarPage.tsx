@@ -1,3 +1,5 @@
+import { canClinic, getPermissionUser } from '@/services/permissions'
+import { canRescheduleAppointment, canTransitionAppointment, getAppointmentTimeSlots, getClinicNow, useClinicToday } from '@/services/appointmentPolicy'
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import './calendar.css'
 import { useNavigate, Link } from 'react-router-dom'
@@ -28,24 +30,25 @@ import {
 } from 'lucide-react'
 import {
   useClinicData,
+  isAuthenticatedClinic,
   DENTISTS,
   DENTAL_TREATMENTS,
   bookAppointment,
-  savePatient,
   registerWalkIn,
   updateAppointmentStatus,
   rescheduleAppointment,
   cancelAppointmentPersisted as cancelAppointment,
-  sendAppointmentReminder,
   generateWhatsAppMessage,
   checkDentistAvailability,
+  generateBookingRef,
+  formatShortBookingRef,
   type AppointmentRecord,
   type AppointmentStatus,
   type AppointmentPriority,
   type InvoiceRecord
 } from '@/services/clinicStore'
 import { autoGenerateInvoiceForConsultation } from '@/services/billingAutoInvoice'
-import { sendCallInWhatsAppMessage } from '@/services/whatsappService'
+import { sendCallInWhatsAppMessage, validateWhatsAppPhone } from '@/services/whatsappService'
 import { InvoiceDrawer } from '@/pages/billing/BillingShared'
 import {
   InvoiceSuccessToast,
@@ -60,17 +63,26 @@ type CalendarViewMode = 'day' | 'week' | 'dentist'
 
 export const CalendarPage: React.FC = () => {
   const navigate = useNavigate()
+  const [actionSaving, setActionSaving] = useState(false)
+  const [actionError, setActionError] = useState('')
+  const [bookingSaving, setBookingSaving] = useState(false)
+  const bookingAttempt = useRef(generateBookingRef())
+  const walkInAttempt = useRef(generateBookingRef())
+  const [showReschedulePicker, setShowReschedulePicker] = useState(false)
   const { appointments, patients } = useClinicData()
+  const clinicToday = useClinicToday()
+  const canEditSchedule = !isAuthenticatedClinic() || canClinic(getPermissionUser(), 'appointment.schedule')
   const [activeInvoice, setActiveInvoice] = useState<InvoiceRecord | null>(null)
   const [invoiceToast, setInvoiceToast] = useState<InvoiceSuccessToastData | null>(null)
   const [callInToast, setCallInToast] = useState<CallInToastData | null>(null)
 
   // Selected date
   const [selectedDate, setSelectedDate] = useState(() => {
-    const d = new Date()
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
-    return d.toISOString().slice(0, 10)
+    return getClinicNow().date
   })
+
+  const previousToday = useRef(clinicToday)
+  useEffect(() => { setSelectedDate(date => date === previousToday.current ? clinicToday : date); previousToday.current = clinicToday }, [clinicToday])
 
   const [viewMode] = useState<CalendarViewMode>('dentist')
   const [filterDoctor, setFilterDoctor] = useState<string>('all')
@@ -85,8 +97,11 @@ export const CalendarPage: React.FC = () => {
   const [rescheduleTime, setRescheduleTime] = useState('11:00')
   const [rescheduleReason, setRescheduleReason] = useState('')
   const [rescheduleError, setRescheduleError] = useState('')
+  const [rescheduleSaving, setRescheduleSaving] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [whatsAppType, setWhatsAppType] = useState<'confirmation' | 'reminder_24h' | 'reminder_2h' | 'recall'>('confirmation')
+  const rescheduleSlots = getAppointmentTimeSlots(rescheduleDate, activeAppt?.priority)
+  useEffect(() => { setActiveAppt(previous => previous ? appointments.find(a => a.id === previous.id) || null : null) }, [appointments])
 
   // In-Calendar Slot Booking Modal State
   const [showSlotBookingModal, setShowSlotBookingModal] = useState(false)
@@ -96,11 +111,11 @@ export const CalendarPage: React.FC = () => {
   const [qbPatientSearch, setQbPatientSearch] = useState('')
   const [isQbSearchOpen, setIsQbSearchOpen] = useState(false)
   const [qbSelectedPatientId, setQbSelectedPatientId] = useState('')
-  const [qbNewPatientMobile, setQbNewPatientMobile] = useState('')
   const [qbTreatmentId, setQbTreatmentId] = useState(DENTAL_TREATMENTS[0].id)
   const [qbPriority, setQbPriority] = useState<AppointmentPriority>('normal')
   const [qbNotes, setQbNotes] = useState('')
   const [qbError, setQbError] = useState('')
+  const qbTimeSlots = getAppointmentTimeSlots(qbDate, qbPriority)
   const [slotSuccessToast, setSlotSuccessToast] = useState('')
   const qbSearchRef = useRef<HTMLDivElement>(null)
 
@@ -150,15 +165,12 @@ export const CalendarPage: React.FC = () => {
   }
 
   const handleToday = () => {
-    const d = new Date()
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
-    setSelectedDate(d.toISOString().slice(0, 10))
+    setSelectedDate(getClinicNow().date)
   }
 
   const handleJumpDate = (offsetDays: number) => {
-    const d = new Date()
-    d.setDate(d.getDate() + offsetDays)
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+    const d = new Date(`${getClinicNow().date}T12:00:00Z`)
+    d.setUTCDate(d.getUTCDate() + offsetDays)
     setSelectedDate(d.toISOString().slice(0, 10))
   }
 
@@ -180,11 +192,7 @@ export const CalendarPage: React.FC = () => {
   }, [selectedDate])
 
   // Hourly slots from 09:00 to 18:00
-  const timeSlots = [
-    '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-    '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-    '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
-  ]
+  const timeSlots = getAppointmentTimeSlots(selectedDate)
 
   // Filtered appointments
   const filteredAppointments = useMemo(() => {
@@ -226,11 +234,11 @@ export const CalendarPage: React.FC = () => {
     const patient = getPatient(appt.patientId)
     try {
       const res = await sendCallInWhatsAppMessage(appt, patient)
-      if (res.status === 'sent') {
+      if (res.status === 'opened') {
         setCallInToast({
           type: 'success',
-          title: 'Patient Called-In & WhatsApp Sent',
-          message: `WhatsApp message sent to ${res.patientName} (${res.recipient}).`,
+          title: 'Patient Called-In — WhatsApp Opened',
+          message: `WhatsApp compose window opened for ${res.patientName} (${res.recipient}).`,
         })
       } else if (res.status === 'invalid_phone' || res.status === 'error') {
         setCallInToast({
@@ -248,6 +256,22 @@ export const CalendarPage: React.FC = () => {
     }
   }
 
+  const handleCalendarStatus = async (appt: AppointmentRecord, nextStatus: AppointmentStatus) => {
+    if (actionSaving) return
+    if (nextStatus === 'cancelled') { setCancelReason(''); setShowCancelModal(true); return }
+    setActionSaving(true); setActionError('')
+    const isCallIn = appt.status === 'checked-in' && nextStatus === 'in-progress'
+    try {
+      const confirmed = await updateAppointmentStatus(appt.id, nextStatus, nextStatus === 'in-progress' ? 'Patient called in to consultation room' : undefined)
+      if (isCallIn) await triggerCallInWhatsApp(confirmed || appt)
+      if (nextStatus === 'completed') {
+        const result = autoGenerateInvoiceForConsultation({ appointment: confirmed || appt, patientId: appt.patientId })
+        if (result.invoice) { const invoice = await result.invoice; setInvoiceToast({ invoiceNumber: invoice.id, amount: invoice.amount }) }
+      }
+    } catch (error: any) { setActionError(error.message || 'Status change was not saved.') }
+    finally { setActionSaving(false) }
+  }
+
   // Quick 1-click status advancement on card
   const handleQuickAdvanceStatus = (e: React.MouseEvent, appt: AppointmentRecord) => {
     e.stopPropagation()
@@ -256,29 +280,7 @@ export const CalendarPage: React.FC = () => {
     else if (appt.status === 'checked-in') nextStatus = 'in-progress'
     else if (appt.status === 'in-progress') nextStatus = 'completed'
 
-    const isCallIn = appt.status === 'checked-in' && nextStatus === 'in-progress'
-    updateAppointmentStatus(
-      appt.id,
-      nextStatus,
-      isCallIn ? 'Patient called in to consultation room' : undefined
-    )
-
-    if (isCallIn) {
-      void triggerCallInWhatsApp(appt)
-    }
-
-    if (nextStatus === 'completed') {
-      const res = autoGenerateInvoiceForConsultation({
-        appointment: appt,
-        patientId: appt.patientId,
-      })
-      if (res.invoice) {
-        setInvoiceToast({
-          invoiceNumber: res.invoice.id,
-          amount: res.invoice.amount,
-        })
-      }
-    }
+    void handleCalendarStatus(appt, nextStatus)
   }
 
   // Quick WhatsApp trigger from card
@@ -290,13 +292,13 @@ export const CalendarPage: React.FC = () => {
 
   // Open Slot Booking modal prefilled for a specific doctor & time slot
   const handleOpenSlotBooking = (doctorName: string, slotTime: string, dateStr?: string) => {
+    bookingAttempt.current = generateBookingRef()
     setQbDoctor(doctorName)
     setQbTime(slotTime)
     setQbDate(dateStr || selectedDate)
     setQbPatientSearch('')
     setIsQbSearchOpen(false)
     setQbSelectedPatientId('')
-    setQbNewPatientMobile('')
     setQbNotes('')
     setQbError('')
     setShowSlotBookingModal(true)
@@ -325,19 +327,19 @@ export const CalendarPage: React.FC = () => {
   const selectedQbDentist = DENTISTS.find((d) => d.name === qbDoctor)
 
   // Real-time availability validation for Slot Booking
-  // Hard-blocks true appointment double-booking overlaps, while allowing booking clinic slots even outside mock shift hours
+  // Use the same availability checks for selection and submission.
   const qbAvailability = useMemo(() => {
     const duration = selectedQbTreatment?.defaultDurationMinutes || 30
-    const rawCheck = checkDentistAvailability(qbDoctor, qbDate, qbTime, duration)
-    const isHardConflict = Boolean(!rawCheck.available && rawCheck.reason?.includes('already has appointment'))
-    const isShiftAdvisory = Boolean(!rawCheck.available && !isHardConflict)
+    const rawCheck = checkDentistAvailability(qbDoctor, qbDate, qbTime, duration, undefined, selectedQbDentist?.chair, qbPriority)
+    const isHardConflict = !rawCheck.available
+    const isShiftAdvisory = false
     return {
       available: !isHardConflict,
       isHardConflict,
       isShiftAdvisory,
       reason: rawCheck.reason
     }
-  }, [qbDoctor, qbDate, qbTime, selectedQbTreatment, appointments])
+  }, [qbDoctor, qbDate, qbTime, selectedQbTreatment, appointments, qbPriority])
 
   // Check availability of each time slot for rescheduling active appointment
   const getRescheduleSlotAvailability = (slot: string) => {
@@ -347,24 +349,24 @@ export const CalendarPage: React.FC = () => {
       rescheduleDate,
       slot,
       activeAppt.durationMinutes || 30,
-      activeAppt.id
+      activeAppt.id, activeAppt.chair, activeAppt.priority
     )
   }
 
   // Check availability of each time slot for in-calendar quick slot booking
   const getQbSlotAvailability = (slot: string) => {
     const duration = selectedQbTreatment?.defaultDurationMinutes || 30
-    return checkDentistAvailability(qbDoctor, qbDate, slot, duration)
+    return checkDentistAvailability(qbDoctor, qbDate, slot, duration, undefined, selectedQbDentist?.chair, qbPriority)
   }
 
   // Auto-adjust qbTime if currently selected slot is unavailable when doctor, date or treatment changes
   useEffect(() => {
     if (!showSlotBookingModal) return
     const duration = selectedQbTreatment?.defaultDurationMinutes || 30
-    const currentStatus = checkDentistAvailability(qbDoctor, qbDate, qbTime, duration)
+    const currentStatus = checkDentistAvailability(qbDoctor, qbDate, qbTime, duration, undefined, selectedQbDentist?.chair, qbPriority)
     if (!currentStatus.available) {
-      const firstAvail = timeSlots.find((s) => {
-        const res = checkDentistAvailability(qbDoctor, qbDate, s, duration)
+      const firstAvail = qbTimeSlots.find((s) => {
+        const res = checkDentistAvailability(qbDoctor, qbDate, s, duration, undefined, selectedQbDentist?.chair, qbPriority)
         return res.available
       })
       if (firstAvail) {
@@ -372,7 +374,7 @@ export const CalendarPage: React.FC = () => {
         setQbError('')
       }
     }
-  }, [showSlotBookingModal, qbDoctor, qbDate, qbTreatmentId, appointments])
+  }, [showSlotBookingModal, qbDoctor, qbDate, qbTreatmentId, appointments, qbPriority])
 
   // Auto-adjust rescheduleTime if currently selected slot is unavailable on the chosen date
   useEffect(() => {
@@ -382,16 +384,16 @@ export const CalendarPage: React.FC = () => {
       rescheduleDate,
       rescheduleTime,
       activeAppt.durationMinutes || 30,
-      activeAppt.id
+      activeAppt.id, activeAppt.chair, activeAppt.priority
     )
     if (!currentStatus.available) {
-      const firstAvail = timeSlots.find((s) => {
+      const firstAvail = rescheduleSlots.find((s) => {
         const res = checkDentistAvailability(
           activeAppt.doctor,
           rescheduleDate,
           s,
           activeAppt.durationMinutes || 30,
-          activeAppt.id
+          activeAppt.id, activeAppt.chair, activeAppt.priority
         )
         return res.available
       })
@@ -407,47 +409,14 @@ export const CalendarPage: React.FC = () => {
   }, [showRescheduleModal, activeAppt, rescheduleDate, appointments])
 
   const handleRegisterAndSelectPatient = () => {
-    const rawName = qbPatientSearch.trim()
-    if (!rawName) return
-    const parts = rawName.split(/\s+/)
-    const firstName = parts[0] || 'Patient'
-    const lastName = parts.slice(1).join(' ') || ''
-
-    const created = savePatient({
-      firstName,
-      lastName,
-      age: '30',
-      dateOfBirth: '1995-01-01',
-      gender: 'undisclosed',
-      mobile: qbNewPatientMobile.trim() || '0000000000',
-      countryCode: '+91',
-      email: '',
-      language: 'English',
-      city: '',
-      state: '',
-      postalCode: '',
-      address: 'Booked from Calendar Slot',
-      emergencyName: '',
-      emergencyPhone: '',
-      relationship: '',
-      allergies: 'no',
-      allergiesDetails: '',
-      medications: 'no',
-      medicationsDetails: '',
-      conditions: 'no',
-      conditionsDetails: ''
-    })
-
-    setQbSelectedPatientId(created.id)
-    setQbPatientSearch('')
-    setQbNewPatientMobile('')
-    setQbError('')
-    return created
+    navigate(`/patients/new?name=${encodeURIComponent(qbPatientSearch.trim())}`)
+    return undefined
   }
 
-  const handleExecuteSlotBooking = (e: React.FormEvent) => {
+  const handleExecuteSlotBooking = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (qbAvailability.isHardConflict) {
+    if (bookingSaving) return
+    if (!checkDentistAvailability(qbDoctor, qbDate, qbTime, selectedQbTreatment?.defaultDurationMinutes || 30, undefined, selectedQbDentist?.chair, qbPriority).available) {
       setQbError(qbAvailability.reason || 'This slot already has a conflicting appointment.')
       return
     }
@@ -456,21 +425,14 @@ export const CalendarPage: React.FC = () => {
     let patientLabel = selectedQbPatient ? `${selectedQbPatient.firstName} ${selectedQbPatient.lastName}` : ''
 
     if (!finalPatientId) {
-      if (qbPatientSearch.trim()) {
-        const created = handleRegisterAndSelectPatient()
-        if (created) {
-          finalPatientId = created.id
-          patientLabel = `${created.firstName} ${created.lastName}`.trim()
-        }
-      }
-    }
-
-    if (!finalPatientId) {
-      setQbError('Please select an existing patient or enter a patient name.')
+      setQbError('Select an existing patient, or register the patient first.')
       return
     }
+    setBookingSaving(true); setQbError('')
+    try {
 
-    bookAppointment({
+    const booked = bookAppointment({
+      bookingRef: bookingAttempt.current,
       patientId: finalPatientId,
       doctor: qbDoctor,
       chair: selectedQbDentist?.chair || 'Chair 1',
@@ -483,6 +445,7 @@ export const CalendarPage: React.FC = () => {
       notes: qbNotes
     })
 
+    if ((booked as any)._syncPromise) await (booked as any)._syncPromise
     if (qbDate !== selectedDate) {
       setSelectedDate(qbDate)
     }
@@ -490,6 +453,8 @@ export const CalendarPage: React.FC = () => {
     setShowSlotBookingModal(false)
     setSlotSuccessToast(`Booked ${patientLabel || 'patient'} with ${qbDoctor} on ${qbDate} at ${qbTime}`)
     setTimeout(() => setSlotSuccessToast(''), 4000)
+    } catch (error: any) { setQbError(error.message || 'Booking was not saved.') }
+    finally { setBookingSaving(false) }
   }
 
   const [walkInDob, setWalkInDob] = useState('');
@@ -503,6 +468,7 @@ export const CalendarPage: React.FC = () => {
     setWalkInSaving(true); setWalkInError('');
     try {
     await registerWalkIn({
+      bookingRef: walkInAttempt.current,
       dateOfBirth: walkInDob,
       patientName: wiName,
       mobile: wiMobile,
@@ -517,12 +483,14 @@ export const CalendarPage: React.FC = () => {
     setWiMobile('')
     setWiComplaint('')
     setShowQuickWalkIn(false)
+    walkInAttempt.current = generateBookingRef()
     } catch (error: any) { setWalkInError(error.message || 'Walk-in was not saved.'); }
     finally { setWalkInSaving(false); }
   }
 
   const handleExecuteReschedule = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (rescheduleSaving) return
     if (!activeAppt) return
     setRescheduleError('')
 
@@ -531,13 +499,14 @@ export const CalendarPage: React.FC = () => {
       rescheduleDate,
       rescheduleTime,
       activeAppt.durationMinutes || 30,
-      activeAppt.id
+      activeAppt.id, activeAppt.chair, activeAppt.priority
     )
     if (!slotCheck.available) {
       setRescheduleError(slotCheck.reason || 'Selected time slot is unavailable. Please select an available slot.')
       return
     }
 
+    setRescheduleSaving(true)
     const result = rescheduleAppointment(
       activeAppt.id,
       rescheduleDate,
@@ -545,7 +514,7 @@ export const CalendarPage: React.FC = () => {
       rescheduleReason || 'Patient requested new time slot.'
     )
 
-    try { await result._syncPromise } catch (error: any) { setRescheduleError(error.message || 'Reschedule was not saved.'); return }
+    try { await result._syncPromise } catch (error: any) { setRescheduleError(error.message || 'Reschedule was not saved.'); return } finally { setRescheduleSaving(false) }
 
     if (!result.success) {
       setRescheduleError(result.error || 'Conflict detected. Please select another time.')
@@ -567,7 +536,7 @@ export const CalendarPage: React.FC = () => {
     e.preventDefault()
     if (!activeAppt) return
 
-    try { await cancelAppointment(activeAppt.id, cancelReason || 'Patient cancelled visit.') } catch (error: any) { window.alert(error.message || 'Cancellation was not saved.'); return }
+    try { await cancelAppointment(activeAppt.id, cancelReason) } catch (error: any) { window.alert(error.message || 'Cancellation was not saved.'); return }
     setShowCancelModal(false)
     setActiveAppt(null)
   }
@@ -578,16 +547,19 @@ export const CalendarPage: React.FC = () => {
     if (!patient) return
 
     const message = generateWhatsAppMessage(whatsAppType, activeAppt, patient)
-    sendAppointmentReminder(activeAppt.id, 'whatsapp')
 
-    const phone = patient.mobile.replace(/\D/g, '')
-    const url = `https://wa.me/91${phone}?text=${encodeURIComponent(message)}`
-    window.open(url, '_blank')
+
+    const phone = validateWhatsAppPhone(patient.mobile, patient.countryCode)
+    if (!phone.valid) { setActionError(phone.error || 'Invalid phone number.'); return }
+    const opened = window.open(`https://wa.me/${phone.digits}?text=${encodeURIComponent(message)}`, '_blank')
+    if (!opened) { setActionError('WhatsApp window was blocked. Allow popups and try again.'); return }
+    opened.opener = null
     setShowWhatsAppModal(false)
   }
 
   return (
     <div className="calendar-page-root" data-testid="feature-page-appt.calendar">
+      {actionError && <p role="alert">{actionError}</p>}
       {/* 1. Header & Navigation Toolbar */}
       <header className="calendar-header-toolbar">
         <div className="calendar-heading-group">
@@ -645,16 +617,9 @@ export const CalendarPage: React.FC = () => {
           <button
             type="button"
             className="patient-intake-secondary"
+            disabled={!canEditSchedule}
             onClick={() => {
-              const apptToReschedule = dateAppointments.find((a) => a.status !== 'cancelled' && a.status !== 'completed') || appointments.find((a) => a.status !== 'cancelled' && a.status !== 'completed')
-              if (apptToReschedule) {
-                setActiveAppt(apptToReschedule)
-                setRescheduleDate(apptToReschedule.date)
-                setRescheduleTime(apptToReschedule.time)
-                setRescheduleReason('')
-                setRescheduleError('')
-                setShowRescheduleModal(true)
-              }
+              setShowReschedulePicker(true)
             }}
             style={{ padding: '6px 12px', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
             title="Reschedule an appointment"
@@ -787,7 +752,7 @@ export const CalendarPage: React.FC = () => {
                                       </button>
                                       <button
                                         type="button"
-                                        className="card-quick-reschedule-btn"
+                                        className="card-quick-reschedule-btn" disabled={!canEditSchedule}
                                         onClick={(e) => {
                                           e.stopPropagation()
                                           setActiveAppt(appt)
@@ -912,7 +877,7 @@ export const CalendarPage: React.FC = () => {
                                     </button>
                                     <button
                                       type="button"
-                                      className="card-quick-reschedule-btn"
+                                      className="card-quick-reschedule-btn" disabled={!canEditSchedule}
                                       onClick={(e) => {
                                         e.stopPropagation()
                                         setActiveAppt(appt)
@@ -1040,7 +1005,7 @@ export const CalendarPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleExecuteSlotBooking} className="sub-modal-form">
+            <form aria-busy={bookingSaving} onSubmit={handleExecuteSlotBooking} className="sub-modal-form">
               {qbError && (
                 <div className="conflict-alert">
                   <AlertTriangle size={15} />
@@ -1116,17 +1081,10 @@ export const CalendarPage: React.FC = () => {
                                   cursor: 'pointer'
                                 }}
                               >
-                                Add &amp; Select
+                                Register patient
                               </button>
                             </div>
-                            <input
-                              type="tel"
-                              placeholder="Mobile number (optional)"
-                              value={qbNewPatientMobile}
-                              onChange={(e) => setQbNewPatientMobile(e.target.value)}
-                              onClick={(e) => e.stopPropagation()}
-                              style={{ fontSize: '12px', padding: '5px 8px' }}
-                            />
+
                           </div>
                         )}
                       </div>
@@ -1166,7 +1124,7 @@ export const CalendarPage: React.FC = () => {
                 <label className="form-field">
                   <span>Time Slot</span>
                   <select value={qbTime} onChange={(e) => setQbTime(e.target.value)}>
-                    {timeSlots.map((s) => {
+                    {qbTimeSlots.map((s) => {
                       const slotCheck = getQbSlotAvailability(s)
                       const isAvailable = slotCheck.available
                       return (
@@ -1242,7 +1200,7 @@ export const CalendarPage: React.FC = () => {
                 <button
                   type="submit"
                   className="btn-confirm"
-                  disabled={qbAvailability.isHardConflict || (!qbSelectedPatientId && !qbPatientSearch.trim())}
+                  disabled={!canEditSchedule || bookingSaving || !qbAvailability.available || !qbSelectedPatientId}
                   style={{ opacity: (qbAvailability.isHardConflict || (!qbSelectedPatientId && !qbPatientSearch.trim())) ? 0.6 : 1 }}
                 >
                   Confirm Slot Booking
@@ -1352,40 +1310,18 @@ export const CalendarPage: React.FC = () => {
                 <label>Change Status:</label>
                 <select
                   value={activeAppt.status}
+                  disabled={actionSaving}
                   onChange={(e) => {
-                    const prevStatus = activeAppt.status
-                    const newStatus = e.target.value as AppointmentStatus
-                    const isCallIn = prevStatus === 'checked-in' && newStatus === 'in-progress'
-                    updateAppointmentStatus(
-                      activeAppt.id,
-                      newStatus,
-                      isCallIn ? 'Patient called in to consultation room' : undefined
-                    )
-                    setActiveAppt({ ...activeAppt, status: newStatus })
-                    if (isCallIn) {
-                      void triggerCallInWhatsApp(activeAppt)
-                    }
-                    if (newStatus === 'completed') {
-                      const res = autoGenerateInvoiceForConsultation({
-                        appointment: activeAppt,
-                        patientId: activeAppt.patientId,
-                      })
-                      if (res.invoice) {
-                        setInvoiceToast({
-                          invoiceNumber: res.invoice.id,
-                          amount: res.invoice.amount,
-                        })
-                      }
-                    }
+                    void handleCalendarStatus(activeAppt, e.target.value as AppointmentStatus)
                   }}
                 >
-                  <option value="scheduled">Scheduled</option>
-                  <option value="confirmed">Confirmed</option>
-                  <option value="checked-in">Checked-in</option>
-                  <option value="in-progress">In Consultation</option>
-                  <option value="completed">Completed</option>
-                  <option value="cancelled">Cancelled</option>
-                  <option value="no-show">No-Show</option>
+                  <option disabled={!canTransitionAppointment(activeAppt.status, 'scheduled')} value="scheduled">Scheduled</option>
+                  <option disabled={!canTransitionAppointment(activeAppt.status, 'confirmed')} value="confirmed">Confirmed</option>
+                  <option disabled={!canTransitionAppointment(activeAppt.status, 'checked-in')} value="checked-in">Checked-in</option>
+                  <option disabled={!canTransitionAppointment(activeAppt.status, 'in-progress')} value="in-progress">In Consultation</option>
+                  <option disabled={!canTransitionAppointment(activeAppt.status, 'completed')} value="completed">Completed</option>
+                  <option disabled={!canTransitionAppointment(activeAppt.status, 'cancelled')} value="cancelled">Cancelled</option>
+                  <option disabled={!canTransitionAppointment(activeAppt.status, 'no-show')} value="no-show">No-Show</option>
                 </select>
               </div>
             </div>
@@ -1434,23 +1370,12 @@ export const CalendarPage: React.FC = () => {
 
             {/* Modern Action Bar with icons & crisp styling */}
             <div className="modal-actions-bar">
-              {activeAppt.status !== 'completed' && activeAppt.status !== 'cancelled' && (
+              {activeAppt.status === 'in-progress' && (
                 <button
                   type="button"
                   className="btn-action-complete"
                   onClick={() => {
-                    updateAppointmentStatus(activeAppt.id, 'completed')
-                    setActiveAppt({ ...activeAppt, status: 'completed' })
-                    const res = autoGenerateInvoiceForConsultation({
-                      appointment: activeAppt,
-                      patientId: activeAppt.patientId,
-                    })
-                    if (res.invoice) {
-                      setInvoiceToast({
-                        invoiceNumber: res.invoice.id,
-                        amount: res.invoice.amount,
-                      })
-                    }
+                    void handleCalendarStatus(activeAppt, 'completed')
                   }}
                   title="Finalize consultation and preview invoice"
                   style={{
@@ -1474,7 +1399,7 @@ export const CalendarPage: React.FC = () => {
 
               <button
                 type="button"
-                className="btn-action-reschedule"
+                className="btn-action-reschedule" disabled={!canEditSchedule || !canRescheduleAppointment(activeAppt.status)}
                 onClick={() => {
                   setRescheduleDate(activeAppt.date)
                   setRescheduleTime(activeAppt.time)
@@ -1553,6 +1478,28 @@ export const CalendarPage: React.FC = () => {
         </div>
       )}
 
+      {showReschedulePicker && (
+        <div className="calendar-modal-overlay" onClick={() => setShowReschedulePicker(false)}>
+          <div className="sub-modal-card" onClick={e => e.stopPropagation()} style={{ padding: 20 }}>
+            <h3>Choose an appointment to reschedule</h3>
+            <select aria-label="Appointment to reschedule" defaultValue="" onChange={e => {
+              const appt = appointments.find(a => a.id === e.target.value)
+              if (!appt) return
+              setActiveAppt(appt); setRescheduleDate(appt.date); setRescheduleTime(appt.time)
+              setRescheduleReason(''); setRescheduleError(''); setShowReschedulePicker(false); setShowRescheduleModal(true)
+            }}>
+              <option value="" disabled>Select an appointment</option>
+              {appointments.filter(a => canRescheduleAppointment(a.status)).map(a => {
+                const patient = getPatient(a.patientId)
+                return <option key={a.id} value={a.id}>{patient ? `${patient.firstName} ${patient.lastName}` : a.patientName || a.patientId} — {a.date} {a.time} — {a.doctor} — {formatShortBookingRef(a.bookingRef || a.id)}</option>
+              })}
+            </select>
+            {!appointments.some(a => canRescheduleAppointment(a.status)) && <p>No upcoming appointments to reschedule.</p>}
+            <button type="button" onClick={() => setShowReschedulePicker(false)}>Close</button>
+          </div>
+        </div>
+      )}
+
       {/* 7. Reschedule Modal (Requirement #5) */}
       {showRescheduleModal && activeAppt && (
         <div className="calendar-modal-overlay">
@@ -1562,7 +1509,7 @@ export const CalendarPage: React.FC = () => {
                 <span className="reschedule-header-icon"><RotateCcw size={16} /></span>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '15px' }}>Reschedule Appointment</h3>
-                  <span style={{ fontSize: '11.5px', color: 'var(--text-muted, #64748b)' }}>ID: {activeAppt.id}</span>
+                  <span style={{ fontSize: '11.5px', color: 'var(--text-muted, #64748b)' }}>Ref: #{formatShortBookingRef(activeAppt.bookingRef || activeAppt.id)}</span>
                 </div>
               </div>
               <button type="button" className="btn-close" onClick={() => setShowRescheduleModal(false)}>
@@ -1598,7 +1545,7 @@ export const CalendarPage: React.FC = () => {
                   <input
                     type="date"
                     required
-                    min={new Date().toISOString().slice(0, 10)}
+                    min={getClinicNow().date}
                     value={rescheduleDate}
                     onChange={(e) => {
                       setRescheduleDate(e.target.value)
@@ -1615,7 +1562,7 @@ export const CalendarPage: React.FC = () => {
                       setRescheduleError('')
                     }}
                   >
-                    {timeSlots.map((s) => {
+                    {rescheduleSlots.map((s) => {
                       const slotCheck = getRescheduleSlotAvailability(s)
                       const isAvailable = slotCheck.available
                       return (
@@ -1654,7 +1601,7 @@ export const CalendarPage: React.FC = () => {
                 <button
                   type="submit"
                   className="btn-confirm-reschedule"
-                  disabled={!getRescheduleSlotAvailability(rescheduleTime).available}
+                  disabled={rescheduleSaving || !getRescheduleSlotAvailability(rescheduleTime).available}
                   style={{
                     opacity: !getRescheduleSlotAvailability(rescheduleTime).available ? 0.6 : 1,
                     cursor: !getRescheduleSlotAvailability(rescheduleTime).available ? 'not-allowed' : 'pointer'

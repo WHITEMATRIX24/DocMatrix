@@ -332,6 +332,16 @@ model Appointment {
   notes              String?
   cancellationReason String?
   isWalkIn           Boolean             @default(false)
+  bookingRef         String?
+  revisitOfId        String?
+  revisitOf          Appointment?        @relation("AppointmentRevisits", fields: [revisitOfId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  revisits           Appointment[]       @relation("AppointmentRevisits")
+  revision           Int                 @default(0)
+  rescheduleHistory  Json                @default("[]")
+  statusHistory      Json                @default("[]")
+  checkInTime        DateTime?            @db.Timestamptz(6)
+  consultationStartTime DateTime?         @db.Timestamptz(6)
+  completedTime      DateTime?            @db.Timestamptz(6)
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -348,6 +358,8 @@ model Appointment {
   @@index([doctorId, startTime])
   @@index([operatoryChair, startTime])
   @@index([clinicId, status])
+  @@unique([id, clinicId])
+  @@unique([clinicId, bookingRef])
 }
 
 // ------------------------------------------
@@ -543,6 +555,8 @@ model Prescription {
   doctorId           String
   prescriptionNumber String             // e.g. 'RX-1001', strictly unique per clinic
   diagnosis          String
+  clinicalNoteId     String?
+  clinicalNote       ClinicalNote?      @relation(fields: [clinicalNoteId, clinicId], references: [id, clinicId], onDelete: Restrict)
   clinicalNotes      String?
   status             PrescriptionStatus @default(DRAFT)
   prescribedAt       DateTime           @default(now())
@@ -569,6 +583,7 @@ model Prescription {
   @@index([clinicId, doctorId])
   @@index([clinicId, status])
   @@index([clinicId, prescribedAt])
+  @@index([clinicalNoteId, clinicId])
 }
 
 model PrescriptionItem {
@@ -680,6 +695,7 @@ model ClinicalNote {
   finalizedBy  User?                  @relation("FinalizedClinicalNotes", fields: [finalizedById, clinicId], references: [id, clinicId], onDelete: Restrict)
   appointment  Appointment?           @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   addenda      ClinicalNoteAddendum[]
+  prescriptions Prescription[]
 
   @@unique([clinicId, noteNumber])
   @@unique([id, clinicId])
