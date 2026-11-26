@@ -12,21 +12,21 @@ describe('InventoryController Multi-Tenant Isolation', () => {
   const clinicAId = 'clinic-alpha-1111';
   const clinicBId = 'clinic-beta-2222';
 
-  const userClinicA: AuthenticatedUser = {
+  const userClinicA = {
     id: 'user-a',
     email: 'admin@clinica.com',
     role: 'ORGANIZATION_ADMIN',
     clinicId: clinicAId,
     isPlatformAdmin: false,
-  };
+  } as unknown as AuthenticatedUser;
 
-  const userClinicB: AuthenticatedUser = {
+  const userClinicB = {
     id: 'user-b',
     email: 'admin@clinicb.com',
     role: 'ORGANIZATION_ADMIN',
     clinicId: clinicBId,
     isPlatformAdmin: false,
-  };
+  } as unknown as AuthenticatedUser;
 
   beforeEach(() => {
     service = {

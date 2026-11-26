@@ -12,11 +12,11 @@ describe('DocMatrix — Isolated Service Tariff & Invoice Creation Suite', () =>
   let prismaMock: any;
 
   const mockClinicId = 'clinic-alpha-101';
-  const mockStaffUser: AuthenticatedUser = {
+  const mockStaffUser = {
     id: 'usr-admin-1',
     role: 'ORGANIZATION_ADMIN',
     clinicId: mockClinicId,
-  };
+  } as unknown as AuthenticatedUser;
   const mockPatient = {
     id: 'pt-uuid-1',
     patientCode: 'pt-1001',

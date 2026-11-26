@@ -87,7 +87,7 @@ describe('Platform admin HTTP authorization (synthetic persistence)', () => {
   it('uses existing hashed-password/session login and sets an HttpOnly refresh cookie', async () => {
     const res = await signIn(); expect(res.status).toBe(200);
     expect(res.body.user.isPlatformAdmin).toBe(true); expect(res.body.refreshToken).toBeUndefined();
-    expect(res.headers['set-cookie'].join(';')).toMatch(/HttpOnly/);
+    expect(res.headers['set-cookie'] ? String(res.headers['set-cookie']) : '').toMatch(/HttpOnly/);
     expect(sessionRows.size).toBe(1); expect(jwt.decode(res.body.token).sessionId).toBeTruthy();
     const result = await dashboard(res.body.token); expect(result.status).toBe(200);
     expect(result.headers['cache-control']).toBe('no-store');

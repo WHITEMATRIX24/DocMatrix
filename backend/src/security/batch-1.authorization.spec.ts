@@ -261,6 +261,7 @@ describe('Batch 1 treatment lifecycle and bootstrap', () => {
   it('#5 requires explicit credentials and refuses to reset/elevate existing accounts', async () => {
     // The provisioning module is import-safe and never opens a database here.
     const { provisionPlatformAdmin } =
+      // @ts-ignore
       await import('../../scripts/create-platform-admin.mjs');
     const db: any = {
       user: {

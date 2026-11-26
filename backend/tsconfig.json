@@ -19,5 +19,6 @@
     "strict": true,
     "strictPropertyInitialization": false,
     "types": ["vitest/globals", "node"]
-  }
+  },
+  "exclude": ["node_modules", "dist", "test_treatment_plans_e2e.ts"]
 }

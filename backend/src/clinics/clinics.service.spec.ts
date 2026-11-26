@@ -202,7 +202,7 @@ describe('ClinicsService', () => {
       expect(mockPrisma.clinic.update).toHaveBeenCalledWith({ where: { id: mockClinicId }, data: { clinicalConfig: config } });
       const loaded = await service.getClinicalConfig(mockClinicId);
       expect(loaded.customMedicines).toHaveLength(1);
-      expect(loaded.customMedicines[0].name).toBe('Custom Analgesic 100mg');
+      expect((loaded.customMedicines as any)[0].name).toBe('Custom Analgesic 100mg');
     });
   });
 

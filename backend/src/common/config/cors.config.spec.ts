@@ -105,7 +105,7 @@ describe('CORS Security Configuration (SEC-001)', () => {
 
     it('rejects unknown external origins with a clear CORS error', () => {
       let allowedResult: boolean | undefined;
-      let errorResult: Error | null = null;
+      let errorResult: any = null;
 
       validator('https://evil.attacker.com', (err, allow) => {
         errorResult = err;

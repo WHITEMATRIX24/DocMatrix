@@ -302,7 +302,7 @@ describe('Finding #1: protected JWT access and issuance', () => {
       .set('X-Requested-With', 'docmatrix-web').set('Authorization', `Bearer ${token}`)
       .set('Cookie', `docmatrix_refresh_token=${refreshToken}`).send({});
     expect(response.status).toBe(200);
-    expect(response.headers['set-cookie'].join(';')).toContain('docmatrix_refresh_token=;');
+    expect(String(response.headers['set-cookie'])).toContain('docmatrix_refresh_token=;');
     expect((await access(token)).status).toBe(401);
     await expect(sessions.rotateRefreshToken(refreshToken)).rejects.toThrow(/revoked/);
   });
