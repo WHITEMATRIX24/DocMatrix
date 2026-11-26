@@ -15,7 +15,7 @@ export class PlansController {
   @Public()
   @Get()
   async listPlans(@Query('all') all?: string) {
-    const includeInactive = all === 'true';
+    const includeInactive = false;
     return this.plansService.listPlans(includeInactive);
   }
 

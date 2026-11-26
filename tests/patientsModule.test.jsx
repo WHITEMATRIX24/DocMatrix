@@ -1,3 +1,7 @@
+import { getClinicSnapshot, initClinicSession } from '@/services/clinicStore'
+import { saveToStorage, STORAGE_KEYS } from '@/services/storageService'
+import { localDate } from '@/pages/billing/BillingShared'
+import { seedClinicFixture } from './fixtures/clinic'
 import React from 'react'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { within, render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -8,14 +12,9 @@ import PatientProfilePage from '@/pages/patients/PatientProfilePage'
 import TreatmentPlansPage from '@/pages/clinical/TreatmentPlansPage'
 import ToothChartPage from '@/pages/patients/ToothChartPage'
 import PendingTreatmentsPage from '@/pages/patients/PendingTreatmentsPage'
-import { resetStoreForTesting } from '@/services/clinicStore'
 
 describe('Patients Module Refactoring & Clinical Centralization', () => {
-  beforeEach(() => {
-    sessionStorage.clear()
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101')
-    resetStoreForTesting()
-  })
+  beforeEach(() => seedClinicFixture('ORGANIZATION_ADMIN'))
 
   // 1. PATIENTS LIST HEADER & REGISTRATION ENTRY POINT
   it('renders Patients List header correctly without duplicate registration buttons', () => {
@@ -46,7 +45,7 @@ describe('Patients Module Refactoring & Clinical Centralization', () => {
       </MemoryRouter>
     )
 
-    // Verify initial seed patients appear
+    // Verify explicitly seeded patients appear
     expect(screen.getByText('Meera Nambiar')).toBeInTheDocument()
     expect(screen.getByText('pt-1001')).toBeInTheDocument()
 
@@ -93,8 +92,12 @@ describe('Patients Module Refactoring & Clinical Centralization', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/Meera Nambiar/i)
   })
 
-  // 4. UNIFIED PATIENT PROFILE 5-TAB STRUCTURE & DATA LOADING
-  it('renders all 6 unified profile tabs with authentic clinical data', () => {
+  // 4. PATIENT PROFILE TABS & DATA LOADING
+  it('renders profile tabs with explicitly seeded clinical records', () => {
+    const snap = getClinicSnapshot()
+    saveToStorage(STORAGE_KEYS.DATA, { ...snap, appointments: [] })
+    initClinicSession()
+
     render(
       <MemoryRouter initialEntries={['/patients/pt-1001']}>
         <Routes>
@@ -108,8 +111,8 @@ describe('Patients Module Refactoring & Clinical Centralization', () => {
     expect(screen.getByText('pt-1001')).toBeInTheDocument()
     expect(screen.getAllByText(/34 yrs/i).length).toBeGreaterThan(0)
 
-    // High-visibility Medical Alert Banner
-    expect(screen.getByRole('alert')).toHaveTextContent(/Penicillin allergy/i)
+    // High-visibility Medical Alert Banner is hidden when patient has no appointment today
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
     // Permitted Clinical Actions
     expect(screen.getByRole('button', { name: /Edit Patient/i })).toBeInTheDocument()
@@ -117,7 +120,7 @@ describe('Patients Module Refactoring & Clinical Centralization', () => {
     expect(screen.getByRole('button', { name: /Record Consultation/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Tooth Chart/i })).toBeInTheDocument()
 
-    // 6 Tabs Presence
+    // Main record tabs
     const tabs = ['Overview', 'Medical History', 'Activity', 'Billing', 'Documents', 'Consent Records']
     for (const tab of tabs) {
       expect(screen.getByRole('button', { name: new RegExp(tab, 'i') })).toBeInTheDocument()
@@ -141,6 +144,37 @@ describe('Patients Module Refactoring & Clinical Centralization', () => {
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Patient Profile Sections' })).getByRole('button', { name: /Consent Records/i }))
     expect(screen.getByText(/Informed Consent & Regulatory Records/i)).toBeInTheDocument()
     expect(screen.getByText(/Informed Consent for Endodontic Root Canal Therapy/i)).toBeInTheDocument()
+  })
+
+  it('shows allergy and medication alerts only when the patient has an appointment today', () => {
+    const snap = getClinicSnapshot()
+    saveToStorage(STORAGE_KEYS.DATA, {
+      ...snap,
+      appointments: [
+        {
+          id: 'apt-today-1',
+          patientId: 'pt-1001',
+          doctor: 'Dr. Arun Kumar',
+          date: localDate(),
+          time: '10:30',
+          visitType: 'Consultation',
+          treatmentType: 'Consultation',
+          status: 'scheduled',
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    })
+    initClinicSession()
+
+    render(
+      <MemoryRouter initialEntries={['/patients/pt-1001']}>
+        <Routes>
+          <Route path="/patients/:id" element={<PatientProfilePage />} />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/Penicillin allergy/i)
   })
 
   // 5. DEEP LINKS RESOLUTION
@@ -224,7 +258,8 @@ describe('Patients Module Refactoring & Clinical Centralization', () => {
     expect(screen.getByText(/Maxillary Arch \(Upper\)/i)).toBeInTheDocument()
     expect(screen.getByText(/Mandibular Arch \(Lower\)/i)).toBeInTheDocument()
 
-    // Tooth 46 has RCT condition
+    // Select the fixture tooth explicitly; the editor has no preselected clinical finding.
+    fireEvent.click(screen.getByRole('button', { name: /^Tooth 46/ }))
     expect(screen.getByText(/Tooth #46 Clinical Inspector/i)).toBeInTheDocument()
   })
 })

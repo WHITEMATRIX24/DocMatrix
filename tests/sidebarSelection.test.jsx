@@ -1,3 +1,4 @@
+import { browserSessionStorage } from '@/services/browserStorage';
 import React from 'react'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -12,7 +13,7 @@ describe('Global Sidebar Selection & Navigation Engine', () => {
   const launchFeatures = getLaunchFeatures()
 
   beforeEach(() => {
-    sessionStorage.clear()
+    browserSessionStorage.clear()
     window.location.hash = ''
   })
 
@@ -141,7 +142,7 @@ describe('Global Sidebar Selection & Navigation Engine', () => {
 
   // 5. SEQUENTIAL NAVIGATION: Clean Transfer of Selection
   it('cleanly transfers active state when navigating sequentially across submodules', async () => {
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101')
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-101')
     render(
       <MemoryRouter initialEntries={['/dashboard']}>
         <App />

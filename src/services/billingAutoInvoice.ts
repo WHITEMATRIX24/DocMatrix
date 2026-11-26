@@ -127,7 +127,7 @@ export function findExistingInvoiceForConsultation(
     }
 
     // 3. Same Patient + Same Treatment + Same Day check (Duplicate Safeguard)
-    if (targetPatientId && inv.patientId === targetPatientId) {
+    if (!apptId && !apptBackendId && !inv.appointmentId && targetPatientId && inv.patientId === targetPatientId) {
       const invDate = (inv.createdAt || '').slice(0, 10)
       const sameDay = !invDate || invDate === apptDate || invDate === new Date().toISOString().slice(0, 10)
       if (sameDay) {
@@ -463,6 +463,11 @@ export function autoGenerateInvoiceForConsultation(
   if (appointment?.id) inFlightApptInvoices.set(appointment.id, createdInvoice)
   if (appointment?.backendId) inFlightApptInvoices.set(appointment.backendId, createdInvoice)
   if (params.appointmentId) inFlightApptInvoices.set(params.appointmentId, createdInvoice)
+  void Promise.resolve(createdInvoice).then(confirmed => {
+    for (const [key, value] of inFlightApptInvoices) if (value === createdInvoice) inFlightApptInvoices.set(key, confirmed)
+  }).catch(() => {
+    for (const [key, value] of inFlightApptInvoices) if (value === createdInvoice) inFlightApptInvoices.delete(key)
+  })
 
   return {
     invoice: createdInvoice,
@@ -475,10 +480,11 @@ export function autoGenerateInvoiceForConsultation(
 // Automatically listen to appointment completion to generate invoice
 onAppointmentCompleted((appointment) => {
   try {
-    autoGenerateInvoiceForConsultation({
+    const result = autoGenerateInvoiceForConsultation({
       appointment,
       patientId: appointment.patientId,
     })
+    void Promise.resolve(result.invoice).catch(err => console.warn('[billingAutoInvoice] Invoice was not saved:', err))
   } catch (err) {
     console.warn('[billingAutoInvoice] auto-generation on appointment completion failed:', err)
   }

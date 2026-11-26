@@ -45,7 +45,7 @@ export class RolesGuard implements CanActivate {
     }
 
     if (user.isPlatformAdmin) {
-      return true;
+      throw new ForbiddenException('Platform administrator access is limited to platform endpoints.');
     }
 
     if (!requiredRoles || requiredRoles.length === 0) {

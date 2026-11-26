@@ -1,3 +1,4 @@
+import { browserSessionStorage } from '@/services/browserStorage';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
@@ -14,8 +15,8 @@ import { confirmConsumptionAndDeductStock } from '../src/services/adaptiveInvent
 
 describe('Treatment Plans Phase 1 Features: Billing, Dentist Assignment, Inventory Protection', () => {
   beforeEach(() => {
-    sessionStorage.clear();
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101');
+    browserSessionStorage.clear();
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-101');
     resetStoreForTesting();
   });
 
@@ -227,6 +228,7 @@ describe('Treatment Plans Phase 1 Features: Billing, Dentist Assignment, Invento
   // =========================================================================
   describe('Task 3 — Inventory Idempotency & Deduction Protection', () => {
     it('passes stable operationId and deductionId to /inventory/deduct to prevent double deductions', async () => {
+      browserSessionStorage.setItem('docmatrix_auth_token', 'synthetic-token');
       const postSpy = vi.spyOn(apiClient, 'post').mockResolvedValue({ success: true });
 
       const deduction = confirmConsumptionAndDeductStock({
@@ -254,6 +256,7 @@ describe('Treatment Plans Phase 1 Features: Billing, Dentist Assignment, Invento
         ],
       });
 
+      await deduction._syncPromise;
       expect(deduction.id).toBe('OP-DED-VERIFY-101');
       expect(postSpy).toHaveBeenCalledWith(
         '/inventory/deduct',

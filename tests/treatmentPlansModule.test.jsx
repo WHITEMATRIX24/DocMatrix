@@ -1,9 +1,9 @@
+import { seedClinicFixture } from './fixtures/clinic'
 import React from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import App from '@/App';
-import { resetStoreForTesting } from '@/services/clinicStore';
 
 const renderAt = (url) =>
   render(
@@ -13,18 +13,14 @@ const renderAt = (url) =>
   );
 
 describe('Treatment Plans & Integrated Cost Estimates Module', () => {
-  beforeEach(() => {
-    sessionStorage.clear();
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101');
-    resetStoreForTesting();
-  });
+  beforeEach(() => seedClinicFixture('ORGANIZATION_ADMIN'));
 
   describe('Clinic-Wide Treatment Plans (/clinical/treatment-plans)', () => {
     it('renders heading, table, status filters, and "New Treatment Plan" button', async () => {
       renderAt('/clinical/treatment-plans');
 
       expect(
-        await screen.findByRole('heading', { name: /Treatment Plans/i }, { timeout: 10000 })
+        await screen.findByRole('heading', { level: 1, name: /Treatment Plans/i }, { timeout: 10000 })
       ).toBeInTheDocument();
 
       expect(screen.getByRole('button', { name: /New Treatment Plan/i })).toBeInTheDocument();
@@ -73,8 +69,11 @@ describe('Treatment Plans & Integrated Cost Estimates Module', () => {
         await screen.findByRole('button', { name: /Plan Treatment/i }, { timeout: 10000 })
       ).toBeInTheDocument();
 
-      // Check tab exists and click it
-      const plansTab = await screen.findByTestId('tab-treatment-plans');
+      // Navigate to Clinical section to access secondary tabs
+      await screen.findByRole('navigation', { name: 'Patient Profile Sections' });
+
+      // Check tab exists
+      const plansTab = screen.getByTestId('tab-treatment-plans');
       expect(plansTab).toBeInTheDocument();
       fireEvent.click(plansTab);
 

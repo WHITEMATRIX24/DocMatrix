@@ -1,4 +1,5 @@
-import { BadRequestException, Controller, Get, Header, Inject, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Header, Body, Param, Patch, Inject, Query, UseGuards } from '@nestjs/common';
+import { ClinicStatusDto, PractitionerVerificationDto } from './platform-mutations.dto.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
 import { PlatformAdminOnly } from '../common/decorators/platform-admin.decorator.js';
@@ -18,6 +19,16 @@ export class PlatformAdminController {
       (status && !['ACTIVE', 'TRIAL', 'SUSPENDED', 'READ_ONLY', 'CLOSED'].includes(status)) ||
       Object.keys(query).some(k => !['page', 'search', 'status'].includes(k))) throw new BadRequestException('Invalid directory filters.');
     return this.service.getDirectory(kind, Number(page), search.trim(), status);
+  }
+
+  @Patch('clinics/:id/status')
+  setClinicStatus(@Param('id') id: string, @Body() dto: ClinicStatusDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.setClinicStatus(id, dto.status, dto.reason, user);
+  }
+
+  @Patch('users/:id/practitioner')
+  verifyPractitioner(@Param('id') id: string, @Body() dto: PractitionerVerificationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.verifyPractitioner(id, dto.verified, dto.registration, dto.reason, user);
   }
 
   @Get('clinics')

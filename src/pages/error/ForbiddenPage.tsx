@@ -1,10 +1,11 @@
+import { browserSessionStorage } from '@/services/browserStorage';
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { ShieldAlert, Home, ArrowLeft } from 'lucide-react'
 import { findDemoUserById } from '@/mocks/auth'
 
 export const ForbiddenPage: React.FC = () => {
-  const sessionUserId = typeof window !== 'undefined' ? sessionStorage.getItem('docmatrix-demo-session') : null
+  const sessionUserId = typeof window !== 'undefined' ? browserSessionStorage.getItem('docmatrix-demo-session') : null
   const user = sessionUserId ? findDemoUserById(sessionUserId) : null
 
   return (

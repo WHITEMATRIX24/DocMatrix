@@ -1,3 +1,4 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import { describe, it, expect, beforeEach } from 'vitest'
 import {
   calculateProcedureSuggestions,
@@ -12,7 +13,11 @@ import {
 
 describe('Adaptive Treatment-Based Inventory Engine', () => {
   beforeEach(() => {
+    browserLocalStorage.clear()
+    browserSessionStorage.clear()
     seedDemoInventoryForTesting()
+    getAdaptiveInventorySnapshot().doctorPreferences.push({ doctorId: 'doc-2', doctorName: 'Dr. Priya Nair', procedureId: 'trt-root-canal',
+      itemId: 'mat-files', suggestedQty: 2, confidence: 96, sampleSize: 20, standardQty: 1, historicalAverage: 2 })
   })
 
   it('maintains clinic default material templates with starting quantities for Root Canal', () => {

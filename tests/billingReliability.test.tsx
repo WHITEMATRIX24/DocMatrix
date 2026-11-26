@@ -1,3 +1,4 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import React from 'react'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -12,6 +13,7 @@ import {
   invoiceBalance,
   savePatient,
 } from '@/services/clinicStore'
+import { apiClient } from '@/services/apiClient'
 import { STORAGE_KEYS } from '@/services/authService'
 import { NewInvoicePage } from '@/pages/billing/NewInvoicePage'
 import { PaymentDialog } from '@/pages/billing/BillingShared'
@@ -21,7 +23,7 @@ describe('DocMatrix — Billing Reliability & Failure Recovery Suite', () => {
     id: 'usr-dentist-101',
     name: 'Dr. Arun Kumar',
     email: 'arun@docmatrix.in',
-    role: 'DENTIST',
+    role: 'DOCTOR',
     clinicName: 'DocMatrix Clinic A',
     clinicId: 'clinic-a-uuid',
   }
@@ -29,17 +31,18 @@ describe('DocMatrix — Billing Reliability & Failure Recovery Suite', () => {
 
   let testPatient: any
 
-  beforeEach(() => {
-    localStorage.clear()
-    sessionStorage.clear()
+  beforeEach(async () => {
+    browserLocalStorage.clear()
+    browserSessionStorage.clear()
     vi.restoreAllMocks()
     clearClinicStore()
 
     // Establish authenticated clinic session
-    sessionStorage.setItem(STORAGE_KEYS.TOKEN, mockToken)
-    sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser))
+    browserSessionStorage.setItem(STORAGE_KEYS.TOKEN, mockToken)
+    browserSessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser))
     initClinicSession('clinic-a-uuid')
 
+    vi.spyOn(apiClient, 'post').mockResolvedValue({ id: 'synthetic-patient-id', patientCode: 'pt-1001', firstName: 'Ramesh', lastName: 'Gupta', gender: 'MALE', dateOfBirth: '1988-05-15', mobile: '9876543210' })
     // Seed test patient
     testPatient = savePatient({
       firstName: 'Ramesh',
@@ -48,11 +51,12 @@ describe('DocMatrix — Billing Reliability & Failure Recovery Suite', () => {
       dateOfBirth: '1988-05-15',
       mobile: '9876543210',
     })
+    await testPatient._syncPromise
   })
 
   afterEach(() => {
-    localStorage.clear()
-    sessionStorage.clear()
+    browserLocalStorage.clear()
+    browserSessionStorage.clear()
     vi.restoreAllMocks()
     clearClinicStore()
   })
@@ -85,8 +89,8 @@ describe('DocMatrix — Billing Reliability & Failure Recovery Suite', () => {
     const invoicesAfterFailure = getClinicSnapshot().invoices
     expect(invoicesAfterFailure.length).toBe(0)
 
-    // Verify localStorage has no phantom invoice
-    const storageData = localStorage.getItem('docmatrix_clinic_data_clinic-a-uuid')
+    // Verify browserLocalStorage has no phantom invoice
+    const storageData = browserLocalStorage.getItem('docmatrix_clinic_data_clinic-a-uuid')
     if (storageData) {
       const parsed = JSON.parse(storageData)
       expect(parsed.invoices || []).toHaveLength(0)

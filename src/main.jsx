@@ -2,6 +2,10 @@ import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
+import { restoreSession } from './services/authService'
+import { installIdleSessionLock } from './services/idleSession'
+await restoreSession()
+installIdleSessionLock()
 import { applyTheme, getThemePreference, initSystemThemeListener } from './components/ThemeToggle'
 import './styles.css'
 import './portal.css'

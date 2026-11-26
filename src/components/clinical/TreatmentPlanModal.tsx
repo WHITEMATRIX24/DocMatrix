@@ -556,7 +556,7 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
               <Stethoscope size={20} />
             </div>
             <div>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0 }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: 'var(--text-strong, #101b1b)' }}>
                 {isEditMode
                   ? `Edit Treatment Plan (${planToEdit?.planNumber || planToEdit?.id})`
                   : 'Create Dental Treatment Plan'}
@@ -640,6 +640,7 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                 </label>
                 {effectiveLockedPatientId || isEditMode ? (
                   <div
+                    className="tp-locked-field"
                     style={{
                       padding: '8px 12px',
                       background: 'var(--surface-hover, #f8fafc)',
@@ -650,9 +651,10 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
+                      color: 'var(--text-strong, #0f172a)',
                     }}
                   >
-                    <Lock size={14} color="#64748b" />
+                    <Lock size={14} color="var(--text-muted, #64748b)" />
                     <span>
                       {selectedPatient
                         ? `${selectedPatient.firstName} ${selectedPatient.lastName} (${selectedPatient.id})`
@@ -709,6 +711,7 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                   </select>
                 ) : (
                   <div
+                    className="tp-locked-field"
                     style={{
                       padding: '8px 12px',
                       background: 'var(--surface-hover, #f8fafc)',
@@ -768,6 +771,7 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
 
             {/* Interactive Odontogram Drawer / Toggle Banner */}
             <div
+              className={`tp-odonto-toggle-banner ${showOdontogram ? 'is-open' : ''}`}
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -780,7 +784,7 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Smile size={18} color="var(--tp-teal)" />
-                <span style={{ fontSize: '13px', fontWeight: 600 }}>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #0f172a)' }}>
                   Interactive FDI Dental Chart & Odontogram
                 </span>
                 <span style={{ fontSize: '11.5px', color: 'var(--text-muted, #64748b)' }}>
@@ -789,6 +793,7 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
               </div>
               <button
                 type="button"
+                className={`tp-odonto-toggle-btn ${showOdontogram ? 'is-active' : ''}`}
                 onClick={() => setShowOdontogram(!showOdontogram)}
                 style={{
                   padding: '5px 12px',
@@ -807,6 +812,7 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
 
             {showOdontogram && (
               <div
+                className="tp-odonto-drawer"
                 style={{
                   padding: '14px',
                   borderRadius: '10px',
@@ -966,7 +972,7 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                             <tr
                               key={item.id || itemIdx}
                               style={{
-                                background: isRowActiveForChart ? 'rgba(0, 136, 145, 0.03)' : undefined,
+                                background: isRowActiveForChart ? 'var(--tp-teal-light)' : undefined,
                               }}
                             >
                               <td>
@@ -1106,6 +1112,7 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                                         key={surf}
                                         type="button"
                                         disabled={item.isLocked}
+                                        className={`tp-surface-btn ${isSelected ? 'is-selected' : ''}`}
                                         onClick={() => handleSurfaceToggle(stageIdx, itemIdx, surf)}
                                         style={{
                                           padding: '2px 6px',
@@ -1220,7 +1227,7 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                     </table>
                   </div>
 
-                  <div style={{ padding: '8px 16px', background: 'var(--surface, #ffffff)' }}>
+                  <div className="tp-stage-footer">
                     <button
                       type="button"
                       onClick={() => addItemToStage(stageIdx)}
@@ -1333,11 +1340,13 @@ export const TreatmentPlanModal: React.FC<TreatmentPlanModalProps> = ({
                 type="button"
                 onClick={onClose}
                 disabled={isSubmitting}
+                className="tp-btn-secondary"
                 style={{
                   padding: '8px 16px',
                   borderRadius: '8px',
                   border: '1px solid var(--line, #cbd5e1)',
                   background: 'var(--surface, #ffffff)',
+                  color: 'var(--text-strong, #0f172a)',
                   fontSize: '13px',
                   fontWeight: 600,
                   cursor: 'pointer',

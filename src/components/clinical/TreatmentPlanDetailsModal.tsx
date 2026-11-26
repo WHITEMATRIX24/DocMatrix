@@ -282,6 +282,7 @@ export const TreatmentPlanDetailsModal: React.FC<TreatmentPlanDetailsModalProps>
 
         {/* Overall Progress Tracker */}
         <div
+          className="tp-progress-bar-container"
           style={{
             padding: '12px 24px',
             background: 'var(--surface-hover, #f8fafc)',
@@ -359,7 +360,7 @@ export const TreatmentPlanDetailsModal: React.FC<TreatmentPlanDetailsModalProps>
         {/* Tab Navigation */}
         <TreatmentPlanWorkflow plan={plan} completedItem={completedItem} onDismissPrompt={() => setCompletedItem(null)} />
         {mutationError && <p role="alert">{mutationError}</p>}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--line, #e2e8f0)', padding: '0 24px', background: 'var(--surface, #ffffff)' }}>
+        <div className="tp-tabs-nav" style={{ display: 'flex', borderBottom: '1px solid var(--line, #e2e8f0)', padding: '0 24px', background: 'var(--surface, #ffffff)' }}>
           <button type="button" onClick={() => setActiveTab('clinical')} aria-pressed={activeTab === 'clinical'}>Clinical Notes &amp; Rx</button>
           <button type="button" onClick={() => setActiveTab('audit')} aria-pressed={activeTab === 'audit'}>Audit Timeline</button>
           <button

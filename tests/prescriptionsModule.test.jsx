@@ -1,10 +1,10 @@
+import { seedClinicFixture } from './fixtures/clinic'
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import {
   getClinicSnapshot,
-  resetStoreForTesting,
   addPrescription,
   updatePrescription,
   finalizePrescription,
@@ -13,13 +13,10 @@ import {
 import { PrescriptionsPage } from '@/pages/clinical/PrescriptionsPage';
 
 describe('DocMatrix Prescription Management Module', () => {
-  beforeEach(() => {
-    window.localStorage.clear();
-    resetStoreForTesting();
-  });
+  beforeEach(() => seedClinicFixture('DOCTOR'));
 
   describe('Clinic Store Prescription Operations', () => {
-    it('initializes with default demo prescriptions in offline/demo mode', () => {
+    it('loads explicitly seeded prescription fixtures in offline mode', () => {
       const snapshot = getClinicSnapshot();
       expect(snapshot.prescriptions).toBeDefined();
       expect(snapshot.prescriptions.length).toBeGreaterThanOrEqual(2);

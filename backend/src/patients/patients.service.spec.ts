@@ -17,6 +17,8 @@ describe('PatientsService - Simple and Straightforward Patient ID Generation', (
       },
     };
 
+    mockPrisma.$queryRaw = vi.fn(async () => [{ id: 'clinic-1' }]);
+    mockPrisma.$transaction = vi.fn(async work => work(mockPrisma));
     service = new PatientsService(mockPrisma);
   });
 

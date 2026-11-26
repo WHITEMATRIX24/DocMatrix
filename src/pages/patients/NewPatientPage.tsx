@@ -88,16 +88,19 @@ export const NewPatientPage: React.FC = () => {
     return true
   }
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const [saving, setSaving] = useState(false)
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!validateCurrentStep()) return
+    if (saving || !validateCurrentStep()) return
     const values = new FormData(event.currentTarget)
     const value = (key: string) => String(values.get(key) || '').trim()
     const enteredDob = value('dateOfBirth') || dob
     // Directly calculate age from DOB if DOB is provided
     const finalAge = (enteredDob ? computeAgeFromDob(enteredDob) : '') || value('age') || age || '30'
 
-    setRegisteredPatient(registerPatient({
+    setSaving(true)
+    try {
+    const patient = registerPatient({
       firstName: value('firstName'),
       lastName: value('lastName'),
       age: finalAge,
@@ -120,7 +123,11 @@ export const NewPatientPage: React.FC = () => {
       medicationsDetails: value('medicationsDetails'),
       conditions: value('conditions') as PatientRecord['conditions'],
       conditionsDetails: value('conditionsDetails')
-    }))
+    })
+    await (patient as PatientRecord & { _syncPromise?: Promise<void> })._syncPromise
+    setRegisteredPatient(patient)
+    } catch (error: any) { window.alert(error.message || 'Patient registration could not be saved.') }
+    finally { setSaving(false) }
   }
 
   return (

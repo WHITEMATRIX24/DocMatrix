@@ -1,3 +1,4 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import React from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
@@ -20,15 +21,15 @@ import StaffPortal from '@/StaffPortal';
 
 describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
   beforeEach(() => {
-    localStorage.clear();
-    sessionStorage.clear();
+    browserLocalStorage.clear();
+    browserSessionStorage.clear();
     vi.restoreAllMocks();
     clearClinicStore();
   });
 
   afterEach(() => {
-    localStorage.clear();
-    sessionStorage.clear();
+    browserLocalStorage.clear();
+    browserSessionStorage.clear();
     vi.restoreAllMocks();
     clearClinicStore();
   });
@@ -45,8 +46,8 @@ describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
     };
     const mockToken = 'jwt-ident-clinic-token-xyz';
 
-    sessionStorage.setItem(STORAGE_KEYS.TOKEN, mockToken);
-    sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
+    browserSessionStorage.setItem(STORAGE_KEYS.TOKEN, mockToken);
+    browserSessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
 
     expect(isDemoSession()).toBe(false);
     expect(isAuthenticatedClinic()).toBe(true);
@@ -113,8 +114,8 @@ describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
       clinicName: 'Empty Dental Center',
       clinicId: 'clinic-empty-888',
     };
-    sessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-empty-clinic-token');
-    sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
+    browserSessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-empty-clinic-token');
+    browserSessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
 
     vi.spyOn(apiClient, 'get').mockImplementation(async () => []);
 
@@ -136,12 +137,13 @@ describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
     // 1. Clinic A session
     const clinicA = {
       id: 'usr-a',
+      role: 'DOCTOR',
       email: 'admin@clinica.com',
       clinicId: 'clinic-alpha-111',
       clinicName: 'Clinic Alpha',
     };
-    sessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-clinic-a');
-    sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(clinicA));
+    browserSessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-clinic-a');
+    browserSessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(clinicA));
 
     vi.spyOn(apiClient, 'get').mockImplementation(async (url) => {
       if (url.includes('/patients')) {
@@ -160,12 +162,13 @@ describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
     // 2. Switch to Clinic B session
     const clinicB = {
       id: 'usr-b',
+      role: 'DOCTOR',
       email: 'admin@clinicb.com',
       clinicId: 'clinic-beta-222',
       clinicName: 'Clinic Beta',
     };
-    sessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-clinic-b');
-    sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(clinicB));
+    browserSessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-clinic-b');
+    browserSessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(clinicB));
 
     vi.spyOn(apiClient, 'get').mockImplementation(async (url) => {
       if (url.includes('/patients')) {
@@ -185,7 +188,7 @@ describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
   });
 
   // TEST 4: Demo mode preservation
-  it('Test 4: preserves demo mode, never calls backend endpoints, and preserves demo initial records', async () => {
+  it('Test 4: preserves demo mode, never calls backend endpoints, and keeps the default demo store empty', async () => {
     // Clear storage to simulate default unauthenticated / demo state
     resetStoreForTesting();
     expect(isDemoSession()).toBe(true);
@@ -200,9 +203,10 @@ describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
 
     const snapshot = getClinicSnapshot();
     expect(snapshot.syncStatus).toBe('SYNCHRONIZED');
-    // Demo patients preserved
-    expect(snapshot.patients.length).toBeGreaterThan(0);
-    expect(snapshot.patients.some((p) => p.firstName === 'Meera')).toBe(true);
+    // Default demo mode must not inject sample clinical records
+    expect(snapshot.patients).toEqual([]);
+    expect(snapshot.prescriptions).toEqual([]);
+    expect(snapshot.clinicalNotes).toEqual([]);
   });
 
   // TEST 5: In-flight cancellation / race condition prevention
@@ -210,11 +214,12 @@ describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
     // Start with Clinic A
     const clinicA = {
       id: 'usr-a',
+      role: 'DOCTOR',
       email: 'admin@clinica.com',
       clinicId: 'clinic-slow-a',
     };
-    sessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-slow-a');
-    sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(clinicA));
+    browserSessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-slow-a');
+    browserSessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(clinicA));
 
     let resolveSlowClinicA;
     const slowClinicAPromise = new Promise((resolve) => {
@@ -236,11 +241,12 @@ describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
     // Immediately switch session to Clinic B before Clinic A resolves
     const clinicB = {
       id: 'usr-b',
+      role: 'DOCTOR',
       email: 'admin@clinicb.com',
       clinicId: 'clinic-fast-b',
     };
-    sessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-fast-b');
-    sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(clinicB));
+    browserSessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-fast-b');
+    browserSessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(clinicB));
 
     initClinicSession(clinicB.clinicId);
 
@@ -259,11 +265,12 @@ describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
   it('Test 6: transitions syncStatus to FAILED on network failure and allows retrySync() to succeed', async () => {
     const mockUser = {
       id: 'usr-retry-1',
+      role: 'DOCTOR',
       email: 'doctor@nettest.com',
       clinicId: 'clinic-net-123',
     };
-    sessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-retry-token');
-    sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
+    browserSessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-retry-token');
+    browserSessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
 
     let failNetwork = true;
     vi.spyOn(apiClient, 'get').mockImplementation(async (url) => {
@@ -298,11 +305,12 @@ describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
   it('Test 7: transitions syncStatus to AUTH_EXPIRED when backend responds with 401 Unauthorized', async () => {
     const mockUser = {
       id: 'usr-expired-1',
+      role: 'DOCTOR',
       email: 'doctor@expired.com',
       clinicId: 'clinic-expired-999',
     };
-    sessionStorage.setItem(STORAGE_KEYS.TOKEN, 'expired-jwt-token');
-    sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
+    browserSessionStorage.setItem(STORAGE_KEYS.TOKEN, 'expired-jwt-token');
+    browserSessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
 
     const authError = new Error('API request failed with status 401');
     authError.status = 401;
@@ -321,11 +329,12 @@ describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
   it('Test 8: logout clears all clinic data and aborts running requests', async () => {
     const mockUser = {
       id: 'usr-logout-test',
+      role: 'DOCTOR',
       email: 'doctor@logout.com',
       clinicId: 'clinic-logout-001',
     };
-    sessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-logout');
-    sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
+    browserSessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-logout');
+    browserSessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
 
     vi.spyOn(apiClient, 'get').mockResolvedValue([
       { id: 'pt-1', patientCode: 'PT-1', firstName: 'TemporaryPatient' },
@@ -340,8 +349,8 @@ describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
     vi.spyOn(apiClient, 'post').mockResolvedValue({ success: true });
     await logout();
 
-    expect(sessionStorage.getItem(STORAGE_KEYS.TOKEN)).toBeNull();
-    expect(sessionStorage.getItem(STORAGE_KEYS.USER)).toBeNull();
+    expect(browserSessionStorage.getItem(STORAGE_KEYS.TOKEN)).toBeNull();
+    expect(browserSessionStorage.getItem(STORAGE_KEYS.USER)).toBeNull();
 
     const snapshot = getClinicSnapshot();
     expect(snapshot.patients).toEqual([]);
@@ -355,21 +364,22 @@ describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
   it('Test 9: clinical sync strictly leaves Billing invoices and Inventory untouched', async () => {
     const mockUser = {
       id: 'usr-non-interference',
+      role: 'DOCTOR',
       email: 'doctor@isolation.com',
       clinicId: 'clinic-iso-001',
     };
-    sessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-iso');
-    sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
+    browserSessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-iso');
+    browserSessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
 
     // Seed local invoice data
     const localInvoicesKey = 'docmatrix_invoices';
     const mockInvoiceData = [{ id: 'inv-local-001', patientName: 'John Doe', total: 2500 }];
-    localStorage.setItem(localInvoicesKey, JSON.stringify(mockInvoiceData));
+    browserLocalStorage.setItem(localInvoicesKey, JSON.stringify(mockInvoiceData));
 
     // Seed local inventory data
     const localInventoryKey = 'docmatrix_inventory';
     const mockInventoryData = [{ id: 'item-001', itemName: 'Dental Composite A2', stock: 15 }];
-    localStorage.setItem(localInventoryKey, JSON.stringify(mockInventoryData));
+    browserLocalStorage.setItem(localInventoryKey, JSON.stringify(mockInventoryData));
 
     vi.spyOn(apiClient, 'get').mockResolvedValue([]);
 
@@ -377,8 +387,8 @@ describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
     await syncWithBackend();
 
     // Verify Billing and Inventory local storage records remain intact and identical
-    expect(JSON.parse(localStorage.getItem(localInvoicesKey) || '[]')).toEqual(mockInvoiceData);
-    expect(JSON.parse(localStorage.getItem(localInventoryKey) || '[]')).toEqual(mockInventoryData);
+    expect(JSON.parse(browserLocalStorage.getItem(localInvoicesKey) || '[]')).toEqual(mockInvoiceData);
+    expect(JSON.parse(browserLocalStorage.getItem(localInventoryKey) || '[]')).toEqual(mockInventoryData);
   });
 
   // TEST 10: UI Sync Indicator in StaffPortal
@@ -390,6 +400,7 @@ describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
         <StaffPortal
           user={{
             id: 'usr-104',
+      role: 'DOCTOR',
             name: 'Dr. Arun Kumar',
             role: 'DOCTOR',
             clinicName: 'DocMatrix Dental Clinic',
@@ -413,8 +424,8 @@ describe('DocMatrix — Frontend-to-Neon Data Synchronization', () => {
       clinicName: 'Portal Test Clinic',
       clinicId: 'clinic-portal-999',
     };
-    sessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-portal-token');
-    sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
+    browserSessionStorage.setItem(STORAGE_KEYS.TOKEN, 'jwt-portal-token');
+    browserSessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(mockUser));
 
     vi.spyOn(apiClient, 'get').mockResolvedValue([]);
     initClinicSession(mockUser.clinicId);

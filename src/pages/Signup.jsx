@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
-import { isAuthenticated, loginWithGoogle, registerClinic } from '@/services/authService'
+import { isAuthenticated, registerClinic } from '@/services/authService'
 import PasswordInput from '@/components/PasswordInput'
-import GoogleButton from '@/components/GoogleButton'
 import AuthBanner from '@/components/AuthBanner'
 import Spinner from '@/components/Spinner'
 import AuthNavbar from '@/components/AuthNavbar'
@@ -34,7 +33,6 @@ export default function Signup({ onLoginSuccess }) {
 
   // Loading states
   const [loading, setLoading] = useState(false)
-  const [googleLoading, setGoogleLoading] = useState(false)
 
   const nameInputRef = useRef(null)
 
@@ -68,8 +66,8 @@ export default function Signup({ onLoginSuccess }) {
 
     if (!form.password) {
       newErrors.password = 'Please enter a password'
-    } else if (form.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters'
+    } else if (form.password.length < 12 || new TextEncoder().encode(form.password).length > 72) {
+      newErrors.password = 'Use at least 12 characters and at most 72 UTF-8 bytes'
     }
 
     if (!agreeTerms) {
@@ -99,7 +97,7 @@ export default function Signup({ onLoginSuccess }) {
         autoComplete={autoComplete}
         className={`signup-field-control ${errors[field] ? 'is-invalid' : ''}`}
         aria-invalid={Boolean(errors[field])}
-        disabled={loading || googleLoading}
+        disabled={loading}
         required={requiredFields.has(field)}
       />
       {errors[field] && <p className="field-error-msg" role="alert">{errors[field]}</p>}
@@ -118,7 +116,7 @@ export default function Signup({ onLoginSuccess }) {
         onChange={(event) => updateField(field, event.target.value)}
         className={`signup-field-control signup-select ${errors[field] ? 'is-invalid' : ''}`}
         aria-invalid={Boolean(errors[field])}
-        disabled={loading || googleLoading}
+        disabled={loading}
         required={requiredFields.has(field)}
       >
         <option value="" disabled>Select {label.toLowerCase()}</option>
@@ -149,26 +147,12 @@ export default function Signup({ onLoginSuccess }) {
     }
   }
 
-  const handleGoogleSignup = async () => {
-    setAuthError('')
-    setGoogleLoading(true)
-    try {
-      const { user } = await loginWithGoogle()
-      if (onLoginSuccess) {
-        onLoginSuccess(user)
-      }
-      navigate('/dashboard', { replace: true })
-    } catch (err) {
-      setAuthError(err.message || 'Google sign up failed. Please try again.')
-    } finally {
-      setGoogleLoading(false)
-    }
-  }
+
 
   return (
     <div className="login-page signup-page">
       {/* Top Navigation Bar */}
-      <AuthNavbar currentView="signup" />
+      <AuthNavbar currentView="signup" showSiteNavigation={false} />
 
       {/* 3:2 Aspect Ratio Preserving Stage */}
       <div className="login-stage signup-stage">
@@ -225,7 +209,7 @@ export default function Signup({ onLoginSuccess }) {
                         value={mode}
                         checked={form.preferredMode === mode}
                         onChange={() => updateField('preferredMode', mode)}
-                        disabled={loading || googleLoading}
+                        disabled={loading}
                       />
                       <span>{mode}</span>
                     </label>
@@ -245,7 +229,7 @@ export default function Signup({ onLoginSuccess }) {
                 placeholder="Password"
                 hasError={Boolean(errors.password)}
                 autoComplete="new-password"
-                disabled={loading || googleLoading}
+                disabled={loading}
                 required
               />
               {errors.password && (
@@ -265,7 +249,7 @@ export default function Signup({ onLoginSuccess }) {
                     setAgreeTerms(e.target.checked)
                     if (errors.agreeTerms) setErrors((prev) => ({ ...prev, agreeTerms: '' }))
                   }}
-                  disabled={loading || googleLoading}
+                  disabled={loading}
                   className="remember-checkbox"
                   style={{ marginTop: '2px' }}
                 />
@@ -284,7 +268,7 @@ export default function Signup({ onLoginSuccess }) {
             <button
               type="submit"
               className="btn-primary-teal"
-              disabled={loading || googleLoading}
+              disabled={loading}
             >
               {loading ? (
                 <>
@@ -300,16 +284,6 @@ export default function Signup({ onLoginSuccess }) {
             </button>
 
             {/* "or" Divider */}
-            <div className="auth-or-divider">
-              <span>or</span>
-            </div>
-
-            {/* Google Signup Button */}
-            <GoogleButton
-              onClick={handleGoogleSignup}
-              loading={googleLoading}
-              disabled={loading}
-            />
 
             {/* Footer Prompt */}
             <p className="form-footer-prompt">

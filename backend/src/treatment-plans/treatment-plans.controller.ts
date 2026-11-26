@@ -20,6 +20,7 @@ import { TreatmentPlanQueryDto } from './dto/treatment-plan-query.dto.js';
 import { ImportLegacyPlansDto } from './dto/import-legacy-plan.dto.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { TenantGuard } from '../common/guards/tenant.guard.js';
+import { RequireOperation } from '../common/decorators/operation-permission.decorator.js';
 import {
   AuthenticatedUser,
   CurrentUser,
@@ -34,6 +35,7 @@ export class TreatmentPlansController {
   ) {}
 
   @Post('treatment-plans')
+  @RequireOperation('treatment.write')
   async createTreatmentPlan(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateTreatmentPlanDto,
@@ -46,6 +48,7 @@ export class TreatmentPlansController {
   }
 
   @Get('treatment-plans')
+  @RequireOperation('treatment.read')
   async getTreatmentPlans(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: TreatmentPlanQueryDto,
@@ -54,6 +57,7 @@ export class TreatmentPlansController {
   }
 
   @Get('treatment-plans/:id')
+  @RequireOperation('treatment.read')
   async getTreatmentPlanById(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -62,6 +66,7 @@ export class TreatmentPlansController {
   }
 
   @Patch('treatment-plans/:id')
+  @RequireOperation('treatment.write')
   async updateTreatmentPlan(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -76,6 +81,7 @@ export class TreatmentPlansController {
   }
 
   @Patch('treatment-plans/:id/status')
+  @RequireOperation('treatment.write')
   async updatePlanStatus(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -90,6 +96,7 @@ export class TreatmentPlansController {
   }
 
   @Post('treatment-plans/:id/accept')
+  @RequireOperation('treatment.write')
   async recordAcceptance(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -104,6 +111,7 @@ export class TreatmentPlansController {
   }
 
   @Post('treatment-plans/:id/reject')
+  @RequireOperation('treatment.write')
   async recordRejection(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -118,6 +126,7 @@ export class TreatmentPlansController {
   }
 
   @Patch('treatment-plans/:id/items/:itemId')
+  @RequireOperation('treatment.write')
   async updatePlanItemStatus(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
@@ -134,6 +143,7 @@ export class TreatmentPlansController {
   }
 
   @Get('patients/:patientId/treatment-plans')
+  @RequireOperation('treatment.read')
   async getPatientTreatmentPlans(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
@@ -145,6 +155,7 @@ export class TreatmentPlansController {
   }
 
   @Post('treatment-plans/import-legacy')
+  @RequireOperation('treatment.write')
   async importLegacyPlans(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: ImportLegacyPlansDto,

@@ -1,3 +1,4 @@
+import { browserSessionStorage } from '@/services/browserStorage';
 import React from 'react'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
@@ -125,8 +126,8 @@ describe('Report calculations', () => {
 
 describe('Reports for an owner', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101')
+    browserSessionStorage.clear()
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-101')
     resetStoreForTesting()
   })
 
@@ -146,8 +147,8 @@ describe('Reports for an owner', () => {
 
 describe('Call list', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-103')
+    browserSessionStorage.clear()
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-103')
     resetStoreForTesting()
     resetContactLogForTesting()
   })
@@ -181,8 +182,8 @@ describe('Call list', () => {
 
 describe('Reports for a receptionist', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-103')
+    browserSessionStorage.clear()
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-103')
     resetStoreForTesting()
   })
 
@@ -191,7 +192,7 @@ describe('Reports for a receptionist', () => {
     const page = await screen.findByTestId('feature-page-rep.followups', {}, { timeout: 4000 })
     const tabs = screen.getByRole('navigation', { name: 'Report sections' })
     expect(within(tabs).queryByRole('button', { name: 'Revenue' })).not.toBeInTheDocument()
-    expect(within(tabs).getByRole('button', { name: 'Doctors' })).toBeInTheDocument()
+    expect(within(tabs).queryByRole('button', { name: 'Doctors' })).not.toBeInTheDocument()
     expect(page).not.toHaveTextContent('₹')
   })
 
@@ -201,13 +202,13 @@ describe('Reports for a receptionist', () => {
     expect(screen.queryByTestId('feature-page-rep.revenue')).not.toBeInTheDocument()
   })
 
-  it('hides money on the Doctors and Treatments tabs', async () => {
-    const doctors = renderAt('/reports/doctors')
-    const page = await screen.findByTestId('feature-page-rep.doctors', {}, { timeout: 4000 })
-    expect(page).not.toHaveTextContent('₹')
-    doctors.unmount()
-    renderAt('/reports/treatments?range=90d')
-    const treatments = await screen.findByTestId('feature-page-rep.treatments', {}, { timeout: 4000 })
-    expect(treatments).not.toHaveTextContent('₹')
+  it('denies clinical analytics routes to receptionists', async () => {
+    for (const path of ['/reports/doctors', '/reports/treatments?range=90d']) {
+      const rendered = renderAt(path)
+      await screen.findByRole('heading', { name: /access denied|access restricted|permission|forbidden/i })
+      expect(screen.queryByTestId('feature-page-rep.doctors')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('feature-page-rep.treatments')).not.toBeInTheDocument()
+      rendered.unmount()
+    }
   })
 })

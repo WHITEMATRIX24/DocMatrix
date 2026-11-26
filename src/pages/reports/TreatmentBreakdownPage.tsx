@@ -15,7 +15,7 @@ import {
   type RankedItem
 } from './ReportsShared'
 import { computePeriod } from './reportMetrics'
-import { reportsApi, type TreatmentBreakdownResponse } from '@/services/reportsApi'
+import { normalizeTreatmentBreakdown, reportsApi, type TreatmentBreakdownResponse } from '@/services/reportsApi'
 
 const PLAN_STAGES: TreatmentPlanRecord['status'][] = ['Proposed', 'Accepted', 'In Progress', 'Pending', 'Completed']
 
@@ -50,7 +50,7 @@ export const TreatmentBreakdownPage: React.FC = () => {
     reportsApi.getTreatmentBreakdown(range.from, range.to)
       .then((data) => {
         if (active && data) {
-          setBackendData(data)
+          setBackendData(normalizeTreatmentBreakdown(data, canSeeMoney))
         }
       })
       .catch((err: any) => {
@@ -73,7 +73,7 @@ export const TreatmentBreakdownPage: React.FC = () => {
     return () => {
       active = false
     }
-  }, [range.from, range.to])
+  }, [range.from, range.to, canSeeMoney])
 
   useEffect(() => {
     const cancel = loadData()

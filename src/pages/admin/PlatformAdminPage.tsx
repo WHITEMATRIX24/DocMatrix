@@ -60,7 +60,7 @@ export default function PlatformAdminPage() {
     event.preventDefault();
     if (busy) return;
     setBusy(true); setError('');
-    try { await loginPlatformAdmin(email, password); setPassword(''); await loadDashboard(); }
+    try { const user = await loginPlatformAdmin(email, password); setPassword(''); if (user.accountSetupRequired) { window.location.assign('/account-security'); return; } await loadDashboard(); }
     catch (e: any) {
       setError(e?.status === 403 ? 'This account is not authorized for platform administration.' :
         e?.status === 401 ? 'Incorrect email or password.' : 'Unable to sign in. Please try again.');

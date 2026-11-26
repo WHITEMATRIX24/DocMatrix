@@ -1,3 +1,5 @@
+import { Inject, Optional } from '@nestjs/common';
+import { AuditLogService } from '../services/audit-log.service.js';
 import {
   ExceptionFilter,
   Catch,
@@ -10,6 +12,7 @@ import type { Request, Response } from 'express';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
+  constructor(@Optional() @Inject(AuditLogService) private readonly audit?: AuditLogService) {}
   private readonly logger = new Logger(AllExceptionsFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost) {
@@ -66,6 +69,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
         `[${request.method}] ${safePath} Status: ${status} - ${status === 401 ? 'Authentication required or session invalid' : status === 403 ? 'Access forbidden' : 'Rate limit exceeded'} (Client IP: ${clientIp})`,
       );
     }
+
+    if ([401,403,429].includes(status)) this.audit?.recordEvent({ clinicId: (request as any).user?.clinicId, module: 'Security', action: 'ACCESS_DENIED', actorId: (request as any).user?.id, actorName: (request as any).user?.fullName, actorRole: (request as any).user?.role, description: `${request.method} ${(request as any).route?.path || 'restricted endpoint'}`, outcome: 'BLOCKED', severity: 'warn', ipAddress: clientIp, userAgent: request.headers?.['user-agent'] });
 
     if (response && typeof response.status === 'function') {
       response.status(status).json({

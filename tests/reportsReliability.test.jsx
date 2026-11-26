@@ -1,3 +1,4 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -22,16 +23,16 @@ const renderWithRange = (ui) => {
 
 describe('DocMatrix Reports Reliability & Security Verification', () => {
   beforeEach(() => {
-    sessionStorage.clear()
-    localStorage.clear()
+    browserSessionStorage.clear()
+    browserLocalStorage.clear()
     // Set authenticated token to trigger live authoritative mode
-    sessionStorage.setItem('docmatrix_auth_token', 'mock-jwt-token')
+    browserSessionStorage.setItem('docmatrix_auth_token', 'mock-jwt-token')
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
-    sessionStorage.clear()
-    localStorage.clear()
+    browserSessionStorage.clear()
+    browserLocalStorage.clear()
   })
 
   describe('RevenueReportPage Data Reliability', () => {
@@ -229,6 +230,70 @@ describe('DocMatrix Reports Reliability & Security Verification', () => {
         expect(screen.getByText('Rohan Sharma')).toBeInTheDocument()
       })
       expect(getFollowUpsSpy).toHaveBeenCalledTimes(2)
+    })
+
+    it('renders live backend payload shapes without crashing (FollowUps, Treatments, Revenue)', async () => {
+      vi.spyOn(reportsApi, 'getFollowUps').mockResolvedValueOnce({
+        current: { visitsCompleted: 7, cancelled: 1, noShows: 1, withOutcome: 9, attendedPct: 78, cancelledPct: 11, noShowPct: 11 },
+        previous: { visitsCompleted: 4, cancelled: 0, noShows: 1, withOutcome: 5, attendedPct: 80, cancelledPct: 0, noShowPct: 20 },
+        contacts: [
+          {
+            id: 'missed-apt-1',
+            patientId: 'PT-101',
+            patientCode: 'PT-101',
+            patientName: 'Ananya Verma',
+            mobile: '9876543210',
+            kind: 'missed',
+            title: 'Missed Crown prep',
+            detail: 'Dr. Nair',
+            dateLabel: '2026-11-20',
+            sortDate: '2026-11-20',
+            whatsappText: 'Hello Ananya, we missed you.',
+            contacted: false,
+          },
+          {
+            id: 'treatment-pt-102',
+            patientId: 'PT-102',
+            patientCode: 'PT-102',
+            patientName: 'Vikram Singh',
+            mobile: '9123456789',
+            kind: 'treatment',
+            title: 'Root Canal (tooth 36)',
+            detail: 'Accepted with Dr. Nair · no visit booked',
+            dateLabel: 'Planned 2026-11-10',
+            sortDate: '2026-11-10',
+            whatsappText: 'Hello Vikram, checking in.',
+            contacted: false,
+          },
+        ],
+      })
+
+      renderWithRange(<FollowUpsPage />)
+      expect(await screen.findByText('Ananya Verma')).toBeInTheDocument()
+      expect(screen.getByText('Vikram Singh')).toBeInTheDocument()
+
+      vi.spyOn(reportsApi, 'getTreatmentBreakdown').mockResolvedValueOnce({
+        current: { visitsCompleted: 14, plansTotal: 6, plansCompleted: 3, planCompletionPct: 50, plansAcceptedValue: 40000, plansCompletedValue: 22000 },
+        previous: { visitsCompleted: 10, plansTotal: 4, plansCompleted: 2, planCompletionPct: 50, plansAcceptedValue: 25000, plansCompletedValue: 15000 },
+        procedures: [{ name: 'Ultrasonic Scaling', category: 'Preventive', count: 9, value: 9000 }],
+        categories: [{ category: 'Preventive', completedCount: 9, plannedCount: 0, total: 9, value: 9000 }],
+        planStatus: [{ status: 'Completed', count: 3, value: 22000 }],
+        topTeeth: [{ tooth: '36', count: 4 }],
+      })
+
+      renderWithRange(<TreatmentBreakdownPage />)
+      expect(await screen.findByText('Ultrasonic Scaling')).toBeInTheDocument()
+      expect(screen.getByText('Tooth 36')).toBeInTheDocument()
+
+      vi.spyOn(reportsApi, 'getRevenueReport').mockResolvedValueOnce({
+        current: { collected: 85000, paymentCount: 12, billed: 95000, invoiceCount: 14, unpaid: 10000, averageBill: 6786, patientsBilled: 11 },
+        previous: { collected: 50000, paymentCount: 8, billed: 60000, invoiceCount: 9, unpaid: 10000, averageBill: 6667, patientsBilled: 8 },
+        series: [{ date: '2026-11-24', label: '24 Nov', amount: 85000 }],
+        modes: [{ mode: 'UPI', amount: 85000, share: 100 }],
+      })
+
+      renderWithRange(<RevenueReportPage />)
+      expect(await screen.findByText('₹85,000')).toBeInTheDocument()
     })
   })
 })

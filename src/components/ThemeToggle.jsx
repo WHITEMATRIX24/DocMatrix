@@ -1,3 +1,4 @@
+import { browserLocalStorage } from '@/services/browserStorage';
 import { useRef, useState, useEffect } from 'react'
 import { flushSync } from 'react-dom'
 import { Sun, Moon } from 'lucide-react'
@@ -21,12 +22,12 @@ export function getSystemTheme() {
  */
 export function getThemePreference() {
   try {
-    const pref = localStorage.getItem(THEME_STORAGE_KEY)
+    const pref = browserLocalStorage.getItem(THEME_STORAGE_KEY)
     if (pref === 'dark' || pref === 'light' || pref === 'system') {
       return pref
     }
     // Backward compatibility: if old key is explicitly set and new key is not
-    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY)
+    const legacy = browserLocalStorage.getItem(LEGACY_STORAGE_KEY)
     if (legacy === 'dark' || legacy === 'light') {
       return legacy
     }
@@ -80,8 +81,8 @@ export function applyTheme(prefOrTheme, save = true) {
 
   if (save) {
     try {
-      localStorage.setItem(THEME_STORAGE_KEY, preferenceToSave)
-      localStorage.setItem(LEGACY_STORAGE_KEY, effectiveTheme)
+      browserLocalStorage.setItem(THEME_STORAGE_KEY, preferenceToSave)
+      browserLocalStorage.setItem(LEGACY_STORAGE_KEY, effectiveTheme)
     } catch {}
   }
 

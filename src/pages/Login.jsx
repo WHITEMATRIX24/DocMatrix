@@ -4,12 +4,10 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Mail, ArrowRight } from 'lucide-react'
 import {
   login,
-  loginWithGoogle,
   isAuthenticated,
   getRememberedEmail
 } from '@/services/authService'
 import PasswordInput from '@/components/PasswordInput'
-import GoogleButton from '@/components/GoogleButton'
 import AuthBanner from '@/components/AuthBanner'
 import Spinner from '@/components/Spinner'
 import AuthNavbar from '@/components/AuthNavbar'
@@ -29,7 +27,6 @@ export default function Login({ onLoginSuccess }) {
 
   // Loading states
   const [loading, setLoading] = useState(false)
-  const [googleLoading, setGoogleLoading] = useState(false)
 
   // Refs for accessibility and auto-focusing on invalid fields
   const emailInputRef = useRef(null)
@@ -114,6 +111,7 @@ export default function Login({ onLoginSuccess }) {
     if (onLoginSuccess) {
       onLoginSuccess(user)
     }
+    if (user.accountSetupRequired) { navigate('/account-security', { replace: true }); return; }
     const params = new URLSearchParams(location.search)
     const next = params.get('next') || '/dashboard'
     navigate(next, { replace: true })
@@ -138,24 +136,12 @@ export default function Login({ onLoginSuccess }) {
     }
   }
 
-  // Google OAuth simulation (Requirement 10)
-  const handleGoogleLogin = async () => {
-    setAuthError('')
-    setGoogleLoading(true)
-    try {
-      const { user } = await loginWithGoogle()
-      handleAuthSuccess(user)
-    } catch (err) {
-      setAuthError(err.message || 'Google sign in failed. Please try again.')
-    } finally {
-      setGoogleLoading(false)
-    }
-  }
+
 
   return (
     <div className="login-page">
       {/* Top Navigation Bar */}
-      <AuthNavbar currentView="login" />
+      <AuthNavbar currentView="login" showSiteNavigation={false} />
 
       {/* 3:2 Aspect Ratio Preserving Stage */}
       <div className="login-stage">
@@ -221,7 +207,7 @@ export default function Login({ onLoginSuccess }) {
                   placeholder="Email address"
                   className="auth-text-input"
                   autoComplete="email"
-                  disabled={loading || googleLoading}
+                  disabled={loading}
                   required
                 />
               </div>
@@ -250,7 +236,7 @@ export default function Login({ onLoginSuccess }) {
                 placeholder="Password"
                 hasError={Boolean(errors.password)}
                 autoComplete="current-password"
-                disabled={loading || googleLoading}
+                disabled={loading}
                 required
               />
               {errors.password && (
@@ -267,7 +253,7 @@ export default function Login({ onLoginSuccess }) {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  disabled={loading || googleLoading}
+                  disabled={loading}
                   className="remember-checkbox"
                 />
                 <span>Remember me</span>
@@ -282,7 +268,7 @@ export default function Login({ onLoginSuccess }) {
             <button
               type="submit"
               className="btn-primary-teal"
-              disabled={loading || googleLoading}
+              disabled={loading}
             >
               {loading ? (
                 <>
@@ -298,16 +284,6 @@ export default function Login({ onLoginSuccess }) {
             </button>
 
             {/* "or" Divider */}
-            <div className="auth-or-divider">
-              <span>or</span>
-            </div>
-
-            {/* Google Authentication Button */}
-            <GoogleButton
-              onClick={handleGoogleLogin}
-              loading={googleLoading}
-              disabled={loading}
-            />
 
             {/* Footer Prompt */}
             <p className="form-footer-prompt">

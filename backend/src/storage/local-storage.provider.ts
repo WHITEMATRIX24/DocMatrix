@@ -34,7 +34,8 @@ export class LocalStorageProvider implements StorageProvider {
     const normalizedKey = key.replace(/^[/\\]+/, '');
     const fullPath = path.resolve(this.baseDir, normalizedKey);
 
-    if (!fullPath.startsWith(this.baseDir)) {
+    const relative = path.relative(this.baseDir, fullPath);
+    if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
       throw new Error(`Path traversal attempt blocked: ${key}`);
     }
 

@@ -1,3 +1,5 @@
+import { useClinicalCatalogue } from '../../services/clinicalCatalogue';
+import { canClinic } from '../../services/permissions';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   X,
@@ -823,6 +825,7 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
   }, []);
 
   // Merged procedures catalogue
+  const { customProcedures, customDiagnoses, customTemplates } = useClinicalCatalogue();
   const allProcedures = useMemo(() => {
     const map = new Map<string, DentalProcedureOption>();
 
@@ -863,8 +866,9 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
         });
     }
 
+    customProcedures.forEach(p => { if (p.name) map.set(p.name.toLowerCase().trim(), { id: p.id, name: p.name, code: p.code, category: p.category || 'General', fee: Number(String(p.fee || '0').replace(/[₹,\s]/g, '')) }); });
     return Array.from(map.values());
-  }, [billingServices]);
+  }, [billingServices, customProcedures]);
 
   const procedureCategories = useMemo(() => {
     const cats = Array.from(new Set(allProcedures.map((p) => p.category))).sort();
@@ -1489,8 +1493,14 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
               className={`cn-input ${validationErrors.primaryDiagnosis ? 'cn-input-error' : ''}`}
               required
             />
+            {customTemplates.length > 0 && <label>Clinic note template <select aria-label="Clinic note template" defaultValue="" onChange={e => {
+              const template = customTemplates.find(t => t.id === e.target.value);
+              if (template && window.confirm('Replace the current complaint, findings and plan with this template?')) {
+                setChiefComplaint(template.complaint || ''); setExaminationNotes(template.findings || ''); setTreatmentRecommendations(template.plan || '');
+              }
+            }}><option value="">Choose a template</option>{customTemplates.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}</select></label>}
             <datalist id="cn-diagnosis-suggestions">
-              {COMMON_DENTAL_DIAGNOSES.map((d) => (
+              {[...new Set([...COMMON_DENTAL_DIAGNOSES, ...customDiagnoses.map(d => d.name || '').filter(Boolean)])].map((d) => (
                 <option key={d} value={d} />
               ))}
             </datalist>
@@ -1944,8 +1954,8 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
                       error.toLowerCase().includes('practitioner') ||
                       error.toLowerCase().includes('unauthorized')) && (
                         <div className="cn-dialog-error-tip">
-                          Tip: Note finalization legally requires verified DOCTOR privileges.
-                          You can save this consultation as a <strong>Draft</strong> now, or switch to the Attending Doctor role.
+                          Finalization requires verified practitioner access.
+                          Contact your clinic administrator if practitioner access is missing.
                         </div>
                       )}
                   </div>
@@ -1957,11 +1967,11 @@ export const ClinicalNoteModal: React.FC<ClinicalNoteModalProps> = ({
                 Further updates can only be recorded as auditable clinical addenda.
               </p>
 
-              {currentUser?.role && currentUser.role !== 'DOCTOR' && !error && (
+              {currentUser?.role && !canClinic(currentUser, 'clinical.write') && !error && (
                 <div className="cn-role-warning-banner">
                   <ShieldAlert size={16} style={{ flexShrink: 0 }} />
                   <span>
-                    Signed in as <strong>{currentUser.role.replace(/_/g, ' ')}</strong>. Note finalization requires verified DOCTOR privileges.
+                    Signed in as <strong>{currentUser.role.replace(/_/g, ' ')}</strong>. Note finalization requires verified practitioner access.
                   </span>
                 </div>
               )}

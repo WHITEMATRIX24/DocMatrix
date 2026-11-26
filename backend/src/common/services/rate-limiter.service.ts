@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, ServiceUnavailableException } from '@nestjs/common';
 import type { Request } from 'express';
+import { isIP } from 'node:net';
 import { RateLimitStore } from './rate-limit-store.interface.js';
 import { MemoryRateLimitStore } from './memory-rate-limit.store.js';
 import { RedisRateLimitStore } from './redis-rate-limit.store.js';
@@ -29,6 +30,7 @@ export class RateLimiterService implements OnModuleDestroy {
     const storeType = process.env.RATE_LIMIT_STORE?.toLowerCase();
     this.isMultiInstanceProduction = process.env.NODE_ENV === 'production' && (storeType === 'redis' || !!redisUrl);
 
+    if (process.env.NODE_ENV === 'production' && (!redisUrl || storeType !== 'redis')) throw new Error('Production requires RATE_LIMIT_STORE=redis and REDIS_URL.');
     if (redisUrl || storeType === 'redis') {
       if (redisUrl) {
         this.logger.log('Initializing Redis rate-limit store for multi-instance backend deployment.');
@@ -126,10 +128,12 @@ export class RateLimiterService implements OnModuleDestroy {
    */
   getIpSubnetPrefix(ip: string): string {
     const normalized = this.normalizeIp(ip);
-    if (normalized.includes(':')) {
-      const parts = normalized.split(':');
-      // IPv6 /64 prefix is the first 4 hextets
-      const prefix = parts.slice(0, 4).join(':');
+    if (isIP(normalized) === 6) {
+      const [left, right] = normalized.split('::');
+      const head = left ? left.split(':') : [];
+      const tail = right ? right.split(':') : [];
+      const parts = normalized.includes('::') ? [...head, ...Array(8 - head.length - tail.length).fill('0'), ...tail] : head;
+      const prefix = parts.slice(0, 4).map(part => parseInt(part, 16).toString(16)).join(':');
       return `${prefix}::/64`;
     }
     return normalized;
@@ -176,7 +180,7 @@ export class RateLimiterService implements OnModuleDestroy {
     } catch (err: any) {
       if (this.isMultiInstanceProduction) {
         this.logger.error(`CRITICAL: Shared rate-limit store failure in multi-instance production: ${err.message}`);
-        if (process.env.RATE_LIMIT_FAIL_CLOSED === 'true') {
+        if (process.env.NODE_ENV === 'production' || process.env.RATE_LIMIT_FAIL_CLOSED === 'true') {
           throw new ServiceUnavailableException('Rate-limiting infrastructure unavailable. Request rejected.');
         }
       } else {
@@ -230,6 +234,7 @@ export class RateLimiterService implements OnModuleDestroy {
       return { locked: false, retryAfterSeconds: 0 };
     } catch (err: any) {
       this.logger.error(`Failed to check login lock status: ${err.message}`);
+      if (process.env.NODE_ENV === 'production') throw new ServiceUnavailableException('Authentication protection unavailable.');
       return { locked: false, retryAfterSeconds: 0 };
     }
   }
@@ -277,6 +282,7 @@ export class RateLimiterService implements OnModuleDestroy {
       return { locked: false, retryAfterSeconds: 0 };
     } catch (err: any) {
       this.logger.error(`Failed to record failed login: ${err.message}`);
+      if (process.env.NODE_ENV === 'production') throw new ServiceUnavailableException('Authentication protection unavailable.');
       return { locked: false, retryAfterSeconds: 0 };
     }
   }

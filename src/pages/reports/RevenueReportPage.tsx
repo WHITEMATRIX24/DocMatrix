@@ -19,7 +19,7 @@ import {
   type ColumnPoint
 } from './ReportsShared'
 import { computePeriod } from './reportMetrics'
-import { reportsApi, type RevenueReportResponse } from '@/services/reportsApi'
+import { normalizeRevenueReport, reportsApi, type RevenueReportResponse } from '@/services/reportsApi'
 
 export const RevenueReportPage: React.FC = () => {
   const range = useReportRange()
@@ -46,7 +46,7 @@ export const RevenueReportPage: React.FC = () => {
     reportsApi.getRevenueReport(range.from, range.to)
       .then((data) => {
         if (active && data) {
-          setBackendData(data)
+          setBackendData(normalizeRevenueReport(data))
         }
       })
       .catch((err: any) => {

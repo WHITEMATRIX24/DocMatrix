@@ -706,9 +706,9 @@
   display: flex;
   flex-direction: column;
   border-radius: var(--rx-radius-lg);
-  background: var(--surface, #ffffff);
+  background: #ffffff;
   border: 1px solid var(--line, #cbd5e1);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.25), 0 10px 10px -5px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05);
   overflow: hidden;
 }
 
@@ -796,6 +796,7 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
+  background: #ffffff;
 }
 
 /* Modal Footer */
@@ -805,7 +806,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 14px 20px;
-  background: var(--paper, #f8fafc);
+  background: #f8fafc;
   border-top: 1px solid var(--line, #e2e8f0);
   flex-shrink: 0;
 }
@@ -951,7 +952,7 @@
   padding: 14px;
   border-radius: var(--rx-radius-md);
   border: 1px solid var(--line, #e2e8f0);
-  background: var(--paper, #f8fafc);
+  background: #f8fafc;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -990,7 +991,80 @@
   font-weight: 800;
 }
 
-/* Audit history box */
+/* =====================================================================
+   DARK THEME OVERRIDES FOR PRESCRIPTIONS MODAL
+   ===================================================================== */
+:root[data-theme="dark"] .rx-modal-dialog,
+[data-theme="dark"] .rx-modal-dialog {
+  background: #0d1718;
+  border-color: rgba(220, 245, 240, 0.12);
+  color: #eef6f5;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+}
+
+:root[data-theme="dark"] .rx-modal-body,
+[data-theme="dark"] .rx-modal-body {
+  background: #0d1718;
+  color: #eef6f5;
+}
+
+:root[data-theme="dark"] .rx-modal-footer,
+[data-theme="dark"] .rx-modal-footer {
+  background: #132021;
+  border-color: rgba(220, 245, 240, 0.1);
+  color: #eef6f5;
+}
+
+:root[data-theme="dark"] .rx-med-card,
+[data-theme="dark"] .rx-med-card {
+  background: #111c1d;
+  border-color: rgba(220, 245, 240, 0.1);
+}
+
+:root[data-theme="dark"] .rx-meta-banner,
+[data-theme="dark"] .rx-meta-banner {
+  background: #111c1d;
+  border-color: rgba(220, 245, 240, 0.1);
+}
+
+:root[data-theme="dark"] .rx-input,
+:root[data-theme="dark"] .rx-select,
+:root[data-theme="dark"] .rx-textarea,
+[data-theme="dark"] .rx-input,
+[data-theme="dark"] .rx-select,
+[data-theme="dark"] .rx-textarea {
+  background: #152526;
+  border-color: rgba(220, 245, 240, 0.16);
+  color: #eef6f5;
+}
+
+:root[data-theme="dark"] .rx-input:disabled,
+:root[data-theme="dark"] .rx-select:disabled,
+[data-theme="dark"] .rx-input:disabled,
+[data-theme="dark"] .rx-select:disabled {
+  background: #0f191a;
+  border-color: rgba(220, 245, 240, 0.08);
+  color: #879a97;
+}
+
+:root[data-theme="dark"] .rx-select option,
+[data-theme="dark"] .rx-select option {
+  background: #132021;
+  color: #eef6f5;
+}
+
+:root[data-theme="dark"] .rx-btn-secondary,
+[data-theme="dark"] .rx-btn-secondary {
+  background: #152526;
+  border-color: rgba(220, 245, 240, 0.16);
+  color: #eef6f5;
+}
+
+:root[data-theme="dark"] .rx-btn-secondary:hover:not(:disabled),
+[data-theme="dark"] .rx-btn-secondary:hover:not(:disabled) {
+  background: #1d3032;
+  color: #ffffff;
+}
 .rx-audit-box {
   padding: 12px 14px;
   border-radius: var(--rx-radius-md);

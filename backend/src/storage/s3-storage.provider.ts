@@ -29,6 +29,7 @@ export class S3StorageProvider implements StorageProvider {
     const region = process.env.AWS_REGION || 'ap-southeast-1';
     this.bucket = process.env.S3_BUCKET || 'uploads';
 
+    if (process.env.NODE_ENV === 'production' && (!process.env.S3_BUCKET || (endpoint && new URL(endpoint).protocol !== 'https:'))) throw new Error('Production S3 requires an explicit bucket and HTTPS endpoint.');
     if (accessKeyId && secretAccessKey) {
       this.client = new S3Client({
         endpoint: endpoint || undefined,
@@ -60,6 +61,8 @@ export class S3StorageProvider implements StorageProvider {
       Body: options.buffer,
       ContentType: options.mimeType,
       Metadata: options.metadata,
+      ServerSideEncryption: process.env.S3_ENCRYPTION === 'aws:kms' ? 'aws:kms' : 'AES256',
+      ...(process.env.S3_KMS_KEY_ID ? { SSEKMSKeyId: process.env.S3_KMS_KEY_ID } : {}),
     });
 
     const response = await this.client.send(command);

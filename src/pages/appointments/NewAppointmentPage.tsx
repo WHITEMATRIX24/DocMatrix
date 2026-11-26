@@ -1,3 +1,4 @@
+import { getClinicNow, getAppointmentTimeSlots, useClinicToday } from '@/services/appointmentPolicy'
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import './calendar.css'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
@@ -22,22 +23,14 @@ import {
   useClinicData,
   bookAppointment,
   checkDentistAvailability,
+  generateBookingRef,
+  formatShortBookingRef,
   DENTISTS,
   DENTAL_TREATMENTS,
   type AppointmentPriority
 } from '@/services/clinicStore'
 
-const today = () => {
-  const current = new Date()
-  current.setMinutes(current.getMinutes() - current.getTimezoneOffset())
-  return current.toISOString().slice(0, 10)
-}
-
-const timeSlots = [
-  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
-]
+const today = () => getClinicNow().date
 
 const formatDisplayDate = (dateStr: string) => {
   try {
@@ -58,20 +51,26 @@ export const NewAppointmentPage: React.FC = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { patients, appointments } = useClinicData()
+  const clinicToday = useClinicToday()
+  const revisitOfId = searchParams.get('revisitOfId') || undefined
+  const previousVisit = appointments.find(a => a.id === revisitOfId || a.backendId === revisitOfId)
 
   // State
+  const [bookingError, setBookingError] = useState('')
   const [patientSearch, setPatientSearch] = useState('')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [selectedPatientId, setSelectedPatientId] = useState(searchParams.get('patientId') || '')
-  const [selectedDoctor, setSelectedDoctor] = useState(DENTISTS[0].name)
-  const [selectedTreatmentId, setSelectedTreatmentId] = useState(DENTAL_TREATMENTS[0].id)
+  const [selectedDoctor, setSelectedDoctor] = useState(previousVisit?.doctor || DENTISTS[0].name)
+  const [selectedTreatmentId, setSelectedTreatmentId] = useState(DENTAL_TREATMENTS.find(t => t.name === previousVisit?.treatmentType)?.id || DENTAL_TREATMENTS[0].id)
   const [selectedDate, setSelectedDate] = useState(today)
   const [selectedTime, setSelectedTime] = useState('10:00')
   const [priority, setPriority] = useState<AppointmentPriority>('normal')
+  const timeSlots = getAppointmentTimeSlots(selectedDate, priority)
   const [notes, setNotes] = useState('')
   const [bookingSuccess, setBookingSuccess] = useState<string | null>(null)
   const [bookingRef, setBookingRef] = useState<string | null>(null)
   const [isBooking, setIsBooking] = useState(false)
+  const bookingAttempt = useRef(generateBookingRef())
 
   // Patient filter: search by Name OR Patient ID Number (NO phone number)
   const matchedPatients = useMemo(() => {
@@ -140,7 +139,7 @@ export const NewAppointmentPage: React.FC = () => {
 
   // Real-time availability check
   const [viewMonthDate, setViewMonthDate] = useState(() => {
-    const d = new Date()
+    const d = new Date(`${getClinicNow().date}T12:00:00`)
     d.setDate(1)
     return d
   })
@@ -214,36 +213,36 @@ export const NewAppointmentPage: React.FC = () => {
   }
 
   const handleTodayMonth = () => {
-    const now = new Date()
+    const now = new Date(`${getClinicNow().date}T12:00:00`)
     setSelectedDate(today())
     setViewMonthDate(new Date(now.getFullYear(), now.getMonth(), 1))
   }
 
   const availability = useMemo(() => {
     const duration = selectedTreatment?.defaultDurationMinutes || 30
-    return checkDentistAvailability(selectedDoctor, selectedDate, selectedTime, duration)
-  }, [selectedDoctor, selectedDate, selectedTime, selectedTreatment, appointments])
+    return checkDentistAvailability(selectedDoctor, selectedDate, selectedTime, duration, undefined, selectedDentist?.chair, priority)
+  }, [selectedDoctor, selectedDate, selectedTime, selectedTreatment, appointments, priority])
 
   // Real-time availability check for any time slot
   const getSlotAvailability = (slot: string) => {
     const duration = selectedTreatment?.defaultDurationMinutes || 30
-    return checkDentistAvailability(selectedDoctor, selectedDate, slot, duration)
+    return checkDentistAvailability(selectedDoctor, selectedDate, slot, duration, undefined, selectedDentist?.chair, priority)
   }
 
   // Auto-adjust selectedTime if the current slot is unavailable when doctor or date changes
   useEffect(() => {
     const duration = selectedTreatment?.defaultDurationMinutes || 30
-    const currentCheck = checkDentistAvailability(selectedDoctor, selectedDate, selectedTime, duration)
+    const currentCheck = checkDentistAvailability(selectedDoctor, selectedDate, selectedTime, duration, undefined, selectedDentist?.chair, priority)
     if (!currentCheck.available) {
       const firstAvail = timeSlots.find((s) => {
-        const check = checkDentistAvailability(selectedDoctor, selectedDate, s, duration)
+        const check = checkDentistAvailability(selectedDoctor, selectedDate, s, duration, undefined, selectedDentist?.chair, priority)
         return check.available
       })
       if (firstAvail) {
         setSelectedTime(firstAvail)
       }
     }
-  }, [selectedDoctor, selectedDate, selectedTreatment, appointments])
+  }, [selectedDoctor, selectedDate, selectedTreatment, appointments, priority])
 
   const handleSelectPatient = (patientId: string) => {
     setSelectedPatientId(patientId)
@@ -257,34 +256,36 @@ export const NewAppointmentPage: React.FC = () => {
     if (!availability.available) return
 
     setIsBooking(true)
+    setBookingError('')
     try {
       const newAppt = bookAppointment({
+        bookingRef: bookingAttempt.current,
         patientId: selectedPatientId,
         doctor: selectedDoctor,
         chair: selectedDentist?.chair || 'Chair 1',
         treatmentType: selectedTreatment?.name || 'General Dental Consultation',
-        visitType: selectedTreatment?.category || 'Consultation',
+        visitType: revisitOfId ? 'Revisit' : selectedTreatment?.category || 'Consultation',
         date: selectedDate,
         time: selectedTime,
         durationMinutes: selectedTreatment?.defaultDurationMinutes || 30,
         priority,
+        revisitOfId,
         notes
       })
 
-      const refCode = newAppt.bookingRef || newAppt.id
+      const pending = (newAppt as any)._syncPromise
+      if (pending) await pending
+      const refCode = formatShortBookingRef(newAppt.bookingRef || newAppt.id)
       setBookingRef(refCode)
       setBookingSuccess(newAppt.id)
+      setSelectedDate(newAppt.date)
+      setSelectedTime(newAppt.time)
+      setSelectedDoctor(newAppt.doctor)
+      setSelectedPatientId(newAppt.patientId)
+      setSelectedTreatmentId(DENTAL_TREATMENTS.find(t => t.name === newAppt.treatmentType)?.id || selectedTreatmentId)
 
-      const syncPromise = (newAppt as any)?._syncPromise
-      if (syncPromise && typeof syncPromise.then === 'function') {
-        syncPromise
-          .then((created: any) => {
-            if (created?.id) {
-              setBookingSuccess(created.id)
-            }
-          })
-          .catch(() => {})
-      }
+    } catch (error: any) {
+      setBookingError(error.message || 'Appointment was not saved. Please retry.')
     } finally {
       setIsBooking(false)
     }
@@ -309,6 +310,8 @@ export const NewAppointmentPage: React.FC = () => {
         </div>
       </div>
 
+      {bookingError && <p role="alert">{bookingError}</p>}
+      {revisitOfId && <p>Book a separate revisit. The previous visit will stay in your history.</p>}
       {bookingSuccess ? (
         <div className="booking-confirmed-wrapper">
           <div className="booking-confirmed-card">
@@ -320,7 +323,7 @@ export const NewAppointmentPage: React.FC = () => {
               <span className="confirmed-pill-badge">Booking Confirmed</span>
               <h2 className="confirmed-title">Appointment Confirmed!</h2>
               <p className="confirmed-subtitle">
-                Booking reference <strong className="confirmed-ref-code">{bookingRef || bookingSuccess}</strong> has been registered and added to the clinic schedule.
+                Booking reference <strong className="confirmed-ref-code">{formatShortBookingRef(bookingRef || bookingSuccess || '')}</strong> has been registered and added to the clinic schedule.
               </p>
             </div>
 
@@ -396,6 +399,7 @@ export const NewAppointmentPage: React.FC = () => {
                 className="btn-book-another-styled"
                 onClick={() => {
                   setBookingSuccess(null)
+                  bookingAttempt.current = generateBookingRef()
                   setBookingRef(null)
                 }}
               >
@@ -610,7 +614,7 @@ export const NewAppointmentPage: React.FC = () => {
             <button
               type="submit"
               className="btn-submit-booking"
-              disabled={!selectedPatientId || !availability.available}
+              disabled={isBooking || !selectedPatientId || !availability.available}
             >
               <Check size={16} />
               <span>Confirm & Book Appointment</span>

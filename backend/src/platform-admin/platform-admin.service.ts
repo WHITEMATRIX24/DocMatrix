@@ -1,9 +1,34 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
 export class PlatformAdminService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+
+  async setClinicStatus(id: string, status: 'ACTIVE' | 'TRIAL' | 'SUSPENDED' | 'READ_ONLY' | 'CLOSED', reason: string, actor: { id: string; fullName: string; role: string }) {
+    if (reason.trim().length < 5) throw new BadRequestException('Record a meaningful reason.');
+    return this.prisma.$transaction(async tx => {
+      const clinic = await tx.clinic.findUnique({ where: { id } });
+      if (!clinic) throw new NotFoundException('Clinic not found.');
+      const updated = await tx.clinic.update({ where: { id }, data: { status }, select: { id: true, name: true, status: true } });
+      if (['SUSPENDED', 'CLOSED'].includes(status)) await tx.userSession.updateMany({ where: { clinicId: id, isRevoked: false }, data: { isRevoked: true, revocationReason: 'Clinic access changed' } });
+      await tx.auditEvent.create({ data: { id: crypto.randomUUID(), clinicId: id, module: 'Security', action: 'CLINIC_STATUS_CHANGED', actorId: actor.id, actorName: actor.fullName, actorRole: actor.role, description: reason.trim(), severity: 'warn', outcome: 'SUCCESS', metadata: { previousStatus: clinic.status, status } } });
+      return updated;
+    });
+  }
+
+  async verifyPractitioner(id: string, verified: boolean, registration: string | undefined, reason: string, actor: { id: string; fullName: string; role: string }) {
+    if (reason.trim().length < 5) throw new BadRequestException('Record a meaningful reason.');
+    if (verified && !registration?.trim()) throw new BadRequestException('A verified practitioner registration is required.');
+    return this.prisma.$transaction(async tx => {
+      const owner = await tx.user.findUnique({ where: { id } });
+      if (!owner || owner.isPlatformAdmin || !owner.isActive || !owner.clinicId || owner.role !== 'ORGANIZATION_ADMIN' || !owner.isPrimaryContact) throw new BadRequestException('Only an active clinic primary owner can receive this capability.');
+      const updated = await tx.user.update({ where: { id }, data: { practitionerVerifiedAt: verified ? new Date() : null, practitionerRegistration: verified ? registration!.trim() : null }, select: { id: true, practitionerVerifiedAt: true, practitionerRegistration: true } });
+      await tx.userSession.updateMany({ where: { userId: id, isRevoked: false }, data: { isRevoked: true, revocationReason: 'Practitioner verification changed' } });
+      await tx.auditEvent.create({ data: { id: crypto.randomUUID(), clinicId: owner.clinicId, module: 'Security', action: verified ? 'PRACTITIONER_VERIFIED' : 'PRACTITIONER_REVOKED', actorId: actor.id, actorName: actor.fullName, actorRole: actor.role, description: reason.trim(), severity: 'warn', outcome: 'SUCCESS', metadata: { userId: id, registration: updated.practitionerRegistration } } });
+      return updated;
+    });
+  }
 
   async getSummary() {
     const [clinics, activeClinics, clinicUsers, activeSubscriptions] = await Promise.all([
@@ -60,7 +85,7 @@ export class PlatformAdminService {
     if (kind === 'users') {
       const where = search ? { fullName: { contains: search, mode: 'insensitive' as const } } : {};
       const [items, total] = await Promise.all([
-        this.prisma.user.findMany({ where, skip, take: 20, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], select: { id: true, fullName: true, role: true, isActive: true, isPlatformAdmin: true, clinic: { select: { name: true } } } }),
+        this.prisma.user.findMany({ where, skip, take: 20, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], select: { id: true, fullName: true, role: true, isActive: true, isPlatformAdmin: true, isPrimaryContact: true, practitionerVerifiedAt: true, practitionerRegistration: true, clinic: { select: { name: true } } } }),
         this.prisma.user.count({ where }),
       ]);
       return { items, total, page };

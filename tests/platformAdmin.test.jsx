@@ -1,3 +1,4 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import React from 'react';
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
@@ -11,15 +12,15 @@ import { notifyAuthSessionChanged } from '../src/services/authSession';
 const admin = { id:'platform-a',fullName:'Platform Operator',email:'platform@docmatrix.test',isPlatformAdmin:true,role:'ORGANIZATION_ADMIN',clinicId:null };
 const overview = { user:admin,summary:{clinics:5,activeClinics:3,clinicUsers:12,activeSubscriptions:2},overview:{admins:2,newThisMonth:8,newLastMonth:4,newToday:1,growthPercent:100,monthlyPlanValue:1000,recentClinics:[{id:'clinic-a',name:'Synthetic Dental',status:'ACTIVE',createdAt:'2026-11-01',state:'Kerala',country:'India',_count:{users:4},subscriptions:[{status:'ACTIVE',plan:{name:'Pro'}}]}],regions:[{state:'Kerala',country:'India',clinics:3},{state:'Karnataka',country:'India',clinics:2}],activity:[{month:'2026-10-01',clinics:4},{month:'2026-11-01',clinics:8}]},generatedAt:'2026-11-16T08:00:00Z' };
 const error = status => Object.assign(new Error('Denied'),{status});
-const authenticate = user => { sessionStorage.setItem(STORAGE_KEYS.USER,JSON.stringify(user));sessionStorage.setItem(STORAGE_KEYS.TOKEN,'synthetic-token'); };
+const authenticate = user => { browserSessionStorage.setItem(STORAGE_KEYS.USER,JSON.stringify(user));browserSessionStorage.setItem(STORAGE_KEYS.TOKEN,'synthetic-token'); };
 const renderPage = () => render(<MemoryRouter initialEntries={['/admin']}><PlatformAdminPage /></MemoryRouter>);
 describe('Dedicated /admin platform entry',()=> {
   beforeEach(()=> {
-    localStorage.clear();sessionStorage.clear();
+    browserLocalStorage.clear();browserSessionStorage.clear();
     vi.spyOn(apiClient,'get').mockImplementation(async path=>path==='/admin/dashboard'?overview:[]);
     vi.spyOn(apiClient,'post').mockResolvedValue({token:'platform-token',user:admin});
   });
-  afterEach(()=>{cleanup();vi.restoreAllMocks();localStorage.clear();sessionStorage.clear();});
+  afterEach(()=>{cleanup();vi.restoreAllMocks();browserLocalStorage.clear();browserSessionStorage.clear();});
 
   it('routes anonymous visitors to the dedicated login at /admin without registration',async()=> {
     render(<MemoryRouter initialEntries={['/admin']}><AppRoutes currentUser={null} renderLandingPage={()=>null} /></MemoryRouter>);
@@ -38,8 +39,8 @@ describe('Dedicated /admin platform entry',()=> {
     expect(screen.getByRole('navigation',{name:'Platform administration'})).toBeInTheDocument();
     expect(screen.getByText('Total Clinics')).toBeInTheDocument();
     for(const label of ['Clinics','Platform Users','Subscriptions','Support','Audit Logs','Settings']) expect(screen.getByRole('button',{name:label,exact:true})).toBeEnabled();
-    expect(sessionStorage.getItem(STORAGE_KEYS.TOKEN)).toBe('platform-token');
-    expect(sessionStorage.getItem(STORAGE_KEYS.LEGACY_SESSION)).toBeNull();
+    expect(browserSessionStorage.getItem(STORAGE_KEYS.TOKEN)).toBe('platform-token');
+    expect(browserSessionStorage.getItem(STORAGE_KEYS.LEGACY_SESSION)).toBeNull();
   });
   it.each(['ORGANIZATION_ADMIN','DOCTOR','RECEPTIONIST','ACCOUNTANT'])('does not grant %s access based on clinic role or cached frontend flags',async role=> {
     authenticate({...admin,role,isPlatformAdmin:true}); // deliberately forged cache
@@ -55,8 +56,8 @@ describe('Dedicated /admin platform entry',()=> {
   it('does not persist a non-platform login response or use demo fallback',async()=> {
     apiClient.post.mockResolvedValue({token:'clinic-token',user:{...admin,isPlatformAdmin:false}});
     await expect(loginPlatformAdmin('doctor@docmatrix.in','Demo-password')).rejects.toMatchObject({status:403});
-    expect(sessionStorage.getItem(STORAGE_KEYS.TOKEN)).toBeNull();
-    expect(sessionStorage.getItem(STORAGE_KEYS.USER)).toBeNull();
+    expect(browserSessionStorage.getItem(STORAGE_KEYS.TOKEN)).toBeNull();
+    expect(browserSessionStorage.getItem(STORAGE_KEYS.USER)).toBeNull();
   });
   it('shows login failures without exposing a dashboard',async()=> {
     apiClient.post.mockRejectedValue(error(401));renderPage();
@@ -68,7 +69,7 @@ describe('Dedicated /admin platform entry',()=> {
   });
   it('returns revoked sessions to login and hides statistics on permission loss',async()=> {
     authenticate(admin);renderPage();await screen.findByRole('heading',{name:'Platform Admin Dashboard'});
-    sessionStorage.removeItem(STORAGE_KEYS.TOKEN);sessionStorage.removeItem(STORAGE_KEYS.USER);
+    browserSessionStorage.removeItem(STORAGE_KEYS.TOKEN);browserSessionStorage.removeItem(STORAGE_KEYS.USER);
     act(() => notifyAuthSessionChanged());
     expect(await screen.findByRole('heading',{name:'Platform Admin Login'})).toBeInTheDocument();
     expect(screen.queryByText('Total Clinics')).not.toBeInTheDocument();
@@ -105,9 +106,9 @@ describe('Dedicated /admin platform entry',()=> {
     fireEvent.click(screen.getByRole('button',{name:'Suspended Clinics'}));
     expect(await screen.findByRole('heading',{name:'Suspended Clinics'})).toBeInTheDocument();
     expect(await screen.findByRole('button',{name:'Synthetic Dental'})).toBeInTheDocument();
-    expect(apiClient.get).toHaveBeenCalledWith('/admin/clinics',expect.objectContaining({params:expect.objectContaining({status:'SUSPENDED',page:1})}));
+    expect(apiClient.get).toHaveBeenCalledWith('/admin/clinics',expect.objectContaining({status:'SUSPENDED',page:1}), expect.objectContaining({signal:expect.any(AbortSignal)}));
     fireEvent.change(screen.getByLabelText('Search clinics'),{target:{value:'Dental'}});
-    await waitFor(()=>expect(apiClient.get).toHaveBeenCalledWith('/admin/clinics',expect.objectContaining({params:expect.objectContaining({search:'Dental'})})));
+    await waitFor(()=>expect(apiClient.get).toHaveBeenCalledWith('/admin/clinics',expect.objectContaining({search:'Dental'}), expect.objectContaining({signal:expect.any(AbortSignal)})));
   });
   it('shows an honest availability message for unsupported workflows',async()=> {
     authenticate(admin);renderPage();await screen.findByRole('heading',{name:'Platform Admin Dashboard'});
@@ -123,6 +124,6 @@ describe('Dedicated /admin platform entry',()=> {
     apiClient.post.mockResolvedValue({success:true});fireEvent.click(screen.getByRole('button',{name:'Sign out'}));
     expect(await screen.findByRole('heading',{name:'Platform Admin Login'})).toBeInTheDocument();
     expect(apiClient.post).toHaveBeenCalledWith('/auth/logout',{});
-    expect(sessionStorage.getItem(STORAGE_KEYS.TOKEN)).toBeNull();
+    expect(browserSessionStorage.getItem(STORAGE_KEYS.TOKEN)).toBeNull();
   });
 });

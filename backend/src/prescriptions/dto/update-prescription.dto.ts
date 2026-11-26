@@ -3,12 +3,17 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreatePrescriptionItemDto } from './create-prescription.dto.js';
 
 export class UpdatePrescriptionDto {
+  @IsUUID()
+  @IsOptional()
+  clinicalNoteId?: string | null;
+
   @IsString()
   @IsOptional()
   diagnosis?: string;

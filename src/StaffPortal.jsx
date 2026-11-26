@@ -1,3 +1,4 @@
+import { browserSessionStorage } from '@/services/browserStorage';
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { FEATURE_REGISTRY } from '@/features/registry'
@@ -61,7 +62,7 @@ function SyncStatusIndicator() {
         title={syncError || 'Data synchronization failed'}
       >
         <AlertCircle size={12} />
-        <span>Sync Failed</span>
+        <span role="alert">{syncError || 'Changes could not be saved'}</span>
         <button
           type="button"
           onClick={handleRetry}
@@ -322,10 +323,10 @@ export default function StaffPortal({
   // Check role permission for active feature (Single Source of Truth)
   const activeFeature = useMemo(() => {
     if (location.pathname === '/appointments' || location.pathname === '/appointments/calendar') {
-      return { id: 'appt.calendar', name: 'Calendar', route: '/appointments/calendar', area: 'Appointments' }
+      return ALL_LAUNCH_FEATURES.find(f => f.id === 'appt.calendar')
     }
     if (location.pathname === '/appointments/queue') {
-      return { id: 'appt.queue', name: 'Live queue', route: '/appointments/queue', area: 'Appointments' }
+      return ALL_LAUNCH_FEATURES.find(f => f.id === 'appt.queue')
     }
     return getActiveFeatureForPath(location.pathname || activeRoute, ALL_LAUNCH_FEATURES)
   }, [activeRoute, location.pathname])
@@ -337,7 +338,7 @@ export default function StaffPortal({
 
   const isDashboard = location.pathname === '/dashboard' || (location.pathname === '/' && activeRoute === '/dashboard')
 
-  // Switch role handler (stores ONLY user id in sessionStorage)
+  // Switch role handler (stores ONLY user id in browserSessionStorage)
   const handleRoleSelect = (roleObj) => {
     const updated = {
       ...currentUser,
@@ -348,7 +349,7 @@ export default function StaffPortal({
     }
     setCurrentUser(updated)
     try {
-      sessionStorage.setItem('docmatrix-demo-session', roleObj.id)
+      browserSessionStorage.setItem('docmatrix-demo-session', roleObj.id)
     } catch { }
     setRoleDropdownOpen(false)
     if (onUserChange) onUserChange(updated)

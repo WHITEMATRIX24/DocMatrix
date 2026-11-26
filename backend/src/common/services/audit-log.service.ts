@@ -1,4 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service.js';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import fs from 'fs';
 import path from 'path';
 
@@ -37,7 +39,11 @@ export interface StoredAuditEvent {
 @Injectable()
 export class AuditLogService {
   private readonly logger = new Logger(AuditLogService.name);
+  private pendingWrites = new Set<Promise<unknown>>();
+  async onModuleDestroy() { clearInterval(this.deliveryTimer); await Promise.allSettled([...this.pendingWrites]); }
   private storageDir = path.resolve(process.cwd(), 'storage');
+
+  constructor(@Optional() private readonly prisma?: PrismaService) {}
 
   /**
    * Deep recursive sanitization to strip credentials, secrets, tokens,
@@ -85,10 +91,10 @@ export class AuditLogService {
    * 3. Append-only immutable JSONL archive per clinic (preventing 200-event loss).
    * 4. UI view cache containing recent records for frontend activity displays.
    */
-  recordEvent(params: AuditEventParams): StoredAuditEvent {
+  recordEvent(params: AuditEventParams, persist = true): StoredAuditEvent {
     const timestamp = new Date().toISOString();
-    const eventId = `aud-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const outcome = params.outcome || (params.severity === 'error' ? 'FAILURE' : 'SUCCESS');
+    const eventId = randomUUID();
+    const outcome = params.outcome || (params.severity === 'error' || /FAILED|DENIED|REJECTED/.test(params.action) ? 'FAILURE' : 'SUCCESS');
 
     const cleanMetadata = this.sanitizeMetadata(params.metadata);
 
@@ -109,6 +115,17 @@ export class AuditLogService {
       metadata: cleanMetadata,
     };
 
+    if (this.prisma && persist) {
+      const write = this.prisma.auditEvent.create({ data: {
+        id: logEntry.id, clinicId: logEntry.clinicId, module: logEntry.module,
+        action: logEntry.action, actorId: logEntry.actorId, actorName: logEntry.actorName,
+        actorRole: logEntry.actorRole, description: logEntry.description, severity: logEntry.severity,
+        outcome: logEntry.outcome, metadata: cleanMetadata as any, ipAddress: logEntry.ipAddress, userAgent: logEntry.userAgent,
+      } }).catch(() => this.logger.error('Database audit write failed; retained in append-only archive and SIEM output.'));
+      this.pendingWrites.add(write);
+      void write.finally(() => this.pendingWrites.delete(write));
+    }
+
     // 1. Structured SIEM JSON stream to stdout
     this.logger.log(
       `AUDIT: [${params.module}] [${params.action}] (${outcome}) - ${params.description} | Actor: ${logEntry.actorName} (${logEntry.actorRole}) | Clinic: ${params.clinicId || 'global'}`,
@@ -117,7 +134,8 @@ export class AuditLogService {
     // 2. Dispatch to Centralized Webhook / SIEM Pipeline if configured
     const webhookUrl = process.env.AUDIT_LOG_WEBHOOK_URL;
     if (webhookUrl) {
-      void this.forwardToCentralizedSink(webhookUrl, logEntry);
+      // Persisted events are delivered by the retry worker, including after restarts.
+      if (!this.prisma) void this.forwardToCentralizedSink(webhookUrl, logEntry);
     }
 
     // 3. Durable Append-Only Storage (Zero historical data loss)
@@ -193,10 +211,52 @@ export class AuditLogService {
     return [];
   }
 
+  private deliveryTimer?: ReturnType<typeof setInterval>;
+  private delivering = false;
+  onModuleInit() {
+    if (process.env.AUDIT_LOG_WEBHOOK_URL && this.prisma) {
+      this.deliveryTimer = setInterval(() => { void this.deliverPending(); }, 15000);
+      this.deliveryTimer.unref();
+      void this.deliverPending();
+    }
+  }
+  async recordRequest(params: AuditEventParams) {
+    const event = this.recordEvent(params, false);
+    if (!this.prisma) throw new Error('Durable audit storage is required.');
+    await this.prisma.auditEvent.create({ data: {
+      id: event.id, clinicId: event.clinicId, module: event.module, action: event.action,
+      actorId: event.actorId, actorName: event.actorName, actorRole: event.actorRole,
+      description: event.description, severity: event.severity, outcome: event.outcome,
+      ipAddress: event.ipAddress, userAgent: event.userAgent, metadata: event.metadata as any,
+    } });
+  }
+  async deliverPending() {
+    if (this.delivering || !this.prisma || !process.env.AUDIT_LOG_WEBHOOK_URL) return;
+    this.delivering = true;
+    try {
+      const now = new Date();
+      const entries = await this.prisma.auditEvent.findMany({ where: { forwardedAt: null, nextForwardAt: { lte: now } }, orderBy: { createdAt: 'asc' }, take: 50 });
+      for (const entry of entries) {
+        const claimed = await this.prisma.auditEvent.updateMany({ where: { id: entry.id, forwardedAt: null, nextForwardAt: { lte: now } },
+          data: { nextForwardAt: new Date(Date.now() + Math.min(3600000, 30000 * 2 ** Math.min(entry.forwardAttempts, 7))), forwardAttempts: { increment: 1 } } });
+        if (claimed.count !== 1) continue;
+        try {
+          const response = await fetch(process.env.AUDIT_LOG_WEBHOOK_URL, { method: 'POST', signal: AbortSignal.timeout(10000),
+            headers: { 'Content-Type': 'application/json', 'Idempotency-Key': entry.id,
+              ...(process.env.AUDIT_LOG_API_KEY ? { Authorization: `Bearer ${process.env.AUDIT_LOG_API_KEY}` } : {}) }, body: JSON.stringify(entry) });
+          if (!response.ok) throw new Error('Audit collector rejected event.');
+          await this.prisma.auditEvent.update({ where: { id: entry.id }, data: { forwardedAt: new Date() } });
+        } catch { this.logger.error('Security audit delivery failed; event retained for retry.'); }
+      }
+    } catch { this.logger.error('Security audit outbox unavailable.'); }
+    finally { this.delivering = false; }
+  }
+
   private async forwardToCentralizedSink(webhookUrl: string, entry: StoredAuditEvent): Promise<void> {
     try {
       if (typeof fetch === 'function') {
-        await fetch(webhookUrl, {
+        const response = await fetch(webhookUrl, {
+          signal: AbortSignal.timeout(10000),
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -204,6 +264,7 @@ export class AuditLogService {
           },
           body: JSON.stringify(entry),
         });
+        if (!response.ok) throw new Error('Audit collector rejected event.');
       }
     } catch (err: any) {
       this.logger.warn(`Failed to dispatch audit log to external webhook: ${err.message}`);

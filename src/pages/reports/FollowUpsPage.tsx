@@ -20,7 +20,7 @@ import {
   type RankedItem
 } from './ReportsShared'
 import { computePeriod, contactList, type ContactReason, type ContactRow } from './reportMetrics'
-import { reportsApi, type FollowUpsResponse } from '@/services/reportsApi'
+import { normalizeFollowUpsReport, reportsApi, type FollowUpsResponse } from '@/services/reportsApi'
 
 const OPEN_STATUSES = ['scheduled', 'confirmed', 'checked-in', 'in-progress']
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -51,9 +51,13 @@ const planLabel = (procedure: string, tooth?: string) => {
 
 /** A starting message for staff to check and send. It names no treatment, because phones can be shared. */
 const whatsappMessage = (row: ContactRow) => {
+  const custom = (row as any).whatsappText
+  if (custom) return custom
   const name = row.patient?.firstName || ''
   if (row.reasons.includes('missed')) {
-    return `Hello ${name}, we missed you at your dental appointment on ${prettyDate(row.missedVisits[0].date)}. Please reply to this message to book a new time.`
+    const missedDate = row.missedVisits?.[0]?.date
+    const datePart = missedDate ? ` on ${prettyDate(missedDate)}` : ''
+    return `Hello ${name}, we missed you at your dental appointment${datePart}. Please reply to this message to book a new time.`
   }
   if (row.reasons.includes('unfinished')) {
     return `Hello ${name}, your dental treatment with us is not finished yet. Please reply to this message to book your next visit.`
@@ -98,7 +102,7 @@ export const FollowUpsPage: React.FC = () => {
     reportsApi.getFollowUps(range.from, range.to)
       .then((data) => {
         if (active && data) {
-          setBackendData(data)
+          setBackendData(normalizeFollowUpsReport(data))
         }
       })
       .catch((err: any) => {
@@ -141,32 +145,37 @@ export const FollowUpsPage: React.FC = () => {
 
   const rows = useMemo(() => {
     if (!backendData?.contacts || backendData.contacts.length === 0) return fallbackRows
-    return backendData.contacts.map((c) => {
-      const p = patients.find((pt) => pt.id === c.patientId) || ({
+    return backendData.contacts.map((c: any) => {
+      const p = patients.find((pt) => pt.id === c.patientId || pt.patientCode === c.patientId) || ({
         id: c.patientId,
-        firstName: c.patientName.split(' ')[0] || '',
-        lastName: c.patientName.split(' ').slice(1).join(' ') || '',
-        mobile: c.mobile,
+        firstName: (c.patientName || '').split(' ')[0] || '',
+        lastName: (c.patientName || '').split(' ').slice(1).join(' ') || '',
+        mobile: c.mobile || '',
         countryCode: '+91'
       } as PatientRecord)
       return {
         patientId: c.patientId,
         patient: p,
-        reasons: c.reasons,
-        missedVisits: c.missedVisits.map((mv) => ({
-          id: `mv-${mv.date}`,
-          patientId: c.patientId,
-          date: mv.date,
-          treatmentType: mv.treatmentType,
-          visitType: mv.treatmentType,
-          status: 'no-show',
-          time: '10:00'
-        })),
+        reasons: Array.isArray(c.reasons) ? c.reasons : [],
+        missedVisits: Array.isArray(c.missedVisits)
+          ? c.missedVisits.map((mv: any) => ({
+              id: `mv-${mv.date}`,
+              patientId: c.patientId,
+              date: mv.date,
+              treatmentType: mv.treatmentType,
+              visitType: mv.treatmentType,
+              status: 'no-show',
+              time: '10:00'
+            }))
+          : [],
         plans: [],
-        plansCount: c.plansCount,
-        value: c.value,
-        lastVisit: c.lastVisit,
-        since: c.since
+        plansCount: c.plansCount ?? 0,
+        value: c.value ?? 0,
+        lastVisit: c.lastVisit ?? null,
+        since: c.since ?? null,
+        title: c.title,
+        detail: c.detail,
+        whatsappText: c.whatsappText
       } as unknown as ContactRow
     })
   }, [backendData, fallbackRows, patients])
@@ -333,6 +342,9 @@ export const FollowUpsPage: React.FC = () => {
                     {row.plans.map((p) => (
                       <span key={p.id} className="rpt-call-detail">{planLabel(p.procedure, p.toothNumber)} · {p.status}</span>
                     ))}
+                    {row.missedVisits.length === 0 && row.plans.length === 0 && (row as any).title && (
+                      <span className="rpt-call-detail">{(row as any).title}{(row as any).detail ? ` · ${(row as any).detail}` : ''}</span>
+                    )}
                     {filter === 'contacted' && contactedAt && <span className="rpt-call-detail">Contacted {prettyDate(contactedAt)}</span>}
                   </div>
 

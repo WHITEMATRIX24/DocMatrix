@@ -1,3 +1,5 @@
+import { browserSessionStorage } from '@/services/browserStorage';
+import { getCurrentUser } from '@/services/authService'
 import React, { useState, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { FEATURE_REGISTRY, getRoadmapFeatures } from '@/features/registry'
@@ -89,14 +91,14 @@ export function AreaPage({ areaKey }) {
 
   const isRoadmap = areaKey === 'roadmap'
 
-  const sessionUserId = typeof window !== 'undefined' ? sessionStorage.getItem('docmatrix-demo-session') : null
-  const currentUser = sessionUserId ? findDemoUserById(sessionUserId) : null
-  const userRole = currentUser?.role || 'ORGANIZATION_ADMIN'
+  const sessionUserId = typeof window !== 'undefined' ? browserSessionStorage.getItem('docmatrix-demo-session') : null
+  const currentUser = getCurrentUser() || (sessionUserId ? findDemoUserById(sessionUserId) : null)
+  const userRole = currentUser?.role
 
   // Features belonging to this area
   const allFeatures = isRoadmap
     ? getRoadmapFeatures()
-    : FEATURE_REGISTRY.filter((f) => f.area.toLowerCase() === areaKey.toLowerCase() && f.phase === 'launch' && f.inNav && f.id !== 'inv.alerts')
+    : FEATURE_REGISTRY.filter((f) => f.area.toLowerCase() === areaKey.toLowerCase() && f.phase === 'launch' && f.inNav && f.id !== 'inv.alerts' && (!f.roles || f.roles.includes(userRole)))
 
   // Filtered by search query if any
   const filteredFeatures = useMemo(() => {

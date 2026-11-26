@@ -1,3 +1,5 @@
+import { prescriptionPolicy } from '../common/clinical-governance.js';
+import { isVerifiedPractitioner, practitionerWhere } from '../common/practitioner.policy.js';
 import { lockTenantRecord } from '../common/transaction-locks.js';
 import {
   BadRequestException,
@@ -19,12 +21,18 @@ import { Prisma } from '@prisma/client';
 export class PrescriptionsService {
   constructor(private prisma: PrismaService) {}
 
+  private async validateConsultation(client: any, clinicId: string, patientId: string, clinicalNoteId?: string | null) {
+    if (!clinicalNoteId) return;
+    const note = await client.clinicalNote.findFirst({ where: { id: clinicalNoteId, clinicId, patientId, status: 'FINALIZED' } });
+    if (!note || !note.primaryDiagnosis?.trim()) throw new BadRequestException('Select a finalized consultation with a diagnosis for this patient in this clinic.');
+  }
+
   /**
    * Verified clinical prescriber authorization guard.
    * Administrative and auxiliary roles must NOT have prescribing privileges.
    */
   private assertAuthorizedDoctor(user: AuthenticatedUser): void {
-    if (user.role !== 'DOCTOR') {
+    if (!isVerifiedPractitioner(user)) {
       throw new ForbiddenException(
         'Unauthorized: Only verified medical/dental practitioners (DOCTOR role) are permitted to author, modify, finalize, or cancel prescriptions.',
       );
@@ -72,7 +80,7 @@ export class PrescriptionsService {
     // 2. Resolve & verify prescriber doctor belongs to the same clinic with DOCTOR role
     const resolvedDoctorId = dto.doctorId || currentUser.id;
     const doctor = await this.prisma.user.findFirst({
-      where: { id: resolvedDoctorId, clinicId, role: 'DOCTOR' },
+      where: { id: resolvedDoctorId, clinicId, ...practitionerWhere },
     });
     if (!doctor) {
       throw new BadRequestException(
@@ -89,6 +97,7 @@ export class PrescriptionsService {
 
     // 4. Concurrency-safe transaction allocating Rx number and creating records
     return this.prisma.$transaction(async (tx) => {
+      await this.validateConsultation(tx, clinicId, dto.patientId, dto.clinicalNoteId);
       const prescriptionNumber = await this.allocatePrescriptionNumber(
         tx,
         clinicId,
@@ -105,6 +114,7 @@ export class PrescriptionsService {
           doctorId: resolvedDoctorId,
           prescriptionNumber,
           diagnosis: dto.diagnosis.trim(),
+          clinicalNoteId: dto.clinicalNoteId || null,
           clinicalNotes: dto.clinicalNotes?.trim() || null,
           status: 'DRAFT',
           prescribedAt: prescribedDate,
@@ -177,6 +187,8 @@ export class PrescriptionsService {
       );
     }
 
+    if (dto.clinicalNoteId !== undefined) await this.validateConsultation(tx, clinicId, existing.patientId, dto.clinicalNoteId);
+
     return (async () => {
       // If new medication items were supplied, replace existing items atomically
       if (dto.items && dto.items.length > 0) {
@@ -203,6 +215,7 @@ export class PrescriptionsService {
         where: { id },
         data: {
           ...(dto.diagnosis !== undefined && { diagnosis: dto.diagnosis.trim() }),
+          ...(dto.clinicalNoteId !== undefined && { clinicalNoteId: dto.clinicalNoteId }),
           ...(dto.clinicalNotes !== undefined && {
             clinicalNotes: dto.clinicalNotes?.trim() || null,
           }),
@@ -272,6 +285,7 @@ export class PrescriptionsService {
         'Cannot finalize prescription: at least one medication item is required.',
       );
     }
+    await prescriptionPolicy(tx, clinicId, currentUser.id, currentUser.sessionId, existing.diagnosis);
 
     return tx.prescription.update({
       where: { id },

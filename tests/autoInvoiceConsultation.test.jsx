@@ -455,10 +455,11 @@ describe('Automatic Invoice Generation on Consultation Completion', () => {
       appointment: calendarApptSameTreatment,
       services: mockServices,
     })
-    // Reuses existing invoice since patient, treatment and date are identical!
-    expect(call4.isNew).toBe(false)
-    expect(call4.status).toBe('existing')
-    expect(call4.invoice?.id).toBe(createdId)
-    expect(invoicesStore.length).toBe(initialCount + 1)
+    // A distinct visit must keep its own billing association, even on the same day.
+    expect(call4.isNew).toBe(true)
+    expect(call4.status).toBe('created')
+    expect(call4.invoice?.id).not.toBe(createdId)
+    expect(call4.invoice?.appointmentId).toBe('APT-CALENDAR-SAME')
+    expect(invoicesStore.length).toBe(initialCount + 2)
   })
 })

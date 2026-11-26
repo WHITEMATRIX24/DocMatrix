@@ -49,6 +49,7 @@ describe('ClinicsService', () => {
       },
     };
 
+    mockPrisma.serviceTariff = { findMany: vi.fn().mockResolvedValue([]), upsert: vi.fn(), updateMany: vi.fn() };
     mockPrisma.userSession = { updateMany: vi.fn().mockResolvedValue({ count: 1 }) };
     mockPrisma.$transaction = vi.fn((fn: any) => fn(mockPrisma));
     service = new ClinicsService(mockPrisma, { recordEvent: vi.fn() } as any);
@@ -181,16 +182,24 @@ describe('ClinicsService', () => {
   });
 
   describe('Clinical Configuration', () => {
+    it('deactivates a removed procedure in the same clinic tariff catalogue', async () => {
+      mockPrisma.clinic.findUnique.mockResolvedValue({ id: mockClinicId, clinicalConfig: { customProcedures: [{ id: 'old', name: 'Removed synthetic procedure', fee: '100' }] } });
+      await service.updateClinicalConfig(mockClinicId, { customProcedures: [] });
+      expect(mockPrisma.serviceTariff.updateMany).toHaveBeenCalledWith({ where: { clinicId: mockClinicId, name: { in: ['Removed synthetic procedure'] } }, data: { isActive: false } });
+    });
+
     it('loads and persists clinical configuration per tenant', async () => {
       const config = {
         customMedicines: [{ id: 'cm-1', name: 'Custom Analgesic 100mg' }],
-        customProcedures: [{ id: 'cp-1', name: 'Laser Gingivectomy' }],
+        customProcedures: [{ id: 'cp-1', name: 'Laser Gingivectomy', fee: '1000' }],
         customDiagnoses: [{ id: 'cd-1', name: 'Peri-implantitis' }],
         customTemplates: [{ id: 'ct-1', title: 'Implant Consultation' }],
         governancePolicies: { mandatoryConsentForSurgery: true },
       };
 
+      mockPrisma.clinic.findUnique.mockResolvedValue({ id: mockClinicId, clinicalConfig: config });
       await service.updateClinicalConfig(mockClinicId, config);
+      expect(mockPrisma.clinic.update).toHaveBeenCalledWith({ where: { id: mockClinicId }, data: { clinicalConfig: config } });
       const loaded = await service.getClinicalConfig(mockClinicId);
       expect(loaded.customMedicines).toHaveLength(1);
       expect(loaded.customMedicines[0].name).toBe('Custom Analgesic 100mg');

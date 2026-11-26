@@ -1,17 +1,16 @@
+import { canClinic, getPermissionUser } from '@/services/permissions'
+import { canRescheduleAppointment, canTransitionAppointment, getAppointmentTimeSlots, getClinicNow, useClinicToday } from '@/services/appointmentPolicy'
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarDays, Search, UserRound, Stethoscope, RotateCcw, X, Clock, AlertTriangle, Check } from 'lucide-react'
-import { useClinicData, rescheduleAppointment, checkDentistAvailability, type AppointmentStatus, type AppointmentRecord } from '@/services/clinicStore'
+import { useClinicData, isAuthenticatedClinic, rescheduleAppointment, checkDentistAvailability, formatShortBookingRef, type AppointmentStatus, type AppointmentRecord } from '@/services/clinicStore'
 import './calendar.css'
 
-const RESCHEDULE_TIME_SLOTS = [
-  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00'
-]
+
 
 export const AppointmentDetailsPage: React.FC = () => {
   const { patients, appointments } = useClinicData()
+  const clinicToday = useClinicToday()
   const [query, setQuery] = useState('')
   const [date, setDate] = useState('')
   const [doctor, setDoctor] = useState('')
@@ -22,6 +21,8 @@ export const AppointmentDetailsPage: React.FC = () => {
   const [rescheduleTime, setRescheduleTime] = useState('11:00')
   const [rescheduleReason, setRescheduleReason] = useState('')
   const [rescheduleError, setRescheduleError] = useState('')
+  const [rescheduleSaving, setRescheduleSaving] = useState(false)
+  const RESCHEDULE_TIME_SLOTS = getAppointmentTimeSlots(rescheduleDate, rescheduleAppt?.priority)
   const [rescheduleSuccess, setRescheduleSuccess] = useState('')
 
   const getRescheduleSlotAvailability = (slot: string) => {
@@ -31,7 +32,7 @@ export const AppointmentDetailsPage: React.FC = () => {
       rescheduleDate,
       slot,
       rescheduleAppt.durationMinutes || 30,
-      rescheduleAppt.id
+      rescheduleAppt.id, rescheduleAppt.chair, rescheduleAppt.priority
     )
   }
 
@@ -43,7 +44,7 @@ export const AppointmentDetailsPage: React.FC = () => {
       rescheduleDate,
       rescheduleTime,
       rescheduleAppt.durationMinutes || 30,
-      rescheduleAppt.id
+      rescheduleAppt.id, rescheduleAppt.chair, rescheduleAppt.priority
     )
     if (!currentStatus.available) {
       const firstAvail = RESCHEDULE_TIME_SLOTS.find((s) => {
@@ -52,7 +53,7 @@ export const AppointmentDetailsPage: React.FC = () => {
           rescheduleDate,
           s,
           rescheduleAppt.durationMinutes || 30,
-          rescheduleAppt.id
+          rescheduleAppt.id, rescheduleAppt.chair, rescheduleAppt.priority
         )
         return res.available
       })
@@ -76,8 +77,9 @@ export const AppointmentDetailsPage: React.FC = () => {
     setRescheduleSuccess('')
   }
 
-  const handleConfirmReschedule = (e: React.FormEvent) => {
+  const handleConfirmReschedule = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (rescheduleSaving) return
     if (!rescheduleAppt) return
     setRescheduleError('')
 
@@ -86,19 +88,22 @@ export const AppointmentDetailsPage: React.FC = () => {
       rescheduleDate,
       rescheduleTime,
       rescheduleAppt.durationMinutes || 30,
-      rescheduleAppt.id
+      rescheduleAppt.id, rescheduleAppt.chair, rescheduleAppt.priority
     )
     if (!slotCheck.available) {
       setRescheduleError(slotCheck.reason || 'Selected time slot is unavailable. Please select an available slot.')
       return
     }
 
+    setRescheduleSaving(true)
     const result = rescheduleAppointment(
       rescheduleAppt.id,
       rescheduleDate,
       rescheduleTime,
       rescheduleReason || 'Patient requested new time slot.'
     )
+
+    try { await result._syncPromise } catch (error: any) { setRescheduleError(error.message || 'Reschedule was not saved.'); return } finally { setRescheduleSaving(false) }
 
     if (!result.success) {
       setRescheduleError(result.error || 'Conflict detected. Please choose another time slot.')
@@ -209,7 +214,7 @@ export const AppointmentDetailsPage: React.FC = () => {
             <tbody>
               {rows.map((appointment) => {
                 const patient = patients.find((entry) => entry.id === appointment.patientId || entry.backendId === appointment.patientId)
-                const shortBookingId = appointment.id.length > 14 ? appointment.id.slice(0, 8).toUpperCase() : appointment.id
+                const shortBookingId = formatShortBookingRef(appointment.bookingRef || appointment.id)
                 return (
                   <tr key={appointment.id}>
                     <td>
@@ -233,7 +238,7 @@ export const AppointmentDetailsPage: React.FC = () => {
                     <td title={appointment.id} style={{ fontFamily: 'monospace', fontSize: '11.5px' }}>{shortBookingId}</td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
-                        {appointment.status !== 'cancelled' && appointment.status !== 'completed' && (
+                        {canRescheduleAppointment(appointment.status) && (!isAuthenticatedClinic() || canClinic(getPermissionUser(), 'appointment.schedule')) && (
                           <button
                             type="button"
                             onClick={() => handleOpenReschedule(appointment)}
@@ -257,6 +262,7 @@ export const AppointmentDetailsPage: React.FC = () => {
                             <span>Reschedule</span>
                           </button>
                         )}
+                        {appointment.status === 'completed' && (!isAuthenticatedClinic() || canClinic(getPermissionUser(), 'appointment.schedule')) && <Link to={`/appointments/new?patientId=${encodeURIComponent(appointment.patientId)}&revisitOfId=${encodeURIComponent(appointment.backendId || appointment.id)}`}>Book Revisit</Link>}
                         <Link className="clinic-record-open" to={`/appointments/${appointment.id}`}>
                           View details
                         </Link>
@@ -339,7 +345,7 @@ export const AppointmentDetailsPage: React.FC = () => {
                     <input
                       type="date"
                       required
-                      min={new Date().toISOString().slice(0, 10)}
+                      min={getClinicNow().date}
                       value={rescheduleDate}
                       onChange={(e) => {
                         setRescheduleDate(e.target.value)
@@ -396,7 +402,7 @@ export const AppointmentDetailsPage: React.FC = () => {
                   <button
                     type="submit"
                     className="btn-confirm-reschedule"
-                    disabled={Boolean(rescheduleSuccess) || !getRescheduleSlotAvailability(rescheduleTime).available}
+                    disabled={rescheduleSaving || Boolean(rescheduleSuccess) || !getRescheduleSlotAvailability(rescheduleTime).available}
                     style={{
                       opacity: (!getRescheduleSlotAvailability(rescheduleTime).available || Boolean(rescheduleSuccess)) ? 0.6 : 1,
                       cursor: !getRescheduleSlotAvailability(rescheduleTime).available ? 'not-allowed' : 'pointer'

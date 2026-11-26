@@ -19,7 +19,7 @@ export class TenantGuard implements CanActivate {
     }
 
     if (user.isPlatformAdmin) {
-      return true;
+      throw new ForbiddenException('Platform administrator sessions cannot access clinic records. Use a separate clinic staff account.');
     }
 
     if (!user.clinicId) {

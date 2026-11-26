@@ -1,3 +1,4 @@
+import { canClinic, getPermissionUser, type ClinicOperation } from '@/services/permissions'
 import React, { useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -17,7 +18,7 @@ import { syncBillingMasterData } from '@/services/billingStore'
 import { inr, localDate, usePayments } from './BillingShared'
 import './billing.css'
 
-type BillingTab = { id: string; label: string; path: string; icon: React.ComponentType<{ size?: number }> }
+type BillingTab = { operation?: ClinicOperation; id: string; label: string; path: string; icon: React.ComponentType<{ size?: number }> }
 
 const tabs: BillingTab[] = [
   { id: 'bill.overview', label: 'Overview', path: '/billing', icon: LayoutGrid },
@@ -25,6 +26,8 @@ const tabs: BillingTab[] = [
   { id: 'bill.dues', label: 'Dues', path: '/billing/dues', icon: AlertCircle },
   { id: 'bill.collection', label: 'Collection', path: '/billing/collection', icon: Wallet },
   { id: 'bill.payments', label: 'Payments', path: '/billing/payments', icon: ListOrdered },
+  { id: 'bill.price-list', label: 'Prices', path: '/billing/price-list', icon: Tag, operation: 'billing.tariff.read' },
+  { id: 'bill.expenses', label: 'Expenses', path: '/billing/expenses', icon: CreditCard, operation: 'billing.expense.read' },
 ]
 
 /** One Billing hub: live money figures, a single "New invoice" action, and tabs for each billing tool. */
@@ -85,7 +88,7 @@ export default function BillingWorkspace({ activeFeatureId, children }: { active
       </div>
 
       <nav className="appointments-workspace-tabs bill-tabs" aria-label="Billing sections">
-        {tabs.map((tab) => {
+        {tabs.filter(tab => !tab.operation || canClinic(getPermissionUser(), tab.operation)).map((tab) => {
           const Icon = tab.icon
           const active = selected === tab.id
           return (

@@ -1,3 +1,5 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
+import { apiClient, getStoredToken } from '@/services/apiClient'
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
@@ -566,44 +568,48 @@ export const CancelInvoiceModal: React.FC<{
 
 /* ── Printable invoice (opens the browser print dialog; "Save as PDF" works there) ── */
 
-const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string)
+const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string)
 
-export const printInvoice = (invoice: InvoiceRecord, patient?: PatientRecord) => {
+interface InvoiceClinic { name?: string; displayName?: string; address?: string; city?: string; state?: string; postalCode?: string; phone?: string }
+export const printInvoice = (invoice: InvoiceRecord, patient?: PatientRecord, clinic?: InvoiceClinic, popup?: Window | null) => {
   let clinicName = CLINIC_CONFIG.clinicName
   try {
     const rawUser =
-      (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('docmatrix_auth_user')) ||
-      (typeof localStorage !== 'undefined' && localStorage.getItem('docmatrix_auth_user'))
+      (typeof browserSessionStorage !== 'undefined' && browserSessionStorage.getItem('docmatrix_auth_user')) ||
+      (typeof browserLocalStorage !== 'undefined' && browserLocalStorage.getItem('docmatrix_auth_user'))
     if (rawUser) {
       const parsed = JSON.parse(rawUser)
       if (parsed?.clinicName) clinicName = parsed.clinicName
       else if (parsed?.clinic?.name) clinicName = parsed.clinic.name
     }
   } catch {}
+  if (clinic) clinicName = clinic.displayName || clinic.name || 'Clinic'
+  const clinicAddress = clinic ? [clinic.address, clinic.city, clinic.state, clinic.postalCode].filter(Boolean).join(', ') : CLINIC_CONFIG.clinicAddress
+  const clinicPhone = clinic ? clinic.phone || '' : CLINIC_CONFIG.clinicPhone
   const items = invoice.items?.length
     ? invoice.items
     : [{ id: '1', name: invoice.description, qty: 1, unitPrice: invoice.amount, discount: 0, gstRate: 0 }]
   const rows = items
     .map((item, i) => {
       const t = lineItemTotals(item)
-      return `<tr><td>${i + 1}</td><td>${escapeHtml(item.name)}${item.toothNumber ? ` <small>(#${escapeHtml(item.toothNumber)})</small>` : ''}</td><td class="r">${item.qty}</td><td class="r">${inr(item.unitPrice)}</td><td class="r">${item.discount ? `−${inr(item.discount)}` : '—'}</td><td class="r">${item.gstRate ? `${item.gstRate}%` : 'Exempt'}</td><td class="r">${inr(t.total)}</td></tr>`
+      return `<tr><td>${i + 1}</td><td>${escapeHtml(item.name)}${item.toothNumber ? ` <small>(#${escapeHtml(item.toothNumber)})</small>` : ''}</td><td class="r">${escapeHtml(item.qty)}</td><td class="r">${inr(item.unitPrice)}</td><td class="r">${item.discount ? `−${inr(item.discount)}` : '—'}</td><td class="r">${item.gstRate ? `${escapeHtml(item.gstRate)}%` : 'Exempt'}</td><td class="r">${inr(t.total)}</td></tr>`
     })
     .join('')
   const paid = invoicePaidAmount(invoice)
   const payments = (invoice.payments || [])
-    .map((p) => `<tr><td>${prettyDate(p.receivedAt)}</td><td>${p.mode}${p.amount < 0 ? ' (Refund)' : ''}${p.reference ? ` · ${escapeHtml(p.reference)}` : ''}</td><td class="r">${inr(p.amount)}</td></tr>`)
+    .map((p) => `<tr><td>${prettyDate(p.receivedAt)}</td><td>${escapeHtml(p.mode)}${p.amount < 0 ? ' (Refund)' : ''}${p.reference ? ` · ${escapeHtml(p.reference)}` : ''}</td><td class="r">${inr(p.amount)}</td></tr>`)
     .join('')
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${invoice.id}</title><style>
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src data:"><title>${escapeHtml(invoice.id)}</title><style>
     body{font:13px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;color:#0f172a;margin:32px}
     h1{font-size:20px;margin:0}.muted{color:#64748b}.top{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0b8185;padding-bottom:12px;margin-bottom:16px}
     table{width:100%;border-collapse:collapse;margin:12px 0}th,td{padding:7px 8px;border-bottom:1px solid #e2e8f0;text-align:left}th{background:#f1f5f9;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
     .r{text-align:right}.totals{margin-left:auto;width:280px}.totals td{border:none;padding:3px 8px}.grand td{font-weight:700;font-size:15px;border-top:2px solid #0f172a}
     .tag{display:inline-block;padding:2px 8px;border-radius:99px;font-weight:600;font-size:11px;background:${invoice.status === 'Paid' ? '#dcfce7;color:#166534' : invoice.status === 'Void' || invoice.status === 'Cancelled' ? '#fee2e2;color:#b91c1c' : '#fef3c7;color:#92400e'}}
   </style></head><body>
-    <div class="top"><div><h1>${escapeHtml(clinicName)}</h1><div class="muted">${escapeHtml(CLINIC_CONFIG.clinicAddress)} · ${escapeHtml(CLINIC_CONFIG.clinicPhone)}</div></div>
-    <div style="text-align:right"><strong>INVOICE ${invoice.id}</strong><div class="muted">${prettyDate(invoice.createdAt)}</div><span class="tag">${invoice.status === 'Void' || invoice.status === 'Cancelled' ? 'CANCELLED' : invoice.status}</span></div></div>
+    <div class="top"><div><h1>${escapeHtml(clinicName)}</h1><div class="muted">${escapeHtml(clinicAddress)} · ${escapeHtml(clinicPhone)}</div></div>
+    <div style="text-align:right"><strong>INVOICE ${escapeHtml(invoice.id)}</strong><div class="muted">${prettyDate(invoice.createdAt)}</div><span class="tag">${escapeHtml(invoice.status === 'Void' || invoice.status === 'Cancelled' ? 'CANCELLED' : invoice.status)}</span></div></div>
     ${(invoice.status === 'Void' || invoice.status === 'Cancelled') ? `<div style="background:#fff1f2;border:1px solid #fecdd3;padding:10px 14px;border-radius:8px;margin:12px 0;color:#9f1239;font-size:12px"><strong>CANCELLED INVOICE:</strong> ${escapeHtml(invoice.cancellationReason || invoice.voidReason || 'Cancelled by clinic staff')} (Cancelled on ${prettyDate(invoice.cancelledAt || invoice.voidedAt || invoice.createdAt)})</div>` : ''}
-    <div><span class="muted">Billed to</span><br><strong>${escapeHtml(patient ? `${patient.firstName} ${patient.lastName}` : 'Patient')}</strong>${patient?.mobile ? `<br>${escapeHtml(patient.countryCode || '')} ${escapeHtml(patient.mobile)}` : ''}${patient ? `<br><span class="muted">${patient.id}</span>` : ''}</div>
+    <div><span class="muted">Billed to</span><br><strong>${escapeHtml(patient ? `${patient.firstName} ${patient.lastName}` : 'Patient')}</strong>${patient?.mobile ? `<br>${escapeHtml(patient.countryCode || '')} ${escapeHtml(patient.mobile)}` : ''}${patient ? `<br><span class="muted">${escapeHtml(patient.id)}</span>` : ''}</div>
     <table><thead><tr><th>#</th><th>Service</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Discount</th><th class="r">GST</th><th class="r">Amount</th></tr></thead><tbody>${rows}</tbody></table>
     <table class="totals"><tbody>
       <tr><td>Subtotal</td><td class="r">${inr(invoice.subtotal ?? invoice.amount)}</td></tr>
@@ -615,14 +621,30 @@ export const printInvoice = (invoice: InvoiceRecord, patient?: PatientRecord) =>
     </tbody></table>
     ${payments ? `<h3 style="font-size:13px;margin-top:20px">Payments</h3><table><tbody>${payments}</tbody></table>` : ''}
     ${invoice.notes ? `<p class="muted">${escapeHtml(invoice.notes)}</p>` : ''}
-    <p class="muted" style="margin-top:28px;font-size:11px">Clinical dental treatment is exempt from GST; cosmetic services are charged at 18%.</p>
-    <script>window.onload=function(){window.print()}</script>
+    <p class="muted" style="margin-top:28px;font-size:11px">Taxes and totals reflect the configured invoice line items.</p>
   </body></html>`
-  const win = window.open('', '_blank', 'width=820,height=900')
+  const win = popup || window.open('', '_blank', 'width=820,height=900')
   if (!win) return
+  win.opener = null
+  win.onload = () => win.print()
   win.document.open()
   win.document.write(html)
   win.document.close()
+}
+
+export async function printSavedClinicInvoice(invoice: InvoiceRecord, patient?: PatientRecord) {
+  if (isDemoSession()) { printInvoice(invoice, patient); return; }
+  const token = getStoredToken();
+  const popup = window.open('', '_blank', 'width=820,height=900');
+  if (!popup) return;
+  popup.opener = null;
+  popup.document.body.textContent = 'Loading clinic details…';
+  try {
+    const clinic = await apiClient.get<InvoiceClinic>('/clinics/my-clinic');
+    if (getStoredToken() !== token) { popup.close(); return; }
+    if (!clinic?.name) throw new Error('Clinic details are unavailable.');
+    printInvoice(invoice, patient, clinic, popup);
+  } catch (error: any) { popup.close(); window.alert(error.message || 'Invoice could not be printed.'); }
 }
 
 /* ── Invoice detail drawer ─────────────────────────────────────────── */
@@ -706,7 +728,7 @@ export const InvoiceDrawer: React.FC<{
     if (invoice.status === 'Paid' && invoice.amount > 0) {
       return [
         {
-          id: `PAY-${invoice.id}`,
+          id: `PAY-${escapeHtml(invoice.id)}`,
           amount: invoice.amount,
           mode: 'Cash' as PaymentMode,
           receivedAt: invoice.createdAt,
@@ -757,7 +779,7 @@ export const InvoiceDrawer: React.FC<{
   const handleRemoveInvoice = async () => {
     if (
       !window.confirm(
-        `Are you sure you want to permanently remove cancelled invoice ${invoice.id}? This action cannot be undone.`
+        `Are you sure you want to permanently remove cancelled invoice ${escapeHtml(invoice.id)}? This action cannot be undone.`
       )
     ) {
       return
@@ -838,7 +860,7 @@ export const InvoiceDrawer: React.FC<{
         className={`bill-drawer bill-drawer-redesign ivd ivd-tone-${tone}`}
         role="dialog"
         aria-modal="true"
-        aria-label={`Invoice ${invoice.id}`}
+        aria-label={`Invoice ${escapeHtml(invoice.id)}`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         {/* ── Header ── */}
@@ -911,7 +933,11 @@ export const InvoiceDrawer: React.FC<{
               <span className="ivd-avatar" aria-hidden="true">{patientInitials}</span>
               <div className="ivd-patient-name">
                 {patient ? (
-                  <Link to={`/patients/${patient.id}`} title="Open patient profile">
+                  <Link
+                    to={`/patients/${escapeHtml(patient.id)}`}
+                    className="bill-patient-name-link"
+                    title="Open patient profile"
+                  >
                     {patientName}
                   </Link>
                 ) : (
@@ -1185,7 +1211,7 @@ export const InvoiceDrawer: React.FC<{
             <button
               type="button"
               className="ivd-btn ivd-btn-secondary"
-              onClick={() => printInvoice(invoice, patient)}
+              onClick={() => printSavedClinicInvoice(invoice, patient)}
               disabled={isVoiding}
               title="Print or export PDF invoice"
             >

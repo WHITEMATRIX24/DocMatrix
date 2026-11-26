@@ -1,8 +1,10 @@
+import { practitionerWhere } from '../common/practitioner.policy.js';
 import {
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { canPerform } from '../common/decorators/operation-permission.decorator.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuthenticatedUser } from '../common/decorators/current-user.decorator.js';
 import { ReportQueryDto } from './dto/report-query.dto.js';
@@ -107,11 +109,12 @@ export class ReportsService {
   }
 
   canUserSeeMoney(user?: AuthenticatedUser): boolean {
-    if (!user) return true;
-    if (user.isPlatformAdmin || user.isPrimaryContact) return true;
-    const role = (user.role || '').toUpperCase();
-    if (role === 'RECEPTIONIST' || role === 'ASSISTANT') return false;
-    return true;
+    return !!user && canPerform(user, 'report.financial');
+  }
+
+  private redactMoney<T extends Record<string, any>>(metrics: T) {
+    return { ...metrics, collected: 0, billed: 0, unpaid: 0, averageBill: 0,
+      byMode: {}, plansAcceptedValue: 0, plansCompletedValue: 0 };
   }
 
   resolveDateSpan(
@@ -330,7 +333,7 @@ export class ReportsService {
         where: { clinicId },
       }),
       this.prisma.user.findMany({
-        where: { clinicId, role: 'DOCTOR', isActive: true },
+        where: { clinicId, ...practitionerWhere },
         select: { id: true, fullName: true, email: true, role: true },
       }),
       this.loadContactAuditLogs(clinicId),
@@ -537,22 +540,8 @@ export class ReportsService {
         span,
         prevSpan,
         days,
-        current: {
-          ...current,
-          collected: 0,
-          billed: 0,
-          unpaid: 0,
-          averageBill: 0,
-          byMode: {},
-        },
-        previous: {
-          ...previous,
-          collected: 0,
-          billed: 0,
-          unpaid: 0,
-          averageBill: 0,
-          byMode: {},
-        },
+        current: this.redactMoney(current),
+        previous: this.redactMoney(previous),
       };
     }
 
@@ -703,24 +692,32 @@ export class ReportsService {
 
     const doctorNames = new Map<
       string,
-      { id?: string; specialization: string }
+      { id?: string; name: string; specialization: string }
     >();
     for (const doc of dataset.doctors) {
       if (doc.fullName) {
-        doctorNames.set(doc.fullName.trim(), {
+        doctorNames.set(doc.id || doc.fullName.trim(), {
+          name: doc.fullName.trim(),
           id: doc.id,
           specialization: 'Dental Surgeon',
         });
       }
     }
     // Only include users who are actual clinical doctors (role DOCTOR or valid registered doctors)
-    const validDoctorNames = new Set(Array.from(doctorNames.keys()));
+    const nameCounts = new Map<string, number>();
+    for (const doc of doctorNames.values()) nameCounts.set(doc.name, (nameCounts.get(doc.name) || 0) + 1);
 
+    const assignedInvoices = new Set<string>();
     const rows = Array.from(doctorNames.entries())
-      .map(([doctor, meta]) => {
+      .map(([_key, meta]) => {
+        const doctor = meta.name;
+        const belongsToDoctor = (record: any) => {
+          const id = record.doctorId || record.doctor?.id;
+          return id ? id === meta.id : nameCounts.get(doctor) === 1 && (record.doctorName || record.doctor?.fullName || '').trim() === doctor;
+        };
         const myAppts = periodAppts.filter(
           (a: any) =>
-            (a.doctorName || a.doctor?.fullName || '').trim() === doctor,
+            belongsToDoctor(a),
         );
         const myCompleted = myAppts.filter(
           (a: any) => this.mapApptStatusLabel(a.status) === 'completed',
@@ -735,7 +732,7 @@ export class ReportsService {
 
         const myPlans = periodPlans.filter(
           (p: any) =>
-            (p.doctorName || p.doctor?.fullName || '').trim() === doctor,
+            belongsToDoctor(p),
         );
         const completedPlans = myPlans.filter(
           (p: any) => p.status === TreatmentPlanStatus.COMPLETED,
@@ -748,23 +745,14 @@ export class ReportsService {
           ),
         );
 
-        const myApptIds = new Set(myAppts.map((a: any) => a.id));
-        const myPlanIds = new Set(myPlans.map((p: any) => p.id));
-        const patientDates = new Set(
-          myCompleted.map(
-            (a: any) => `${a.patientId}|${this.localDate(this.apptDate(a))}`,
-          ),
-        );
-
+        const myApptIds = new Set(dataset.appointments.filter(belongsToDoctor).map((a: any) => a.id));
+        const myPlanIds = new Set(dataset.treatmentPlans.filter(belongsToDoctor).map((p: any) => p.id));
         const myInvoices = periodInvoices.filter(
           (inv: any) =>
-            (inv.appointmentId && myApptIds.has(inv.appointmentId)) ||
-            (inv.treatmentPlanId && myPlanIds.has(inv.treatmentPlanId)) ||
-            patientDates.has(
-              `${inv.patientId}|${this.localDate(inv.issuedAt || inv.createdAt)}`,
-            ),
+            (inv.appointmentId ? myApptIds.has(inv.appointmentId) : !!inv.treatmentPlanId && myPlanIds.has(inv.treatmentPlanId)),
         );
 
+        myInvoices.forEach((inv: any) => assignedInvoices.add(inv.id));
         const billed = this.round2(
           myInvoices.reduce(
             (s: number, inv: any) => s + Number(inv.totalAmount || 0),
@@ -784,6 +772,7 @@ export class ReportsService {
           specialization: meta.specialization,
           appointments: myAppts.length,
           completed: myCompleted.length,
+          patients: new Set(myCompleted.map((a: any) => a.patientId)).size,
           noShows,
           cancelled,
           attendancePct: closed
@@ -807,6 +796,7 @@ export class ReportsService {
       prevSpan,
       days,
       summary: {
+        unassignedBilled: showMoney ? this.round2(periodInvoices.filter((inv: any) => !assignedInvoices.has(inv.id)).reduce((sum: number, inv: any) => sum + Number(inv.totalAmount || 0), 0)) : 0,
         doctorsWithVisits: rows.filter((r) => r.appointments > 0).length,
         totalDoctors: rows.length,
         completedVisits: rows.reduce((s, r) => s + r.completed, 0),
@@ -1019,18 +1009,10 @@ export class ReportsService {
       days,
       current: showMoney
         ? current
-        : {
-            ...current,
-            plansAcceptedValue: 0,
-            plansCompletedValue: 0,
-          },
+        : this.redactMoney(current),
       previous: showMoney
         ? previous
-        : {
-            ...previous,
-            plansAcceptedValue: 0,
-            plansCompletedValue: 0,
-          },
+        : this.redactMoney(previous),
       categories,
       procedures,
       planStatus,
@@ -1041,7 +1023,7 @@ export class ReportsService {
   /**
    * 5. GET /reports/follow-ups
    */
-  async getFollowUpsReport(clinicId: string, query: ReportQueryDto) {
+  async getFollowUpsReport(clinicId: string, query: ReportQueryDto, user: AuthenticatedUser) {
     const today = this.localDate();
     const { span, prevSpan, days } = this.resolveDateSpan(query, today);
     const dataset = await this.loadClinicDataset(clinicId);
@@ -1371,9 +1353,14 @@ export class ReportsService {
       span,
       prevSpan,
       days,
-      current,
-      previous,
-      contacts,
+      current: this.canUserSeeMoney(user) ? current : this.redactMoney(current),
+      previous: this.canUserSeeMoney(user) ? previous : this.redactMoney(previous),
+      contacts: canPerform(user, 'clinical.read') ? contacts : contacts.map(contact => ({
+        ...contact,
+        title: contact.kind === 'recall' ? 'Recall visit' : contact.kind === 'missed' ? 'Missed appointment' : 'Pending visit',
+        detail: 'Contact patient to arrange a visit.',
+        whatsappText: `Hello ${contact.patientName}, please contact ${clinicName} to arrange your next visit.`,
+      })),
       contactCounts: {
         all: activeContacts.length,
         missed: activeContacts.filter((c) => c.kind === 'missed').length,
@@ -1382,9 +1369,9 @@ export class ReportsService {
         contacted: contactedContacts.length,
       },
       contactLog,
-      alertPatients,
+      alertPatients: canPerform(user, 'clinical.read') ? alertPatients : [],
       weekdays,
-      visitTypes,
+      visitTypes: canPerform(user, 'clinical.read') ? visitTypes : [],
     };
   }
 

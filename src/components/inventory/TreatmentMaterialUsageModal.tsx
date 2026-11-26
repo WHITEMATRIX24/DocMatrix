@@ -70,6 +70,7 @@ export const TreatmentMaterialUsageModal: React.FC<TreatmentMaterialUsageModalPr
   const [items, setItems] = useState<EditableConsumptionItem[]>([])
   const [notes, setNotes] = useState('')
   const [isInteractiveOnly, setIsInteractiveOnly] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedAddItemId, setSelectedAddItemId] = useState('')
   const [addQty, setAddQty] = useState(1)
@@ -189,7 +190,7 @@ export const TreatmentMaterialUsageModal: React.FC<TreatmentMaterialUsageModalPr
   }
 
   // Confirm consumption workflow
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (isSubmitting || confirmedAuditId) return
     setIsSubmitting(true)
 
@@ -205,6 +206,8 @@ export const TreatmentMaterialUsageModal: React.FC<TreatmentMaterialUsageModalPr
       return
     }
 
+    setSaveError('')
+    try {
     const audit = confirmConsumptionAndDeductStock({
       treatmentId,
       appointmentId,
@@ -228,10 +231,13 @@ export const TreatmentMaterialUsageModal: React.FC<TreatmentMaterialUsageModalPr
       }))
     })
 
+    await audit._syncPromise
     setConfirmedAuditId(audit.id)
     if (onConfirmed) {
       onConfirmed(audit)
     }
+    } catch (error: any) { setSaveError(error.message || 'Inventory deduction failed. Please retry.') }
+    finally { setIsSubmitting(false) }
   }
 
   // Doctor comparison insight note
@@ -267,6 +273,7 @@ export const TreatmentMaterialUsageModal: React.FC<TreatmentMaterialUsageModalPr
             </p>
           </div>
 
+          {saveError && <p role="alert">{saveError}</p>}
           <button
             onClick={onClose}
             style={{

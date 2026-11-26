@@ -1,3 +1,4 @@
+import { canClinic, getPermissionUser } from '@/services/permissions'
 import React, { useState, useMemo } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import {
@@ -188,7 +189,7 @@ export const ClinicalNotesPage: React.FC = () => {
 
           <button
             type="button"
-            onClick={handleOpenNewNote}
+            disabled={!canClinic(getPermissionUser(), 'clinical.write')} onClick={handleOpenNewNote}
             className="cn-btn cn-btn-primary"
             data-testid="new-clinical-note-button"
           >
@@ -392,7 +393,7 @@ export const ClinicalNotesPage: React.FC = () => {
                             <MessageCircle size={13} style={{ color: '#25D366' }} /> Aftercare
                           </button>
 
-                          {isDraft && (
+                          {isDraft && canClinic(getPermissionUser(), 'clinical.write') && (
                             <button
                               type="button"
                               className="cn-btn cn-btn-secondary cn-btn-sm"
@@ -403,7 +404,7 @@ export const ClinicalNotesPage: React.FC = () => {
                             </button>
                           )}
 
-                          {isDraft && (
+                          {isDraft && canClinic(getPermissionUser(), 'clinical.write') && (
                             <button
                               type="button"
                               className="cn-btn cn-btn-success cn-btn-sm"
@@ -456,7 +457,7 @@ export const ClinicalNotesPage: React.FC = () => {
           <button
             type="button"
             className="cn-btn cn-btn-primary"
-            onClick={handleOpenNewNote}
+            disabled={!canClinic(getPermissionUser(), 'clinical.write')} onClick={handleOpenNewNote}
           >
             <Plus />
             New Clinical Note

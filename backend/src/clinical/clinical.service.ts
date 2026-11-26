@@ -1,3 +1,6 @@
+import { Prisma } from '@prisma/client';
+import { VALID_TEETH, TOOTH_CONDITIONS } from './dto/save-tooth-condition.dto.js';
+import { assertDocumentOwnership } from '../storage/document-key.policy.js';
 import {
   Injectable,
   NotFoundException,
@@ -56,6 +59,8 @@ export class ClinicalService {
       throw new NotFoundException(`Patient not found with identifier "${patientIdOrCode}".`);
     }
 
+    const conflicting = await this.prisma.patient.findFirst({ where: { clinicId, id: { not: patient.id }, OR: [{ id: patientIdOrCode }, { patientCode: patientIdOrCode }] }, select: { id: true } });
+    if (conflicting && conflicting.id !== patient.id) throw new NotFoundException('Ambiguous patient identity. Correct the conflicting patient code before proceeding.');
     return patient;
   }
 
@@ -90,96 +95,61 @@ export class ClinicalService {
     };
   }
 
-  async saveToothCondition(clinicId: string, patientIdOrCode: string, dto: SaveToothConditionDto) {
-    const patient = await this.resolvePatient(clinicId, patientIdOrCode);
-
-    const record = await this.prisma.toothCondition.upsert({
-      where: {
-        clinicId_patientId_toothNumber: {
-          clinicId,
-          patientId: patient.id,
-          toothNumber: dto.toothNumber,
-        },
-      },
-      update: {
-        condition: dto.condition,
-        notes: dto.notes ?? null,
-      },
-      create: {
-        clinicId,
-        patientId: patient.id,
-        toothNumber: dto.toothNumber,
-        condition: dto.condition,
-        notes: dto.notes ?? null,
-      },
-    });
-
-    return {
-      success: true,
-      patientId: patient.patientCode,
-      toothNumber: record.toothNumber,
-      condition: record.condition,
-      notes: record.notes || undefined,
-      updatedAt: record.updatedAt.toISOString(),
-    };
+  private validateChartUpdates(updates: SaveToothConditionDto[]) {
+    if (!updates.length || updates.length > 52 || new Set(updates.map(u => u.toothNumber)).size !== updates.length || updates.some(u =>
+      !Number.isInteger(u.toothNumber) || !VALID_TEETH.includes(u.toothNumber) || !TOOTH_CONDITIONS.includes(u.condition) ||
+      (u.notes !== undefined && (typeof u.notes !== 'string' || u.notes.length > 10000)))) {
+      throw new BadRequestException('Supply unique valid FDI teeth, supported conditions and notes of at most 10000 characters.');
+    }
   }
 
-  async batchSaveToothChart(
-    clinicId: string,
-    patientIdOrCode: string,
-    dto: BatchSaveToothConditionsDto,
-  ) {
+  private async persistChart(clinicId: string, patientId: string, updates: SaveToothConditionDto[], actor?: AuthenticatedUser) {
+    this.validateChartUpdates(updates);
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM "Patient" WHERE id=${patientId} AND "clinicId"=${clinicId} FOR UPDATE`);
+      const before = await tx.toothCondition.findMany({ where: { clinicId, patientId, toothNumber: { in: updates.map(u => u.toothNumber) } } });
+      const records = [];
+      for (const item of updates) records.push(await tx.toothCondition.upsert({
+        where: { clinicId_patientId_toothNumber: { clinicId, patientId, toothNumber: item.toothNumber } },
+        update: { condition: item.condition, notes: item.notes ?? null },
+        create: { clinicId, patientId, toothNumber: item.toothNumber, condition: item.condition, notes: item.notes ?? null },
+      }));
+      await tx.auditEvent.create({ data: {
+        id: crypto.randomUUID(), clinicId, module: 'Clinical', action: 'TOOTH_CHART_UPDATED',
+        actorId: actor?.id, actorName: actor?.fullName || 'System', actorRole: actor?.role || 'SYSTEM',
+        description: 'Patient tooth chart updated.', severity: 'info', outcome: 'SUCCESS',
+        metadata: { patientId, changes: updates.map(item => {
+          const old = before.find(row => row.toothNumber === item.toothNumber);
+          return { toothNumber: item.toothNumber, before: old ? { condition: old.condition, notes: old.notes } : null, after: { condition: item.condition, notes: item.notes ?? null } };
+        }) },
+      } });
+      return records;
+    }, { timeout: 20000, maxWait: 10000 });
+  }
+
+  async saveToothCondition(clinicId: string, patientIdOrCode: string, dto: SaveToothConditionDto, actor?: AuthenticatedUser) {
     const patient = await this.resolvePatient(clinicId, patientIdOrCode);
+    const [record] = await this.persistChart(clinicId, patient.id, [dto], actor);
+    return { success: true, patientId: patient.patientCode, toothNumber: record.toothNumber,
+      condition: record.condition, notes: record.notes || undefined, updatedAt: record.updatedAt.toISOString() };
+  }
 
-    const updates: SaveToothConditionDto[] = [];
-
-    if (Array.isArray(dto.conditions)) {
-      updates.push(...dto.conditions);
+  async batchSaveToothChart(clinicId: string, patientIdOrCode: string, dto: BatchSaveToothConditionsDto, actor?: AuthenticatedUser) {
+    const patient = await this.resolvePatient(clinicId, patientIdOrCode);
+    const updates: SaveToothConditionDto[] = [...(dto.conditions || [])];
+    if (dto.chart) for (const [key, value] of Object.entries(dto.chart)) {
+      if (!/^\d{2}$/.test(key) || !value || typeof value !== 'object' || Object.keys(value).some(k => !['condition','notes'].includes(k))) throw new BadRequestException('Invalid tooth chart entry.');
+      updates.push({ toothNumber: Number(key), condition: value.condition, notes: value.notes });
     }
+    const records = await this.persistChart(clinicId, patient.id, updates, actor);
+    return { success: true, patientId: patient.patientCode, updatedCount: records.length };
+  }
 
-    if (dto.chart && typeof dto.chart === 'object') {
-      for (const [key, val] of Object.entries(dto.chart)) {
-        const num = parseInt(key, 10);
-        if (!isNaN(num) && val?.condition) {
-          updates.push({
-            toothNumber: num,
-            condition: val.condition,
-            notes: val.notes,
-          });
-        }
-      }
-    }
-
-    const results = await this.prisma.$transaction(
-      updates.map((item) =>
-        this.prisma.toothCondition.upsert({
-          where: {
-            clinicId_patientId_toothNumber: {
-              clinicId,
-              patientId: patient.id,
-              toothNumber: item.toothNumber,
-            },
-          },
-          update: {
-            condition: item.condition,
-            notes: item.notes ?? null,
-          },
-          create: {
-            clinicId,
-            patientId: patient.id,
-            toothNumber: item.toothNumber,
-            condition: item.condition,
-            notes: item.notes ?? null,
-          },
-        }),
-      ),
-    );
-
-    return {
-      success: true,
-      patientId: patient.patientCode,
-      updatedCount: results.length,
-    };
+  async getToothChartHistory(clinicId: string, patientIdOrCode: string) {
+    const patient = await this.resolvePatient(clinicId, patientIdOrCode);
+    return this.prisma.auditEvent.findMany({ where: { clinicId, action: 'TOOTH_CHART_UPDATED', metadata: { path: ['patientId'], equals: patient.id } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 100,
+      select: { id: true, createdAt: true, actorName: true, metadata: true } });
   }
 
   async getAllClinicToothCharts(clinicId: string) {
@@ -258,8 +228,9 @@ export class ClinicalService {
 
     return Promise.all(
       docs.map(async (d) => {
+        assertDocumentOwnership(d.fileKey, clinicId, patient.id);
         let signedUrl: string | null = null;
-        if (this.storageService && this.storageService.isCloudStorageEnabled()) {
+        if (this.storageService && this.storageService.isCloudStorageEnabled() && (d.fileKey.startsWith('clinics/') || d.fileKey.startsWith(`${clinicId}/`))) {
           try {
             signedUrl = await this.storageService.getSignedDownloadUrl(d.fileKey, d.fileName, 900);
           } catch {}
@@ -366,8 +337,9 @@ export class ClinicalService {
       throw new NotFoundException(`Document "${docId}" not found for this patient.`);
     }
 
+    assertDocumentOwnership(doc.fileKey, clinicId, patient.id);
     let signedUrl: string | null = null;
-    if (this.storageService && this.storageService.isCloudStorageEnabled()) {
+    if (this.storageService && this.storageService.isCloudStorageEnabled() && (doc.fileKey.startsWith('clinics/') || doc.fileKey.startsWith(`${clinicId}/`))) {
       try {
         signedUrl = await this.storageService.getSignedDownloadUrl(doc.fileKey, doc.fileName, 900);
       } catch {}
@@ -427,19 +399,20 @@ export class ClinicalService {
       throw new NotFoundException(`Document "${docId}" not found.`);
     }
 
+    assertDocumentOwnership(doc.fileKey, clinicId, patient.id);
     let buffer: Buffer;
     let mimeType = doc.mimeType || 'application/octet-stream';
     let signedUrl: string | null = null;
 
     if (this.storageService) {
-      if (this.storageService.isCloudStorageEnabled()) {
+      if (this.storageService.isCloudStorageEnabled() && (doc.fileKey.startsWith('clinics/') || doc.fileKey.startsWith(`${clinicId}/`))) {
         try {
           signedUrl = await this.storageService.getSignedDownloadUrl(doc.fileKey, doc.fileName, 900);
         } catch {}
       }
 
       try {
-        const result = await this.storageService.getDocumentBuffer(doc.fileKey);
+        const result = await this.storageService.getClinicDocumentBuffer(clinicId, patient.id, doc.fileKey);
         buffer = result.buffer;
         mimeType = result.mimeType || mimeType;
       } catch {
@@ -447,7 +420,7 @@ export class ClinicalService {
         if (fs.existsSync(filePath)) {
           buffer = fs.readFileSync(filePath);
         } else {
-          buffer = Buffer.from(`DocMatrix Clinical Record: ${doc.title} (${doc.fileName})`);
+          throw new NotFoundException('The original document file is unavailable.');
         }
       }
     } else {
@@ -455,7 +428,7 @@ export class ClinicalService {
       if (fs.existsSync(filePath)) {
         buffer = fs.readFileSync(filePath);
       } else {
-        buffer = Buffer.from(`DocMatrix Clinical Record: ${doc.title} (${doc.fileName})`);
+        throw new NotFoundException('The original document file is unavailable.');
       }
     }
 
@@ -486,8 +459,9 @@ export class ClinicalService {
       throw new NotFoundException(`Document "${docId}" not found.`);
     }
 
+    assertDocumentOwnership(doc.fileKey, clinicId, patient.id);
     let signedUrl: string | null = null;
-    if (this.storageService && this.storageService.isCloudStorageEnabled()) {
+    if (this.storageService && this.storageService.isCloudStorageEnabled() && (doc.fileKey.startsWith('clinics/') || doc.fileKey.startsWith(`${clinicId}/`))) {
       try {
         signedUrl = await this.storageService.getSignedDownloadUrl(doc.fileKey, doc.fileName, 900);
       } catch {}
@@ -530,7 +504,7 @@ export class ClinicalService {
       recordedBy: c.recordedBy,
       documentRef: c.documentRef || '',
       notes: c.notes || '',
-      witnessName: c.witnessName || undefined,
+      witnessName: c.witnessName || undefined, consentText: c.consentText || undefined, evidenceHash: c.evidenceHash || undefined, revokedAt: c.revokedAt || undefined,
       createdAt: c.createdAt.toISOString(),
       updatedAt: c.updatedAt.toISOString(),
     };
@@ -554,30 +528,24 @@ export class ClinicalService {
     clinicId: string,
     patientIdOrCode: string,
     dto: CreateConsentDto,
-    userFullName?: string,
+    userFullName?: string | AuthenticatedUser,
   ) {
     const patient = await this.resolvePatient(clinicId, patientIdOrCode);
 
-    const recordedDate = dto.dateRecorded ? new Date(dto.dateRecorded) : new Date();
-    const recordedBy = userFullName || 'Clinical Staff';
-    const docRef = dto.documentRef?.trim() || `DMX-CNS-${Date.now().toString().slice(-6)}`;
-
-    const consent = await this.prisma.patientConsent.create({
-      data: {
-        clinicId,
-        patientId: patient.id,
-        consentType: dto.consentType.trim(),
-        status: dto.status?.trim() || 'Signed',
-        dateRecorded: recordedDate,
-        recordedBy,
-        documentRef: docRef,
-        notes: dto.notes?.trim() || null,
-        witnessName: dto.witnessName?.trim() || null,
-        signatureData: dto.signatureData?.trim() || null,
-      },
+    const actorId = typeof userFullName === 'string' ? userFullName : userFullName?.id || 'unknown';
+    const recordedBy = typeof userFullName === 'string' ? userFullName : userFullName?.fullName || 'Clinical Staff';
+    const signed = dto.status === 'Signed';
+    if (signed && (!dto.signatureData?.trim() || !dto.consentText?.trim())) throw new BadRequestException('Signed consent requires the exact consent wording and patient signature evidence.');
+    return this.prisma.$transaction(async tx => {
+      const data = { clinicId, patientId: patient.id, consentType: dto.consentType.trim(), status: dto.status || 'Pending',
+        dateRecorded: dto.dateRecorded ? new Date(dto.dateRecorded) : new Date(), recordedBy,
+        documentRef: dto.documentRef?.trim() || `DMX-CNS-${crypto.randomUUID()}`, notes: dto.notes?.trim() || null,
+        witnessName: dto.witnessName?.trim() || null, signatureData: dto.signatureData?.trim() || null, consentText: dto.consentText?.trim() || null };
+      const evidenceHash = crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex');
+      const consent = await tx.patientConsent.create({ data: { ...data, evidenceHash } });
+      await tx.consentRevision.create({ data: { consentId: consent.id, clinicId, actorId, action: 'CREATED', snapshot: JSON.parse(JSON.stringify(consent)), evidenceHash } });
+      return this.serializeConsent(consent, patient.patientCode);
     });
-
-    return this.serializeConsent(consent, patient.patientCode);
   }
 
   async getConsent(clinicId: string, patientIdOrCode: string, consentId: string) {
@@ -598,59 +566,31 @@ export class ClinicalService {
     return this.serializeConsent(consent, patient.patientCode);
   }
 
-  async updateConsent(
-    clinicId: string,
-    patientIdOrCode: string,
-    consentId: string,
-    dto: UpdateConsentDto,
-  ) {
+  async updateConsent(clinicId: string, patientIdOrCode: string, consentId: string, dto: UpdateConsentDto, actor?: AuthenticatedUser) {
     const patient = await this.resolvePatient(clinicId, patientIdOrCode);
-
-    const existing = await this.prisma.patientConsent.findFirst({
-      where: {
-        id: consentId,
-        clinicId,
-        patientId: patient.id,
-      },
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM "PatientConsent" WHERE id=${consentId} AND "clinicId"=${clinicId} FOR UPDATE`);
+      const existing = await tx.patientConsent.findFirst({ where: { id: consentId, clinicId, patientId: patient.id } });
+      if (!existing) throw new NotFoundException('Consent not found.');
+      if (existing.status === 'Revoked') throw new BadRequestException('Revoked consent is immutable. Create a new consent.');
+      if (existing.status === 'Signed' && (dto.status !== 'Revoked' || dto.signatureData !== undefined || dto.notes !== undefined || dto.witnessName !== undefined)) throw new BadRequestException('Signed consent is immutable. Revoke it and record a new consent.');
+      if (dto.status === 'Signed' && (!(dto.signatureData || existing.signatureData) || !existing.consentText)) throw new BadRequestException('Signed consent requires exact wording and signature evidence.');
+      const evidence = { ...existing, ...dto };
+      const evidenceHash = crypto.createHash('sha256').update(JSON.stringify(evidence)).digest('hex');
+      // Preserve an existing legacy record before its first managed update.
+      await tx.consentRevision.create({ data: { consentId, clinicId, actorId: actor?.id || 'unknown', action: 'BEFORE_CHANGE', snapshot: JSON.parse(JSON.stringify(existing)), evidenceHash: existing.evidenceHash || crypto.createHash('sha256').update(JSON.stringify(existing)).digest('hex') } });
+      const updated = await tx.patientConsent.update({ where: { id: consentId }, data: { ...dto, evidenceHash, ...(dto.status === 'Revoked' ? { revokedAt: new Date() } : {}) } });
+      await tx.consentRevision.create({ data: { consentId, clinicId, actorId: actor?.id || 'unknown', action: dto.status === 'Revoked' ? 'REVOKED' : 'UPDATED', snapshot: JSON.parse(JSON.stringify(updated)), evidenceHash } });
+      return this.serializeConsent(updated, patient.patientCode);
     });
-
-    if (!existing) {
-      throw new NotFoundException(`Consent record "${consentId}" not found.`);
-    }
-
-    const updated = await this.prisma.patientConsent.update({
-      where: { id: existing.id },
-      data: {
-        ...(dto.status && { status: dto.status.trim() }),
-        ...(dto.notes !== undefined && { notes: dto.notes?.trim() || null }),
-        ...(dto.witnessName !== undefined && { witnessName: dto.witnessName?.trim() || null }),
-        ...(dto.signatureData !== undefined && { signatureData: dto.signatureData?.trim() || null }),
-      },
-    });
-
-    return this.serializeConsent(updated, patient.patientCode);
   }
-
-  async deleteConsent(clinicId: string, patientIdOrCode: string, consentId: string) {
-    const patient = await this.resolvePatient(clinicId, patientIdOrCode);
-
-    const existing = await this.prisma.patientConsent.findFirst({
-      where: {
-        id: consentId,
-        clinicId,
-        patientId: patient.id,
-      },
-    });
-
-    if (!existing) {
-      throw new NotFoundException(`Consent record "${consentId}" not found.`);
-    }
-
-    await this.prisma.patientConsent.delete({
-      where: { id: existing.id },
-    });
-
-    return { success: true, message: 'Consent record deleted successfully.' };
+  async deleteConsent(clinicId: string, patientIdOrCode: string, consentId: string, actor?: AuthenticatedUser) {
+    await this.updateConsent(clinicId, patientIdOrCode, consentId, { status: 'Revoked' }, actor);
+    return { success: true, message: 'Consent revoked. Evidence and history were preserved.' };
+  }
+  async consentHistory(clinicId: string, patientIdOrCode: string, consentId: string) {
+    await this.getConsent(clinicId, patientIdOrCode, consentId);
+    return this.prisma.consentRevision.findMany({ where: { clinicId, consentId }, orderBy: { createdAt: 'asc' } });
   }
 
   async getAllClinicConsents(clinicId: string) {

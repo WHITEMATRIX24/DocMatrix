@@ -1,3 +1,4 @@
+import { seedClinicFixture } from './fixtures/clinic'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import React from 'react'
 import { render, screen, cleanup, within } from '@testing-library/react'
@@ -109,6 +110,7 @@ describe('DocMatrix — Clinical Module Restructuring & Navigation Verification'
 
   // 4. PATIENT PROFILE X-RAYS & DOCUMENTS INTEGRATION
   it('displays X-rays & Documents tab in Patient Profile and supports deep linking', () => {
+    seedClinicFixture()
     render(
       <MemoryRouter initialEntries={['/patients/pt-1001?tab=x-rays']}>
         <Routes>

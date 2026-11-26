@@ -1,3 +1,4 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
@@ -32,9 +33,9 @@ const testPatient = {
 
 describe('DocMatrix — Phase 2: GUI Workflow Verification (Treatment Plans & Estimates)', () => {
   beforeEach(() => {
-    localStorage.clear();
-    sessionStorage.clear();
-    sessionStorage.setItem('docmatrix-demo-session', 'usr-101');
+    browserLocalStorage.clear();
+    browserSessionStorage.clear();
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-101');
     resetStoreForTesting();
     // Hydrate only this test's browser store; production/demo seeds stay empty.
     saveToStorage(STORAGE_KEYS.DATA, { ...getClinicSnapshot(), patients: [{ ...testPatient }] });
@@ -43,8 +44,8 @@ describe('DocMatrix — Phase 2: GUI Workflow Verification (Treatment Plans & Es
 
   afterEach(() => {
     resetStoreForTesting();
-    localStorage.clear();
-    sessionStorage.clear();
+    browserLocalStorage.clear();
+    browserSessionStorage.clear();
   });
 
   // ---------------------------------------------------------------------------
@@ -420,12 +421,13 @@ describe('DocMatrix — Phase 2: GUI Workflow Verification (Treatment Plans & Es
     render(
       <TreatmentPlanPrintModal
         plan={printPlan}
+        clinicName="Synthetic Test Clinic"
         onClose={vi.fn()}
       />
     );
 
     // Letterhead elements
-    expect(screen.getByText(/DocMatrix Dental & Multi-Speciality Polyclinic/i)).toBeInTheDocument();
+    expect(screen.getByText('Synthetic Test Clinic')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Dental Treatment Plan & Cost Estimate/i })).toBeInTheDocument();
     expect(screen.getByText(/Meera Nambiar/i)).toBeInTheDocument();
     expect(screen.getAllByText(/Dr\. Arun Kumar/i).length).toBeGreaterThanOrEqual(1);

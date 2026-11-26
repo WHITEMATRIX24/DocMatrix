@@ -77,6 +77,7 @@ export interface BackendDoctorsReportResponse {
   days: number
   summary: {
     doctorsWithVisits: number
+    unassignedBilled?: number
     totalDoctors: number
     completedVisits: number
     proceduresDone: number
@@ -224,6 +225,7 @@ export interface DoctorPerformanceRow {
 }
 
 export interface DoctorPerformanceResponse {
+  summary?: { unassignedBilled?: number };
   now: Partial<PeriodMetrics>
   before: Partial<PeriodMetrics>
   doctors: DoctorPerformanceRow[]
@@ -290,6 +292,161 @@ export interface InventoryReportResponse {
     expiryDate: string
     daysUntilExpiry: number
   }[]
+}
+
+export const normalizePeriodMetrics = (m?: Partial<BackendPeriodMetrics & PeriodMetrics> | null): Partial<PeriodMetrics> | undefined => {
+  if (!m) return undefined
+  const plansMade = m.plansMade ?? m.plansTotal ?? 0
+  const plansCompleted = m.plansCompleted ?? 0
+  return {
+    ...m,
+    plansMade,
+    plansValue: m.plansValue ?? m.plansAcceptedValue ?? 0,
+    plansCompleted,
+    plansCompletedPct: m.plansCompletedPct ?? m.planCompletionPct ?? (plansMade > 0 ? Math.round((plansCompleted / plansMade) * 100) : 0),
+    plansCompletedValue: m.plansCompletedValue ?? 0,
+  }
+}
+
+const formatInrShort = (amount: number) => `₹${Math.round(amount).toLocaleString('en-IN')}`
+
+export const normalizeRevenueReport = (raw: any): RevenueReportResponse => {
+  if (!raw) return raw
+  const now = (normalizePeriodMetrics(raw.now ?? raw.current) ?? {}) as PeriodMetrics
+  const before = (normalizePeriodMetrics(raw.before ?? raw.previous) ?? {}) as PeriodMetrics
+  const timeline: TimelinePoint[] = Array.isArray(raw.timeline)
+    ? raw.timeline
+    : Array.isArray(raw.series)
+      ? raw.series.map((s: any) => ({
+          key: s.date,
+          label: s.label,
+          value: Number(s.amount || 0),
+          billed: 0,
+        }))
+      : []
+  const byPaymentMode: PaymentModeBreakdown[] = Array.isArray(raw.byPaymentMode)
+    ? raw.byPaymentMode
+    : Array.isArray(raw.modes)
+      ? raw.modes.map((m: any) => {
+          const val = Number(m.amount || 0)
+          const pct = Number(m.share || 0)
+          return {
+            key: m.mode,
+            label: m.mode,
+            value: val,
+            count: 0,
+            percentage: pct,
+            display: `${formatInrShort(val)} · ${pct}%`,
+          }
+        })
+      : []
+  return {
+    ...raw,
+    now,
+    before,
+    timeline,
+    byPaymentMode,
+  }
+}
+
+export const normalizeTreatmentBreakdown = (raw: any, canSeeMoney = true): TreatmentBreakdownResponse => {
+  if (!raw) return raw
+  const now = normalizePeriodMetrics(raw.now ?? raw.current) ?? {}
+  const before = normalizePeriodMetrics(raw.before ?? raw.previous) ?? {}
+  const procedures: RankedItem[] = Array.isArray(raw.procedures)
+    ? raw.procedures.map((p: any) =>
+        p && typeof p.label === 'string' && typeof p.key === 'string'
+          ? p
+          : {
+              key: p.name,
+              label: p.name,
+              value: Number(p.count || 0),
+              display: String(p.count ?? 0),
+            }
+      )
+    : []
+  const categories: RankedItem[] = Array.isArray(raw.categories)
+    ? raw.categories.map((c: any) =>
+        c && typeof c.label === 'string' && typeof c.key === 'string'
+          ? c
+          : {
+              key: c.category,
+              label: c.category,
+              value: Number(c.total ?? c.completedCount ?? 0),
+              display: String(c.total ?? c.completedCount ?? 0),
+            }
+      )
+    : []
+  const rawStages = Array.isArray(raw.stages) ? raw.stages : Array.isArray(raw.planStatus) ? raw.planStatus : []
+  const stages: RankedItem[] = rawStages.map((s: any) =>
+    s && typeof s.label === 'string' && typeof s.key === 'string'
+      ? s
+      : {
+          key: s.status,
+          label: s.status,
+          value: Number(s.count || 0),
+          display: canSeeMoney ? `${s.count ?? 0} · ${formatInrShort(Number(s.value || 0))}` : String(s.count ?? 0),
+        }
+  )
+  const rawTeeth = Array.isArray(raw.teeth) ? raw.teeth : Array.isArray(raw.topTeeth) ? raw.topTeeth : []
+  const teeth: RankedItem[] = rawTeeth.map((t: any) => {
+    if (t && typeof t.label === 'string' && typeof t.key === 'string') return t
+    const tooth = String(t.tooth || '').trim()
+    const single = /^\d{2}$/.test(tooth)
+    return {
+      key: tooth,
+      label: single ? `Tooth ${tooth}` : tooth,
+      value: Number(t.count || 0),
+      display: String(t.count ?? 0),
+    }
+  })
+  return {
+    ...raw,
+    now,
+    before,
+    procedures,
+    categories,
+    stages,
+    teeth,
+  }
+}
+
+export const normalizeFollowUpsReport = (raw: any): FollowUpsResponse => {
+  if (!raw) return raw
+  const now = normalizePeriodMetrics(raw.now ?? raw.current) ?? {}
+  const before = normalizePeriodMetrics(raw.before ?? raw.previous) ?? {}
+  const contacts: FollowUpContactItem[] = Array.isArray(raw.contacts)
+    ? raw.contacts.map((c: any) => {
+        const mappedReason: 'missed' | 'unfinished' | 'recall' =
+          c.kind === 'treatment' ? 'unfinished' : c.kind === 'recall' ? 'recall' : 'missed'
+        const reasons: ('missed' | 'unfinished' | 'recall')[] = Array.isArray(c.reasons)
+          ? c.reasons
+          : [mappedReason]
+        const missedVisits = Array.isArray(c.missedVisits)
+          ? c.missedVisits
+          : mappedReason === 'missed'
+            ? [{ date: c.sortDate || c.dateLabel || '', treatmentType: c.title || 'Dental visit' }]
+            : []
+        return {
+          ...c,
+          patientId: c.patientId || c.patientCode || c.id,
+          patientName: c.patientName || 'Unknown patient',
+          mobile: c.mobile || '',
+          reasons,
+          missedVisits,
+          plansCount: Number(c.plansCount ?? (mappedReason === 'unfinished' ? 1 : 0)),
+          value: Number(c.value ?? 0),
+          lastVisit: c.lastVisit ?? (mappedReason === 'recall' ? c.sortDate : null),
+          since: c.since ?? null,
+        }
+      })
+    : []
+  return {
+    ...raw,
+    now,
+    before,
+    contacts,
+  }
 }
 
 export const reportsApi = {

@@ -2522,12 +2522,30 @@ button.slot-btn-unavailable:disabled {
 .confirmed-ref-code {
   color: #0d9488;
   font-family: monospace;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   background: #f0fdfa;
-  padding: 2px 8px;
-  border-radius: 6px;
+  padding: 2px 7px;
+  border-radius: 5px;
   border: 1px solid #ccfbf1;
+  letter-spacing: 0.04em;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.appointment-ref-code {
+  font-family: monospace;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--teal-primary, #0b8185);
+  background: var(--teal-tint, rgba(11, 129, 133, 0.08));
+  padding: 1px 7px;
+  border-radius: 4px;
+  border: 1px solid rgba(11, 129, 133, 0.2);
+  vertical-align: middle;
+  letter-spacing: 0.03em;
+  display: inline-block;
+  margin-left: 2px;
 }
 
 .confirmed-details-box {
@@ -2686,6 +2704,12 @@ button.slot-btn-unavailable:disabled {
   border-color: rgba(44, 189, 183, 0.3);
 }
 
+:root[data-theme="dark"] .appointment-ref-code {
+  background: rgba(44, 189, 183, 0.15);
+  color: #2dd4bf;
+  border-color: rgba(44, 189, 183, 0.3);
+}
+
 :root[data-theme="dark"] .confirmed-details-box {
   background: #0c1415;
   border-color: rgba(255, 255, 255, 0.06);
@@ -2796,21 +2820,83 @@ button.slot-btn-unavailable:disabled {
 }
 
 .status-select-pill {
-  padding: 6px 12px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px 0 14px;
   font-size: 12.5px;
   font-weight: 700;
+  line-height: 1;
   border-radius: 999px;
   border: 1px solid var(--line-strong, #cbd5e1);
   background: var(--surface-alt, #f8fafc);
   color: var(--text-strong, #0f172a);
   cursor: pointer;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: all 0.15s ease;
+  user-select: none;
+  box-sizing: border-box;
 }
 
-.status-select-pill:focus {
+.status-select-pill:hover {
+  filter: brightness(0.97);
+}
+
+.status-select-pill:focus-within {
   border-color: var(--teal-primary, #0b8185);
   box-shadow: 0 0 0 3px rgba(11, 129, 133, 0.15);
+}
+
+.status-select-pill .status-select-text {
+  white-space: nowrap;
+  pointer-events: none;
+  display: inline-block;
+}
+
+.status-select-pill .status-select-chevron {
+  flex-shrink: 0;
+  pointer-events: none;
+  color: currentColor;
+  transition: transform 0.15s ease;
+}
+
+.status-select-pill .status-select-native {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.status-select-pill .status-select-native:disabled {
+  cursor: not-allowed;
+}
+
+/* Fallback if applied directly on a <select> element */
+select.status-select-pill {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  field-sizing: content;
+  display: inline-block;
+  height: 32px;
+  padding: 0 28px 0 14px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230b8185' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 13px 13px;
 }
 
 .status-select-pill.status-scheduled,
@@ -3110,6 +3196,20 @@ button.slot-btn-unavailable:disabled {
   background: #111b1c;
   color: #eef6f5;
   border-color: rgba(214, 240, 236, 0.18);
+}
+
+:root[data-theme="dark"] .dmx-shell .status-select-pill.status-scheduled,
+:root[data-theme="dark"] .dmx-shell .status-select-pill.status-confirmed {
+  background: rgba(34, 211, 238, 0.12);
+  color: #22d3ee;
+  border-color: rgba(34, 211, 238, 0.3);
+}
+
+:root[data-theme="dark"] .dmx-shell .status-select-pill.status-checked-in,
+:root[data-theme="dark"] .dmx-shell .status-select-pill.status-in-progress {
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.3);
 }
 
 :root[data-theme="dark"] .dmx-shell .status-select-pill.status-cancelled,

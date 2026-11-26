@@ -1,3 +1,7 @@
+import AccountSecurity from '@/pages/AccountSecurity'
+import VerifyEmail from '@/pages/VerifyEmail'
+import ResetPassword from '@/pages/ResetPassword'
+import { OPERATION_ROLES, canClinic } from '@/services/permissions'
 import React, { Suspense, lazy } from 'react'
 import { Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom'
 import { FEATURE_REGISTRY } from '@/features/registry'
@@ -23,8 +27,7 @@ const AppointmentDetailsPage = lazy(() => import('@/pages/appointments/Appointme
 const BillingOverviewPage = lazy(() => import('@/pages/billing/BillingOverviewPage'))
 const PlatformAdminPage = lazy(() => import('@/pages/admin/PlatformAdminPage'))
 const RecordConsultationPage = lazy(() => import('@/pages/clinical/RecordConsultationPage'))
-const REMOVED_BILLING_PAGES = new Set(['bill.price-list', 'bill.expenses'])
-// Income vs expense was dropped (expenses are no longer tracked); Booking conversion merged into Follow-ups
+// Booking conversion is merged into Follow-ups; the separate income/expense report remains outside this view.
 const MOVED_REPORT_PAGES = { 'rep.income-expense': '/reports', 'rep.conversion': '/reports/follow-ups' }
 
 // Old report links keep the selected period
@@ -55,7 +58,12 @@ function ProtectedRoute({ currentUser, allowedRoles, children }) {
     return <Navigate to={`/login?next=${next}`} replace />
   }
 
-  if (allowedRoles && !allowedRoles.includes(currentUser.role)) {
+  if (currentUser.accountSetupRequired) return <Navigate to="/account-security" replace />
+
+  if (currentUser.isPlatformAdmin) return <Navigate to="/admin" replace />
+
+  const clinicalWriter = allowedRoles === OPERATION_ROLES['clinical.write'] && canClinic(currentUser, 'clinical.write')
+  if (allowedRoles && !clinicalWriter && !allowedRoles.includes(currentUser.role)) {
     return <Navigate to="/forbidden" replace />
   }
 
@@ -70,6 +78,9 @@ export function AppRoutes({
 }) {
   return (
     <Routes>
+      <Route path="/account-security" element={currentUser ? <AccountSecurity /> : <Navigate to="/login" replace />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/admin" element={<Suspense fallback={<PageFallback />}><PlatformAdminPage /></Suspense>} />
       <Route path="/admin/*" element={<Navigate to="/admin" replace />} />
       {/* 1. Public Landing Page */}
@@ -113,7 +124,7 @@ export function AppRoutes({
         <Route
           path="/appointments/details"
           element={
-            <ProtectedRoute currentUser={currentUser}>
+            <ProtectedRoute currentUser={currentUser} allowedRoles={OPERATION_ROLES['appointment.read']}>
               <AppointmentsWorkspace activeFeatureId="appt.details-list">
                 <Suspense fallback={<PageFallback />}>
                   <AppointmentDetailsPage />
@@ -129,7 +140,7 @@ export function AppRoutes({
         <Route
           path="/patients/:id/prescriptions"
           element={
-            <ProtectedRoute currentUser={currentUser}>
+            <ProtectedRoute currentUser={currentUser} allowedRoles={OPERATION_ROLES['clinical.read']}>
               <Suspense fallback={<PageFallback />}>
                 {React.createElement(lazyComponents['pat.profile'])}
               </Suspense>
@@ -139,7 +150,7 @@ export function AppRoutes({
         <Route
           path="/patients/:id/notes"
           element={
-            <ProtectedRoute currentUser={currentUser}>
+            <ProtectedRoute currentUser={currentUser} allowedRoles={OPERATION_ROLES['clinical.read']}>
               <Suspense fallback={<PageFallback />}>
                 {React.createElement(lazyComponents['pat.profile'])}
               </Suspense>
@@ -149,7 +160,7 @@ export function AppRoutes({
         <Route
           path="/patients/:id/plans"
           element={
-            <ProtectedRoute currentUser={currentUser}>
+            <ProtectedRoute currentUser={currentUser} allowedRoles={OPERATION_ROLES['clinical.read']}>
               <Suspense fallback={<PageFallback />}>
                 {React.createElement(lazyComponents['pat.profile'])}
               </Suspense>
@@ -159,7 +170,7 @@ export function AppRoutes({
         <Route
           path="/patients/:id/treatment-plans"
           element={
-            <ProtectedRoute currentUser={currentUser}>
+            <ProtectedRoute currentUser={currentUser} allowedRoles={OPERATION_ROLES['clinical.read']}>
               <Suspense fallback={<PageFallback />}>
                 {React.createElement(lazyComponents['pat.profile'])}
               </Suspense>
@@ -169,7 +180,7 @@ export function AppRoutes({
         <Route
           path="/patients/:id/x-rays"
           element={
-            <ProtectedRoute currentUser={currentUser}>
+            <ProtectedRoute currentUser={currentUser} allowedRoles={OPERATION_ROLES['document.read']}>
               <Suspense fallback={<PageFallback />}>
                 {React.createElement(lazyComponents['pat.profile'])}
               </Suspense>
@@ -179,7 +190,7 @@ export function AppRoutes({
         <Route
           path="/patients/:id/documents"
           element={
-            <ProtectedRoute currentUser={currentUser}>
+            <ProtectedRoute currentUser={currentUser} allowedRoles={OPERATION_ROLES['document.read']}>
               <Suspense fallback={<PageFallback />}>
                 {React.createElement(lazyComponents['pat.profile'])}
               </Suspense>
@@ -189,7 +200,7 @@ export function AppRoutes({
         <Route
           path="/clinical/notes/new"
           element={
-            <ProtectedRoute currentUser={currentUser}>
+            <ProtectedRoute currentUser={currentUser} allowedRoles={OPERATION_ROLES['clinical.write']}>
               <Suspense fallback={<PageFallback />}>
                 <RecordConsultationPage />
               </Suspense>
@@ -199,7 +210,7 @@ export function AppRoutes({
         <Route
           path="/clinical/notes/:id/edit"
           element={
-            <ProtectedRoute currentUser={currentUser}>
+            <ProtectedRoute currentUser={currentUser} allowedRoles={OPERATION_ROLES['clinical.write']}>
               <Suspense fallback={<PageFallback />}>
                 <RecordConsultationPage />
               </Suspense>
@@ -225,11 +236,13 @@ export function AppRoutes({
         <Route
           path="/billing"
           element={
-            <BillingWorkspace activeFeatureId="bill.overview">
-              <Suspense fallback={<PageFallback />}>
-                <BillingOverviewPage />
-              </Suspense>
-            </BillingWorkspace>
+            <ProtectedRoute currentUser={currentUser} allowedRoles={OPERATION_ROLES['billing.invoice.read']}>
+              <BillingWorkspace activeFeatureId="bill.overview">
+                <Suspense fallback={<PageFallback />}>
+                  <BillingOverviewPage />
+                </Suspense>
+              </BillingWorkspace>
+            </ProtectedRoute>
           }
         />
         <Route
@@ -270,10 +283,6 @@ export function AppRoutes({
 
         {/* 6. Protected 55 Launch Feature Sub-Pages */}
         {FEATURE_REGISTRY.filter((f) => f.phase === 'launch').map((feature) => {
-          // Price list and Expenses were removed from Billing; old links land on the Billing overview
-          if (REMOVED_BILLING_PAGES.has(feature.id)) {
-            return <Route key={feature.id} path={feature.route} element={<Navigate to="/billing" replace />} />
-          }
           if (MOVED_REPORT_PAGES[feature.id]) {
             return <Route key={feature.id} path={feature.route} element={<ReportRedirect to={MOVED_REPORT_PAGES[feature.id]} />} />
           }

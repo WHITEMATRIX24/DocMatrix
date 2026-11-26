@@ -1,0 +1,8 @@
+{
+  "20261117160000_accounting_integrations_foundation": {
+    "checksum": "1b124726e3a0146c8322c71bd6a5e68eefbb914d7319bc84a5ac4ea31bccb87d",
+    "reconciledBy": "20261119101000_reconcile_existing_integration_schema",
+    "reason": "Original SQL unavailable in checkout, local history and fetched origin/master. Stored migration record is preserved unchanged; existing DDL was inspected and reproduced with additive, idempotent reconciliation. This exception does not recover the original source.",
+    "recordedAt": "2026-11-20"
+  }
+}

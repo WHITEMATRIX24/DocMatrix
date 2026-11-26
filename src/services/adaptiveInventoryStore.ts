@@ -1,3 +1,6 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
+import { reportPersistenceFailure, getClinicMutationVersion } from './clinicStore'
+import { canClinic, getPermissionUser } from './permissions'
 import { useSyncExternalStore } from 'react'
 import { loadFromStorage, saveToStorage } from './storageService'
 import { apiClient, getStoredToken } from './apiClient'
@@ -28,6 +31,7 @@ export interface InventoryStockItem {
   category: InventoryCategory
   unit: string // 'pairs' | 'cones' | 'ml' | 'set' | 'pieces' | 'cartridges' | 'cups' | 'kits' | 'syringes' | 'grams' | 'sheets' | 'vials' | 'packs'
   totalStock: number
+  stockMismatch?: boolean
   reorderLevel: number
   costPerUnit: number
   activeBatches: InventoryBatch[]
@@ -78,6 +82,7 @@ export interface DoctorAdaptivePreference {
 }
 
 export interface ConfirmedMaterialDeduction {
+  _syncPromise?: Promise<void>
   id: string
   treatmentId?: string
   appointmentId?: string
@@ -115,8 +120,8 @@ export interface AdaptiveInventoryState {
 export const getInventoryClinicId = (): string | null => {
   try {
     const raw =
-      (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('docmatrix_auth_user')) ||
-      (typeof localStorage !== 'undefined' && localStorage.getItem('docmatrix_auth_user'))
+      (typeof browserSessionStorage !== 'undefined' && browserSessionStorage.getItem('docmatrix_auth_user')) ||
+      (typeof browserLocalStorage !== 'undefined' && browserLocalStorage.getItem('docmatrix_auth_user'))
     if (raw) {
       return JSON.parse(raw)?.clinicId || null
     }
@@ -132,10 +137,10 @@ export const getInventoryStorageKey = (clinicId?: string): string => {
   return 'docmatrix_v3_live_inventory'
 }
 
-// Clear legacy mock localStorage keys if present
+// Clear legacy mock browserLocalStorage keys if present
 if (typeof window !== 'undefined') {
   try {
-    localStorage.removeItem('docmatrix_v2_adaptive_inventory')
+    browserLocalStorage.removeItem('docmatrix_v2_adaptive_inventory')
   } catch {}
 }
 
@@ -264,12 +269,15 @@ const loadInitialInventoryState = (): AdaptiveInventoryState => {
   }
 }
 
-// In-memory state with localStorage sync
+// In-memory state with browserLocalStorage sync
 let state: AdaptiveInventoryState = loadInitialInventoryState()
 
 const listeners = new Set<() => void>()
 
 function emitChange() {
+  if (getStoredToken() && getPermissionUser() && !canClinic(getPermissionUser(), 'inventory.read')) {
+    state = { suggestionMode: 'standard', items: [], templates: [], doctorPreferences: [], consumptionHistory: [], deductionAuditLog: [] }
+  }
   saveToStorage(getInventoryStorageKey(), state)
   listeners.forEach((listener) => listener())
 }
@@ -305,8 +313,8 @@ export function initInventorySession(clinicId?: string) {
 export function clearInventoryStore() {
   const key = getInventoryStorageKey()
   try {
-    localStorage.removeItem(key)
-    localStorage.removeItem('docmatrix_v3_live_inventory')
+    browserLocalStorage.removeItem(key)
+    browserLocalStorage.removeItem('docmatrix_v3_live_inventory')
   } catch {}
   state = {
     suggestionMode: 'standard',
@@ -338,9 +346,12 @@ export function useAdaptiveInventory(): AdaptiveInventoryState {
  * Synchronize inventory items & movements with backend database
  */
 export async function syncInventoryWithBackend() {
+  const contextVersion = getClinicMutationVersion();
+  if (!canClinic(getPermissionUser(), 'inventory.read')) return
   if (!getStoredToken()) return
   try {
     const backendItems = await apiClient.get<InventoryStockItem[]>('/inventory/items')
+    if (contextVersion !== getClinicMutationVersion()) return;
     if (Array.isArray(backendItems)) {
       state = {
         ...state,
@@ -355,6 +366,7 @@ export async function syncInventoryWithBackend() {
   try {
     if (!getStoredToken()) return
     const backendAudits = await apiClient.get<ConfirmedMaterialDeduction[]>('/inventory/movements')
+    if (contextVersion !== getClinicMutationVersion()) return;
     if (Array.isArray(backendAudits)) {
       state = {
         ...state,
@@ -490,6 +502,8 @@ export function confirmConsumptionAndDeductStock(payload: {
     batchNumber: string
   }[]
 }): ConfirmedMaterialDeduction {
+  const previousState = state;
+  const mutationSession = getClinicMutationVersion();
   const deductionId = payload.operationId || payload.deductionId || `AUD-INV-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
 
   // 1. Execute stock deductions across active batches
@@ -639,7 +653,7 @@ export function confirmConsumptionAndDeductStock(payload: {
   emitChange()
 
   // Asynchronously synchronize confirmed deduction with backend database
-  apiClient
+  const persistence = getStoredToken() ? apiClient
     .post('/inventory/deduct', {
       operationId: deductionId,
       deductionId,
@@ -656,9 +670,16 @@ export function confirmConsumptionAndDeductStock(payload: {
       confirmedBy: payload.confirmedBy,
       notes: payload.notes
     })
-    .catch(() => {
-      // Offline fallback
-    })
+    .then(() => undefined)
+    .catch(error => {
+      if (getClinicMutationVersion() !== mutationSession) throw error;
+      state = previousState;
+      emitChange();
+      reportPersistenceFailure('Inventory deduction', error);
+      throw error;
+    }) : Promise.resolve()
+  void persistence.catch(() => {})
+  Object.defineProperty(auditRecord, '_syncPromise', { value: persistence })
 
   return auditRecord
 }
@@ -680,6 +701,7 @@ export async function createNewInventoryItem(data: {
     location?: string
   }
 }): Promise<InventoryStockItem> {
+  const mutationSession = getClinicMutationVersion();
   const newItemId = 'item-' + Date.now().toString(36)
   const batches: InventoryBatch[] =
     data.initialBatch && data.initialBatch.quantity > 0
@@ -714,27 +736,28 @@ export async function createNewInventoryItem(data: {
   emitChange()
 
   try {
+    if (!getStoredToken()) return newItem
     const res = await apiClient.post<any>('/inventory/items', {
       sku: data.sku,
       name: data.name,
       category: data.category,
       unit: data.unit,
-      totalStock,
+      totalStock: 0,
+      initialBatch: batches[0],
       reorderLevel: data.reorderLevel,
       costPerUnit: data.costPerUnit || 0
     })
 
-    if (res?.id && batches[0]) {
-      await apiClient.post('/inventory/batches', {
-        itemId: res.id,
-        batchNumber: batches[0].batchNumber,
-        expiryDate: batches[0].expiryDate,
-        quantity: batches[0].quantity,
-        location: batches[0].location
-      })
-    }
-  } catch (err) {
-    // offline fallback
+    if (getClinicMutationVersion() !== mutationSession) return newItem;
+    if (res?.id) newItem.id = res.id;
+    state = { ...state, items: state.items.map(item => item === newItem ? { ...newItem } : item) };
+    emitChange();
+  } catch (error) {
+    if (getClinicMutationVersion() !== mutationSession) throw error;
+    state = { ...state, items: state.items.filter(item => item.id !== newItem.id) }
+    emitChange()
+    reportPersistenceFailure('Inventory item', error)
+    throw error
   }
 
   return newItem
@@ -743,7 +766,20 @@ export async function createNewInventoryItem(data: {
 /**
  * Update an existing inventory item (name, category, unit, reorderLevel, cost)
  */
-export function updateInventoryItem(itemId: string, updates: Partial<InventoryStockItem>) {
+async function persistInventoryMutation(work: () => Promise<unknown>): Promise<boolean> {
+  const version = getClinicMutationVersion();
+  if (getStoredToken()) {
+    try { await work(); }
+    catch (error) { if (version === getClinicMutationVersion()) reportPersistenceFailure('Inventory change', error); throw error; }
+  }
+  return version === getClinicMutationVersion();
+}
+
+export async function updateInventoryItem(itemId: string, updates: Partial<InventoryStockItem>) {
+  const item = state.items.find((i) => i.id === itemId || i.sku === itemId)
+  const targetKey = item?.id?.startsWith('item-') && item?.sku ? item.sku : itemId
+
+  if (getStoredToken() && !await persistInventoryMutation(() => apiClient.patch(`/inventory/items/${encodeURIComponent(targetKey)}`, updates))) return;
   state = {
     ...state,
     items: state.items.map((item) => {
@@ -756,21 +792,15 @@ export function updateInventoryItem(itemId: string, updates: Partial<InventorySt
   }
   emitChange()
 
-  const item = state.items.find((i) => i.id === itemId || i.sku === itemId)
-  const targetKey = item?.id?.startsWith('item-') && item?.sku ? item.sku : itemId
 
-  // Asynchronously synchronize updates with backend database
-  apiClient
-    .patch(`/inventory/items/${encodeURIComponent(targetKey)}`, updates)
-    .catch(() => {
-      // Offline fallback
-    })
 }
 
 /**
  * Delete an inventory item
  */
-export function deleteInventoryItem(itemIdOrSku: string, sku?: string) {
+export async function deleteInventoryItem(itemIdOrSku: string, sku?: string) {
+  const targetKey = itemIdOrSku.startsWith('item-') && sku ? sku : itemIdOrSku;
+  if (getStoredToken() && !await persistInventoryMutation(() => apiClient.delete(`/inventory/items/${encodeURIComponent(targetKey)}`))) return;
   state = {
     ...state,
     items: state.items.filter((item) => {
@@ -781,24 +811,22 @@ export function deleteInventoryItem(itemIdOrSku: string, sku?: string) {
   }
   emitChange()
 
-  // Target backend by real identifier or SKU
-  const targetKey = itemIdOrSku.startsWith('item-') && sku ? sku : itemIdOrSku
-  apiClient
-    .delete(`/inventory/items/${encodeURIComponent(targetKey)}`)
-    .catch(() => {
-      // Offline fallback
-    })
+
 }
 
 /**
  * Add a new batch to an existing inventory item
  */
-export function addBatchToItem(itemId: string, batch: InventoryBatch) {
+export async function addBatchToItem(itemId: string, batch: InventoryBatch) {
+  if (getStoredToken() && !await persistInventoryMutation(() => apiClient.post('/inventory/batches', { itemId, ...batch }))) return;
   state = {
     ...state,
     items: state.items.map((item) => {
       if (item.id !== itemId) return item
-      const updatedBatches = [...item.activeBatches, batch]
+      const existing = item.activeBatches.some(b => b.batchNumber === batch.batchNumber)
+      const updatedBatches = existing
+        ? item.activeBatches.map(b => b.batchNumber === batch.batchNumber ? { ...b, quantity: b.quantity + batch.quantity } : b)
+        : [...item.activeBatches, batch]
       const updatedTotal = updatedBatches.reduce((sum, b) => sum + b.quantity, 0)
       return {
         ...item,
@@ -809,28 +837,20 @@ export function addBatchToItem(itemId: string, batch: InventoryBatch) {
   }
   emitChange()
 
-  // Asynchronously synchronize new batch with backend database
-  apiClient
-    .post('/inventory/batches', {
-      itemId,
-      batchNumber: batch.batchNumber,
-      expiryDate: batch.expiryDate,
-      quantity: batch.quantity,
-      location: batch.location
-    })
-    .catch(() => {
-      // Offline fallback
-    })
+
 }
 
 /**
  * Update an existing batch (batchNumber, expiryDate, quantity)
  */
-export function updateItemBatch(
+export async function updateItemBatch(
   itemId: string,
   batchNumber: string,
   updates: { newBatchNumber?: string; expiryDate?: string; quantity?: number }
 ) {
+  const item = state.items.find(i => i.id === itemId || i.sku === itemId);
+  const targetKey = item?.id?.startsWith('item-') && item?.sku ? item.sku : itemId;
+  if (getStoredToken() && !await persistInventoryMutation(() => apiClient.patch('/inventory/batches', { itemId: targetKey, batchNumber, ...updates }))) return;
   state = {
     ...state,
     items: state.items.map((item) => {
@@ -854,24 +874,13 @@ export function updateItemBatch(
   }
   emitChange()
 
-  const item = state.items.find((i) => i.id === itemId || i.sku === itemId)
-  const targetKey = item?.id?.startsWith('item-') && item?.sku ? item.sku : itemId
 
-  apiClient
-    .patch('/inventory/batches', {
-      itemId: targetKey,
-      batchNumber,
-      ...updates
-    })
-    .catch(() => {
-      // Offline fallback
-    })
 }
 
 /**
  * Adjust stock quantity for a specific batch
  */
-export function adjustBatchQuantity(itemId: string, batchNumber: string, deltaOrExact: { delta?: number; exact?: number }) {
+export async function adjustBatchQuantity(itemId: string, batchNumber: string, deltaOrExact: { delta?: number; exact?: number }) {
   let calculatedDelta = 0
   const item = state.items.find((i) => i.id === itemId || i.sku === itemId)
   const existingBatch = item?.activeBatches.find((b) => b.batchNumber === batchNumber)
@@ -882,6 +891,8 @@ export function adjustBatchQuantity(itemId: string, batchNumber: string, deltaOr
     calculatedDelta = deltaOrExact.exact - existingBatch.quantity
   }
 
+  const targetKey = item?.id?.startsWith('item-') && item?.sku ? item.sku : itemId;
+  if (calculatedDelta !== 0 && getStoredToken() && !await persistInventoryMutation(() => apiClient.post('/inventory/adjust', { itemId: targetKey, batchNumber, adjustmentAmount: calculatedDelta }))) return;
   state = {
     ...state,
     items: state.items.map((item) => {
@@ -903,19 +914,6 @@ export function adjustBatchQuantity(itemId: string, batchNumber: string, deltaOr
   }
   emitChange()
 
-  // Asynchronously synchronize stock adjustment with backend database
-  if (calculatedDelta !== 0) {
-    const targetKey = item?.id?.startsWith('item-') && item?.sku ? item.sku : itemId
-    apiClient
-      .post('/inventory/adjust', {
-        itemId: targetKey,
-        batchNumber,
-        adjustmentAmount: calculatedDelta
-      })
-      .catch(() => {
-        // Offline fallback
-      })
-  }
 }
 
 /**

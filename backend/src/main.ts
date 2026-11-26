@@ -1,3 +1,4 @@
+import { validateProductionSecurity } from './common/config/production-security.config.js';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
@@ -16,6 +17,7 @@ async function bootstrap() {
 
   // Validate JWT Secret at startup before accepting traffic
   getJwtSecret();
+  validateProductionSecurity();
 
   // Import modules only after local environment loading and signing-key validation.
   const { AppModule } = await import('./app.module.js');
@@ -41,13 +43,15 @@ async function bootstrap() {
     expressApp.set('trust proxy', false);
   }
 
+  app.use((_req: any, res: any, next: any) => { res.setHeader('Cache-Control', 'private, no-store'); res.setHeader('Pragma', 'no-cache'); next(); });
+
   // Modern security headers via Helmet
   app.use(
     helmet({
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
           connectSrc: ["'self'", 'https:'],

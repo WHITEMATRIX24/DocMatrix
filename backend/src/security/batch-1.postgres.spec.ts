@@ -1,3 +1,10 @@
+import { ClinicalService } from '../clinical/clinical.service.js';
+import { PatientsService } from '../patients/patients.service.js';
+import { AppointmentsService } from '../appointments/appointments.service.js';
+import { PasswordRecoveryService } from '../auth/password-recovery.service.js';
+import { ClinicExportService } from '../clinics/clinic-export.service.js';
+import { PlatformAdminService } from '../platform-admin/platform-admin.service.js';
+import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
@@ -14,7 +21,7 @@ if (url) {
   const parsed = new URL(url);
   if (
     parsed.hostname !== '127.0.0.1' ||
-    parsed.port !== '55439' ||
+    !['55439', '55440'].includes(parsed.port) ||
     parsed.username !== 'batch_security' ||
     parsed.pathname !== '/postgres' ||
     parsed.searchParams.get('schema') !== 'batch1_security'
@@ -112,6 +119,35 @@ describe.skipIf(!url)('Batch 1: real disposable PostgreSQL integrity', () => {
   afterAll(async () => {
     await db?.$disconnect();
   });
+
+  it('persists attributed tooth-chart history and rejects invalid teeth without changing stock', async () => {
+    const clinical = new ClinicalService(db as any);
+    await clinical.saveToothCondition(clinic.id, patient.id, { toothNumber: 46, condition: 'Caries', notes: 'Synthetic first observation' }, actor);
+    await clinical.saveToothCondition(clinic.id, patient.id, { toothNumber: 46, condition: 'Restored', notes: 'Synthetic second observation' }, actor);
+    const history = await clinical.getToothChartHistory(clinic.id, patient.id);
+    expect(history).toHaveLength(2);
+    expect(history[0].actorName).toBe(actor.fullName);
+    const latest = history[0].metadata as any;
+    expect(latest.changes[0]).toMatchObject({ toothNumber: 46, before: { condition: 'Caries' }, after: { condition: 'Restored' } });
+    await expect(clinical.getToothChartHistory(foreignClinic.id, patient.id)).rejects.toThrow();
+    await expect(clinical.saveToothCondition(clinic.id, patient.id, { toothNumber: 19, condition: 'Healthy' }, actor)).rejects.toThrow('valid FDI');
+  });
+
+  it('rejects patient code/internal-ID collisions instead of choosing a patient', async () => {
+    const collision = await db.patient.create({data:{clinicId:clinic.id,patientCode:patient.id,firstName:'Synthetic',lastName:'Collision',mobile:'000',dateOfBirth:new Date('2000-01-01')}});
+    try {
+      await expect(new PatientsService(db as any).getPatient(clinic.id,patient.id)).rejects.toThrow('Ambiguous');
+      await expect(new ClinicalService(db as any).resolvePatient(clinic.id,patient.id)).rejects.toThrow('Ambiguous');
+    } finally { await db.patient.delete({where:{id:collision.id}}); }
+  });
+
+  it('allocates distinct patient codes under simultaneous clinic registrations', async () => {
+    const service = new PatientsService(db as any);
+    const patients = await Promise.all(Array.from({ length: 6 }, (_, n) => service.createPatient(clinic.id, {
+      firstName: 'Synthetic', lastName: `Concurrent ${n}`, mobile: '000', dateOfBirth: '2000-01-01',
+    })));
+    expect(new Set(patients.map(p => p.patientCode)).size).toBe(6);
+  }, 30000);
 
   const invoice = async (status: 'DRAFT' | 'ISSUED' = 'DRAFT') =>
     db.invoice.create({
@@ -490,4 +526,45 @@ describe.skipIf(!url)('Batch 1: real disposable PostgreSQL integrity', () => {
       );
     },
   );
+  it('serializes simultaneous bookings of the same doctor and chair in clinic local time', async () => {
+    const service = new AppointmentsService(db as any);
+    const book = () => service.createAppointment(clinic.id, { patientId: patient.id, doctorId: doctor.id, chair: 'Integrity chair', date: '2026-11-23', time: '10:30' });
+    const results = await Promise.allSettled([book(), book()]);
+    expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1);
+    const appointment = await db.appointment.findFirstOrThrow({ where: { clinicId: clinic.id, operatoryChair: 'Integrity chair' } });
+    expect(appointment.startTime.toISOString()).toBe('2026-11-23T05:00:00.000Z');
+  });
+
+  it('permits a password reset token to change credentials only once under contention', async () => {
+    const user = await db.user.create({ data: { clinicId: clinic.id, email: `${randomUUID()}@example.test`, fullName: 'Synthetic recovery', passwordHash: 'not-a-login-hash', role: 'RECEPTIONIST' } });
+    const token = 'b'.repeat(64);
+    await db.passwordReset.create({ data: { userId: user.id, tokenHash: createHash('sha256').update(token).digest('hex'), expiresAt: new Date(Date.now() + 60000) } });
+    const service = new PasswordRecoveryService(db as any);
+    const results = await Promise.allSettled([service.complete(token, 'Synthetic-password-one'), service.complete(token, 'Synthetic-password-two')]);
+    expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1);
+    expect(await db.passwordReset.count({ where: { userId: user.id, consumedAt: null } })).toBe(0);
+  });
+
+  it('exports only the exact clinic patient and refuses a foreign-clinic patient', async () => {
+    const exporter = new ClinicExportService(db as any, {} as any);
+    const result = await exporter.export(clinic.id, patient.id);
+    expect(result.records.patients.map(p => p.id)).toEqual([patient.id]);
+    expect(result.records).not.toHaveProperty('staff');
+    await expect(exporter.export(clinic.id, foreignPatient.id)).rejects.toThrow('Patient not found');
+  });
+
+  it('writes platform access changes and their evidence atomically', async () => {
+    const service = new PlatformAdminService(db as any);
+    await service.setClinicStatus(foreignClinic.id, 'SUSPENDED', 'Synthetic access review', { id: doctor.id, fullName: 'Synthetic platform actor', role: 'PLATFORM_ADMIN' });
+    expect((await db.clinic.findUniqueOrThrow({ where: { id: foreignClinic.id } })).status).toBe('SUSPENDED');
+    expect(await db.auditEvent.count({ where: { clinicId: foreignClinic.id, action: 'CLINIC_STATUS_CHANGED' } })).toBe(1);
+  });
+
+  it('creates opening stock and its batch atomically without doubling the total', async () => {
+    const item = await new InventoryService(db as any).createItem(clinic.id, { sku: randomUUID(), name: 'Synthetic opening material', category: 'Test', unit: 'unit', totalStock: 0, initialBatch: { batchNumber: randomUUID(), expiryDate: '2030-01-01', quantity: 12 } });
+    const batches = await db.inventoryBatch.findMany({ where: { clinicId: clinic.id, itemId: item.id } });
+    expect(item.totalStock).toBe(12);
+    expect(batches.reduce((sum, b) => sum + b.quantity, 0)).toBe(12);
+  });
+
 });

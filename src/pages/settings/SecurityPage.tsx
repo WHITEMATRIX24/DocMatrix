@@ -1,3 +1,4 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import React, { useState } from 'react'
 import {
   ShieldCheck, Lock, Smartphone, Database, CheckCircle2,
@@ -18,8 +19,8 @@ export const SecurityPage: React.FC = () => {
   const currentUser = (() => {
     try {
       const raw =
-        (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('docmatrix_auth_user') : null) ||
-        (typeof localStorage !== 'undefined' ? localStorage.getItem('docmatrix_auth_user') : null)
+        (typeof browserSessionStorage !== 'undefined' ? browserSessionStorage.getItem('docmatrix_auth_user') : null) ||
+        (typeof browserLocalStorage !== 'undefined' ? browserLocalStorage.getItem('docmatrix_auth_user') : null)
       return raw ? JSON.parse(raw) : null
     } catch {
       return null
@@ -37,8 +38,8 @@ export const SecurityPage: React.FC = () => {
     e.preventDefault()
     setPasswordFeedback(null)
 
-    if (newPassword.length < 8) {
-      setPasswordFeedback({ type: 'error', message: 'New password must be at least 8 characters in length.' })
+    if (newPassword.length < 12 || new TextEncoder().encode(newPassword).length > 72) {
+      setPasswordFeedback({ type: 'error', message: 'New password must be at least 12 characters and at most 72 UTF-8 bytes.' })
       return
     }
 
@@ -75,7 +76,7 @@ export const SecurityPage: React.FC = () => {
       setSessionFeedback('All other active browser sessions and device tokens have been revoked on the server.')
       setTimeout(() => setSessionFeedback(null), 5000)
     } catch {
-      setSessionFeedback('All other active browser sessions have been invalidated.')
+      setSessionFeedback('Session revocation failed. Please try again.')
       setTimeout(() => setSessionFeedback(null), 5000)
     } finally {
       setTerminatingSessions(false)
@@ -84,6 +85,7 @@ export const SecurityPage: React.FC = () => {
 
   return (
     <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '32px 24px', fontFamily: 'inherit' }} data-testid="feature-page-set.security">
+      <p><a href="/account-security">Set up two-step verification and verify email</a></p>
       {/* Header */}
       <header style={{ marginBottom: '24px' }}>
         <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em', color: 'var(--teal-primary, #008891)', textTransform: 'uppercase' }}>
@@ -93,7 +95,7 @@ export const SecurityPage: React.FC = () => {
           Security &amp; Device Verification
         </h1>
         <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '14px' }}>
-          Manage your account credentials, authorized devices, and review enterprise cloud backup status.
+          Manage your account credentials, authorized devices, and review database recovery requirements.
         </p>
       </header>
 
@@ -164,7 +166,7 @@ export const SecurityPage: React.FC = () => {
                 <input
                   type="password"
                   required
-                  placeholder="Minimum 8 characters"
+                  placeholder="Minimum 12 characters"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   style={{
@@ -219,7 +221,7 @@ export const SecurityPage: React.FC = () => {
                   marginBottom: '4px',
                   color: newPassword.length >= 8 ? 'var(--tone-green, #059669)' : 'var(--text-muted, #64748b)'
                 }}>
-                  <Check size={13} /> At least 8 characters
+                  <Check size={13} /> At least 12 characters
                 </div>
                 <div style={{
                   display: 'flex',
@@ -414,12 +416,12 @@ export const SecurityPage: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
               <Database size={20} color="var(--teal-primary, #008891)" />
               <h2 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: 'var(--text-strong, #0f172a)' }}>
-                Continuous Database Backup
+                Database recovery verification
               </h2>
             </div>
 
             <p style={{ fontSize: '13.5px', color: 'var(--text-muted, #64748b)', lineHeight: 1.5, margin: '0 0 16px 0' }}>
-              Your clinic data is hosted on an enterprise serverless PostgreSQL cluster with automated Write-Ahead Log (WAL) archiving and Point-in-Time Recovery (PITR).
+              Recovery status must be verified by your deployment administrator. This page does not monitor provider backups, retention, encryption settings or restore drills.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -433,7 +435,7 @@ export const SecurityPage: React.FC = () => {
                 borderRadius: '6px'
               }}>
                 <span style={{ fontSize: '13px', color: 'var(--text-muted, #334155)' }}>Backup Engine</span>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #0f172a)' }}>Neon Continuous PITR</span>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #0f172a)' }}>Not verified</span>
               </div>
 
               <div style={{
@@ -446,7 +448,7 @@ export const SecurityPage: React.FC = () => {
                 borderRadius: '6px'
               }}>
                 <span style={{ fontSize: '13px', color: 'var(--text-muted, #334155)' }}>Backup Frequency</span>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--tone-green, #059669)' }}>Real-time Continuous</span>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--tone-green, #059669)' }}>Not verified</span>
               </div>
 
               <div style={{
@@ -459,7 +461,7 @@ export const SecurityPage: React.FC = () => {
                 borderRadius: '6px'
               }}>
                 <span style={{ fontSize: '13px', color: 'var(--text-muted, #334155)' }}>Encryption Standard</span>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #0f172a)' }}>AES-256 (At Rest) / TLS 1.3</span>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #0f172a)' }}>Verify with hosting provider</span>
               </div>
 
               <div style={{
@@ -472,7 +474,7 @@ export const SecurityPage: React.FC = () => {
                 borderRadius: '6px'
               }}>
                 <span style={{ fontSize: '13px', color: 'var(--text-muted, #334155)' }}>Retention Window</span>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #0f172a)' }}>30 Days Rollback</span>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-strong, #0f172a)' }}>Not verified</span>
               </div>
             </div>
           </div>

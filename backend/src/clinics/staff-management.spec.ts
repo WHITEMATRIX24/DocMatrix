@@ -46,7 +46,7 @@ describe('Clinic-owner staff management HTTP/RBAC (synthetic persistence only)',
   const password = 'Synthetic-Staff-2026!';
   const jwt = new JwtService({ secret: 'synthetic-test-key-for-staff-authorization', signOptions: { expiresIn: '15m' } });
   const select = (row: any, fields: any) => !row ? null : fields ? Object.fromEntries(Object.keys(fields).filter(k => fields[k]).map(k => [k, row[k]])) : { ...row, clinic: row.clinicId ? { status: 'ACTIVE' } : null };
-  const matches = (row: any, where: any) => Object.entries(where || {}).every(([k, v]) => row[k] === v);
+  const matches = (row: any, where: any) => Object.entries(where || {}).every(([k, v]: [string, any]) => k === 'OR' ? v.some((branch: any) => matches(row, branch)) : v && typeof v === 'object' && 'not' in v ? (row[k] ?? null) !== v.not : row[k] === v);
 
   beforeEach(async () => {
     users = new Map(); sessionRows = new Map();
@@ -136,7 +136,7 @@ describe('Clinic-owner staff management HTTP/RBAC (synthetic persistence only)',
     expect((await call('get', '/clinics/my-clinic/staff', token)).status).toBe(403);
     const directory = await call('get', '/clinics/my-clinic/practitioners', token);
     expect(directory.status).toBe(200);
-    expect(directory.body).toEqual([{ id: created.body.id, fullName: 'DOCTOR Staff', role: 'DOCTOR' }]);
+    expect(directory.body).toEqual([{ id: created.body.id, fullName: 'DOCTOR Staff', role: 'DOCTOR', isPrimaryContact: false }]);
     expect((await create(StaffRole.ORGANIZATION_ADMIN, token)).status).toBe(403);
     expect((await call('patch', '/clinics/my-clinic/staff/owner-a', token).send({ role: 'DOCTOR' })).status).toBe(403);
   });

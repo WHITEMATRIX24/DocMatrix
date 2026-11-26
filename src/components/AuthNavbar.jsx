@@ -14,7 +14,7 @@ function MedicalCrossMark({ light = false }) {
   )
 }
 
-export default function AuthNavbar({ currentView = 'login' }) {
+export default function AuthNavbar({ currentView = 'login', showSiteNavigation = true }) {
   return (
     <header className="auth-navbar" role="banner">
       {/* Brand Logo */}
@@ -24,7 +24,7 @@ export default function AuthNavbar({ currentView = 'login' }) {
       </Link>
 
       {/* Center Navigation Links */}
-      <nav className="auth-nav-links" aria-label="Site navigation">
+      {showSiteNavigation && <nav className="auth-nav-links" aria-label="Site navigation">
         <Link to="/" className="auth-nav-link">
           Home
         </Link>
@@ -37,7 +37,7 @@ export default function AuthNavbar({ currentView = 'login' }) {
         <a href="/#contact" className="auth-nav-link">
           Contact
         </a>
-      </nav>
+      </nav>}
 
       {/* Right-hand Auth Switch Action */}
       <div className="auth-nav-actions">

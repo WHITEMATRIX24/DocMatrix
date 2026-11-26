@@ -129,6 +129,7 @@ export const ClinicalConfigPage: React.FC = () => {
   const [templates, setTemplates] = useState<ClinicalNoteTemplate[]>(DEFAULT_TEMPLATES)
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   // Load configuration from backend on mount
   useEffect(() => {
@@ -156,6 +157,7 @@ export const ClinicalConfigPage: React.FC = () => {
   const saveConfiguration = async (newMeds = medicines, newProcs = procedures, newDiags = diagnoses, newTpls = templates) => {
     try {
       setSaving(true)
+      setSaveError('')
       const customMedicines = newMeds.filter(m => m.isCustom)
       const customProcedures = newProcs.filter(p => p.isCustom)
       const customDiagnoses = newDiags.filter(d => d.isCustom)
@@ -168,8 +170,9 @@ export const ClinicalConfigPage: React.FC = () => {
       })
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 3000)
-    } catch {
-      // fallback
+    } catch (error: any) {
+      setMedicines(medicines); setProcedures(procedures); setDiagnoses(diagnoses); setTemplates(templates)
+      setSaveError(error?.message || 'Configuration could not be saved. Please retry.')
     } finally {
       setSaving(false)
     }
@@ -262,6 +265,7 @@ export const ClinicalConfigPage: React.FC = () => {
   return (
     <section className="clinic-record-page" data-testid="feature-page-set.clinical-config" style={{ padding: '24px 32px', maxWidth: '1200px', margin: '0 auto' }}>
       {/* Header */}
+      {saveError && <p role="alert">{saveError}</p>}
       <header className="clinic-record-header" style={{ marginBottom: '16px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
           <span className="clinic-record-eyebrow" style={{ color: 'var(--teal-primary, #008891)', fontSize: '11px', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
@@ -705,7 +709,7 @@ export const ClinicalConfigPage: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', border: '1px solid var(--line, #e2e8f0)', borderRadius: '6px', background: 'var(--surface-alt)' }}>
               <div>
                 <strong style={{ fontSize: '13px', display: 'block', color: 'var(--text-strong)' }}>Doctor Authorization for Finalization</strong>
-                <small style={{ color: 'var(--text-muted, #64748b)' }}>Only verified prescribers (DOCTOR role) can finalize clinical prescriptions and dental treatment plans.</small>
+                <small style={{ color: 'var(--text-muted, #64748b)' }}>Doctors and verified doctor-owners can finalize clinical prescriptions and notes. Clinic administrators can manage treatment planning.</small>
               </div>
               <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--tone-green, #047857)', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '3px 8px', borderRadius: '4px' }}>Enforced</span>
             </div>

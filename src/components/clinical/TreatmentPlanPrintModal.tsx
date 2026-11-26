@@ -1,3 +1,4 @@
+import { useClinicLetterhead } from '@/services/useClinicLetterhead';
 import React from 'react';
 import { Printer, X, ShieldCheck } from 'lucide-react';
 import { TreatmentPlanRecord } from '../../services/clinicStore';
@@ -15,13 +16,15 @@ interface TreatmentPlanPrintModalProps {
 export const TreatmentPlanPrintModal: React.FC<TreatmentPlanPrintModalProps> = ({
   plan,
   onClose,
-  clinicName = 'DocMatrix Dental & Multi-Speciality Polyclinic',
-  clinicAddress = 'Medical Arts Complex, Suite 402, Bengaluru, Karnataka 560001',
-  clinicPhone = '+91 80 4123 4567 / +91 98450 12345',
-  clinicEmail = 'care@docmatrix.health • www.docmatrix.health',
+  clinicName: suppliedName,
+  clinicAddress: suppliedAddress,
+  clinicPhone: suppliedPhone,
+  clinicEmail: suppliedEmail,
 }) => {
+  const letterhead = useClinicLetterhead({ name: suppliedName, address: suppliedAddress, phone: suppliedPhone, email: suppliedEmail });
+  const { name: clinicName, address: clinicAddress, phone: clinicPhone, email: clinicEmail } = letterhead;
   const handlePrint = () => {
-    window.print();
+    if (letterhead.ready) window.print();
   };
 
   const patient = plan.patient;
@@ -51,6 +54,7 @@ export const TreatmentPlanPrintModal: React.FC<TreatmentPlanPrintModalProps> = (
   return (
     <div className="tp-modal-overlay">
       <div className="tp-modal-dialog tp-modal-dialog-xl" role="dialog" aria-modal="true">
+        {!letterhead.ready && <p role={letterhead.error ? 'alert' : 'status'}>{letterhead.error || 'Loading clinic details…'}</p>}
         {/* Top Controls (Hidden in Print) */}
         <div className="tp-modal-header no-print">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -67,7 +71,7 @@ export const TreatmentPlanPrintModal: React.FC<TreatmentPlanPrintModalProps> = (
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
               type="button"
-              onClick={handlePrint}
+              onClick={handlePrint} disabled={!letterhead.ready}
               style={{
                 display: 'flex',
                 alignItems: 'center',

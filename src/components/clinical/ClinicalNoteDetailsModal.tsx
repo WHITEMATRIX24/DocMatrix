@@ -1,3 +1,5 @@
+import { PrescriptionModal } from './PrescriptionModal';
+import { canClinic, getPermissionUser } from '@/services/permissions'
 import React, { useState } from 'react';
 import {
   X,
@@ -40,6 +42,7 @@ export const ClinicalNoteDetailsModal: React.FC<ClinicalNoteDetailsModalProps> =
 
   const [showInstructions, setShowInstructions] = useState(false);
   const [addendumText, setAddendumText] = useState('');
+  const [issuingPrescription, setIssuingPrescription] = useState(false);
   const [submittingAddendum, setSubmittingAddendum] = useState(false);
   const [addendumError, setAddendumError] = useState<string | null>(null);
 
@@ -78,6 +81,13 @@ export const ClinicalNoteDetailsModal: React.FC<ClinicalNoteDetailsModalProps> =
         day: 'numeric',
       })
     : note.visitDate;
+
+  if (issuingPrescription) return <PrescriptionModal
+    defaultPatientId={note.patient?.id || note.patientId}
+    defaultClinicalNoteId={note.id}
+    onClose={() => setIssuingPrescription(false)}
+    onSaved={() => setIssuingPrescription(false)}
+  />;
 
   return (
     <div className="cn-modal-overlay">
@@ -387,7 +397,7 @@ export const ClinicalNoteDetailsModal: React.FC<ClinicalNoteDetailsModalProps> =
               </div>
 
               {/* Add Addendum Form */}
-              <form onSubmit={handleAddendumSubmit} style={{ marginTop: '14px' }}>
+              {canClinic(getPermissionUser(), 'clinical.write') && (<form onSubmit={handleAddendumSubmit} style={{ marginTop: '14px' }}>
                 <div className="cn-form-group">
                   <label className="cn-label">Append New Addendum</label>
                   <textarea
@@ -414,7 +424,7 @@ export const ClinicalNoteDetailsModal: React.FC<ClinicalNoteDetailsModalProps> =
                     {submittingAddendum ? 'Adding...' : 'Add Addendum'}
                   </button>
                 </div>
-              </form>
+              </form>)}
             </section>
           )}
         </div>
@@ -440,7 +450,11 @@ export const ClinicalNoteDetailsModal: React.FC<ClinicalNoteDetailsModalProps> =
               <MessageCircle size={15} />
               <span>WhatsApp Aftercare</span>
             </button>
-
+            {isFinal && canClinic(getPermissionUser(), 'clinical.write') && (
+              <button type="button" className="cn-btn cn-btn-primary" onClick={() => setIssuingPrescription(true)}>
+                Issue Prescription
+              </button>
+            )}
             <button
               type="button"
               className="cn-btn cn-btn-secondary"
@@ -450,7 +464,7 @@ export const ClinicalNoteDetailsModal: React.FC<ClinicalNoteDetailsModalProps> =
               Print Note
             </button>
 
-            {isDraft && onEdit && (
+            {isDraft && onEdit && canClinic(getPermissionUser(), 'clinical.write') && (
               <button
                 type="button"
                 className="cn-btn cn-btn-secondary"
@@ -461,7 +475,7 @@ export const ClinicalNoteDetailsModal: React.FC<ClinicalNoteDetailsModalProps> =
               </button>
             )}
 
-            {isDraft && onFinalize && (
+            {isDraft && onFinalize && canClinic(getPermissionUser(), 'clinical.write') && (
               <button
                 type="button"
                 className="cn-btn cn-btn-success"

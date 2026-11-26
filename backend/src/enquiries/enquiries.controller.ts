@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { RequireOperation } from '../common/decorators/operation-permission.decorator.js';
 import { EnquiriesService } from './enquiries.service.js';
 import { CreateEnquiryDto } from './dto/create-enquiry.dto.js';
 import { UpdateEnquiryDto } from './dto/update-enquiry.dto.js';
@@ -18,6 +19,7 @@ import { TenantGuard } from '../common/guards/tenant.guard.js';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator.js';
 
 @UseGuards(JwtAuthGuard, TenantGuard)
+@RequireOperation('appointment.schedule')
 @Controller('enquiries')
 export class EnquiriesController {
   constructor(private enquiriesService: EnquiriesService) {}

@@ -1,3 +1,6 @@
+import { assertNewPassword } from '../auth/password.policy.js';
+import { ClinicalConfigDto } from './dto/clinical-config.dto.js';
+import { practitionerWhere } from '../common/practitioner.policy.js';
 import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
@@ -117,7 +120,7 @@ export class ClinicsService {
       throw new NotFoundException('Clinic not found.');
     }
 
-    const settings = this.readSettings(clinicId);
+    const settings = (clinic.extendedSettings || {}) as unknown as ClinicExtendedSettings;
 
     return {
       ...clinic,
@@ -137,11 +140,25 @@ export class ClinicsService {
   }
 
   async updateClinic(clinicId: string, dto: UpdateClinicDto) {
-    await this.getClinic(clinicId);
+    const currentClinic = await this.getClinic(clinicId);
+
+    const currentSettings = currentClinic.extendedSettings as unknown as ClinicExtendedSettings || {};
+    const newSettings: ClinicExtendedSettings = {
+      ...currentSettings,
+      ...(dto.displayName !== undefined && { displayName: dto.displayName.trim() }),
+      ...(dto.registrationNumber !== undefined && { registrationNumber: dto.registrationNumber.trim() }),
+      ...(dto.gstin !== undefined && { gstin: dto.gstin.trim() }),
+      ...(dto.website !== undefined && { website: dto.website.trim() }),
+      ...(dto.logoUrl !== undefined && { logoUrl: dto.logoUrl.trim() }),
+      ...(dto.workingHours !== undefined && { workingHours: dto.workingHours }),
+      ...(dto.retentionAdult !== undefined && { retentionAdult: dto.retentionAdult }),
+      ...(dto.retentionMinor !== undefined && { retentionMinor: dto.retentionMinor }),
+    };
 
     const updated = await this.prisma.clinic.update({
       where: { id: clinicId },
       data: {
+        extendedSettings: newSettings as any,
         ...(dto.name && { name: dto.name.trim() }),
         ...(dto.phone && { phone: dto.phone.trim() }),
         ...(dto.email && { email: dto.email.toLowerCase().trim() }),
@@ -156,20 +173,7 @@ export class ClinicsService {
       },
     });
 
-    const currentSettings = this.readSettings(clinicId);
-    const newSettings: ClinicExtendedSettings = {
-      ...currentSettings,
-      ...(dto.displayName !== undefined && { displayName: dto.displayName.trim() }),
-      ...(dto.registrationNumber !== undefined && { registrationNumber: dto.registrationNumber.trim() }),
-      ...(dto.gstin !== undefined && { gstin: dto.gstin.trim() }),
-      ...(dto.website !== undefined && { website: dto.website.trim() }),
-      ...(dto.logoUrl !== undefined && { logoUrl: dto.logoUrl.trim() }),
-      ...(dto.workingHours !== undefined && { workingHours: dto.workingHours }),
-      ...(dto.retentionAdult !== undefined && { retentionAdult: dto.retentionAdult }),
-      ...(dto.retentionMinor !== undefined && { retentionMinor: dto.retentionMinor }),
-    };
 
-    this.writeSettings(clinicId, newSettings);
 
     return {
       ...updated,
@@ -191,8 +195,8 @@ export class ClinicsService {
   getClinicPractitioners(clinicId: string) {
     if (!clinicId) throw new ForbiddenException('A clinic is required.');
     return this.prisma.user.findMany({
-      where: { clinicId, role: 'DOCTOR', isActive: true },
-      select: { id: true, fullName: true, role: true }, orderBy: { fullName: 'asc' },
+      where: { clinicId, ...practitionerWhere },
+      select: { id: true, fullName: true, role: true, practitionerVerifiedAt: true, practitionerRegistration: true, isPrimaryContact: true }, orderBy: { fullName: 'asc' },
     });
   }
 
@@ -230,6 +234,7 @@ export class ClinicsService {
 
   async addStaff(clinicId: string, dto: CreateStaffDto, actor: AuthenticatedUser) {
     assertAssignableStaffRole(clinicId, actor, dto.role);
+    assertNewPassword(dto.password);
     if (!dto.fullName?.trim() || typeof dto.password !== 'string' ||
       dto.password.length < 12 || Buffer.byteLength(dto.password, 'utf8') > 72) {
       throw new BadRequestException('A name and an initial password of at least 12 characters (maximum 72 UTF-8 bytes) are required.');
@@ -340,12 +345,13 @@ export class ClinicsService {
   // ------------------------------------------
 
   async getClinicalConfig(clinicId: string) {
-    try {
-      const file = this.getClinicalConfigFilePath(clinicId);
-      if (fs.existsSync(file)) {
-        return JSON.parse(fs.readFileSync(file, 'utf-8'));
-      }
-    } catch {}
+    const clinic = await this.prisma.clinic.findUnique({ where: { id: clinicId }, select: { clinicalConfig: true } });
+    if (!clinic) throw new NotFoundException('Clinic not found.');
+    const stored = (clinic.clinicalConfig || {}) as Record<string, any>;
+    const tariffs = await this.prisma.serviceTariff.findMany({ where: { clinicId, isActive: true }, orderBy: { name: 'asc' } });
+    const procedures = new Map((stored.customProcedures || []).map((p: any) => [p.name, p]));
+    for (const t of tariffs) procedures.set(t.name, { id: t.id, name: t.name, code: t.code || '', category: t.category, fee: String(t.standardFee), estMinutes: (stored.customProcedures || []).find((p: any) => p.name === t.name)?.estMinutes || 30, isCustom: true });
+    if (Object.keys(stored).length || tariffs.length) return { ...stored, customProcedures: [...procedures.values()] };
 
     return {
       customMedicines: [],
@@ -361,10 +367,30 @@ export class ClinicsService {
     };
   }
 
-  async updateClinicalConfig(clinicId: string, config: any) {
-    this.ensureStorageDirectories();
-    const file = this.getClinicalConfigFilePath(clinicId);
-    fs.writeFileSync(file, JSON.stringify(config, null, 2), 'utf-8');
+  async updateClinicalConfig(clinicId: string, config: ClinicalConfigDto) {
+    for (const entry of [...(config.customMedicines || []), ...(config.customProcedures || []), ...(config.customDiagnoses || [])]) {
+      if (!entry.name?.trim()) throw new BadRequestException('Catalogue entries require a name.');
+    }
+    for (const entry of config.customTemplates || []) if (!entry.title?.trim()) throw new BadRequestException('Templates require a title.');
+    await this.prisma.$transaction(async tx => {
+      const existing = await tx.clinic.findUnique({ where: { id: clinicId }, select: { clinicalConfig: true } });
+      if (!existing) throw new NotFoundException('Clinic not found.');
+      const merged = { ...(existing.clinicalConfig as object), ...JSON.parse(JSON.stringify(config)) };
+      await tx.clinic.update({ where: { id: clinicId }, data: { clinicalConfig: merged as any } });
+      if (config.customProcedures !== undefined) {
+        const previous = (existing.clinicalConfig as any)?.customProcedures || [];
+        const retained = new Set(config.customProcedures.map(p => p.name?.trim()));
+        const removed = previous.map((p: any) => p.name?.trim()).filter((name: string) => name && !retained.has(name));
+        if (removed.length) await tx.serviceTariff.updateMany({ where: { clinicId, name: { in: removed } }, data: { isActive: false } });
+      }
+      for (const procedure of config.customProcedures || []) {
+        const fee = Number(String(procedure.fee ?? procedure.price ?? '').replace(/[₹,\s]/g, ''));
+        if (!Number.isFinite(fee) || fee < 0 || fee > 99999999) throw new BadRequestException('Procedure fee must be a valid non-negative amount.');
+        await tx.serviceTariff.upsert({ where: { clinicId_name: { clinicId, name: procedure.name!.trim() } },
+          create: { clinicId, name: procedure.name!.trim(), code: procedure.code, category: procedure.category || 'General', standardFee: fee },
+          update: { code: procedure.code, category: procedure.category || 'General', standardFee: fee, isActive: true } });
+      }
+    });
     return { success: true, updatedConfig: config };
   }
 
@@ -380,6 +406,7 @@ export class ClinicsService {
     description: string,
     severity: 'info' | 'warn' | 'success' = 'info',
   ) {
+    this.auditLog.recordEvent({ clinicId, module: 'Security', action, actorName, actorRole, description, severity });
     try {
       this.ensureStorageDirectories();
       const file = this.getSecurityAuditFilePath(clinicId);
@@ -650,6 +677,9 @@ export class ClinicsService {
         severity: 'info',
       });
     }
+
+    const persisted = await safeFetch(() => this.prisma.auditEvent?.findMany({ where: { clinicId }, orderBy: { createdAt: 'desc' }, take: maxItems }));
+    for (const event of persisted as any[]) events.push({ ...event, timestamp: event.createdAt.toISOString() });
 
     // 10. Security Audit Events
     try {

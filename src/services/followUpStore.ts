@@ -1,3 +1,4 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import { useSyncExternalStore } from 'react'
 import { loadFromStorage, saveToStorage } from './storageService'
 import { isAuthenticatedClinic, isDemoSession } from './clinicStore'
@@ -15,7 +16,7 @@ export const CONTACT_QUIET_DAYS = 7
 
 const storageKey = () => {
   try {
-    const raw = sessionStorage.getItem('docmatrix_auth_user') || localStorage.getItem('docmatrix_auth_user')
+    const raw = browserSessionStorage.getItem('docmatrix_auth_user') || browserLocalStorage.getItem('docmatrix_auth_user')
     const clinicId = raw ? JSON.parse(raw)?.clinicId : null
     if (clinicId) return `docmatrix_followups_${clinicId}`
   } catch {}

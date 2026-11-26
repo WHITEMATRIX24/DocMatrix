@@ -1,6 +1,7 @@
+import { browserSessionStorage } from '@/services/browserStorage'
 import React from 'react'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { InvoiceSuccessToast } from '@/components/shared/InvoiceSuccessToast'
 import { CalendarPage } from '@/pages/appointments/CalendarPage'
@@ -46,6 +47,8 @@ describe('Automatic Invoice Generation Flow & Success Toast Notification', () =>
   let invoicesData = []
 
   beforeEach(() => {
+    browserSessionStorage.clear()
+    browserSessionStorage.setItem('docmatrix_auth_user', JSON.stringify({ id: 'usr-104', role: 'DOCTOR', clinicId: 'clinic-demo-001' }))
     clearInFlightInvoiceCache()
     appointmentsData = [
       {
@@ -125,12 +128,13 @@ describe('Automatic Invoice Generation Flow & Success Toast Notification', () =>
       if (appt) {
         appt.status = status
       }
-      return { success: true }
+      return appt
     })
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    browserSessionStorage.clear()
   })
 
   describe('InvoiceSuccessToast Component Unit Tests', () => {
@@ -168,7 +172,7 @@ describe('Automatic Invoice Generation Flow & Success Toast Notification', () =>
   })
 
   describe('CalendarPage Consultation Completion Workflow', () => {
-    it('completing consultation generates invoice, displays toast, does NOT open drawer, and keeps user on page', () => {
+    it('completing consultation generates invoice after confirmation and keeps user on page', async () => {
       render(
         <MemoryRouter initialEntries={['/appointments']}>
           <CalendarPage />
@@ -189,7 +193,7 @@ describe('Automatic Invoice Generation Flow & Success Toast Notification', () =>
       fireEvent.click(completeBtn)
 
       // 1. Invoice must be generated and saved in invoicesData
-      expect(invoicesData.length).toBe(1)
+      await waitFor(() => expect(invoicesData.length).toBe(1))
       const generatedInvoice = invoicesData[0]
       expect(generatedInvoice.amount).toBe(4500)
       expect(generatedInvoice.status).toBe('Unpaid')
@@ -210,7 +214,7 @@ describe('Automatic Invoice Generation Flow & Success Toast Notification', () =>
   })
 
   describe('LiveQueuePage Consultation Completion Workflow', () => {
-    it('completing visit in queue generates invoice, displays toast, does NOT open drawer, and preserves invoice in billing', () => {
+    it('completing visit in queue generates invoice after confirmation and preserves it in billing', async () => {
       // In LiveQueue, only one appointment in-progress for this test
       appointmentsData = [appointmentsData[1]]
 
@@ -228,7 +232,7 @@ describe('Automatic Invoice Generation Flow & Success Toast Notification', () =>
       fireEvent.click(completeBtn)
 
       // 1. Invoice must be generated and saved
-      expect(invoicesData.length).toBe(1)
+      await waitFor(() => expect(invoicesData.length).toBe(1))
       const generatedInvoice = invoicesData[0]
       expect(generatedInvoice.appointmentId).toBe('APT-QUEUE-01')
       expect(generatedInvoice.amount).toBe(1500)

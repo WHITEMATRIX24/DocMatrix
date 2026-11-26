@@ -1,3 +1,4 @@
+import { browserSessionStorage } from '@/services/browserStorage';
 import React from 'react'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -7,6 +8,7 @@ import * as clinicStore from '@/services/clinicStore'
 
 describe('LiveQueuePage — Register Walk-in Modal Visibility & Workflow', () => {
   beforeEach(() => {
+    browserSessionStorage.setItem('docmatrix-demo-session', 'usr-103')
     document.body.style.overflow = ''
   })
 
@@ -118,7 +120,7 @@ describe('LiveQueuePage — Register Walk-in Modal Visibility & Workflow', () =>
     const complaintInput = screen.getByPlaceholderText(/e\.g\. Toothache/i)
 
     fireEvent.change(nameInput, { target: { value: 'Deepak Patel' } })
-    fireEvent.change(phoneInput, { target: { value: '9876543210' } })
+    fireEvent.change(phoneInput, { target: { value: '9876598765' } })
     fireEvent.change(complaintInput, { target: { value: 'Severe tooth pain' } })
 
     const submitBtn = screen.getByRole('button', { name: /generate token & add to queue/i })
@@ -127,13 +129,13 @@ describe('LiveQueuePage — Register Walk-in Modal Visibility & Workflow', () =>
     expect(registerSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         patientName: 'Deepak Patel',
-        mobile: '9876543210',
+        mobile: '9876598765',
         complaint: 'Severe tooth pain'
       })
     )
 
     // Modal should close
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(document.body.style.overflow).toBe('')
   })
 })

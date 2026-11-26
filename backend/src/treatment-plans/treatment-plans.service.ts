@@ -1,3 +1,5 @@
+import { surgeryConsentPolicy } from '../common/clinical-governance.js';
+import { practitionerWhere } from '../common/practitioner.policy.js';
 import { lockTenantRecord } from '../common/transaction-locks.js';
 import {
   BadRequestException,
@@ -243,8 +245,9 @@ export class TreatmentPlansService {
 
     if (dto.doctorId && dto.doctorId !== currentUser.id) {
       const assignedDoc = await this.prisma.user.findFirst({
-        where: { id: dto.doctorId, clinicId },
+        where: { id: dto.doctorId, clinicId, ...practitionerWhere },
       });
+      if (!assignedDoc) throw new BadRequestException('Assigned doctor must be an active practitioner in this clinic.');
       if (assignedDoc) {
         doctorId = assignedDoc.id;
         doctorName = assignedDoc.fullName || (assignedDoc as any).name || doctorName;
@@ -411,8 +414,9 @@ export class TreatmentPlansService {
 
       if (dto.doctorId && dto.doctorId !== existing.doctorId) {
         const assignedDoctor = await tx.user.findFirst({
-          where: { id: dto.doctorId, clinicId },
+          where: { id: dto.doctorId, clinicId, ...practitionerWhere },
         });
+        if (!assignedDoctor) throw new BadRequestException('Assigned doctor must be an active practitioner in this clinic.');
         if (assignedDoctor) {
           doctorId = assignedDoctor.id;
           doctorName = assignedDoctor.fullName || (assignedDoctor as any).name || doctorName;
@@ -825,6 +829,7 @@ export class TreatmentPlansService {
       const current = await tx.treatmentPlan.findFirst({ where: { id: plan.id, clinicId } });
       if (!current || current.status !== plan.status || current.currentVersion !== plan.currentVersion) throw new BadRequestException('Treatment plan changed; reload before retrying.');
 
+      if (['IN_PROGRESS', 'COMPLETED'].includes(dto.status)) await surgeryConsentPolicy(tx, clinicId, plan.patientId, item);
       const updatedItem = await tx.treatmentPlanItem.update({
         where: { id: item.id, status: item.status, stage: { treatmentPlan: { clinicId, status: plan.status } } },
         data: {

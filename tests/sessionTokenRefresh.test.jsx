@@ -1,11 +1,12 @@
+import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { login, logout, refreshAccessToken, STORAGE_KEYS, DEMO_CREDENTIALS } from '../src/services/authService';
 import { apiClient } from '../src/services/apiClient';
 
 describe('Frontend Session Management & Token Refresh', () => {
   beforeEach(() => {
-    localStorage.clear();
-    sessionStorage.clear();
+    browserLocalStorage.clear();
+    browserSessionStorage.clear();
     vi.spyOn(apiClient, 'post').mockImplementation(async path => path === '/auth/login'
       ? { token: 'new-session-token', user: { id: 'new-user', clinicId: 'new-clinic', role: 'ORGANIZATION_ADMIN' } }
       : {});
@@ -13,8 +14,8 @@ describe('Frontend Session Management & Token Refresh', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-    localStorage.clear();
-    sessionStorage.clear();
+    browserLocalStorage.clear();
+    browserSessionStorage.clear();
   });
 
   it('stores the access token upon successful authentication', async () => {
@@ -23,19 +24,19 @@ describe('Frontend Session Management & Token Refresh', () => {
     expect(result.token).toBeDefined();
     expect(result.user).toBeDefined();
 
-    const storedToken = sessionStorage.getItem(STORAGE_KEYS.TOKEN);
+    const storedToken = browserSessionStorage.getItem(STORAGE_KEYS.TOKEN);
     expect(storedToken).toBe(result.token);
   });
 
   it.each([true, false])('replaces stale credentials in both stores when rememberMe is %s', async rememberMe => {
-    for (const storage of [sessionStorage, localStorage]) {
+    for (const storage of [browserSessionStorage, browserLocalStorage]) {
       storage.setItem(STORAGE_KEYS.TOKEN, 'expired-token');
       storage.setItem(STORAGE_KEYS.USER, JSON.stringify({ id: 'old-user' }));
       storage.setItem(STORAGE_KEYS.REFRESH_TOKEN, 'legacy-refresh-token');
     }
     await login(DEMO_CREDENTIALS.email, DEMO_CREDENTIALS.password, rememberMe);
-    const selected = rememberMe ? localStorage : sessionStorage;
-    const other = rememberMe ? sessionStorage : localStorage;
+    const selected = rememberMe ? browserLocalStorage : browserSessionStorage;
+    const other = rememberMe ? browserSessionStorage : browserLocalStorage;
     expect(selected.getItem(STORAGE_KEYS.TOKEN)).toBe('new-session-token');
     expect(other.getItem(STORAGE_KEYS.TOKEN)).toBeNull();
     expect(other.getItem(STORAGE_KEYS.USER)).toBeNull();
@@ -44,15 +45,15 @@ describe('Frontend Session Management & Token Refresh', () => {
   });
 
   it('logout invalidates all tokens and clears session storage', async () => {
-    sessionStorage.setItem(STORAGE_KEYS.TOKEN, 'access-token-123');
-    sessionStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, 'refresh-token-123');
-    sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify({ id: 'usr-1' }));
+    browserSessionStorage.setItem(STORAGE_KEYS.TOKEN, 'access-token-123');
+    browserSessionStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, 'refresh-token-123');
+    browserSessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify({ id: 'usr-1' }));
 
     await logout();
 
-    expect(sessionStorage.getItem(STORAGE_KEYS.TOKEN)).toBeNull();
-    expect(sessionStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)).toBeNull();
-    expect(sessionStorage.getItem(STORAGE_KEYS.USER)).toBeNull();
+    expect(browserSessionStorage.getItem(STORAGE_KEYS.TOKEN)).toBeNull();
+    expect(browserSessionStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)).toBeNull();
+    expect(browserSessionStorage.getItem(STORAGE_KEYS.USER)).toBeNull();
   });
 });
 

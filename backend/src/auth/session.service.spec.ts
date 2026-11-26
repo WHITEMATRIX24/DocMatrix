@@ -1,3 +1,4 @@
+import { matchesSession, updateSession } from '../../test/helpers/session-persistence.js';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { UnauthorizedException } from '@nestjs/common';
 import { SessionService, UserSession } from './session.service.js';
@@ -61,11 +62,10 @@ function createMockPrisma() {
     updateMany: vi.fn(async ({ where, data }: any) => {
       let count = 0;
       for (const [id, sess] of sessions.entries()) {
-        const userMatches = !where.userId || sess.userId === where.userId;
-        const familyMatches = !where.familyId || sess.familyId === where.familyId;
-        const revokedMatches = where.isRevoked === undefined || sess.isRevoked === where.isRevoked;
-        if (userMatches && familyMatches && revokedMatches) {
-          sessions.set(id, { ...sess, ...data });
+        if (matchesSession(sess, where)) {
+          const updated = { ...sess };
+          updateSession(updated, data);
+          sessions.set(id, updated);
           count++;
         }
       }
@@ -300,4 +300,64 @@ describe('DocMatrix SessionService — PostgreSQL Session Storage, Refresh Token
       );
     });
   });
+  describe('Concurrent rotation and logout', () => {
+    it('allows only one instance to rotate a token after both read the same session', async () => {
+      const { session, refreshToken } = await sessionService.createSession('race-user', 'clinic-1');
+      const secondInstance = new SessionService(mockPrisma);
+      const incomingHash = SessionService.hashToken(refreshToken);
+      const originalFind = mockPrisma.userSession.findUnique.getMockImplementation();
+      let release!: () => void;
+      const bothRead = new Promise<void>(resolve => { release = resolve; });
+      let reads = 0;
+      mockPrisma.userSession.findUnique.mockImplementation(async (query: any) => {
+        const row = await originalFind(query);
+        if (query.where.tokenHash === incomingHash && reads < 2) {
+          if (++reads === 2) release();
+          await bothRead;
+        }
+        return row;
+      });
+      const results = await Promise.allSettled([
+        sessionService.rotateRefreshToken(refreshToken), secondInstance.rotateRefreshToken(refreshToken),
+      ]);
+      expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+      expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+      const persisted = mockPrisma._sessions.get(session.id);
+      expect(persisted.previousTokenHashes).toEqual([incomingHash]);
+      // The losing request is a replay: family revocation must be committed.
+      expect(persisted.isRevoked).toBe(true);
+      const winner = results.find(result => result.status === 'fulfilled') as PromiseFulfilledResult<any>;
+      expect(persisted.tokenHash).toBe(SessionService.hashToken(winner.value.newRefreshToken));
+      await expect(secondInstance.rotateRefreshToken(winner.value.newRefreshToken)).rejects.toThrow(/revoked/);
+    });
+
+    it('does not rotate a session revoked after the initial read', async () => {
+      const { session, refreshToken } = await sessionService.createSession('race-user', 'clinic-1');
+      const originalFind = mockPrisma.userSession.findUnique.getMockImplementation();
+      let observed!: () => void;
+      let release!: () => void;
+      const hasRead = new Promise<void>(resolve => { observed = resolve; });
+      const resume = new Promise<void>(resolve => { release = resolve; });
+      mockPrisma.userSession.findUnique.mockImplementationOnce(async (query: any) => {
+        const row = await originalFind(query);
+        observed(); await resume;
+        return row;
+      });
+      const rotation = sessionService.rotateRefreshToken(refreshToken);
+      const rejection = expect(rotation).rejects.toThrow(UnauthorizedException);
+      await hasRead;
+      await sessionService.revokeOwnedSession(session.id, 'race-user');
+      release(); await rejection;
+      expect(mockPrisma._sessions.get(session.id)).toMatchObject({ isRevoked: true, tokenHash: session.tokenHash, previousTokenHashes: [] });
+    });
+
+    it('cannot revoke another user session through an ownership mismatch', async () => {
+      const { session } = await sessionService.createSession('owner', 'clinic-1');
+      expect(await sessionService.revokeOwnedSession(session.id, 'other-user')).toBe(false);
+      expect(await sessionService.isSessionValid(session.id, 'owner')).toBe(true);
+      expect(await sessionService.revokeOwnedSession(session.id, 'owner')).toBe(true);
+      expect(await sessionService.revokeOwnedSession(session.id, 'owner')).toBe(false);
+    });
+  });
+
 });

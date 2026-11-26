@@ -1,3 +1,4 @@
+import { canClinic, getPermissionUser } from '@/services/permissions'
 import React, { useState, useMemo } from 'react';
 import {
   Pill,
@@ -110,7 +111,7 @@ export const PrescriptionsPage: React.FC = () => {
             Refresh
           </button>
           <button
-            onClick={() => setIsNewModalOpen(true)}
+            disabled={!canClinic(getPermissionUser(), 'clinical.write')} onClick={() => setIsNewModalOpen(true)}
             className="rx-btn rx-btn-primary"
           >
             <Plus />
@@ -233,7 +234,7 @@ export const PrescriptionsPage: React.FC = () => {
               </button>
             ) : (
               <button
-                onClick={() => setIsNewModalOpen(true)}
+                disabled={!canClinic(getPermissionUser(), 'clinical.write')} onClick={() => setIsNewModalOpen(true)}
                 className="rx-btn rx-btn-primary rx-btn-sm"
               >
                 <Plus />
@@ -344,7 +345,7 @@ export const PrescriptionsPage: React.FC = () => {
                             <Printer />
                           </button>
 
-                          {isDraft && (
+                          {isDraft && canClinic(getPermissionUser(), 'clinical.write') && (
                             <button
                               onClick={() => setEditingPrescription(rx)}
                               className="rx-btn-icon"
