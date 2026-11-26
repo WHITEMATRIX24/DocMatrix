@@ -504,21 +504,33 @@ export const PatientProfilePage: React.FC = () => {
   }, [patientAppointments, patientNotes, patientInvoices, patientDocs, patientConsentList, patientPrescriptions, patientPlans])
   const visibleActivity = activityFilter === 'all' ? activity : activity.filter((a) => a.kind === activityFilter)
 
-  // Medical Alert Text
+  const hasAppointmentToday = useMemo(
+    () => patientAppointments.some((a) => a.date === today && a.status !== 'cancelled' && a.status !== 'no-show'),
+    [patientAppointments, today]
+  )
+
+  // Medical Alert Text (allergy & medication alerts only show on days with an active appointment)
   const medicalAlerts = useMemo(() => {
     if (!patient) return null
     const parts = []
-    if (patient.allergies === 'yes' && patient.allergiesDetails) {
+    if (hasAppointmentToday && patient.allergies === 'yes' && patient.allergiesDetails) {
       parts.push(`Allergies: ${patient.allergiesDetails}`)
     }
     if (patient.conditions === 'yes' && patient.conditionsDetails) {
       parts.push(`Conditions: ${patient.conditionsDetails}`)
     }
-    if (patient.medications === 'yes' && patient.medicationsDetails) {
+    if (hasAppointmentToday && patient.medications === 'yes' && patient.medicationsDetails) {
       parts.push(`On medication: ${patient.medicationsDetails}`)
     }
     return parts.length > 0 ? parts.join(' • ') : null
-  }, [patient])
+  }, [patient, hasAppointmentToday])
+
+  const hasAnyRecordedSafetyFlag = Boolean(
+    patient &&
+      ((patient.allergies === 'yes' && patient.allergiesDetails) ||
+        (patient.conditions === 'yes' && patient.conditionsDetails) ||
+        (patient.medications === 'yes' && patient.medicationsDetails))
+  )
 
   // Edit Patient Modal State
   const [editModalOpen, setEditModalOpen] = useState(false)
@@ -879,12 +891,12 @@ export const PatientProfilePage: React.FC = () => {
               <span>{medicalAlerts}</span>
             </div>
           </div>
-        ) : (
+        ) : !hasAnyRecordedSafetyFlag ? (
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#059669' }}>
             <ShieldCheck size={14} />
             <span>No critical medical alerts or drug contraindications recorded.</span>
           </div>
-        ))}
+        ) : null)}
 
         <div className="pat-stats" aria-label="Patient summary">
           <button type="button" className="pat-stat" onClick={() => setTab('timeline')}>

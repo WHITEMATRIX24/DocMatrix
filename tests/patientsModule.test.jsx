@@ -1,3 +1,6 @@
+import { getClinicSnapshot, initClinicSession } from '@/services/clinicStore'
+import { saveToStorage, STORAGE_KEYS } from '@/services/storageService'
+import { localDate } from '@/pages/billing/BillingShared'
 import { seedClinicFixture } from './fixtures/clinic'
 import React from 'react'
 import { describe, it, expect, beforeEach } from 'vitest'
@@ -104,8 +107,8 @@ describe('Patients Module Refactoring & Clinical Centralization', () => {
     expect(screen.getByText('pt-1001')).toBeInTheDocument()
     expect(screen.getAllByText(/34 yrs/i).length).toBeGreaterThan(0)
 
-    // High-visibility Medical Alert Banner
-    expect(screen.getByRole('alert')).toHaveTextContent(/Penicillin allergy/i)
+    // High-visibility Medical Alert Banner is hidden when patient has no appointment today
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
     // Permitted Clinical Actions
     expect(screen.getByRole('button', { name: /Edit Patient/i })).toBeInTheDocument()
@@ -137,6 +140,37 @@ describe('Patients Module Refactoring & Clinical Centralization', () => {
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Patient Profile Sections' })).getByRole('button', { name: /Consent Records/i }))
     expect(screen.getByText(/Informed Consent & Regulatory Records/i)).toBeInTheDocument()
     expect(screen.getByText(/Informed Consent for Endodontic Root Canal Therapy/i)).toBeInTheDocument()
+  })
+
+  it('shows allergy and medication alerts only when the patient has an appointment today', () => {
+    const snap = getClinicSnapshot()
+    saveToStorage(STORAGE_KEYS.DATA, {
+      ...snap,
+      appointments: [
+        {
+          id: 'apt-today-1',
+          patientId: 'pt-1001',
+          doctor: 'Dr. Arun Kumar',
+          date: localDate(),
+          time: '10:30',
+          visitType: 'Consultation',
+          treatmentType: 'Consultation',
+          status: 'scheduled',
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    })
+    initClinicSession()
+
+    render(
+      <MemoryRouter initialEntries={['/patients/pt-1001']}>
+        <Routes>
+          <Route path="/patients/:id" element={<PatientProfilePage />} />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/Penicillin allergy/i)
   })
 
   // 5. DEEP LINKS RESOLUTION
