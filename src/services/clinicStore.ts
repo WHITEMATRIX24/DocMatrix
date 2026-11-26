@@ -14,7 +14,7 @@ export interface PatientRecord {
   id: string
   backendId?: string
   patientCode?: string
-  medicalSafetyAlerts?: string[]
+  medicalSafetyAlerts?: { allergies?: string; conditions?: string; medications?: string }
   firstName: string
   lastName: string
   age: string
@@ -365,6 +365,7 @@ export interface PatientDocumentRecord {
   signedUrl?: string
   contentBase64?: string
   mimeType?: string
+  notes?: string
 }
 
 export interface PatientConsentRecord {
@@ -1433,6 +1434,13 @@ export interface ClinicSnapshot {
   syncStatus: SyncStatus;
   syncError: string | null;
   lastSyncTime: string | null;
+  clinicConfig?: {
+    name?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    logoUrl?: string | null;
+  };
 }
 
 const listeners = new Set<() => void>();

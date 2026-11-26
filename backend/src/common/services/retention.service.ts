@@ -3,8 +3,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AuditLogService } from './audit-log.service.js';
 
-export function retentionDue(patient: { dateOfBirth: Date; createdAt: Date; lastVisit?: Date; legalHold?: boolean }, settings: { retentionAdult?: string; retentionMinor?: string }, now = new Date()): boolean {
-  if (patient.legalHold) return false;
+export function retentionDue(patient: { dateOfBirth: Date | null; createdAt: Date; lastVisit?: Date; legalHold?: boolean }, settings: { retentionAdult?: string; retentionMinor?: string }, now = new Date()): boolean {
+  if (patient.legalHold || !patient.dateOfBirth || Number.isNaN(patient.dateOfBirth.getTime())) return false;
   const eighteenthBirthday = new Date(patient.dateOfBirth); eighteenthBirthday.setUTCFullYear(eighteenthBirthday.getUTCFullYear() + 18);
   const lastVisit = patient.lastVisit || patient.createdAt;
   const minorRecord = patient.createdAt < eighteenthBirthday;
