@@ -841,9 +841,9 @@ export default function App() {
     }
   }, [])
 
-  // Logged-in user opening /login or /signup goes to /dashboard (Problem P2)
+  // Logged-in clinic user opening /login or /signup goes to /dashboard (Problem P2)
   useEffect(() => {
-    if (currentUser && (location.pathname === '/login' || location.pathname === '/signup')) {
+    if (currentUser && !currentUser.isPlatformAdmin && (location.pathname === '/login' || location.pathname === '/signup')) {
       navigate('/dashboard', { replace: true })
     }
   }, [currentUser, location.pathname, navigate])

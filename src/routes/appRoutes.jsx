@@ -86,14 +86,14 @@ export function AppRoutes({
       {/* 1. Public Landing Page */}
       <Route path="/" element={renderLandingPage()} />
 
-      {/* 2. Public Authentication Views (Logged-in users redirect to /dashboard) */}
+      {/* 2. Public Authentication Views (Logged-in clinic users redirect to /dashboard) */}
       <Route
         path="/login"
-        element={currentUser ? <Navigate to="/dashboard" replace /> : renderLandingPage('login')}
+        element={currentUser && !currentUser.isPlatformAdmin ? <Navigate to="/dashboard" replace /> : renderLandingPage('login')}
       />
       <Route
         path="/signup"
-        element={currentUser ? <Navigate to="/dashboard" replace /> : renderLandingPage('signup')}
+        element={currentUser && !currentUser.isPlatformAdmin ? <Navigate to="/dashboard" replace /> : renderLandingPage('signup')}
       />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/solutions/:id" element={renderLandingPage('solution')} />

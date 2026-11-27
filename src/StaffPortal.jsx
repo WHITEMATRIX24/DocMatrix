@@ -11,7 +11,7 @@ import {
   Check, ShieldAlert, Search, Bell, CircleAlert, PackageOpen, FlaskConical,
   RefreshCw, AlertCircle
 } from 'lucide-react'
-import { useClinicData, retrySync, isDemoSession } from '@/services/clinicStore'
+import { useClinicData, retrySync, dismissSyncError, isDemoSession } from '@/services/clinicStore'
 import { useAdaptiveInventory } from '@/services/adaptiveInventoryStore'
 
 function SyncStatusIndicator() {
@@ -61,8 +61,8 @@ function SyncStatusIndicator() {
         className="dmx-sync-badge dmx-sync-failed"
         title={syncError || 'Data synchronization failed'}
       >
-        <AlertCircle size={12} />
-        <span role="alert">{syncError || 'Changes could not be saved'}</span>
+        <AlertCircle size={13} />
+        <span className="dmx-sync-badge-label">Not Saved</span>
         <button
           type="button"
           onClick={handleRetry}
@@ -175,7 +175,7 @@ export default function StaffPortal({
   const [currentTime, setCurrentTime] = useState('11:20 AM')
 
   const isDemo = isDemoSession()
-  const { patients = [] } = useClinicData() || {}
+  const { patients = [], syncStatus, syncError } = useClinicData() || {}
   const { items: inventoryItems = [] } = useAdaptiveInventory()
 
   const headerMatchedPatients = useMemo(() => {
@@ -714,6 +714,57 @@ export default function StaffPortal({
             </div>
           </div>
         </header>
+
+        {!isDemo && (syncStatus === 'FAILED' || syncStatus === 'AUTH_EXPIRED') && syncError && (
+          <div
+            className={`dmx-top-warning ${syncStatus === 'AUTH_EXPIRED' ? 'is-amber' : 'is-red'}`}
+            role="alert"
+            aria-live="polite"
+          >
+            <div className="dmx-top-warning-main">
+              <span className="dmx-top-warning-icon">
+                <ShieldAlert size={18} />
+              </span>
+              <div className="dmx-top-warning-copy">
+                <strong>{syncStatus === 'AUTH_EXPIRED' ? 'Session Expired' : 'Action Could Not Be Saved'}</strong>
+                <p>{syncError}</p>
+              </div>
+            </div>
+            <div className="dmx-top-warning-actions">
+              {/\bconsent\b/i.test(syncError) && (
+                <button
+                  type="button"
+                  className="dmx-top-warning-btn is-secondary"
+                  onClick={() => {
+                    dismissSyncError()
+                    navigateTo('/patients/consents')
+                  }}
+                >
+                  Open Consents
+                </button>
+              )}
+              {syncStatus === 'FAILED' && (
+                <button
+                  type="button"
+                  className="dmx-top-warning-btn is-retry"
+                  onClick={() => void retrySync()}
+                >
+                  <RefreshCw size={13} />
+                  <span>Retry</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="dmx-top-warning-close"
+                onClick={() => dismissSyncError()}
+                aria-label="Dismiss warning"
+                title="Dismiss warning"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        )}
 
         <main className="dmx-main">
           {isForbidden ? (

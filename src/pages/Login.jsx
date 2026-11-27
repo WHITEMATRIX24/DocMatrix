@@ -5,6 +5,7 @@ import { Mail, ArrowRight } from 'lucide-react'
 import {
   login,
   isAuthenticated,
+  getCurrentUser,
   getRememberedEmail
 } from '@/services/authService'
 import PasswordInput from '@/components/PasswordInput'
@@ -59,9 +60,10 @@ export default function Login({ onLoginSuccess }) {
     }
   }, [])
 
-  // Redirect if already logged in (Requirement 8)
+  // Redirect if already logged in as a clinic user (Requirement 8)
   useEffect(() => {
-    if (isAuthenticated()) {
+    const user = getCurrentUser()
+    if (isAuthenticated() && !user?.isPlatformAdmin) {
       navigate('/dashboard', { replace: true })
     }
   }, [navigate])

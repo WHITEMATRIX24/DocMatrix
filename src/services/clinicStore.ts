@@ -2409,6 +2409,12 @@ export const reportPersistenceFailure = (operation: string, error: any) => {
   emitChange();
 };
 
+export const dismissSyncError = (): void => {
+  syncErrorState = null;
+  syncStatusState = lastSyncTimeState ? 'SYNCHRONIZED' : 'IDLE';
+  emitChange();
+};
+
 export const retrySync = async (): Promise<void> => {
   return syncWithBackend();
 };

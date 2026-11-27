@@ -30,6 +30,7 @@ import {
 } from 'lucide-react'
 import {
   useClinicData,
+  dismissSyncError,
   isAuthenticatedClinic,
   DENTISTS,
   DENTAL_TREATMENTS,
@@ -59,6 +60,7 @@ import {
   CallInToast,
   type CallInToastData,
 } from '@/components/shared/CallInToast'
+import { InlineAlertBanner } from '@/components/shared/InlineAlertBanner'
 
 type CalendarViewMode = 'day' | 'week' | 'dentist'
 
@@ -577,7 +579,13 @@ export const CalendarPage: React.FC = () => {
 
   return (
     <div className="calendar-page-root" data-testid="feature-page-appt.calendar">
-      {actionError && <p role="alert">{actionError}</p>}
+      <InlineAlertBanner
+        message={actionError}
+        onDismiss={() => {
+          setActionError('')
+          dismissSyncError()
+        }}
+      />
       {/* 1. Header & Navigation Toolbar */}
       <header className="calendar-header-toolbar">
         <div className="calendar-heading-group">
@@ -1319,6 +1327,15 @@ export const CalendarPage: React.FC = () => {
             </div>
 
             {/* Quick Status Control Bar */}
+            {actionError && (
+              <InlineAlertBanner
+                message={actionError}
+                onDismiss={() => {
+                  setActionError('')
+                  dismissSyncError()
+                }}
+              />
+            )}
             <div className="modal-status-bar">
               <div className="current-status-display">
                 <span>Current Status:</span>

@@ -31,6 +31,7 @@ import {
 import { type PatientConsentRecord } from '@/services/clinicStore'
 import {
   useClinicData,
+  dismissSyncError,
   findAppointment,
   fetchAppointmentById,
   isAuthenticatedClinic,
@@ -47,6 +48,7 @@ import {
 } from '@/services/clinicStore'
 import { autoGenerateInvoiceForConsultation } from '@/services/billingAutoInvoice'
 import { InvoiceDrawer } from '@/pages/billing/BillingShared'
+import { InlineAlertBanner } from '@/components/shared/InlineAlertBanner'
 import {
   InvoiceSuccessToast,
   type InvoiceSuccessToastData,
@@ -491,7 +493,13 @@ export const AppointmentDetailPage: React.FC = () => {
         )}
       </div>
 
-      {actionError && <p role="alert">{actionError}</p>}
+      <InlineAlertBanner
+        message={actionError}
+        onDismiss={() => {
+          setActionError('')
+          dismissSyncError()
+        }}
+      />
       {/* Action Buttons: Materials, Reschedule, WhatsApp, Cancel */}
       <div className="appointment-action-controls">
         {appointment.status === 'completed' && canClinic(getPermissionUser(), 'appointment.schedule') && <Link className="btn-appt-action" to={`/appointments/new?patientId=${encodeURIComponent(appointment.patientId)}&revisitOfId=${encodeURIComponent(appointment.backendId || appointment.id)}`}>Book Revisit</Link>}
