@@ -96,7 +96,12 @@ describe('Security hardening', () => {
   it('requires procedure-specific signed evidence before surgical work', async () => {
     const db: any = { clinic: { findUnique: async () => ({ clinicalConfig: {} }) }, patientConsent: { findFirst: vi.fn(async () => null) } };
     await expect(surgeryConsentPolicy(db, 'c', 'p', { procedureName: 'Implant', category: 'Surgery' })).rejects.toThrow(/signed consent/);
-    expect(db.patientConsent.findFirst.mock.calls[0][0].where).toMatchObject({ clinicId: 'c', patientId: 'p', status: 'Signed', evidenceHash: { not: null } });
+    expect(db.patientConsent.findFirst.mock.calls[0][0].where).toMatchObject({
+      clinicId: 'c',
+      patientId: 'p',
+      status: { in: expect.arrayContaining(['Signed', 'PATIENT_SIGNED', 'DENTIST_VERIFIED', 'COMPLETED']) },
+      evidenceHash: { not: null },
+    });
   });
   it('preserves legal holds and pediatric minimums while marking overdue adult records', () => {
     const patient = { dateOfBirth: new Date('1980-01-01'), createdAt: new Date('2000-01-01'), lastVisit: new Date('2010-01-01') };

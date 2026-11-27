@@ -168,6 +168,7 @@ model Clinic {
   toothConditions ToothCondition[]
   documents       PatientDocument[]
   consents        PatientConsent[]
+  consentTemplates ConsentTemplate[]
   inventoryItems  InventoryItem[]
   inventoryBatches InventoryBatch[]
   inventoryAudits InventoryAudit[]
@@ -353,6 +354,7 @@ model Appointment {
   clinicalNotes ClinicalNote[]
   treatmentPlans TreatmentPlan[]
   invoices       Invoice[]
+  consents       PatientConsent[]
 
   @@index([clinicId, startTime, endTime])
   @@index([doctorId, startTime])
@@ -411,33 +413,105 @@ model PatientDocument {
 }
 
 // ------------------------------------------
+// Procedure-Specific Consent Templates Model
+// ------------------------------------------
+
+model ConsentTemplate {
+  id                        String   @id @default(uuid())
+  clinicId                  String
+  title                     String
+  procedureType             String
+  procedureCategory         String   @default("Oral Surgery")
+  requiresConsent           Boolean  @default(true)
+  guardianRequiredForMinors Boolean  @default(true)
+  description               String?
+  purpose                   String?
+  benefits                  String?
+  risks                     String?
+  alternatives              String?
+  refusalConsequences       String?
+  postProcedureInstructions String?
+  patientDeclaration        String?
+  dentistDeclaration        String?
+  content                   Json?
+  version                   Int      @default(1)
+  isActive                  Boolean  @default(true)
+  isReviewed                Boolean  @default(false)
+  reviewedBy                String?
+  reviewedAt                DateTime?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  clinic          Clinic           @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patientConsents PatientConsent[]
+
+  @@unique([id, clinicId])
+  @@index([clinicId, procedureType, isActive])
+}
+
+// ------------------------------------------
 // Patient Informed Consent & Regulatory Records Model
 // ------------------------------------------
 
 model PatientConsent {
-  id            String   @id @default(uuid())
-  clinicId      String
-  patientId     String
-  consentType   String
-  status        String   @default("Signed") // 'Signed' | 'Pending' | 'Declined'
-  dateRecorded  DateTime @default(now())
-  recordedBy    String
-  documentRef   String?
-  notes         String?
-  witnessName   String?
-  signatureData String?
-  evidenceHash String?
-  consentText String?
-  revokedAt DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                     String   @id @default(uuid())
+  clinicId               String
+  patientId              String
+  appointmentId          String?
+  treatmentPlanId        String?
+  consultationId         String?
+  doctorId               String?
+  doctorName             String?
+  procedureName          String?
+  toothNumber            String?
+  treatmentArea          String?
+  templateId             String?
+  templateVersion        Int?
+  documentVersion        Int      @default(1)
+  replacesConsentId      String?
+  consentType            String
+  status                 String   @default("PENDING_SIGNATURE") // 'DRAFT' | 'PENDING_SIGNATURE' | 'PATIENT_SIGNED' | 'DENTIST_VERIFIED' | 'COMPLETED' | 'DECLINED' | 'CANCELLED' | 'EXPIRED' | legacy 'Signed' | 'Pending' | 'Declined' | 'Revoked'
+  dateRecorded           DateTime @default(now())
+  recordedBy             String
+  documentRef            String?
+  notes                  String?
+  witnessName            String?
+  signatureData          String?
+  evidenceHash           String?
+  consentText            String?
+  consentContentSnapshot Json?
+  patientSignature       String?
+  patientSignedAt        DateTime?
+  patientSignatureMethod String?
+  patientAccepted        Boolean  @default(false)
+  guardianName           String?
+  guardianRelationship   String?
+  guardianAuthorized     Boolean  @default(false)
+  guardianSignature      String?
+  guardianSignedAt       DateTime?
+  dentistSignature       String?
+  dentistVerifiedBy      String?
+  verifiedAt             DateTime?
+  declinedReason         String?
+  declinedAt             DateTime?
+  cancelledReason        String?
+  cancelledAt            DateTime?
+  expiresAt              DateTime?
+  revokedAt              DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  clinic  Clinic  @relation(fields: [clinicId], references: [id], onDelete: Restrict)
-  patient Patient @relation(fields: [patientId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  clinic        Clinic           @relation(fields: [clinicId], references: [id], onDelete: Restrict)
+  patient       Patient          @relation(fields: [patientId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  appointment   Appointment?     @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  treatmentPlan TreatmentPlan?   @relation(fields: [treatmentPlanId], references: [id], onDelete: SetNull)
+  template      ConsentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 
   @@unique([id, clinicId])
   @@index([clinicId, patientId])
   @@index([clinicId, status])
+  @@index([clinicId, appointmentId])
+  @@index([clinicId, procedureName])
 }
 
 // ------------------------------------------
@@ -807,6 +881,7 @@ model TreatmentPlan {
   estimateRevisions        TreatmentEstimateRevision[]
   histories                TreatmentPlanHistory[]
   invoices                 Invoice[]
+  consents                 PatientConsent[]
 
   @@unique([clinicId, planNumber])
   @@unique([id, clinicId])

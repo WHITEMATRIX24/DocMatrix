@@ -24,6 +24,18 @@ import {
 import { CreateDocumentDto } from './dto/create-document.dto.js';
 import { CreateConsentDto } from './dto/create-consent.dto.js';
 import { UpdateConsentDto } from './dto/update-consent.dto.js';
+import {
+  CreateConsentTemplateDto,
+  UpdateConsentTemplateDto,
+} from './dto/consent-template.dto.js';
+import {
+  CancelConsentDto,
+  DeclineConsentDto,
+  GenerateConsentDto,
+  SubmitGuardianSignatureDto,
+  SubmitPatientSignatureDto,
+  VerifyConsentDto,
+} from './dto/consent-workflow.dto.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { TenantGuard } from '../common/guards/tenant.guard.js';
 import { CurrentUser, AuthenticatedUser } from '../common/decorators/current-user.decorator.js';
@@ -54,6 +66,43 @@ export class ClinicalController {
   @RequireOperation('consent.read')
   async getAllClinicConsents(@CurrentUser() user: AuthenticatedUser) {
     return this.clinicalService.getAllClinicConsents(user.clinicId!);
+  }
+
+  @Get('clinical/consent-templates')
+  @RequireOperation('consent.read')
+  async getConsentTemplates(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('activeOnly') activeOnly?: string,
+  ) {
+    return this.clinicalService.getConsentTemplates(user.clinicId!, activeOnly !== 'true');
+  }
+
+  @Post('clinical/consent-templates')
+  @RequireOperation('consent.template.manage')
+  async createConsentTemplate(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateConsentTemplateDto,
+  ) {
+    return this.clinicalService.createConsentTemplate(user.clinicId!, dto, user);
+  }
+
+  @Patch('clinical/consent-templates/:templateId')
+  @RequireOperation('consent.template.manage')
+  async updateConsentTemplate(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('templateId') templateId: string,
+    @Body() dto: UpdateConsentTemplateDto,
+  ) {
+    return this.clinicalService.updateConsentTemplate(user.clinicId!, templateId, dto, user);
+  }
+
+  @Get('appointments/:appointmentId/consents')
+  @RequireOperation('consent.read')
+  async getAppointmentConsents(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('appointmentId') appointmentId: string,
+  ) {
+    return this.clinicalService.getAppointmentConsents(user.clinicId!, appointmentId);
   }
 
   // -------------------------------------------------------------------------
@@ -269,6 +318,101 @@ export class ClinicalController {
     @Param('consentId') consentId: string,
   ) {
     return this.clinicalService.deleteConsent(user.clinicId!, patientId, consentId, user);
+  }
+
+  @Post('patients/:patientId/consents/generate')
+  @RequireOperation('consent.write')
+  async generateConsent(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('patientId') patientId: string,
+    @Body() dto: GenerateConsentDto,
+  ) {
+    return this.clinicalService.generateConsentForProcedure(user.clinicId!, patientId, dto, user);
+  }
+
+  @Post('patients/:patientId/consents/:consentId/sign-patient')
+  @RequireOperation('consent.write')
+  async signConsentPatient(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('patientId') patientId: string,
+    @Param('consentId') consentId: string,
+    @Body() dto: SubmitPatientSignatureDto,
+  ) {
+    return this.clinicalService.submitPatientSignature(user.clinicId!, patientId, consentId, dto, user);
+  }
+
+  @Post('patients/:patientId/consents/:consentId/sign-guardian')
+  @RequireOperation('consent.write')
+  async signConsentGuardian(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('patientId') patientId: string,
+    @Param('consentId') consentId: string,
+    @Body() dto: SubmitGuardianSignatureDto,
+  ) {
+    return this.clinicalService.submitGuardianSignature(user.clinicId!, patientId, consentId, dto, user);
+  }
+
+  @Post('patients/:patientId/consents/:consentId/verify-dentist')
+  @RequireOperation('consent.verify')
+  async verifyConsentDentist(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('patientId') patientId: string,
+    @Param('consentId') consentId: string,
+    @Body() dto: VerifyConsentDto,
+  ) {
+    return this.clinicalService.verifyConsentByDentist(user.clinicId!, patientId, consentId, dto, user);
+  }
+
+  @Post('patients/:patientId/consents/:consentId/decline')
+  @RequireOperation('consent.write')
+  async declineConsent(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('patientId') patientId: string,
+    @Param('consentId') consentId: string,
+    @Body() dto: DeclineConsentDto,
+  ) {
+    return this.clinicalService.declineConsent(user.clinicId!, patientId, consentId, dto, user);
+  }
+
+  @Post('patients/:patientId/consents/:consentId/cancel')
+  @RequireOperation('consent.write')
+  async cancelConsent(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('patientId') patientId: string,
+    @Param('consentId') consentId: string,
+    @Body() dto: CancelConsentDto,
+  ) {
+    return this.clinicalService.cancelConsent(user.clinicId!, patientId, consentId, dto, user);
+  }
+
+  @Post('patients/:patientId/consents/:consentId/replace')
+  @RequireOperation('consent.write')
+  async replaceConsent(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('patientId') patientId: string,
+    @Param('consentId') consentId: string,
+  ) {
+    return this.clinicalService.replaceConsent(user.clinicId!, patientId, consentId, user);
+  }
+
+  @Get('patients/:patientId/consents/:consentId/pdf')
+  @RequireOperation('consent.read')
+  async downloadConsentPdf(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('patientId') patientId: string,
+    @Param('consentId') consentId: string,
+    @Res() res: Response,
+  ) {
+    const { fileName, mimeType, buffer } = await this.clinicalService.downloadConsentPdf(
+      user.clinicId!,
+      patientId,
+      consentId,
+    );
+    clinicalDownloadHeaders(res, false);
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
   }
 }
 

@@ -62,6 +62,18 @@ import { PostTreatmentInstructionsModal } from '@/components/clinical/PostTreatm
 import { TreatmentPlanModal } from '@/components/clinical/TreatmentPlanModal'
 import { TreatmentPlanDetailsModal } from '@/components/clinical/TreatmentPlanDetailsModal'
 import { TreatmentPlanPrintModal } from '@/components/clinical/TreatmentPlanPrintModal'
+import { ConsentDocumentModal } from '@/components/clinical/ConsentDocumentModal'
+import {
+  DEFAULT_FRONTEND_CONSENT_TEMPLATES,
+  downloadConsentPdfFromBackend,
+  fetchConsentTemplates,
+  generateClientConsentPdf,
+  generatePatientConsentApi,
+  getConsentStatusMeta,
+  isConsentPending,
+  type ConsentTemplateRecord,
+} from '@/services/consentService'
+import { isAuthenticatedClinic, mapRemoteConsent, upsertPatientConsentRecord } from '@/services/clinicStore'
 import { InvoiceDrawer, PaymentDialog, StatusPill, inr, localDate, prettyDate } from '@/pages/billing/BillingShared'
 import './patientProfile.css'
 import '@/pages/clinical/prescriptions.css'
@@ -392,9 +404,17 @@ export const PatientProfilePage: React.FC = () => {
   }, [patientDocuments, id])
 
   const patientConsentList = useMemo(() => {
-    return (patientConsents as PatientConsentRecord[])
-      .filter((c) => c.patientId.toLowerCase() === (id || '').toLowerCase())
-  }, [patientConsents, id])
+    const keys = new Set(
+      [id, patient?.id, patient?.backendId]
+        .filter((v): v is string => Boolean(v))
+        .map((v) => v.toLowerCase()),
+    )
+    return (patientConsents as PatientConsentRecord[]).filter(
+      (c) =>
+        (c.patientId && keys.has(c.patientId.toLowerCase())) ||
+        (c.patientUuid && keys.has(c.patientUuid.toLowerCase())),
+    )
+  }, [patientConsents, id, patient?.id, patient?.backendId])
 
   const patientPrescriptions = useMemo(() => {
     return (prescriptions as PrescriptionRecord[]).filter(
@@ -675,12 +695,26 @@ export const PatientProfilePage: React.FC = () => {
   // Consent Modal State
   const [consentModalOpen, setConsentModalOpen] = useState(false)
   const [consentType, setConsentType] = useState('Informed Consent for Dental Treatment')
-  const [consentStatus, setConsentStatus] = useState<PatientConsentRecord['status']>('Pending')
+  const [consentStatus, setConsentStatus] = useState<PatientConsentRecord['status']>('PENDING_SIGNATURE')
   const [consentNotes, setConsentNotes] = useState('')
   const [consentText, setConsentText] = useState('')
   const [consentSignature, setConsentSignature] = useState('')
   const [consentError, setConsentError] = useState('')
   const [consentSaving, setConsentSaving] = useState(false)
+  const [selectedConsentModal, setSelectedConsentModal] = useState<{
+    consent: PatientConsentRecord
+    initialTab: 'document' | 'sign' | 'verify' | 'history'
+  } | null>(null)
+  const [consentTemplates, setConsentTemplates] = useState<ConsentTemplateRecord[]>(DEFAULT_FRONTEND_CONSENT_TEMPLATES)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
+
+  useEffect(() => {
+    if (isAuthenticatedClinic()) {
+      fetchConsentTemplates(true)
+        .then((list) => { if (Array.isArray(list) && list.length > 0) setConsentTemplates(list) })
+        .catch(() => {})
+    }
+  }, [])
 
   const openEditModal = () => {
     if (!patient) return
@@ -2036,31 +2070,130 @@ export const PatientProfilePage: React.FC = () => {
             </div>
 
             {patientConsentList.length > 0 ? (
-              <div>
-                {patientConsentList.map((c) => (
-                  <div key={c.id} className="pat-consent-card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
-                      <div>
-                        <strong style={{ fontSize: '14px', color: 'var(--text-main, #0f172a)' }}>
-                          {c.consentType}
-                        </strong>
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)', marginTop: '3px' }}>
-                          Recorded by: {c.recordedBy} · Date: {c.dateRecorded} {c.documentRef && `· Ref: ${c.documentRef}`}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {patientConsentList.map((c) => {
+                  const statusMeta = getConsentStatusMeta(c.status)
+                  const apptDate = c.consentContentSnapshot?.appointment?.date
+                  const canVerify = c.status === 'PATIENT_SIGNED' && (!isAuthenticatedClinic() || canClinic(getPermissionUser(), 'consent.verify'))
+                  return (
+                    <div
+                      key={c.id}
+                      className="pat-consent-card"
+                      style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px' }}
+                      onClick={() => setSelectedConsentModal({ consent: c, initialTab: 'document' })}
+                      data-testid={`consent-record-card-${c.id}`}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px', flexWrap: 'wrap' }}>
+                        <div>
+                          <strong style={{ fontSize: '14.5px', color: 'var(--text-main, #0f172a)' }}>
+                            {c.consentContentSnapshot?.title || c.consentType}
+                          </strong>
+                          <div style={{ fontSize: '12px', color: 'var(--text-muted, #64748b)', marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                            {c.procedureName && c.procedureName !== c.consentType && (
+                              <span><strong>Procedure:</strong> {c.procedureName}</span>
+                            )}
+                            {apptDate && <span>· <strong>Appt Date:</strong> {apptDate}</span>}
+                            {c.doctorName && <span>· <strong>Dentist:</strong> {c.doctorName}</span>}
+                            <span>· <strong>Created:</strong> {c.dateRecorded}</span>
+                            {c.patientSignedAt && <span>· <strong>Signed:</strong> {new Date(c.patientSignedAt).toLocaleDateString()}</span>}
+                            {c.verifiedAt && <span>· <strong>Verified:</strong> {new Date(c.verifiedAt).toLocaleDateString()}</span>}
+                            {c.documentRef && <span>· Ref: {c.documentRef}</span>}
+                          </div>
                         </div>
+
+                        <span
+                          style={{
+                            fontSize: '11.5px',
+                            fontWeight: 600,
+                            padding: '3px 10px',
+                            borderRadius: '999px',
+                            background: statusMeta.bg,
+                            color: statusMeta.color,
+                            border: `1px solid ${statusMeta.border}`,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {statusMeta.label}
+                        </span>
                       </div>
 
-                      <span className={c.status === 'Signed' ? 'pat-consent-status-signed' : 'pat-consent-status-pending'}>
-                        {c.status}
-                      </span>
+                      {c.notes && (
+                        <div style={{ fontSize: '12.5px', color: 'var(--text-muted, #475569)', background: 'var(--surface, #fff)', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--line, #e2e8f0)' }}>
+                          {c.notes}
+                        </div>
+                      )}
+
+                      <div
+                        style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', paddingTop: '4px' }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setSelectedConsentModal({ consent: c, initialTab: 'document' })}
+                          className="pat-btn pat-btn-secondary"
+                          style={{ padding: '4px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <Eye size={12} /> View Consent
+                        </button>
+                        {isConsentPending(c.status) && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedConsentModal({ consent: c, initialTab: 'sign' })}
+                            className="pat-btn pat-btn-primary"
+                            style={{ padding: '4px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <Edit3 size={12} /> Sign Consent
+                          </button>
+                        )}
+                        {canVerify && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedConsentModal({ consent: c, initialTab: 'verify' })}
+                            className="pat-btn pat-btn-primary"
+                            style={{ padding: '4px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <ShieldCheck size={12} /> Verify Consent
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              if (isAuthenticatedClinic() && !c.id.startsWith('cns-')) {
+                                await downloadConsentPdfFromBackend(c.patientId, c.id, `Consent_${c.documentRef || c.id}.pdf`)
+                                return
+                              }
+                            } catch {}
+                            generateClientConsentPdf(c, patient)
+                          }}
+                          className="pat-btn pat-btn-secondary"
+                          style={{ padding: '4px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <FileDown size={12} /> Download PDF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedConsentModal({ consent: c, initialTab: 'document' })
+                            setTimeout(() => window.print(), 200)
+                          }}
+                          className="pat-btn pat-btn-secondary"
+                          style={{ padding: '4px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <Printer size={12} /> Print
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedConsentModal({ consent: c, initialTab: 'history' })}
+                          className="pat-btn pat-btn-secondary"
+                          style={{ padding: '4px 10px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <Clock size={12} /> View Consent History
+                        </button>
+                      </div>
                     </div>
-
-                    {c.notes && (
-                      <div style={{ fontSize: '12.5px', color: 'var(--text-muted, #475569)', background: 'var(--surface, #fff)', padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--line, #e2e8f0)' }}>
-                        {c.notes}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             ) : (
               <div style={{ padding: '40px 20px', textAlign: 'center', background: 'var(--surface-subtle, #f8fafc)', borderRadius: '10px', border: '1px solid var(--line, #e2e8f0)' }}>
@@ -2958,6 +3091,16 @@ export const PatientProfilePage: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {selectedConsentModal && (
+        <ConsentDocumentModal
+          consent={selectedConsentModal.consent}
+          patient={patient}
+          initialTab={selectedConsentModal.initialTab}
+          onClose={() => setSelectedConsentModal(null)}
+          onUpdated={(updated) => setSelectedConsentModal((prev) => (prev ? { ...prev, consent: updated } : null))}
+        />
       )}
 
       {/* ── PRESCRIPTION MODALS ── */}

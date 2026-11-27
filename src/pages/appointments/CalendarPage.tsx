@@ -433,6 +433,19 @@ export const CalendarPage: React.FC = () => {
       setQbError('Select an existing patient, or register the patient first.')
       return
     }
+    const slotCheck = checkDentistAvailability(
+      qbDoctor,
+      qbDate,
+      qbTime,
+      selectedQbTreatment?.defaultDurationMinutes || 30,
+      undefined,
+      selectedQbDentist?.chair,
+      qbPriority,
+    )
+    if (!slotCheck.available) {
+      setQbError(slotCheck.reason || 'Selected time slot is unavailable.')
+      return
+    }
     setBookingSaving(true); setQbError('')
     try {
 

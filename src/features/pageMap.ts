@@ -360,6 +360,13 @@ export const LAUNCH_PAGE_MAP: PageMeta[] = [
     importFn: () => import('@/pages/settings/ClinicalConfigPage'),
   },
   {
+    id: 'set.consent-templates',
+    area: 'settings',
+    filename: 'ConsentTemplatesPage.tsx',
+    componentName: 'ConsentTemplatesPage',
+    importFn: () => import('@/pages/settings/ConsentTemplatesPage'),
+  },
+  {
     id: 'set.security',
     area: 'settings',
     filename: 'SecurityPage.tsx',

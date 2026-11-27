@@ -22,6 +22,8 @@ export type Operation =
   | 'document.delete'
   | 'consent.read'
   | 'consent.write'
+  | 'consent.verify'
+  | 'consent.template.manage'
   | 'consent.delete'
   | 'patient.read'
   | 'patient.write'
@@ -54,6 +56,8 @@ export const OPERATION_ROLES: Readonly<
   'document.delete': admins,
   'consent.read': intake,
   'consent.write': intake,
+  'consent.verify': [...admins, StaffRole.DOCTOR],
+  'consent.template.manage': admins,
   'consent.delete': admins,
   'patient.read': [...intake, StaffRole.ACCOUNTANT],
   'patient.write': intake,

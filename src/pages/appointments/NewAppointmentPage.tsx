@@ -29,6 +29,7 @@ import {
   DENTAL_TREATMENTS,
   type AppointmentPriority
 } from '@/services/clinicStore'
+import { matchFrontendConsentTemplate } from '@/services/consentService'
 
 const today = () => getClinicNow().date
 
@@ -587,6 +588,27 @@ export const NewAppointmentPage: React.FC = () => {
                 ))}
               </select>
             </label>
+            {selectedTreatment && matchFrontendConsentTemplate(selectedTreatment.name) && (
+              <div
+                style={{
+                  marginTop: '8px',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  background: '#ecfdf5',
+                  border: '1px solid #a7f3d0',
+                  color: '#065f46',
+                  fontSize: '12.5px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <CheckCircle2 size={14} />
+                <span>
+                  Informed consent required: <strong>{matchFrontendConsentTemplate(selectedTreatment.name)?.title}</strong> will be automatically generated for this patient upon booking.
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Section 5: Clinical Notes */}

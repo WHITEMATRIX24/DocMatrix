@@ -7,6 +7,11 @@ import { loadFromStorage, saveToStorage, removeFromStorage, STORAGE_KEYS } from 
 import { apiClient } from './apiClient'
 import { billingApi, toFrontendStatus, toFrontendMode, toBackendMode, type BackendInvoice } from './billingApi'
 import { canRescheduleAppointment, canTransitionAppointment, clinicHours, getClinicNow, setAppointmentScheduleConfig } from './appointmentPolicy'
+import {
+  matchFrontendConsentTemplate,
+  type ConsentSnapshot,
+  type ConsentWorkflowStatus,
+} from './consentService'
 
 export type MedicalAnswer = 'yes' | 'no' | 'unknown'
 
@@ -371,16 +376,50 @@ export interface PatientDocumentRecord {
 export interface PatientConsentRecord {
   id: string
   patientId: string
+  patientUuid?: string
+  appointmentId?: string | null
+  treatmentPlanId?: string | null
+  consultationId?: string | null
+  doctorId?: string | null
+  doctorName?: string | null
+  procedureName?: string | null
+  toothNumber?: string | null
+  treatmentArea?: string | null
+  templateId?: string | null
+  templateVersion?: number | null
+  documentVersion?: number
+  replacesConsentId?: string | null
   consentType: string
-  status: 'Signed' | 'Pending' | 'Declined' | 'Revoked'
+  status: ConsentWorkflowStatus
   consentText?: string
+  consentContentSnapshot?: ConsentSnapshot
   signatureData?: string
+  patientSignature?: string
+  patientSignedAt?: string
+  patientSignatureMethod?: string
+  patientAccepted?: boolean
+  guardianName?: string
+  guardianRelationship?: string
+  guardianAuthorized?: boolean
+  guardianSignature?: string
+  guardianSignedAt?: string
+  dentistSignature?: string
+  dentistVerifiedBy?: string
+  verifiedAt?: string
+  declinedReason?: string
+  declinedAt?: string
+  cancelledReason?: string
+  cancelledAt?: string
+  expiresAt?: string
   evidenceHash?: string
+  revokedAt?: string
   _syncPromise?: Promise<void>
   dateRecorded: string
   recordedBy: string
   documentRef?: string
   notes?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type ToothConditionType = 'Healthy' | 'Caries' | 'Restored' | 'Missing' | 'Crown' | 'RCT'
@@ -1587,6 +1626,9 @@ export const initClinicSession = (clinicId?: string) => {
   patientConsentsState = Array.isArray(loaded?.patientConsents)
     ? loaded.patientConsents
     : (isAuth ? [] : [...initialPatientConsents]);
+  if (!isAuth) {
+    backfillUpcomingAppointmentConsentsLocal();
+  }
 
   toothChartsState = loaded?.toothCharts && typeof loaded.toothCharts === 'object'
     ? loaded.toothCharts
@@ -2054,16 +2096,7 @@ export const syncWithBackend = async (): Promise<void> => {
       : [];
 
     const mappedConsents: PatientConsentRecord[] = Array.isArray(remoteConsents)
-      ? remoteConsents.map((c: any) => ({
-        id: c.id,
-        patientId: c.patientId,
-        consentType: c.consentType,
-        status: c.status || 'Signed',
-        dateRecorded: c.dateRecorded || c.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
-        recordedBy: c.recordedBy || 'Clinical Staff',
-        documentRef: c.documentRef || '',
-        notes: c.notes || '',
-      }))
+      ? remoteConsents.map((c: any) => mapRemoteConsent(c))
       : [];
 
     // Authoritative backend data: strictly assign (no dummy records retained)
@@ -2417,6 +2450,19 @@ export const checkDentistAvailability = (
     (a.doctor.trim().toLowerCase() === doctorName.trim().toLowerCase() || !!chair && a.chair === chair) &&
     requestedStart < Date.parse(`${a.date}T${a.time}:00Z`) / 60000 + (a.durationMinutes || 30) && requestedStart + durationMinutes > Date.parse(`${a.date}T${a.time}:00Z`) / 60000)
   if (conflict) return { available: false, reason: `Doctor or chair already has appointment (${conflict.id}) at ${conflict.time}.` }
+
+  // Enforce lunch break for all doctors in both authenticated and demo modes
+  const [lunchStartH, lunchStartM] = (dentist?.lunchStart || '13:00').split(':').map(Number)
+  const [lunchEndH, lunchEndM] = (dentist?.lunchEnd || '14:00').split(':').map(Number)
+  const lunchStartMin = lunchStartH * 60 + lunchStartM
+  const lunchEndMin = lunchEndH * 60 + lunchEndM
+  if (start < lunchEndMin && start + durationMinutes > lunchStartMin) {
+    return {
+      available: false,
+      reason: `${dentist?.name || doctorName} has a scheduled lunch & break between ${dentist?.lunchStart || '13:00'} and ${dentist?.lunchEnd || '14:00'}.`,
+    }
+  }
+
   if (priority === 'emergency') return { available: true }
   if (isAuthenticatedClinic() || !dentist) {
     const hours = clinicHours(date)
@@ -2451,19 +2497,6 @@ export const checkDentistAvailability = (
     return {
       available: false,
       reason: `Outside working hours (${dentist.shiftStart} - ${dentist.shiftEnd}).`
-    }
-  }
-
-  // Check lunch break
-  const [lunchStartH, lunchStartM] = dentist.lunchStart.split(':').map(Number)
-  const [lunchEndH, lunchEndM] = dentist.lunchEnd.split(':').map(Number)
-  const lunchStart = lunchStartH * 60 + lunchStartM
-  const lunchEnd = lunchEndH * 60 + lunchEndM
-
-  if ((reqStart >= lunchStart && reqStart < lunchEnd) || (reqEnd > lunchStart && reqEnd <= lunchEnd) || (reqStart <= lunchStart && reqEnd >= lunchEnd)) {
-    return {
-      available: false,
-      reason: `${dentist.name} has a scheduled lunch & break between ${dentist.lunchStart} and ${dentist.lunchEnd}.`
     }
   }
 
@@ -2582,6 +2615,11 @@ export const bookAppointment = (data: {
               seen.add(key);
               return true;
             });
+          if (Array.isArray(created.generatedConsents) && created.generatedConsents.length > 0) {
+            for (const gc of created.generatedConsents) {
+              upsertPatientConsentRecord(mapRemoteConsent(gc));
+            }
+          }
           emitChange();
         }
         return created;
@@ -2597,6 +2635,9 @@ export const bookAppointment = (data: {
       });
       (newAppt as any)._syncPromise = syncPromise;
       void syncPromise.catch(() => {});
+    } else {
+      // Offline / demo mode: auto-generate consent locally for consent-required procedures
+      autoGenerateLocalConsentForAppointment(newAppt);
     }
   } catch { /* ignore */ }
 
@@ -4264,6 +4305,173 @@ export const addPatientConsent = (
   void persistence?.catch(() => {});
   Object.defineProperty(newConsent, '_syncPromise', { value: persistence });
   return newConsent
+}
+
+export const mapRemoteConsent = (c: any): PatientConsentRecord => ({
+  id: c.id,
+  patientId: c.patientId,
+  patientUuid: c.patientUuid,
+  appointmentId: c.appointmentId || null,
+  treatmentPlanId: c.treatmentPlanId || null,
+  consultationId: c.consultationId || null,
+  doctorId: c.doctorId || null,
+  doctorName: c.doctorName || null,
+  procedureName: c.procedureName || c.consentType,
+  toothNumber: c.toothNumber || null,
+  treatmentArea: c.treatmentArea || null,
+  templateId: c.templateId || null,
+  templateVersion: c.templateVersion ?? null,
+  documentVersion: c.documentVersion ?? 1,
+  replacesConsentId: c.replacesConsentId || null,
+  consentType: c.consentType,
+  status: c.status || 'PENDING_SIGNATURE',
+  consentText: c.consentText,
+  consentContentSnapshot: c.consentContentSnapshot,
+  signatureData: c.signatureData || c.patientSignature,
+  patientSignature: c.patientSignature,
+  patientSignedAt: c.patientSignedAt,
+  patientSignatureMethod: c.patientSignatureMethod,
+  patientAccepted: Boolean(c.patientAccepted),
+  guardianName: c.guardianName,
+  guardianRelationship: c.guardianRelationship,
+  guardianAuthorized: Boolean(c.guardianAuthorized),
+  guardianSignature: c.guardianSignature,
+  guardianSignedAt: c.guardianSignedAt,
+  dentistSignature: c.dentistSignature,
+  dentistVerifiedBy: c.dentistVerifiedBy,
+  verifiedAt: c.verifiedAt,
+  declinedReason: c.declinedReason,
+  declinedAt: c.declinedAt,
+  cancelledReason: c.cancelledReason,
+  cancelledAt: c.cancelledAt,
+  expiresAt: c.expiresAt,
+  evidenceHash: c.evidenceHash,
+  revokedAt: c.revokedAt,
+  dateRecorded: c.dateRecorded || c.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+  recordedBy: c.recordedBy || 'Clinical Staff',
+  documentRef: c.documentRef || '',
+  notes: c.notes || '',
+  createdAt: c.createdAt,
+  updatedAt: c.updatedAt,
+})
+
+export const upsertPatientConsentRecord = (record: PatientConsentRecord): void => {
+  const idx = patientConsentsState.findIndex((c) => c.id === record.id)
+  if (idx >= 0) {
+    patientConsentsState = patientConsentsState.map((c, i) => (i === idx ? { ...c, ...record } : c))
+  } else {
+    patientConsentsState = [record, ...patientConsentsState]
+  }
+  emitChange()
+}
+
+export const getConsentsForAppointment = (appointmentId: string): PatientConsentRecord[] => {
+  if (!appointmentId) return []
+  return patientConsentsState.filter((c) => c.appointmentId === appointmentId)
+}
+
+export const autoGenerateLocalConsentForAppointment = (appt: AppointmentRecord): PatientConsentRecord[] => {
+  const procText = appt.treatmentType || appt.visitType || ''
+  const procs = procText.split(/[,;]+/).map((p) => p.trim()).filter(Boolean)
+  const generated: PatientConsentRecord[] = []
+
+  for (const proc of procs) {
+    const tpl = matchFrontendConsentTemplate(proc)
+    if (!tpl) continue
+
+    const duplicate = patientConsentsState.find(
+      (c) =>
+        c.patientId === appt.patientId &&
+        c.appointmentId === appt.id &&
+        (c.procedureName || '').toLowerCase() === proc.toLowerCase() &&
+        !['CANCELLED', 'DECLINED', 'EXPIRED', 'Revoked', 'Declined'].includes(c.status),
+    )
+    if (duplicate) {
+      generated.push(duplicate)
+      continue
+    }
+
+    const patient = patientsState.find((p) => p.id === appt.patientId || p.backendId === appt.patientId)
+    const nowIso = new Date().toISOString()
+    const record: PatientConsentRecord = {
+      id: `cns-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      patientId: appt.patientId,
+      appointmentId: appt.id,
+      doctorName: appt.doctor,
+      procedureName: proc,
+      templateId: tpl.id,
+      templateVersion: tpl.version,
+      documentVersion: 1,
+      consentType: tpl.title,
+      status: 'PENDING_SIGNATURE',
+      dateRecorded: nowIso.slice(0, 10),
+      recordedBy: 'Automated Booking System',
+      documentRef: `DMX-CNS-${Date.now().toString().slice(-6)}`,
+      consentText: `${tpl.title}\n\n${tpl.description}\n\nRisks:\n${tpl.risks}\n\nAlternatives:\n${tpl.alternatives}`,
+      consentContentSnapshot: {
+        title: tpl.title,
+        procedureType: tpl.procedureType,
+        procedureCategory: tpl.procedureCategory,
+        templateVersion: tpl.version,
+        guardianRequiredForMinors: tpl.guardianRequiredForMinors,
+        clinic: {
+          name: CLINIC_CONFIG.clinicName,
+          address: CLINIC_CONFIG.clinicAddress,
+          phone: CLINIC_CONFIG.clinicPhone,
+        },
+        patient: {
+          id: patient?.id || appt.patientId,
+          name: patient ? `${patient.firstName} ${patient.lastName}`.trim() : 'Patient',
+          age: patient?.age || null,
+          gender: patient?.gender || null,
+          mobile: patient?.mobile ? `${patient.countryCode || '+91'} ${patient.mobile}` : null,
+          address: patient ? [patient.address, patient.city, patient.state].filter(Boolean).join(', ') || null : null,
+        },
+        appointment: {
+          id: appt.id,
+          bookingRef: appt.bookingRef || appt.id,
+          date: appt.date,
+          time: appt.time,
+        },
+        procedure: {
+          name: proc,
+          dentistName: appt.doctor,
+        },
+        sections: {
+          description: tpl.description,
+          purpose: tpl.purpose,
+          benefits: tpl.benefits,
+          risks: tpl.risks,
+          alternatives: tpl.alternatives,
+          refusalConsequences: tpl.refusalConsequences,
+          postProcedureInstructions: tpl.postProcedureInstructions,
+          patientDeclaration: tpl.patientDeclaration,
+          dentistDeclaration: tpl.dentistDeclaration,
+        },
+      },
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    }
+    patientConsentsState = [record, ...patientConsentsState]
+    generated.push(record)
+  }
+
+  if (generated.length > 0) emitChange()
+  return generated
+}
+
+export const backfillUpcomingAppointmentConsentsLocal = (): PatientConsentRecord[] => {
+  const created: PatientConsentRecord[] = []
+  for (const appt of appointmentsState) {
+    if (!['scheduled', 'confirmed', 'checked-in', 'in-progress'].includes(appt.status)) continue
+    const res = autoGenerateLocalConsentForAppointment(appt)
+    created.push(...res)
+  }
+  return created
+}
+
+if (!initialIsAuth) {
+  backfillUpcomingAppointmentConsentsLocal()
 }
 
 export const updatePatientConsent = async (

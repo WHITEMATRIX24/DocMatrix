@@ -259,6 +259,24 @@ class ApiClient {
   delete<T = any>(endpoint: string, options?: RequestOptions): Promise<T> {
     return this.request<T>(endpoint, 'DELETE', undefined, options);
   }
+
+  async downloadBlob(endpoint: string): Promise<Blob> {
+    const token = getStoredToken();
+    const url = this.buildUrl(endpoint);
+    const httpFn = this.transport;
+    if (!httpFn) {
+      throw new Error('HTTP transport unavailable in current runtime.');
+    }
+    const res = await httpFn(url, {
+      method: 'GET',
+      credentials: 'include',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      throw new Error(`Download failed (${res.status})`);
+    }
+    return res.blob();
+  }
 }
 
 export const apiClient = new ApiClient();

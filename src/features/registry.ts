@@ -590,6 +590,20 @@ export const FEATURE_REGISTRY: FeatureEntry[] = [
     ]
   },
   {
+    "id": "set.consent-templates",
+    "name": "Consent templates",
+    "description": "Procedure-specific informed consent templates, versions, and clinic review",
+    "source": "Part 1",
+    "phase": "launch",
+    "area": "Settings",
+    "route": "/settings/consent-templates",
+    "inNav": true,
+    "roles": [
+      "ORGANIZATION_ADMIN",
+      "BRANCH_ADMIN"
+    ]
+  },
+  {
     "id": "set.security",
     "name": "Security & device verification",
     "description": "Security: sessions, credentials and recovery verification",

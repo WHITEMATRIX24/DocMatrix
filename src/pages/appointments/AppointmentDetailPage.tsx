@@ -22,6 +22,13 @@ import {
   ChevronDown
 } from 'lucide-react'
 import { TreatmentMaterialUsageModal } from '@/components/inventory/TreatmentMaterialUsageModal'
+import { ConsentDocumentModal } from '@/components/clinical/ConsentDocumentModal'
+import {
+  getConsentStatusMeta,
+  isConsentPending,
+  matchFrontendConsentTemplate,
+} from '@/services/consentService'
+import { type PatientConsentRecord } from '@/services/clinicStore'
 import {
   useClinicData,
   findAppointment,
@@ -60,7 +67,7 @@ const STATUS_OPTIONS: { value: AppointmentStatus; label: string; permission?: st
 export const AppointmentDetailPage: React.FC = () => {
   const navigate = useNavigate()
   const { id } = useParams()
-  const { patients, appointments } = useClinicData()
+  const { patients, appointments, patientConsents = [] } = useClinicData()
   const clinicToday = useClinicToday()
 
   const appointment = useMemo(() => findAppointment(appointments, id), [appointments, id])
@@ -135,6 +142,35 @@ export const AppointmentDetailPage: React.FC = () => {
   const [showCancel, setShowCancel] = useState(false)
   const [showWhatsApp, setShowWhatsApp] = useState(false)
   const [showMaterialModal, setShowMaterialModal] = useState(false)
+  const [activeConsentModal, setActiveConsentModal] = useState<PatientConsentRecord | null>(null)
+
+  const appointmentConsent = useMemo(() => {
+    if (!appointment) return undefined
+    const targetApptIds = new Set(
+      [appointment.id, appointment.backendId]
+        .filter((v): v is string => Boolean(v))
+        .map((v) => v.toLowerCase()),
+    )
+    const targetPatientIds = new Set(
+      [appointment.patientId, patient?.id, patient?.backendId]
+        .filter((v): v is string => Boolean(v))
+        .map((v) => v.toLowerCase()),
+    )
+    const procKey = (appointment.treatmentType || appointment.visitType || '').trim().toLowerCase()
+    return (patientConsents as PatientConsentRecord[]).find(
+      (c) =>
+        (c.appointmentId && targetApptIds.has(c.appointmentId.toLowerCase())) ||
+        (((c.patientId && targetPatientIds.has(c.patientId.toLowerCase())) ||
+          (c.patientUuid && targetPatientIds.has(c.patientUuid.toLowerCase()))) &&
+          procKey &&
+          (c.procedureName || c.consentType || '').trim().toLowerCase() === procKey),
+    )
+  }, [appointment, patientConsents, patient?.id, patient?.backendId])
+
+  const requiresConsent = useMemo(
+    () => Boolean(appointment && matchFrontendConsentTemplate(appointment.treatmentType || appointment.visitType)),
+    [appointment],
+  )
 
   const [rescheduleDate, setRescheduleDate] = useState(appointment?.date || '')
   const [rescheduleTime, setRescheduleTime] = useState(appointment?.time || '10:00')
@@ -352,6 +388,46 @@ export const AppointmentDetailPage: React.FC = () => {
         </div>
       </div>
 
+      {requiresConsent && (appointmentConsent ? isConsentPending(appointmentConsent.status) : true) && (appointment.status === 'checked-in' || appointment.status === 'in-progress') && (
+        <div
+          role="alert"
+          style={{
+            margin: '10px 0',
+            padding: '10px 14px',
+            borderRadius: '8px',
+            background: '#fef3c7',
+            border: '1px solid #fcd34d',
+            color: '#92400e',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '10px',
+            flexWrap: 'wrap',
+            fontSize: '13px',
+          }}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            <AlertTriangle size={16} />
+            <strong>Consent Required Before Treatment:</strong> Patient has not yet signed the informed consent for{' '}
+            {appointment.treatmentType || appointment.visitType}.
+          </span>
+          {appointmentConsent ? (
+            <button
+              type="button"
+              onClick={() => setActiveConsentModal(appointmentConsent)}
+              className="btn-appt-action"
+              style={{ background: '#92400e', color: '#fff', border: 'none' }}
+            >
+              Open &amp; Sign Consent
+            </button>
+          ) : (
+            <Link to={`/patients/${patient.id}?tab=consents`} className="btn-appt-action">
+              Open Patient Consents
+            </Link>
+          )}
+        </div>
+      )}
+
       {/* Main Details Grid */}
       <div className="appointment-detail-grid">
         <div>
@@ -378,6 +454,41 @@ export const AppointmentDetailPage: React.FC = () => {
           <span>Priority</span>
           <strong className="text-capitalize">{appointment.priority || 'Normal'}</strong>
         </div>
+        {(appointmentConsent || requiresConsent) && (
+          <div>
+            <span>Informed Consent</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '2px' }}>
+              {appointmentConsent ? (
+                <>
+                  <span
+                    style={{
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      background: getConsentStatusMeta(appointmentConsent.status).bg,
+                      color: getConsentStatusMeta(appointmentConsent.status).color,
+                      border: `1px solid ${getConsentStatusMeta(appointmentConsent.status).border}`,
+                    }}
+                  >
+                    {getConsentStatusMeta(appointmentConsent.status).label}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveConsentModal(appointmentConsent)}
+                    style={{ background: 'none', border: 'none', color: '#0b8185', fontWeight: 600, cursor: 'pointer', fontSize: '12.5px', padding: 0 }}
+                  >
+                    Open Consent Form
+                  </button>
+                </>
+              ) : (
+                <Link to={`/patients/${patient.id}?tab=consents`} style={{ color: '#0b8185', fontWeight: 600, fontSize: '12.5px' }}>
+                  View Consent Records
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {actionError && <p role="alert">{actionError}</p>}
@@ -647,6 +758,16 @@ export const AppointmentDetailPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {activeConsentModal && (
+        <ConsentDocumentModal
+          consent={activeConsentModal}
+          patient={patient}
+          initialTab={isConsentPending(activeConsentModal.status) ? 'sign' : 'document'}
+          onClose={() => setActiveConsentModal(null)}
+          onUpdated={(updated) => setActiveConsentModal(updated)}
+        />
       )}
 
       {showMaterialModal && (

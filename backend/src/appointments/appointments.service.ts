@@ -3,7 +3,8 @@ import { surgeryConsentPolicy } from '../common/clinical-governance.js';
 import { clinicInstant, localParts } from '../common/clinic-time.js';
 import { practitionerWhere } from '../common/practitioner.policy.js';
 import { Prisma } from '@prisma/client';
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Optional } from '@nestjs/common';
+import { ClinicalService } from '../clinical/clinical.service.js';
 import { canTransition } from './appointment-policy.js';
 import { AppointmentPriority, AppointmentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -14,7 +15,10 @@ import { CancelAppointmentDto } from './dto/cancel-appointment.dto.js';
 
 @Injectable()
 export class AppointmentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Optional() private clinicalService?: ClinicalService,
+  ) {}
 
   async getSchedulingConfig(clinicId: string) {
     const clinic = await this.clinicSettings(clinicId);
@@ -47,6 +51,16 @@ export class AppointmentsService {
       const duration = (slot.endTime.getTime() - slot.startTime.getTime()) / 60000;
       if (startMinute < minute(matches[0]) || startMinute + duration > minute(matches[1])) throw new BadRequestException('Appointment falls outside clinic working hours.');
     }
+    const localForLunch = localParts(slot.startTime, clinic.timezone);
+    const lunchStartMin = 13 * 60;
+    const lunchEndMin = 14 * 60;
+    const reqStartMin = Number(localForLunch.time.slice(0, 2)) * 60 + Number(localForLunch.time.slice(3));
+    const reqDurationMin = (slot.endTime.getTime() - slot.startTime.getTime()) / 60000;
+    const reqEndMin = reqStartMin + reqDurationMin;
+    if (reqStartMin < lunchEndMin && reqEndMin > lunchStartMin) {
+      throw new BadRequestException('Appointments cannot be booked during the clinic lunch break (13:00 - 14:00).');
+    }
+
     const resources = [...(slot.doctorId ? [{ doctorId: slot.doctorId }] : []), ...(slot.chair ? [{ operatoryChair: slot.chair }] : [])];
     if (resources.length && await tx.appointment.findFirst({ where: {
       clinicId: clinic.id, ...(exceptId ? { id: { not: exceptId } } : {}),
@@ -307,7 +321,26 @@ export class AppointmentsService {
       },
     });
 
-    return this.serializeAppointment(created, clinic.timezone);
+    const generatedConsents = this.clinicalService
+      ? await this.clinicalService.autoGenerateConsentsForAppointment(
+          tx,
+          clinicId,
+          {
+            id: created.id,
+            patientId: created.patientId,
+            doctorId: created.doctorId,
+            doctorName: created.doctor?.fullName || dto.doctorName || null,
+            treatmentType: created.treatmentType,
+            visitType: created.visitType,
+          },
+          actorId,
+        )
+      : [];
+
+    return {
+      ...this.serializeAppointment(created, clinic.timezone),
+      generatedConsents,
+    };
     });
   }
 
@@ -404,7 +437,41 @@ export class AppointmentsService {
       },
     });
 
-    return this.serializeAppointment(updated, clinic.timezone);
+    if (this.clinicalService) {
+      if (statusChanged && nextStatus === 'cancelled') {
+        await this.clinicalService.handleAppointmentCancellation(tx, clinicId, id, reason, actorId);
+      } else if (dto.treatmentType !== undefined && dto.treatmentType !== existing.treatmentType) {
+        await this.clinicalService.handleAppointmentProcedureChange(
+          tx,
+          clinicId,
+          {
+            id: updated.id,
+            patientId: updated.patientId,
+            doctorId: updated.doctorId,
+            doctorName: updated.doctor?.fullName || null,
+            treatmentType: updated.treatmentType,
+          },
+          actorId,
+        );
+      }
+    }
+
+    let consentWarning: string | undefined;
+    if (nextStatus === 'checked-in' && tx.patientConsent) {
+      const pendingConsents = await tx.patientConsent.count({
+        where: {
+          clinicId,
+          appointmentId: id,
+          status: { in: ['DRAFT', 'PENDING_SIGNATURE', 'Pending'] },
+        },
+      });
+      if (pendingConsents > 0) {
+        consentWarning = 'Informed consent is still pending patient signature for this procedure.';
+      }
+    }
+
+    const serialized = this.serializeAppointment(updated, clinic.timezone);
+    return consentWarning ? { ...serialized, consentWarning } : serialized;
     });
   }
 
