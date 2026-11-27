@@ -351,6 +351,8 @@ model Appointment {
   // Compound foreign keys guaranteeing cross-clinic data integrity at the database engine level
   patient Patient @relation(fields: [patientId, clinicId], references: [id, clinicId], onDelete: Restrict)
   doctor  User?   @relation("DoctorAppointments", fields: [doctorId, clinicId], references: [id, clinicId], onDelete: Restrict)
+  documents PatientDocument[]
+  @@unique([id, patientId, clinicId])
   clinicalNotes ClinicalNote[]
   treatmentPlans TreatmentPlan[]
   invoices       Invoice[]
@@ -393,6 +395,18 @@ model PatientDocument {
   id         String   @id @default(uuid())
   clinicId   String
   patientId  String
+  uploadRequestId String?
+  @@unique([clinicId, uploadRequestId])
+  appointmentId String?
+  imagingType String?
+  photographClass String?
+  toothNumbers Int[] @default([])
+  treatmentContext String?
+  documentDate DateTime? @db.Date
+  uploadedById String?
+  uploadedByName String?
+  sizeBytes Int?
+  archivedAt DateTime?
   title      String
   category   String   // 'Radiology' | 'Intraoral Photo' | 'Lab Report' | 'Prescription' | 'Consent' | 'Other'
   fileName   String
@@ -410,6 +424,9 @@ model PatientDocument {
   @@unique([id, clinicId])
   @@index([clinicId, patientId])
   @@index([clinicId, category])
+  appointment Appointment? @relation(fields: [appointmentId, patientId, clinicId], references: [id, patientId, clinicId], onDelete: Restrict)
+  @@index([clinicId, patientId, createdAt])
+  @@index([clinicId, appointmentId])
 }
 
 // ------------------------------------------

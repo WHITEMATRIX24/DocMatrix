@@ -1,3 +1,4 @@
+import { PatientDocumentsPanel } from '@/components/documents/PatientDocumentsPanel'
 import { validateWhatsAppPhone } from '@/services/whatsappService'
 import { canRescheduleAppointment, canTransitionAppointment, getAppointmentTimeSlots, getClinicNow, useClinicToday } from '@/services/appointmentPolicy'
 import { canClinic, getPermissionUser, type ClinicOperation } from '@/services/permissions'
@@ -807,6 +808,7 @@ export const AppointmentDetailPage: React.FC = () => {
         toast={invoiceToast}
         onClose={() => setInvoiceToast(null)}
       />
+      {patient && canClinic(getPermissionUser(), 'document.read') && <PatientDocumentsPanel key={appointment.backendId || appointment.id} patientId={patient.backendId || patient.id} appointmentId={appointment.backendId || appointment.id} />}
     </section>
   )
 }

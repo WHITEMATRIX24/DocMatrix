@@ -109,7 +109,7 @@ describe('DocMatrix — Clinical Module Restructuring & Navigation Verification'
   })
 
   // 4. PATIENT PROFILE X-RAYS & DOCUMENTS INTEGRATION
-  it('displays X-rays & Documents tab in Patient Profile and supports deep linking', () => {
+  it('displays Documents & Imaging in Patient Profile and supports legacy deep linking', () => {
     seedClinicFixture()
     render(
       <MemoryRouter initialEntries={['/patients/pt-1001?tab=x-rays']}>
@@ -128,8 +128,8 @@ describe('DocMatrix — Clinical Module Restructuring & Navigation Verification'
     expect(docsTabBtn).toHaveClass('is-active')
 
     // Verify diagnostic radiographs content is visible
-    expect(screen.getByText(/Diagnostic Records & Radiographs/i)).toBeInTheDocument()
-    expect(screen.getByText(/Intraoral RVG scans, panoramic radiographs/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Documents & Imaging' })).toBeInTheDocument()
+    expect(screen.getByText(/Complete patient document history/i)).toBeInTheDocument()
   })
 
   // 5. ALTERNATIVE ACCESS PATHS FOR ORDERS AND ESTIMATES

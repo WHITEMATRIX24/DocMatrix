@@ -5,8 +5,8 @@ import { MAX_FILE_SIZE_BYTES } from './storage.service.js';
 export const CLINICAL_UPLOAD_LIMITS = Object.freeze({
   fileSize: MAX_FILE_SIZE_BYTES,
   files: 1,
-  fields: 10,
-  parts: 11,
+  fields: 16,
+  parts: 17,
   fieldSize: 64 * 1024,
   fieldNameSize: 100,
   headerPairs: 100,

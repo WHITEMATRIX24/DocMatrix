@@ -122,7 +122,7 @@ describe('ClinicalService - Clinical Modules & Multi-Tenant Isolation', () => {
       mockPrisma.patientDocument.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.deleteDocument('clinic-A', 'pt-1001', 'doc-from-clinic-B'),
+        service.deleteDocument('clinic-A', 'pt-1001', 'doc-from-clinic-B', { id: 'admin', role: 'BRANCH_ADMIN' } as any),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -148,12 +148,13 @@ describe('ClinicalService - Clinical Modules & Multi-Tenant Isolation', () => {
         updatedAt: now,
       });
 
+      service = new ClinicalService(mockPrisma, { uploadPatientDocument: vi.fn(async () => ({ fileKey: 'safe-key-1.dcm', fileName: 'rvg_scan.dcm', fileSize: '4.2 MB', mimeType: 'application/dicom' })) } as any);
       const created = await service.createDocument('clinic-A', 'pt-1001', {
         title: 'Diagnostic RVG X-Ray',
         category: 'Radiology',
         fileName: 'rvg_scan.dcm',
         fileSize: '4.2 MB',
-      });
+      }, { buffer: Buffer.from('dicom'), originalname: 'rvg_scan.dcm' });
 
       expect(created.id).toBe('doc-uuid-1');
       expect(created.patientId).toBe('pt-1001');

@@ -24,6 +24,7 @@ export const getStoredToken = (): string | null => {
 };
 
 interface RequestOptions {
+  responseType?: 'blob';
   headers?: Record<string, string>;
   params?: Record<string, any>;
   signal?: AbortSignal;
@@ -237,7 +238,50 @@ class ApiClient {
       return {} as T;
     }
 
+    if (options?.responseType === 'blob') return await response.blob() as T;
     return response.json();
+  }
+
+  getBlob(endpoint: string, signal?: AbortSignal): Promise<Blob> {
+    return this.request<Blob>(endpoint, 'GET', undefined, { responseType: 'blob', signal });
+  }
+
+  async upload<T = any>(endpoint: string, data: FormData, onProgress: (value: number) => void, signal?: AbortSignal, retry = false): Promise<T> {
+    const token = getStoredToken();
+    const version = getAuthSessionVersion();
+    try {
+      return await new Promise<T>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const abort = () => xhr.abort();
+        const fail = (message: string, status = 0) => reject(Object.assign(new Error(message), { status }));
+        xhr.open('POST', this.buildUrl(endpoint));
+        xhr.withCredentials = true;
+        xhr.timeout = 120000;
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(Math.round(e.loaded / e.total * 100)); };
+        xhr.onloadend = () => signal?.removeEventListener('abort', abort);
+        xhr.onerror = () => fail('Upload connection failed. Check the history before retrying.');
+        xhr.ontimeout = () => fail('Upload timed out. Check the history before retrying.');
+        xhr.onabort = () => fail('Upload cancelled.');
+        xhr.onload = () => {
+          if (getAuthSessionVersion() !== version) return fail('Session changed during upload.');
+          let result: any;
+          try { result = JSON.parse(xhr.responseText); } catch { return fail('Invalid upload response.', xhr.status); }
+          if (xhr.status >= 200 && xhr.status < 300) resolve(result);
+          else fail(Array.isArray(result.message) ? result.message.join(', ') : result.message || 'Upload failed.', xhr.status);
+        };
+        signal?.addEventListener('abort', abort, { once: true });
+        if (signal?.aborted) { fail('Upload cancelled.'); return; }
+        xhr.send(data);
+      });
+    } catch (error: any) {
+      if (error.status === 401 && !retry && !signal?.aborted && getAuthSessionVersion() === version && token && getStoredToken()) {
+        const refreshed = getStoredToken() !== token ? getStoredToken() : await requestNewAccessToken();
+        if (refreshed) return this.upload(endpoint, data, onProgress, signal, true);
+      }
+      throw error;
+    }
   }
 
   get<T = any>(endpoint: string, params?: Record<string, any>, options?: RequestOptions): Promise<T> {

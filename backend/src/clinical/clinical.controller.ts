@@ -1,3 +1,4 @@
+import { DocumentQueryDto } from './dto/document-query.dto.js';
 import { CLINICAL_UPLOAD_LIMITS, clinicalDownloadHeaders } from '../storage/upload-limits.js';
 import { RequireOperation } from '../common/decorators/operation-permission.decorator.js';
 import {
@@ -153,8 +154,21 @@ export class ClinicalController {
   async getDocuments(
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
+    @Query() query: DocumentQueryDto = {},
   ) {
-    return this.clinicalService.getDocuments(user.clinicId!, patientId, user);
+    return this.clinicalService.getDocuments(user.clinicId!, patientId, user, query);
+  }
+
+  @Get('patients/:patientId/document-appointments')
+  @RequireOperation('document.read')
+  documentAppointments(@CurrentUser() user: AuthenticatedUser, @Param('patientId') patientId: string) {
+    return this.clinicalService.documentAppointments(user.clinicId!, patientId);
+  }
+
+  @Post('patients/:patientId/documents/:docId/restore')
+  @RequireOperation('document.delete')
+  restoreDocument(@CurrentUser() user: AuthenticatedUser, @Param('patientId') patientId: string, @Param('docId') docId: string) {
+    return this.clinicalService.setDocumentArchived(user.clinicId!, patientId, docId, false, user);
   }
 
   @Post('patients/:patientId/documents')
@@ -195,19 +209,15 @@ export class ClinicalController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('patientId') patientId: string,
     @Param('docId') docId: string,
-    @Query('redirect') redirect: string,
+    @Query('redirect') _redirect: string,
     @Res() res: Response,
   ) {
-    const { fileName, mimeType, buffer, signedUrl } = await this.clinicalService.downloadDocument(
+    const { fileName, mimeType, buffer } = await this.clinicalService.downloadDocument(
       user.clinicId!,
       patientId,
       docId,
       user,
     );
-
-    if (redirect === 'true' && signedUrl) {
-      return res.redirect(signedUrl);
-    }
 
     clinicalDownloadHeaders(res, false);
     res.setHeader('Content-Type', mimeType);
@@ -248,7 +258,7 @@ export class ClinicalController {
     @Param('patientId') patientId: string,
     @Param('docId') docId: string,
   ) {
-    return this.clinicalService.deleteDocument(user.clinicId!, patientId, docId);
+    return this.clinicalService.deleteDocument(user.clinicId!, patientId, docId, user);
   }
 
   // -------------------------------------------------------------------------

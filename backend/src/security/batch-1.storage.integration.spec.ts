@@ -83,7 +83,7 @@ describe('Batch 1: real HTTP multipart limits and preview headers', () => {
       if (kind === 'files')
         req = req.attach('file', pdf, 'one.pdf').attach('file', pdf, 'two.pdf');
       if (kind === 'fields')
-        for (let i = 0; i < 11; i++) req = req.field(`field${i}`, 'value');
+        for (let i = 0; i < 17; i++) req = req.field(`field${i}`, 'value');
       if (kind === 'field size')
         req = req.field('notes', 'x'.repeat(64 * 1024 + 1));
       expect([400, 413]).toContain((await req).status);

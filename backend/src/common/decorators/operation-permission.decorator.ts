@@ -50,7 +50,7 @@ export const OPERATION_ROLES: Readonly<
   'report.follow_up': intake,
   'clinical.read': clinicians,
   'clinical.write': [StaffRole.DOCTOR],
-  // Receptionist access is further restricted by document category in ClinicalService.
+  // Patient documents use the same clinic intake permissions as uploads.
   'document.read': intake,
   'document.write': intake,
   'document.delete': admins,

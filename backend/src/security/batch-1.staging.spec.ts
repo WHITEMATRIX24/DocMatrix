@@ -7,7 +7,7 @@ import { InventoryController } from '../inventory/inventory.controller.js';
 import { TenantGuard } from '../common/guards/tenant.guard.js';
 
 const receptionist: any = { id: 'staff', role: 'RECEPTIONIST', clinicId: 'clinic', isPlatformAdmin: false };
-const categories = ['Identification', 'Consent', 'Referral'];
+const categories = ['Identification', 'Consent', 'Referral', 'Dental X-rays', 'Clinical Photographs', 'Medical Reports', 'Dental Reports', 'Scanned Documents', 'Prescriptions', 'Other Documents'];
 function fixture() {
   const db: any = {
     patient: { findFirst: vi.fn(async () => ({ id: 'patient', patientCode: 'PAT-1' })) },
@@ -17,45 +17,47 @@ function fixture() {
       create: vi.fn(async ({ data }) => ({ ...data, id: 'doc', createdAt: new Date(), updatedAt: new Date() })),
     },
   };
-  const storage: any = { isCloudStorageEnabled: vi.fn(() => true), getSignedDownloadUrl: vi.fn() };
+  db.$transaction = (work: any) => work(db);
+  db.auditEvent = { create: vi.fn() };
+  const storage: any = { uploadPatientDocument: vi.fn(async () => ({fileKey:'clinics/clinic/patients/patient/report.pdf',fileName:'report.pdf',fileSize:'1 KB',mimeType:'application/pdf'})), isCloudStorageEnabled: vi.fn(() => true), getSignedDownloadUrl: vi.fn() };
   return { db, storage, service: new ClinicalService(db, storage) };
 }
 
 describe('Batch 1 staging workflow regressions', () => {
   it.each(categories)('allows receptionist upload of %s', async category => {
     const { db, service } = fixture();
-    const doc = await service.createDocument('clinic', 'PAT-1', { title: 'Synthetic intake', category }, undefined, receptionist);
+    const doc = await service.createDocument('clinic', 'PAT-1', { title: 'Synthetic intake', category }, {buffer:Buffer.from('synthetic'),originalname:'report.pdf'}, receptionist);
     expect(doc.category).toBe(category);
     expect(db.patientDocument.create.mock.calls[0][0].data).toMatchObject({ clinicId: 'clinic', patientId: 'patient' });
   });
 
-  it.each(['Radiology', 'Prescription', 'Lab Report', 'Other', 'consent'])('denies receptionist upload of %s before any storage or database write', async category => {
+  it.each(['unknown', 'consent'])('denies unsupported category %s before any storage or database write', async category => {
     const { db, service, storage } = fixture();
-    await expect(service.createDocument('clinic', 'PAT-1', { title: 'Synthetic', category }, undefined, receptionist)).rejects.toThrow(/Receptionists/);
+    await expect(service.createDocument('clinic', 'PAT-1', { title: 'Synthetic', category }, undefined, receptionist)).rejects.toThrow(/supported category/);
     expect(db.patient.findFirst).not.toHaveBeenCalled();
     expect(db.patientDocument.create).not.toHaveBeenCalled();
     expect(storage.getSignedDownloadUrl).not.toHaveBeenCalled();
   });
 
-  it('scopes clinic-wide and patient document lists to intake categories', async () => {
+  it('scopes clinic-wide and patient documents to active records in the clinic', async () => {
     const { db, service } = fixture();
     await service.getAllClinicDocuments('clinic', receptionist);
-    expect(db.patientDocument.findMany.mock.calls[0][0].where).toEqual({ clinicId: 'clinic', category: { in: categories } });
+    expect(db.patientDocument.findMany.mock.calls[0][0].where).toEqual({ clinicId: 'clinic', archivedAt: null });
     await service.getDocuments('clinic', 'PAT-1', receptionist);
-    expect(db.patientDocument.findMany.mock.calls[1][0].where).toEqual({ clinicId: 'clinic', patientId: 'patient', category: { in: categories } });
+    expect(db.patientDocument.findMany.mock.calls[1][0].where).toEqual({ clinicId: 'clinic', patientId: 'patient', archivedAt: null });
   });
 
-  it.each(['getDocument', 'getDocumentSignedUrl', 'downloadDocument'] as const)('prevents direct-ID clinical/foreign access through %s without signing or reading storage', async method => {
+  it.each(['getDocument', 'getDocumentSignedUrl', 'downloadDocument'] as const)('prevents direct-ID foreign or archived document access through %s without signing or reading storage', async method => {
     const { db, service, storage } = fixture();
     await expect(service[method]('clinic', 'PAT-1', 'foreign-or-clinical-document', receptionist)).rejects.toThrow(/not found/);
-    expect(db.patientDocument.findFirst.mock.calls[0][0].where).toEqual({ clinicId: 'clinic', patientId: 'patient', id: 'foreign-or-clinical-document', category: { in: categories } });
+    expect(db.patientDocument.findFirst.mock.calls[0][0].where).toEqual({ clinicId: 'clinic', patientId: 'patient', id: 'foreign-or-clinical-document', archivedAt: null });
     expect(storage.getSignedDownloadUrl).not.toHaveBeenCalled();
   });
 
   it('preserves full document scope for doctors', async () => {
     const { db, service } = fixture();
     await service.getDocuments('clinic', 'PAT-1', { ...receptionist, role: 'DOCTOR' });
-    expect(db.patientDocument.findMany.mock.calls[0][0].where).toEqual({ clinicId: 'clinic', patientId: 'patient' });
+    expect(db.patientDocument.findMany.mock.calls[0][0].where).toEqual({ clinicId: 'clinic', patientId: 'patient', archivedAt: null });
   });
 
   it('passes authenticated document scope through every public read/upload handler', async () => {
@@ -71,7 +73,7 @@ describe('Batch 1 staging workflow regressions', () => {
     await controller.downloadDocument(receptionist, 'PAT-1', 'doc', 'false', response);
     await controller.previewDocument(receptionist, 'PAT-1', 'doc', 'false', response);
     for (const mock of Object.values(service) as any[]) {
-      for (const args of mock.mock.calls) expect(args.at(-1)).toBe(receptionist);
+      for (const args of mock.mock.calls) expect(args).toContain(receptionist);
     }
   });
 

@@ -1,3 +1,4 @@
+import { DocumentQueryDto } from './dto/document-query.dto.js';
 import { Prisma } from '@prisma/client';
 import { VALID_TEETH, TOOTH_CONDITIONS } from './dto/save-tooth-condition.dto.js';
 import { assertDocumentOwnership } from '../storage/document-key.policy.js';
@@ -12,7 +13,7 @@ import {
   SaveToothConditionDto,
   BatchSaveToothConditionsDto,
 } from './dto/save-tooth-condition.dto.js';
-import { CreateDocumentDto } from './dto/create-document.dto.js';
+import { ADULT_TEETH, DOCUMENT_CATEGORIES, CreateDocumentDto } from './dto/create-document.dto.js';
 import { CreateConsentDto } from './dto/create-consent.dto.js';
 import { UpdateConsentDto } from './dto/update-consent.dto.js';
 import {
@@ -201,15 +202,15 @@ export class ClinicalService {
   // 2. PATIENT DOCUMENTS
   // =========================================================================
 
-  private readonly intakeDocumentCategories = ['Identification', 'Consent', 'Referral'];
+  private documentScope(_actor?: AuthenticatedUser) { return { archivedAt: null }; }
 
-  private documentScope(actor?: AuthenticatedUser) {
-    return actor?.role === 'RECEPTIONIST' && !actor.isPlatformAdmin
-      ? { category: { in: this.intakeDocumentCategories } }
-      : {};
+  async documentAppointments(clinicId: string, patientRef: string) {
+    const patient = await this.resolvePatient(clinicId, patientRef);
+    return this.prisma.appointment.findMany({ where: { clinicId, patientId: patient.id },
+      select: { id: true, startTime: true, treatmentType: true, visitType: true }, orderBy: { startTime: 'desc' } });
   }
 
-  private serializeDocument(doc: any, patientCode?: string, signedUrl?: string | null) {
+  private serializeDocument(doc: any, patientCode?: string) {
     const code = patientCode || doc.patient?.patientCode || doc.patientId;
     return {
       id: doc.id,
@@ -224,38 +225,36 @@ export class ClinicalService {
         .slice(0, 10),
       doctor: doc.doctorName || null,
       notes: doc.notes || undefined,
-      downloadUrl: `/patients/${code}/documents/${doc.id}/download`,
-      previewUrl: `/patients/${code}/documents/${doc.id}/preview`,
-      signedUrl: signedUrl || undefined,
+      downloadUrl: `/patients/${encodeURIComponent(code)}/documents/${doc.id}/download`,
+      previewUrl: `/patients/${encodeURIComponent(code)}/documents/${doc.id}/preview`,
+      appointmentId: doc.appointmentId, appointment: doc.appointment,
+      imagingType: doc.imagingType, photographClass: doc.photographClass,
+      toothNumbers: doc.toothNumbers || [], treatmentContext: doc.treatmentContext,
+      documentDate: doc.documentDate, uploadedById: doc.uploadedById,
+      uploadedByName: doc.uploadedByName || doc.doctorName, sizeBytes: doc.sizeBytes,
+      archivedAt: doc.archivedAt,
       createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : new Date(doc.createdAt).toISOString(),
       updatedAt: doc.updatedAt instanceof Date ? doc.updatedAt.toISOString() : new Date(doc.updatedAt).toISOString(),
     };
   }
 
-  async getDocuments(clinicId: string, patientIdOrCode: string, actor?: AuthenticatedUser) {
+  async getDocuments(clinicId: string, patientIdOrCode: string, actor?: AuthenticatedUser, query: DocumentQueryDto = {}) {
     const patient = await this.resolvePatient(clinicId, patientIdOrCode);
-
+    if (query.archived === 'true' && !actor?.isPlatformAdmin && !['ORGANIZATION_ADMIN','BRANCH_ADMIN'].includes(actor?.role || '')) throw new ForbiddenException('Archive access requires an administrator.');
+    if (query.from && query.to && new Date(query.from) > new Date(query.to)) throw new BadRequestException('Start date must precede end date.');
+    if (query.appointmentId && !await this.prisma.appointment.findFirst({ where: { id: query.appointmentId, clinicId, patientId: patient.id } })) throw new NotFoundException('Appointment not found for this patient.');
     const docs = await this.prisma.patientDocument.findMany({
-      where: {
-        clinicId,
-        patientId: patient.id,
-        ...this.documentScope(actor),
-      },
-      orderBy: { createdAt: 'desc' },
+      where: { clinicId, patientId: patient.id, archivedAt: query.archived === 'true' ? { not: null } : null,
+        ...(query.category ? { category: query.category } : {}),
+        ...(query.imagingType ? { imagingType: query.imagingType } : {}),
+        ...(query.appointmentId ? { appointmentId: query.appointmentId } : {}),
+        ...(query.uploader ? { uploadedById: query.uploader } : {}),
+        ...(query.search ? { title: { contains: query.search, mode: 'insensitive' } } : {}),
+        ...(query.from || query.to ? { createdAt: { ...(query.from ? { gte: new Date(query.from) } : {}), ...(query.to ? { lte: new Date(query.to) } : {}) } } : {}),
+      }, include: { appointment: { select: { id: true, startTime: true, treatmentType: true, visitType: true } } },
+      orderBy: [{ createdAt: query.sort === 'asc' ? 'asc' : 'desc' }, { id: 'desc' }],
     });
-
-    return Promise.all(
-      docs.map(async (d) => {
-        assertDocumentOwnership(d.fileKey, clinicId, patient.id);
-        let signedUrl: string | null = null;
-        if (this.storageService && this.storageService.isCloudStorageEnabled() && (d.fileKey.startsWith('clinics/') || d.fileKey.startsWith(`${clinicId}/`))) {
-          try {
-            signedUrl = await this.storageService.getSignedDownloadUrl(d.fileKey, d.fileName, 900);
-          } catch {}
-        }
-        return this.serializeDocument(d, patient.patientCode, signedUrl);
-      }),
-    );
+    return docs.map(d => this.serializeDocument(d, patient.patientCode));
   }
 
   async createDocument(
@@ -265,12 +264,22 @@ export class ClinicalService {
     file?: any,
     actor?: AuthenticatedUser,
   ) {
-    if (actor?.role === 'RECEPTIONIST' && !actor.isPlatformAdmin &&
-        !this.intakeDocumentCategories.includes(dto.category.trim())) {
-      throw new ForbiddenException('Receptionists may upload only Identification, Consent or Referral documents.');
-    }
+    if (!DOCUMENT_CATEGORIES.includes(dto.category) || !dto.title?.trim()) throw new BadRequestException('A name and supported category are required.');
+    const xray = ['Dental X-rays', 'Radiology'].includes(dto.category);
+    const photo = ['Clinical Photographs', 'Intraoral Photo'].includes(dto.category);
+    if (dto.imagingType && (!xray || !['IOPA','OPG','CBCT','Other'].includes(dto.imagingType))) throw new BadRequestException('Imaging type applies only to dental X-rays.');
+    if (dto.photographClass && (!photo || !['Before Treatment','During Treatment','After Treatment','General Clinical Photograph'].includes(dto.photographClass))) throw new BadRequestException('Invalid clinical photograph classification.');
+    if (dto.toothNumbers?.length && ((!xray && !photo) || dto.toothNumbers.some(t => !ADULT_TEETH.includes(t)) || new Set(dto.toothNumbers).size !== dto.toothNumbers.length)) throw new BadRequestException('Supply unique permanent FDI teeth for photographs or dental X-rays.');
     const patient = await this.resolvePatient(clinicId, patientIdOrCode);
 
+    if (dto.appointmentId && !await this.prisma.appointment.findFirst({ where: { id: dto.appointmentId, clinicId, patientId: patient.id } })) throw new BadRequestException('Appointment does not belong to this patient and clinic.');
+    if (dto.uploadRequestId) {
+      const previous = await this.prisma.patientDocument.findFirst({ where: { clinicId, uploadRequestId: dto.uploadRequestId } });
+      if (previous) {
+        if (previous.patientId !== patient.id || previous.archivedAt) throw new BadRequestException('Upload reference is already used.');
+        return this.serializeDocument(previous, patient.patientCode);
+      }
+    }
     let fileBuffer: Buffer | null = null;
     const originalName = file?.originalname || dto.fileName || `${dto.title.trim().toLowerCase().replace(/\s+/g, '_')}.bin`;
     const claimedMime = file?.mimetype || dto.mimeType;
@@ -281,62 +290,42 @@ export class ClinicalService {
       fileBuffer = Buffer.from(dto.contentBase64, 'base64');
     }
 
-    let fileKey: string;
-    let finalFileName = originalName;
-    let finalFileSize = dto.fileSize || '1.0 MB';
-    let finalMimeType = claimedMime || 'application/octet-stream';
-
-    if (fileBuffer && fileBuffer.length > 0) {
-      if (this.storageService) {
-        const uploadResult = await this.storageService.uploadPatientDocument({
-          clinicId,
-          patientId: patient.id,
-          category: dto.category,
-          buffer: fileBuffer,
-          originalFilename: originalName,
-          claimedMimeType: claimedMime,
-          doctorName: dto.doctorName,
-        });
-        fileKey = uploadResult.fileKey;
-        finalFileName = uploadResult.fileName;
-        finalFileSize = uploadResult.fileSize;
-        finalMimeType = uploadResult.mimeType;
-      } else {
-        const ext = path.extname(originalName) || '.dcm';
-        fileKey = `clinics/${clinicId}/patients/${patient.id}/${Date.now()}-${crypto.randomUUID()}${ext}`;
-        const clinicDir = path.join(this.storageRoot, clinicId);
-        if (!fs.existsSync(clinicDir)) fs.mkdirSync(clinicDir, { recursive: true });
-        fs.writeFileSync(path.join(clinicDir, path.basename(fileKey)), fileBuffer);
-        finalFileSize = `${(fileBuffer.length / (1024 * 1024)).toFixed(1)} MB`;
+    if (!fileBuffer?.length) throw new BadRequestException('A non-empty document file is required.');
+    if (!this.storageService) throw new BadRequestException('Secure storage is unavailable.');
+    const upload = await this.storageService.uploadPatientDocument({ clinicId, patientId: patient.id,
+      category: dto.category, buffer: fileBuffer, originalFilename: originalName, claimedMimeType: claimedMime,
+      doctorName: actor?.fullName });
+    let doc;
+    try {
+      doc = await this.prisma.$transaction(async tx => {
+        const record = await tx.patientDocument.create({ data: {
+          uploadRequestId: dto.uploadRequestId || null, clinicId, patientId: patient.id, title: dto.title.trim(), category: dto.category,
+          fileName: upload.fileName, fileSize: upload.fileSize, fileKey: upload.fileKey, mimeType: upload.mimeType,
+          sizeBytes: fileBuffer!.length, doctorName: actor?.fullName || null,
+          notes: dto.notes?.trim() || null, appointmentId: dto.appointmentId || null,
+          imagingType: dto.imagingType || null, photographClass: dto.photographClass || null,
+          toothNumbers: dto.toothNumbers || [], treatmentContext: dto.treatmentContext || null,
+          documentDate: dto.documentDate ? new Date(dto.documentDate) : null,
+          uploadedById: actor?.id || null, uploadedByName: actor?.fullName || null,
+        } });
+        await this.documentAudit(tx, clinicId, record.id, patient.id, 'DOCUMENT_UPLOADED', actor);
+        return record;
+      });
+    } catch (error) {
+      await this.storageService.deleteDocument(upload.fileKey).catch(() => {});
+      if (dto.uploadRequestId && (error as any)?.code === 'P2002') {
+        const previous = await this.prisma.patientDocument.findFirst({ where: { clinicId, patientId: patient.id, uploadRequestId: dto.uploadRequestId, archivedAt: null } });
+        if (previous) return this.serializeDocument(previous, patient.patientCode);
       }
-    } else {
-      const ext = path.extname(originalName) || '.dcm';
-      fileKey = `clinics/${clinicId}/patients/${patient.id}/${Date.now()}-${crypto.randomUUID()}${ext}`;
+      throw error;
     }
+    return this.serializeDocument(doc, patient.patientCode);
+  }
 
-    const doc = await this.prisma.patientDocument.create({
-      data: {
-        clinicId,
-        patientId: patient.id,
-        title: dto.title.trim(),
-        category: dto.category.trim(),
-        fileName: finalFileName,
-        fileSize: finalFileSize,
-        fileKey,
-        mimeType: finalMimeType,
-        doctorName: dto.doctorName?.trim() || null,
-        notes: dto.notes?.trim() || null,
-      },
-    });
-
-    let signedUrl: string | null = null;
-    if (this.storageService && fileBuffer && this.storageService.isCloudStorageEnabled()) {
-      try {
-        signedUrl = await this.storageService.getSignedDownloadUrl(fileKey, finalFileName, 900);
-      } catch {}
-    }
-
-    return this.serializeDocument(doc, patient.patientCode, signedUrl);
+  private async documentAudit(tx: any, clinicId: string, documentId: string, patientId: string, action: string, actor?: AuthenticatedUser) {
+    await tx.auditEvent.create({ data: { id: crypto.randomUUID(), clinicId, module: 'Clinical', action,
+      actorId: actor?.id, actorName: actor?.fullName || 'System', actorRole: actor?.role || 'SYSTEM',
+      description: 'Patient document record action.', severity: 'info', outcome: 'SUCCESS', metadata: { documentId, patientId } } });
   }
 
   async getDocument(clinicId: string, patientIdOrCode: string, docId: string, actor?: AuthenticatedUser) {
@@ -356,49 +345,23 @@ export class ClinicalService {
     }
 
     assertDocumentOwnership(doc.fileKey, clinicId, patient.id);
-    let signedUrl: string | null = null;
-    if (this.storageService && this.storageService.isCloudStorageEnabled() && (doc.fileKey.startsWith('clinics/') || doc.fileKey.startsWith(`${clinicId}/`))) {
-      try {
-        signedUrl = await this.storageService.getSignedDownloadUrl(doc.fileKey, doc.fileName, 900);
-      } catch {}
-    }
-
-    return this.serializeDocument(doc, patient.patientCode, signedUrl);
+    return this.serializeDocument(doc, patient.patientCode);
   }
 
-  async deleteDocument(clinicId: string, patientIdOrCode: string, docId: string) {
-    const patient = await this.resolvePatient(clinicId, patientIdOrCode);
+  async deleteDocument(clinicId: string, patientRef: string, docId: string, actor?: AuthenticatedUser) {
+    return this.setDocumentArchived(clinicId, patientRef, docId, true, actor);
+  }
 
-    const doc = await this.prisma.patientDocument.findFirst({
-      where: {
-        id: docId,
-        clinicId,
-        patientId: patient.id,
-      },
+  async setDocumentArchived(clinicId: string, patientRef: string, docId: string, archived: boolean, actor?: AuthenticatedUser) {
+    if (!actor || !['ORGANIZATION_ADMIN', 'BRANCH_ADMIN'].includes(actor.role) && !actor.isPlatformAdmin) throw new ForbiddenException('Document retention management requires an administrator.');
+    const patient = await this.resolvePatient(clinicId, patientRef);
+    return this.prisma.$transaction(async tx => {
+      const existing = await tx.patientDocument.findFirst({ where: { id: docId, clinicId, patientId: patient.id } });
+      if (!existing) throw new NotFoundException('Document not found.');
+      await tx.patientDocument.update({ where: { id: docId }, data: { archivedAt: archived ? new Date() : null } });
+      await this.documentAudit(tx, clinicId, docId, patient.id, archived ? 'DOCUMENT_ARCHIVED' : 'DOCUMENT_RESTORED', actor);
+      return { success: true, message: archived ? 'Document archived; file and audit history retained.' : 'Document restored.' };
     });
-
-    if (!doc) {
-      throw new NotFoundException(`Document "${docId}" not found for this patient.`);
-    }
-
-    await this.prisma.patientDocument.delete({
-      where: { id: doc.id },
-    });
-
-    if (this.storageService) {
-      try {
-        await this.storageService.deleteDocument(doc.fileKey);
-      } catch {}
-    }
-
-    try {
-      const filePath = path.join(this.storageRoot, clinicId, path.basename(doc.fileKey));
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    } catch {}
-
-    return { success: true, message: 'Document deleted successfully.' };
   }
 
   async downloadDocument(clinicId: string, patientIdOrCode: string, docId: string, actor?: AuthenticatedUser) {
@@ -423,11 +386,6 @@ export class ClinicalService {
     let signedUrl: string | null = null;
 
     if (this.storageService) {
-      if (this.storageService.isCloudStorageEnabled() && (doc.fileKey.startsWith('clinics/') || doc.fileKey.startsWith(`${clinicId}/`))) {
-        try {
-          signedUrl = await this.storageService.getSignedDownloadUrl(doc.fileKey, doc.fileName, 900);
-        } catch {}
-      }
 
       try {
         const result = await this.storageService.getClinicDocumentBuffer(clinicId, patient.id, doc.fileKey);
@@ -478,12 +436,7 @@ export class ClinicalService {
     }
 
     assertDocumentOwnership(doc.fileKey, clinicId, patient.id);
-    let signedUrl: string | null = null;
-    if (this.storageService && this.storageService.isCloudStorageEnabled() && (doc.fileKey.startsWith('clinics/') || doc.fileKey.startsWith(`${clinicId}/`))) {
-      try {
-        signedUrl = await this.storageService.getSignedDownloadUrl(doc.fileKey, doc.fileName, 900);
-      } catch {}
-    }
+    const signedUrl: string | null = null;
 
     return {
       id: doc.id,

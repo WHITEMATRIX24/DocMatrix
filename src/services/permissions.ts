@@ -17,6 +17,8 @@ export const OPERATION_ROLES = {
   'patient.read': [...intake, 'ACCOUNTANT'],
   'patient.write': intake,
   'document.read': intake,
+  'document.write': intake,
+  'document.delete': admins,
   'consent.read': intake,
   'consent.write': intake,
   'consent.verify': [...admins, 'DOCTOR'],

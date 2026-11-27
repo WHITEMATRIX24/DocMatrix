@@ -1,4 +1,4 @@
-import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
+import { PatientDocumentsPanel } from '@/components/documents/PatientDocumentsPanel'
 import { canClinic, getPermissionUser, type ClinicOperation } from '@/services/permissions'
 import { getCurrentUser } from '@/services/authService'
 import React, { useMemo, useState, useEffect } from 'react'
@@ -20,7 +20,6 @@ import {
   Calendar,
   CheckCircle2,
   FileDown,
-  Upload,
   Edit3,
   Stethoscope,
   X,
@@ -39,8 +38,6 @@ import {
   useClinicData,
   updatePatient,
   computeAgeFromDob,
-  addPatientDocument,
-  deletePatientDocument,
   addPatientConsent,
   invoiceBalance,
   invoicePaidAmount,
@@ -133,20 +130,6 @@ const ACTIVITY_ICONS: Record<ActivityKind, React.ComponentType<{ size?: number }
   document: FileText,
   consent: CheckCircle2
 }
-
-/** Files up to this size are saved with the record; larger ones stay viewable until the page is reloaded. */
-const MAX_STORED_FILE_BYTES = 1.5 * 1024 * 1024
-
-const formatBytes = (bytes: number) =>
-  bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-
-const readAsDataUrl = (file: File) =>
-  new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(file)
-  })
 
 const digitsOnly = (value: string) => value.replace(/[^\d]/g, '')
 
@@ -682,16 +665,6 @@ export const PatientProfilePage: React.FC = () => {
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editForm, setEditForm] = useState<Partial<PatientRecord>>({})
 
-  // Document Upload Modal State
-  const [uploadModalOpen, setUploadModalOpen] = useState(false)
-  const [docTitle, setDocTitle] = useState('')
-  const intakeDocumentsOnly = getCurrentUser()?.role === 'RECEPTIONIST'
-  const [docCategory, setDocCategory] = useState<PatientDocumentRecord['category']>(intakeDocumentsOnly ? 'Identification' : 'Radiology')
-  const [docFile, setDocFile] = useState<File | null>(null)
-  const [docSaving, setDocSaving] = useState(false)
-  const [docNotice, setDocNotice] = useState('')
-  const [previewDoc, setPreviewDoc] = useState<PatientDocumentRecord | null>(null)
-
   // Consent Modal State
   const [consentModalOpen, setConsentModalOpen] = useState(false)
   const [consentType, setConsentType] = useState('Informed Consent for Dental Treatment')
@@ -751,108 +724,12 @@ export const PatientProfilePage: React.FC = () => {
     catch (error: any) { window.alert(error.message || 'Patient changes could not be saved.') }
   }
 
-  const closeUpload = () => {
-    setUploadModalOpen(false)
-    setDocFile(null)
-    setDocTitle('')
-  }
-
-  const pickDocFile = (file: File | null) => {
-    setDocFile(file)
-    if (file && !docTitle.trim()) setDocTitle(file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '))
-    if (file && /^image\//.test(file.type) && docCategory === 'Radiology' && /photo|img|intraoral/i.test(file.name)) setDocCategory('Intraoral Photo')
-  }
-
-  const handleUploadDoc = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!patient || !docTitle.trim() || !docFile) return
-    setDocSaving(true)
-    let url: string
-    let base64Data: string | undefined
-    try {
-      const dataUrl = await readAsDataUrl(docFile)
-      url = dataUrl
-      if (dataUrl.includes(',')) {
-        base64Data = dataUrl.split(',')[1]
-      }
-    } catch {
-      setDocSaving(false)
-      setDocNotice('Could not read that file. Try again or choose another file.')
-      return
-    }
-
-    addPatientDocument({
-      patientId: patient.id,
-      title: docTitle.trim(),
-      category: docCategory,
-      fileName: docFile.name,
-      fileSize: formatBytes(docFile.size),
-      mimeType: docFile.type,
-      url,
-      contentBase64: base64Data,
-    })
-    setDocSaving(false)
-    setDocNotice(`Document "${docTitle.trim()}" uploaded successfully and securely archived.`)
-    closeUpload()
-    setTab('documents')
-  }
-
-  const downloadDoc = async (doc: PatientDocumentRecord) => {
-    try {
-      // 1. If direct cloud signed URL or data URL exists
-      if (doc.signedUrl || (doc.url && (doc.url.startsWith('https://') || doc.url.startsWith('http://') || doc.url.startsWith('data:')))) {
-        const downloadTarget = doc.signedUrl || doc.url!
-        if (downloadTarget.startsWith('data:')) {
-          const a = document.createElement('a')
-          a.href = downloadTarget
-          a.download = doc.fileName
-          a.click()
-          return
-        }
-      }
-
-      // 2. Fetch authenticated blob through fetch with auth header
-      const downloadPath = doc.downloadUrl || `/patients/${encodeURIComponent(patient?.id || doc.patientId)}/documents/${encodeURIComponent(doc.id)}/download`
-      const token = browserSessionStorage.getItem('docmatrix_auth_token') || browserLocalStorage.getItem('docmatrix_auth_token')
-      const baseUrl = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000'
-      const cleanUrl = `${baseUrl.replace(/\/+$/, '')}${downloadPath.startsWith('/') ? downloadPath : `/${downloadPath}`}`
-      const httpFetch = (globalThis as any)['fetch']
-      const res = await httpFetch(cleanUrl, {
-        signal: AbortSignal.timeout(120000),
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      if (!res.ok) throw new Error('Download failed with status ' + res.status)
-      const blob = await res.blob()
-      const blobUrl = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = blobUrl
-      a.download = doc.fileName
-      a.click()
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 15000)
-    } catch (err) {
-      console.error('Download failed:', err)
-      if (doc.url) window.open(doc.url, '_blank')
-    }
-  }
-
-  const handleDeleteDoc = async (doc: PatientDocumentRecord) => {
-    if (!window.confirm(`Are you sure you want to delete "${doc.title}"? This cannot be undone.`)) return
-    try {
-      await deletePatientDocument(patient!.id, doc.id)
-      setDocNotice(`Document "${doc.title}" deleted successfully.`)
-    } catch (err: any) {
-      setDocNotice('Failed to delete document: ' + (err?.message || 'Server error'))
-    }
-  }
-
   // Escape closes whichever dialog is open
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       setEditModalOpen(false)
-      setUploadModalOpen(false)
       setConsentModalOpen(false)
-      setPreviewDoc(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -1144,7 +1021,7 @@ export const PatientProfilePage: React.FC = () => {
             data-testid="tab-documents-main"
           >
             <FileText size={15} />
-            <span>Documents</span>
+            <span>Documents &amp; Imaging</span>
             {documentsTotalCount > 0 && (
               <span className="pat-tab-badge">{documentsTotalCount}</span>
             )}
@@ -1913,7 +1790,7 @@ export const PatientProfilePage: React.FC = () => {
                 data-testid="tab-documents"
               >
                 <FileText size={14} />
-                <span>X-rays & Documents</span>
+                <span>Documents &amp; Imaging</span>
                 {patientDocs.length > 0 && (
                   <span className="pat-subtab-badge">{patientDocs.length}</span>
                 )}
@@ -1935,112 +1812,7 @@ export const PatientProfilePage: React.FC = () => {
               </button>
             </div>
 
-            {documentsSubTab === 'documents' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: 700, color: 'var(--text-main, #0f172a)' }}>
-                  Diagnostic Records & Radiographs
-                </h3>
-                <p style={{ margin: 0, color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
-                  Intraoral RVG scans, panoramic radiographs (OPG), photos, and lab records.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setUploadModalOpen(true)}
-                className="pat-btn pat-btn-primary"
-              >
-                <Upload size={13} /> Upload Document
-              </button>
-            </div>
-
-            {docNotice && (
-              <p className="pat-notice" role="status">
-                {docNotice}
-                <button type="button" onClick={() => setDocNotice('')} aria-label="Dismiss"><X size={13} /></button>
-              </p>
-            )}
-
-            {patientDocs.length > 0 ? (
-              <div className="pat-docs-grid">
-                {patientDocs.map((doc) => (
-                  <div key={doc.id} className="pat-doc-card">
-                    <div className="pat-doc-info">
-                      {doc.url && doc.url.startsWith('data:image') ? (
-                        <img className="pat-doc-thumb" src={doc.url} alt="" />
-                      ) : (
-                        <span className="pat-doc-icon">
-                          <FileText size={20} />
-                        </span>
-                      )}
-                      <div className="pat-doc-text">
-                        <h4>{doc.title}</h4>
-                        <p>{doc.category} · {doc.uploadDate}</p>
-                        <p style={{ fontSize: '11px', color: 'var(--text-muted, #94a3b8)', marginTop: '2px' }}>
-                          {doc.fileName} ({doc.fileSize})
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="pat-doc-actions">
-                      {doc.url ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => setPreviewDoc(doc)}
-                            className="pat-action-btn"
-                            style={{ padding: '4px 10px', fontSize: '12px' }}
-                            title="Preview Document"
-                          >
-                            <Eye size={12} /> View
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => downloadDoc(doc)}
-                            className="pat-action-btn"
-                            style={{ padding: '4px 10px', fontSize: '12px' }}
-                            title="Download File"
-                          >
-                            <FileDown size={12} /> Download
-                          </button>
-                        </>
-                      ) : (
-                        <span className="pat-muted-sm" title="This record was logged without an attached file">No file attached</span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteDoc(doc)}
-                        className="pat-action-btn"
-                        style={{ padding: '4px 10px', fontSize: '12px', color: '#dc2626', borderColor: '#fca5a5' }}
-                        title="Delete Document"
-                      >
-                        <Trash2 size={12} /> Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ padding: '40px 20px', textAlign: 'center', background: 'var(--surface-subtle, #f8fafc)', borderRadius: '10px', border: '1px solid var(--line, #e2e8f0)' }}>
-                <FileText size={28} style={{ color: 'var(--text-muted, #94a3b8)', marginBottom: '8px' }} />
-                <h4 style={{ margin: '0 0 4px 0', fontSize: '15px' }}>No documents uploaded yet</h4>
-                <p style={{ margin: '0 0 12px 0', color: 'var(--text-muted, #64748b)', fontSize: '13px' }}>
-                  Upload digital radiographs, scan reports, or treatment consent files.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setUploadModalOpen(true)}
-                  className="pat-btn pat-btn-secondary"
-                  style={{ padding: '6px 14px', fontSize: '12.5px' }}
-                >
-                  <Upload size={13} /> Add First Document
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+            {documentsSubTab === 'documents' && patient && <PatientDocumentsPanel key={patient.backendId || patient.id} patientId={patient.backendId || patient.id} />}
 
             {documentsSubTab === 'consents' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -2930,96 +2702,6 @@ export const PatientProfilePage: React.FC = () => {
         </div>
       )}
 
-      {/* ── UPLOAD DOCUMENT MODAL ── */}
-      {uploadModalOpen && (
-        <div className="pat-modal-overlay" onClick={closeUpload}>
-          <div className="pat-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="pat-modal-header">
-              <h3>Upload Document</h3>
-              <button
-                type="button"
-                onClick={closeUpload}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #64748b)' }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleUploadDoc}>
-              <div className="pat-modal-body">
-                <div className="pat-form-group">
-                  <label>Document Title</label>
-                  <input
-                    className="pat-form-input"
-                    placeholder="e.g. Post-obturation RVG #46"
-                    value={docTitle}
-                    onChange={(e) => setDocTitle(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="pat-form-group">
-                  <label>Category</label>
-                  <select
-                    className="pat-form-select"
-                    value={docCategory}
-                    onChange={(e) => setDocCategory(e.target.value as PatientDocumentRecord['category'])}
-                  >
-                    {!intakeDocumentsOnly && <>
-                    <option value="Radiology">Radiology (X-Ray / OPG)</option>
-                    <option value="Intraoral Photo">Intraoral Photo</option>
-                    <option value="Lab Report">Lab Report</option>
-                    <option value="Prescription">Prescription</option>
-                    <option value="Other">Other</option>
-                    </>}
-                    <option value="Identification">Identification</option>
-                    <option value="Referral">Referral</option>
-                    <option value="Consent">Consent Record</option>
-                  </select>
-                </div>
-
-                <label
-                  className={`pat-dropzone${docFile ? ' has-file' : ''}`}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => { e.preventDefault(); pickDocFile(e.dataTransfer.files?.[0] || null) }}
-                >
-                  <input
-                    type="file"
-                    accept="image/*,application/pdf,.dcm,application/dicom"
-                    onChange={(e) => pickDocFile(e.target.files?.[0] || null)}
-                  />
-                  <Upload size={22} />
-                  {docFile ? (
-                    <>
-                      <strong>{docFile.name}</strong>
-                      <span>{formatBytes(docFile.size)} · click to choose a different file</span>
-                    </>
-                  ) : (
-                    <>
-                      <strong>Choose a file or drop it here</strong>
-                      <span>X-ray, photo, PDF or DICOM</span>
-                    </>
-                  )}
-                </label>
-              </div>
-
-              <div className="pat-modal-footer">
-                <button
-                  type="button"
-                  className="pat-btn pat-btn-secondary"
-                  onClick={closeUpload}
-                >
-                  Cancel
-                </button>
-                <button type="submit" className="pat-btn pat-btn-primary" disabled={!docFile || !docTitle.trim() || docSaving}>
-                  {docSaving ? 'Saving…' : 'Upload'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* ── ADD CONSENT RECORD MODAL ── */}
       {consentModalOpen && (
         <div className="pat-modal-overlay" onClick={() => setConsentModalOpen(false)}>
@@ -3242,38 +2924,6 @@ export const PatientProfilePage: React.FC = () => {
           plan={printingPlan}
           onClose={() => setPrintingPlan(null)}
         />
-      )}
-
-      {/* ── DOCUMENT PREVIEW ── */}
-      {previewDoc && previewDoc.url && (
-        <div className="pat-modal-overlay" onClick={() => setPreviewDoc(null)}>
-          <div className="pat-modal-content pat-preview" role="dialog" aria-modal="true" aria-label={previewDoc.title} onClick={(e) => e.stopPropagation()}>
-            <div className="pat-modal-header">
-              <h3>{previewDoc.title}</h3>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button type="button" className="pat-btn pat-btn-secondary pat-btn-sm" onClick={() => downloadDoc(previewDoc)}>
-                  <FileDown size={13} /> Download
-                </button>
-                <button type="button" className="pat-btn pat-btn-secondary pat-btn-sm" onClick={() => setPreviewDoc(null)} aria-label="Close">
-                  <X size={14} />
-                </button>
-              </div>
-            </div>
-            <div className="pat-preview-body">
-              {/^data:image|\.(png|jpe?g|gif|webp|bmp)$/i.test(previewDoc.signedUrl || previewDoc.url) || /\.(png|jpe?g|gif|webp|bmp)$/i.test(previewDoc.fileName) ? (
-                <img src={previewDoc.signedUrl || previewDoc.url} alt={previewDoc.title} />
-              ) : /^data:application\/pdf|\.pdf$/i.test(previewDoc.signedUrl || previewDoc.url) || /\.pdf$/i.test(previewDoc.fileName) ? (
-                <iframe src={previewDoc.signedUrl || previewDoc.url} title={previewDoc.title} />
-              ) : (
-                <div className="pat-empty">
-                  <FileText size={28} />
-                  <h4>No preview for this file type</h4>
-                  <p>{previewDoc.fileName} · use Download to open it in your imaging software.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
       )}
 
       {openInvoice && <InvoiceDrawer invoice={openInvoice} patient={patient} onClose={() => setOpenInvoiceId(null)} onDone={() => setOpenInvoiceId(null)} />}
