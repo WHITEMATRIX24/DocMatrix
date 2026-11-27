@@ -68,6 +68,13 @@
   padding: 0 28px;
   background: var(--surface, #ffffff);
   border-bottom: 1px solid var(--line, #e2e8f0);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.appointments-workspace-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .appointments-workspace-tab {
@@ -81,6 +88,8 @@
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
   transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, width 0.15s ease;
 }
@@ -128,6 +137,7 @@
 .calendar-date-nav {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -3134,6 +3144,20 @@ select.status-select-pill {
 }
 
 @media (max-width: 768px) {
+  .appointments-workspace-header {
+    padding: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .appointments-workspace-tabs {
+    padding: 0 12px;
+  }
+
+  .appointments-workspace-content {
+    padding: 16px 12px;
+  }
+
   .appointment-detail-panel .appointment-detail-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

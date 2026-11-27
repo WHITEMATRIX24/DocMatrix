@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import {
   useClinicData,
+  dismissSyncError,
   registerWalkIn,
   updateAppointmentStatus,
   generateBookingRef,
@@ -40,6 +41,7 @@ import {
   CallInToast,
   type CallInToastData,
 } from '@/components/shared/CallInToast'
+import { InlineAlertBanner } from '@/components/shared/InlineAlertBanner'
 
 export const LiveQueuePage: React.FC = () => {
   const { appointments, patients } = useClinicData()
@@ -201,7 +203,13 @@ export const LiveQueuePage: React.FC = () => {
 
   return (
     <div className="live-queue-page" data-testid="feature-page-appt.queue">
-      {actionError && <p role="alert">{actionError}</p>}
+      <InlineAlertBanner
+        message={actionError}
+        onDismiss={() => {
+          setActionError('')
+          dismissSyncError()
+        }}
+      />
       {/* Top Banner & Stats */}
       <div className="queue-summary-banner">
         <div className="queue-metric-card">
