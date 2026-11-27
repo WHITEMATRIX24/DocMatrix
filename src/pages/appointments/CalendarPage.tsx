@@ -48,6 +48,7 @@ import {
   type InvoiceRecord
 } from '@/services/clinicStore'
 import { autoGenerateInvoiceForConsultation } from '@/services/billingAutoInvoice'
+import { fetchAndSyncClinicStaff, useClinicStaff } from '@/services/clinicStaffStore'
 import { sendCallInWhatsAppMessage, validateWhatsAppPhone } from '@/services/whatsappService'
 import { InvoiceDrawer } from '@/pages/billing/BillingShared'
 import {
@@ -70,6 +71,10 @@ export const CalendarPage: React.FC = () => {
   const walkInAttempt = useRef(generateBookingRef())
   const [showReschedulePicker, setShowReschedulePicker] = useState(false)
   const { appointments, patients } = useClinicData()
+  useClinicStaff()
+  useEffect(() => {
+    void fetchAndSyncClinicStaff()
+  }, [])
   const clinicToday = useClinicToday()
   const canEditSchedule = !isAuthenticatedClinic() || canClinic(getPermissionUser(), 'appointment.schedule')
   const [activeInvoice, setActiveInvoice] = useState<InvoiceRecord | null>(null)

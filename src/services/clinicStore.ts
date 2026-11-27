@@ -1,6 +1,6 @@
 import { browserLocalStorage, browserSessionStorage } from '@/services/browserStorage';
 import { verifiedBirthDate } from './patientImport'
-import { isClinicalStaffMember } from './clinicStaffStore'
+import { isClinicalStaffMember, subscribeStaff } from './clinicStaffStore'
 import { canClinic, getPermissionUser } from './permissions'
 import { useSyncExternalStore } from 'react'
 import { loadFromStorage, saveToStorage, removeFromStorage, STORAGE_KEYS } from './storageService'
@@ -1536,6 +1536,11 @@ export const subscribeClinicData = (listener: () => void) => {
     listeners.delete(listener);
   };
 };
+
+// Re-render clinic views (e.g. Calendar, Live Queue, New Appointment) when staff/practitioners finish syncing
+subscribeStaff(() => {
+  emitChange();
+});
 
 export const getClinicSnapshot = () => cachedSnapshot;
 export const getInvoices = (): InvoiceRecord[] => cachedSnapshot.invoices;
