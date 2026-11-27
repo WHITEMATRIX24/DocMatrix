@@ -352,7 +352,24 @@ export class AppointmentsService {
     await this.assertSlot(tx, clinic, { startTime, endTime, doctorId: dto.doctorId ?? existing.doctorId, chair: dto.chair ?? existing.chair, priority: dto.priority ?? existing.priority, status: this.parseStatus(dto.status ?? existing.status) }, id);
 
     if (dto.status && ['IN_PROGRESS','COMPLETED'].includes(this.parseStatus(dto.status))) {
-      if (nextStatus === 'in-progress' && existing.doctorId && await tx.appointment.findFirst({ where: { clinicId, doctorId: existing.doctorId, status: 'IN_PROGRESS', id: { not: id } } })) throw new BadRequestException('This doctor already has a consultation in progress.');
+      if (nextStatus === 'in-progress' && existing.doctorId) {
+        const appointmentDate = localParts(startTime, clinic.timezone).date;
+        const { startOfDay, endOfDay } = this.parseDateRange(appointmentDate, clinic.timezone);
+        const activeConsultation = await tx.appointment.findFirst({
+          where: {
+            clinicId,
+            doctorId: existing.doctorId,
+            status: AppointmentStatus.IN_PROGRESS,
+            id: { not: id },
+            startTime: { gte: startOfDay, lte: endOfDay },
+          },
+          include: { patient: { select: { firstName: true, lastName: true } } },
+        });
+        if (activeConsultation) {
+          const patientName = activeConsultation.patient ? `${activeConsultation.patient.firstName} ${activeConsultation.patient.lastName}`.trim() : 'another patient';
+          throw new BadRequestException(`This doctor already has an active consultation in progress with ${patientName}.`);
+        }
+      }
       const record = await tx.appointment.findFirst({ where: { id, clinicId }, select: { patientId: true, treatmentType: true } });
       if (record) await surgeryConsentPolicy(tx, clinicId, record.patientId, { procedureName: dto.treatmentType || record.treatmentType || '' });
     }
